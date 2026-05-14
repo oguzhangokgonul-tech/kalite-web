@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="mb-4">
+    <h1 class="h3 mb-1">{{ title }}</h1>
+    <p class="text-secondary mb-0">Kullanıcı bilgilerini ve aksiyon yetkilerini tanımlayın.</p>
+  </div>
+
+  <form class="bg-white border rounded p-4" method="post">
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="full_name">Ad Soyad</label>
+        <input class="form-control" id="full_name" name="full_name" value="{{ user.full_name if user else '' }}" required maxlength="160">
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="username">Kullanıcı adı</label>
+        <input class="form-control" id="username" name="username" value="{{ user.username if user else '' }}" required maxlength="80">
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="title">Görev</label>
+        <input class="form-control" id="title" name="title" value="{{ user.title if user else '' }}" maxlength="160">
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="password">Şifre</label>
+        <input class="form-control" id="password" name="password" type="password" {% if not user %}required{% endif %}>
+        {% if user %}
+          <div class="form-text">Şifreyi değiştirmek istemiyorsanız boş bırakın.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="form-check">
+          <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if not user or user.is_active %}checked{% endif %}>
+          <label class="form-check-label" for="is_active">Aktif kullanıcı</label>
+        </div>
+      </div>
+      {% set permissions = [
+        ("can_create_actions", "Aksiyon ekleyebilir"),
+        ("can_edit_actions", "Aksiyon düzenleyebilir ve tüm aksiyonları kapatabilir"),
+        ("can_delete_actions", "Aksiyon silebilir"),
+        ("can_comment_assigned_actions", "Kendine atanmış aksiyonlara yorum yapabilir"),
+        ("can_close_assigned_actions", "Kendine atanmış aksiyonları kapatabilir"),
+        ("can_manage_users", "Kullanıcı ve yetki yönetebilir")
+      ] %}
+      {% for field, label in permissions %}
+        <div class="col-12 col-md-6">
+          <div class="form-check">
+            <input class="form-check-input" id="{{ field }}" name="{{ field }}" type="checkbox" {% if user and user|attr(field) %}checked{% endif %}>
+            <label class="form-check-label" for="{{ field }}">{{ label }}</label>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="d-flex flex-column flex-sm-row gap-2 mt-4">
+      <button class="btn btn-primary" type="submit">Kaydet</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">Vazgeç</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,51 @@
+body {
+    background: #f5f7fb;
+    color: #172033;
+}
+
+.navbar-brand {
+    color: #172033;
+}
+
+.metric-box {
+    background: #ffffff;
+    border: 1px solid #dee5ef;
+    border-radius: 8px;
+    padding: 18px;
+}
+
+.metric-box strong {
+    display: block;
+    font-size: 2rem;
+    line-height: 1;
+    margin-top: 8px;
+}
+
+.metric-label {
+    color: #637083;
+    font-size: 0.9rem;
+}
+
+.metric-box-success {
+    border-left: 5px solid #198754;
+}
+
+.metric-box-danger {
+    border-left: 5px solid #dc3545;
+}
+
+.table td,
+.table th {
+    white-space: nowrap;
+}
+
+.table td:first-child {
+    min-width: 240px;
+    white-space: normal;
+}
+
+@media (max-width: 576px) {
+    .metric-box strong {
+        font-size: 1.6rem;
+    }
+}

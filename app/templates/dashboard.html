@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Dashboard</h1>
+      <p class="text-secondary mb-0">Kalite yönetim sistemi aksiyon takip ekranı</p>
+    </div>
+    {% if g.current_user.can_create_actions %}
+      <a class="btn btn-primary align-self-lg-start" href="{{ url_for('main.create_action') }}">Yeni aksiyon ekle</a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="metric-box">
+        <span class="metric-label">Toplam Aksiyon</span>
+        <strong>{{ total_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box metric-box-success">
+        <span class="metric-label">Tamamlanan</span>
+        <strong>{{ completed_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box metric-box-danger">
+        <span class="metric-label">Geciken Aksiyon</span>
+        <strong>{{ delayed_count }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <form class="bg-white border rounded p-3 mb-3" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="search">Arama</label>
+        <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Aksiyon, açıklama, sorumlu">
+      </div>
+      <div class="col-12 col-md-4 col-lg-2">
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4 col-lg-3">
+        <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Tümü</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if filters.responsible_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4 col-lg-2">
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
+          <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
+          <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-2 d-flex gap-2">
+        <button class="btn btn-primary flex-fill" type="submit">Filtrele</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Temizle</a>
+      </div>
+    </div>
+  </form>
+
+  <div class="table-responsive bg-white border rounded">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Aksiyon başlığı</th>
+          <th>Departman</th>
+          <th>Aksiyon sorumlusu</th>
+          <th>Termin</th>
+          <th>Durum</th>
+          <th>Gecikme günü</th>
+          <th>Dosya</th>
+          <th class="text-end">İşlemler</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for action in actions %}
+          <tr class="{% if action.is_completed %}table-success{% elif action.delay_days > 0 %}table-danger{% endif %}">
+            <td>
+              <a class="fw-semibold text-decoration-none" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.title }}</a>
+              {% if action.description %}
+                <small class="text-secondary">{{ action.description }}</small>
+              {% endif %}
+            </td>
+            <td>{{ action.department }}</td>
+            <td>{{ action.responsible_owner }}</td>
+            <td>{{ action.termin_date.strftime("%d.%m.%Y") }}</td>
+            <td>
+              {% if action.is_completed %}
+                <span class="badge text-bg-success">Tamamlandı</span>
+              {% elif action.delay_days > 0 %}
+                <span class="badge text-bg-danger">Gecikti</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Açık</span>
+              {% endif %}
+            </td>
+            <td>{{ action.delay_days }}</td>
+            <td>
+              {% if action.file_original_name %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_action_file', action_id=action.id) }}">İndir</a>
+              {% else %}
+                <span class="text-secondary">Yok</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="d-flex flex-wrap justify-content-end gap-2">
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}">Detay</a>
+                {% if not action.is_completed and can_complete_action(action) %}
+                  <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                    <button class="btn btn-sm btn-outline-success" type="submit">Tamamla</button>
+                  </form>
+                {% endif %}
+                {% if g.current_user.can_edit_actions %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a>
+                {% endif %}
+                {% if g.current_user.can_delete_actions %}
+                  <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_action', action_id=action.id) }}">Sil</a>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td class="text-center py-5 text-secondary" colspan="8">Henüz aksiyon kaydı yok.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

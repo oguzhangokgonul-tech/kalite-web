@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Kayıt Sil - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="bg-white border rounded p-4">
+    <h1 class="h4 mb-3">Kayıt silinsin mi?</h1>
+    <p class="text-secondary">
+      <strong>{{ action.title }}</strong> adlı aksiyon kaydı kalıcı olarak silinecek.
+      {% if action.file_original_name %}
+        Bu kayda bağlı <strong>{{ action.file_original_name }}</strong> dosyası da silinecek.
+      {% endif %}
+    </p>
+    <form class="d-flex flex-column flex-sm-row gap-2" method="post">
+      <button class="btn btn-danger" type="submit">Sil</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Vazgeç</a>
+    </form>
+  </div>
+{% endblock %}

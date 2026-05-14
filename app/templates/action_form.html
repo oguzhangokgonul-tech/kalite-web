@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="mb-4">
+    <h1 class="h3 mb-1">{{ title }}</h1>
+    <p class="text-secondary mb-0">Aksiyon detaylarını, sorumlusunu ve termin tarihini girin.</p>
+  </div>
+
+  <form class="bg-white border rounded p-4" method="post" enctype="multipart/form-data">
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="title">Aksiyon başlığı</label>
+        <input class="form-control" id="title" name="title" value="{{ action.title if action else '' }}" required maxlength="160">
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if action and action.responsible_user_id == user.id %}selected{% endif %}>
+              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="description">Açıklama</label>
+        <textarea class="form-control" id="description" name="description" rows="4">{{ action.description if action else '' }}</textarea>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department" required>
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if action and action.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="termin_date">Termin</label>
+        <input class="form-control" id="termin_date" name="termin_date" type="date" value="{{ action.termin_date.isoformat() if action else today }}" required>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="action_file">Aksiyon dosyası</label>
+        <input class="form-control" id="action_file" name="action_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx">
+        <div class="form-text">PDF, Word veya Excel dosyası yükleyebilirsiniz. En fazla 25 MB.</div>
+        {% if action and action.file_original_name %}
+          <div class="mt-2">
+            Mevcut dosya:
+            <a href="{{ url_for('main.download_action_file', action_id=action.id) }}">{{ action.file_original_name }}</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="d-flex flex-column flex-sm-row gap-2 mt-4">
+      <button class="btn btn-primary" type="submit">Kaydet</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Vazgeç</a>
+    </div>
+  </form>
+{% endblock %}

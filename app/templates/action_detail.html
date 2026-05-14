@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action.title }} - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">{{ action.title }}</h1>
+      <p class="text-secondary mb-0">{{ action.responsible_owner }} için atanmış aksiyon</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-self-lg-start">
+      {% if can_complete and not action.is_completed %}
+        <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+          <button class="btn btn-success" type="submit">Tamamla</button>
+        </form>
+      {% endif %}
+      {% if g.current_user.can_edit_actions %}
+        <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="metric-box">
+        <span class="metric-label">Departman</span>
+        <strong class="fs-4">{{ action.department }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box">
+        <span class="metric-label">Termin</span>
+        <strong class="fs-4">{{ action.termin_date.strftime("%d.%m.%Y") }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box {% if action.is_completed %}metric-box-success{% elif action.delay_days > 0 %}metric-box-danger{% endif %}">
+        <span class="metric-label">Gecikme Günü</span>
+        <strong>{{ action.delay_days }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box {% if action.is_completed %}metric-box-success{% endif %}">
+        <span class="metric-label">Durum</span>
+        <strong class="fs-4">{{ "Tamamlandı" if action.is_completed else "Açık" }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white border rounded p-4 mb-4">
+    <h2 class="h5 mb-3">Açıklama</h2>
+    <p class="mb-0">{{ action.description or "Açıklama girilmemiş." }}</p>
+    {% if action.file_original_name %}
+      <hr>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosyayı indir</a>
+    {% endif %}
+  </div>
+
+  {% if can_reassign and not action.is_completed %}
+    <div class="bg-white border rounded p-4 mb-4">
+      <h2 class="h5 mb-3">Aksiyon Sorumlusunu Değiştir</h2>
+      <form class="row g-3 align-items-end" method="post" action="{{ url_for('main.reassign_action', action_id=action.id) }}">
+        <div class="col-12 col-lg-8">
+          <label class="form-label" for="responsible_user_id">Yeni aksiyon sorumlusu</label>
+          <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if action.responsible_user_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-lg-4">
+          <button class="btn btn-primary w-100" type="submit">Sorumluyu Güncelle</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
+  <div class="bg-white border rounded p-4">
+    <h2 class="h5 mb-3">Yorumlar</h2>
+    {% if action.comments %}
+      <div class="vstack gap-3 mb-4">
+        {% for comment in action.comments %}
+          <div class="border rounded p-3">
+            <div class="d-flex flex-column flex-sm-row justify-content-between gap-1 mb-2">
+              <strong>{{ comment.user.full_name }}</strong>
+              <small class="text-secondary">{{ comment.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+            </div>
+            <p class="mb-0">{{ comment.comment }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-secondary">Henüz yorum yok.</p>
+    {% endif %}
+
+    {% if can_comment %}
+      <form method="post" action="{{ url_for('main.add_action_comment', action_id=action.id) }}">
+        <label class="form-label" for="comment">Yorum ekle</label>
+        <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
+        <button class="btn btn-primary mt-3" type="submit">Yorum Kaydet</button>
+      </form>
+    {% endif %}
+  </div>
+{% endblock %}
