@@ -113,12 +113,19 @@ MAIL_ENABLED=true
 MAIL_SERVER=smtp_adresiniz
 MAIL_PORT=587
 MAIL_USE_TLS=true
+MAIL_USE_SSL=false
 MAIL_USERNAME=mail_kullanici_adiniz
 MAIL_PASSWORD=mail_sifreniz_veya_app_password
 MAIL_DEFAULT_SENDER=mail_kullanici_adiniz
 ```
 
 SMTP bilgileri girilmezse aksiyon işlemleri çalışmaya devam eder, sadece mail gönderilmez.
+
+Render free servislerde klasik SMTP portları bloke olabilir. Gmail `smtp.gmail.com:587` ile `[Errno 101] Network is unreachable` alırsanız ayarlarınız doğru olsa bile Render SMTP çıkışını engelliyor olabilir. Bu durumda seçenekler:
+
+- Render servisini paid instance'a almak
+- SMTP2GO gibi `2525` portunu destekleyen bir servis kullanmak
+- HTTP API ile çalışan Resend, SendGrid, Mailgun gibi bir servis kullanmak
 
 Varsayılan e-posta tanımları:
 

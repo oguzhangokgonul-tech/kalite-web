@@ -28,6 +28,13 @@ class Config:
         "yes",
         "on",
     }
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", 20))
     MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "true").lower() in {
         "1",
         "true",

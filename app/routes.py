@@ -310,7 +310,7 @@ def login():
         password = request.form.get("password", "")
         user = User.query.filter(
             or_(
-                User.username == identity,
+                db.func.lower(User.username) == identity,
                 db.func.lower(User.full_name) == identity,
             )
         ).first()

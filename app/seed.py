@@ -35,11 +35,42 @@ DEFAULT_USERS = (
             "can_manage_users": False,
         },
     },
+    {
+        "username": "seyma",
+        "full_name": "Şeyma İnci Göçmen",
+        "title": "Proje Sorumlusu",
+        "email": "seymainci@erprefabrik.com.tr",
+        "password": "kysseyma",
+        "permissions": {
+            "can_create_actions": False,
+            "can_edit_actions": False,
+            "can_delete_actions": False,
+            "can_comment_assigned_actions": True,
+            "can_close_assigned_actions": True,
+            "can_manage_users": False,
+        },
+    },
+    {
+        "username": "turgut",
+        "full_name": "Turgut Özal Pekyılmaz",
+        "title": "Şantiye Peygamberi",
+        "email": "turgutpekyilmaz@erprefabrik.com.tr",
+        "password": "kysturgut",
+        "permissions": {
+            "can_create_actions": False,
+            "can_edit_actions": False,
+            "can_delete_actions": False,
+            "can_comment_assigned_actions": True,
+            "can_close_assigned_actions": True,
+            "can_manage_users": False,
+        },
+    },
 )
 
 USER_EMAILS = {
     "oguzhan": "oguzhangokgonul@erprefabrik.com.tr",
-    "seyma": "oguzhangokgonul@gmail.com",
+    "seyma": "seymainci@erprefabrik.com.tr",
+    "turgut": "turgutpekyilmaz@erprefabrik.com.tr",
 }
 
 

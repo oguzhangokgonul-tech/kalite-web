@@ -29,8 +29,10 @@ def send_email(to_address, subject, body):
     username = current_app.config.get("MAIL_USERNAME")
     password = current_app.config.get("MAIL_PASSWORD")
 
-    with smtplib.SMTP(server, port, timeout=20) as smtp:
-        if current_app.config.get("MAIL_USE_TLS"):
+    smtp_class = smtplib.SMTP_SSL if current_app.config.get("MAIL_USE_SSL") else smtplib.SMTP
+
+    with smtp_class(server, port, timeout=current_app.config["MAIL_TIMEOUT"]) as smtp:
+        if current_app.config.get("MAIL_USE_TLS") and not current_app.config.get("MAIL_USE_SSL"):
             smtp.starttls()
         if username and password:
             smtp.login(username, password)

@@ -34,8 +34,15 @@ def upgrade():
     op.execute(
         """
         UPDATE users
-        SET email = 'oguzhangokgonul@gmail.com'
+        SET email = 'seymainci@erprefabrik.com.tr'
         WHERE username = 'seyma'
+        """
+    )
+    op.execute(
+        """
+        UPDATE users
+        SET email = 'turgutpekyilmaz@erprefabrik.com.tr'
+        WHERE username = 'turgut'
         """
     )
 
