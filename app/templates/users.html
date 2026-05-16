@@ -17,6 +17,7 @@
         <tr>
           <th>Ad Soyad</th>
           <th>Kullanıcı Adı</th>
+          <th>E-posta</th>
           <th>Görev</th>
           <th>Durum</th>
           <th class="text-end">İşlemler</th>
@@ -27,6 +28,7 @@
           <tr>
             <td>{{ user.full_name }}</td>
             <td>{{ user.username }}</td>
+            <td>{{ user.email or "-" }}</td>
             <td>{{ user.title or "-" }}</td>
             <td>
               <span class="badge text-bg-{{ 'success' if user.is_active else 'secondary' }}">
@@ -39,7 +41,7 @@
           </tr>
         {% else %}
           <tr>
-            <td class="text-center py-5 text-secondary" colspan="5">Henüz kullanıcı yok.</td>
+            <td class="text-center py-5 text-secondary" colspan="6">Henüz kullanıcı yok.</td>
           </tr>
         {% endfor %}
       </tbody>

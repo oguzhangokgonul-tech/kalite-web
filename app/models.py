@@ -23,6 +23,7 @@ class User(db.Model):
     username = db.Column(db.String(80), nullable=False, unique=True)
     full_name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     can_create_actions = db.Column(db.Boolean, nullable=False, default=False)

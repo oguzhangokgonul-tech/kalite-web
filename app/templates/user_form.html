@@ -23,6 +23,10 @@
         <input class="form-control" id="title" name="title" value="{{ user.title if user else '' }}" maxlength="160">
       </div>
       <div class="col-12 col-lg-6">
+        <label class="form-label" for="email">E-posta</label>
+        <input class="form-control" id="email" name="email" type="email" value="{{ user.email if user and user.email else '' }}" maxlength="255">
+      </div>
+      <div class="col-12 col-lg-6">
         <label class="form-label" for="password">Şifre</label>
         <input class="form-control" id="password" name="password" type="password" {% if not user %}required{% endif %}>
         {% if user %}

@@ -104,6 +104,29 @@ Render Shell üzerinden kullanıcıları elle yenilemek gerekirse:
 flask --app run.py seed-users
 ```
 
+## Mail Ayarları
+
+Aksiyon açılınca ve kapanınca mail gönderimi için Render Environment bölümüne SMTP bilgileri eklenmelidir:
+
+```text
+MAIL_ENABLED=true
+MAIL_SERVER=smtp_adresiniz
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USERNAME=mail_kullanici_adiniz
+MAIL_PASSWORD=mail_sifreniz_veya_app_password
+MAIL_DEFAULT_SENDER=mail_kullanici_adiniz
+```
+
+SMTP bilgileri girilmezse aksiyon işlemleri çalışmaya devam eder, sadece mail gönderilmez.
+
+Varsayılan e-posta tanımları:
+
+```text
+oguzhan -> oguzhangokgonul@erprefabrik.com.tr
+seyma -> oguzhangokgonul@gmail.com
+```
+
 ## Geçici Online Paylaşım
 
 Kısa süreli dış erişim için:

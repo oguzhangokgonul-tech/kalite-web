@@ -6,7 +6,7 @@
   <div class="bg-white border rounded p-4">
     <h1 class="h4 mb-3">Kayıt silinsin mi?</h1>
     <p class="text-secondary">
-      <strong>{{ action.title }}</strong> adlı aksiyon kaydı kalıcı olarak silinecek.
+      <strong>#{{ action.id }} {{ action.title }}</strong> adlı aksiyon kaydı kalıcı olarak silinecek.
       {% if action.file_original_name %}
         Bu kayda bağlı <strong>{{ action.file_original_name }}</strong> dosyası da silinecek.
       {% endif %}
