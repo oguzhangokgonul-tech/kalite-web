@@ -260,7 +260,7 @@ def flash_mail_result(sent, recipient):
     if sent:
         flash(f"Bilgilendirme maili gönderildi: {recipient}", "success")
     elif recipient:
-        flash("Mail gönderilemedi. SMTP ayarlarını kontrol edin.", "warning")
+        flash("Mail gönderilemedi. Resend veya SMTP ayarlarını kontrol edin.", "warning")
     else:
         flash("Aksiyon sorumlusunun e-posta adresi olmadığı için mail gönderilmedi.", "warning")
 

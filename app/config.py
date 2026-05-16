@@ -41,3 +41,5 @@ class Config:
         "yes",
         "on",
     }
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    RESEND_FROM = os.environ.get("RESEND_FROM", "Aksiyon Takip <onboarding@resend.dev>")

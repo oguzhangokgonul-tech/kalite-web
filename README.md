@@ -106,6 +106,30 @@ flask --app run.py seed-users
 
 ## Mail Ayarları
 
+Aksiyon mailleri için önerilen yöntem Resend HTTP API'dir. Render Environment bölümüne şu değerleri ekleyin:
+
+```text
+MAIL_ENABLED=true
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM=Aksiyon Takip <onboarding@resend.dev>
+```
+
+Resend'de kendi domaininiz doğrulandıysa `RESEND_FROM` değerini domaininizle kullanın:
+
+```text
+RESEND_FROM=Aksiyon Takip <aksiyon@erprefabrik.com.tr>
+```
+
+Not: Resend'in `onboarding@resend.dev` test adresi yalnızca Resend hesabınıza ait e-posta adresine gönderim için kullanılabilir. Diğer kullanıcılara göndermek için Resend'de domain doğrulamanız gerekir.
+
+Mail ayarlarını Render Shell üzerinden test etmek için:
+
+```bash
+flask --app run.py test-mail oguzhangokgonul@gmail.com
+```
+
+SMTP kullanmak isterseniz aşağıdaki ayarlar da desteklenir.
+
 Aksiyon açılınca ve kapanınca mail gönderimi için Render Environment bölümüne SMTP bilgileri eklenmelidir:
 
 ```text
@@ -131,7 +155,9 @@ Varsayılan e-posta tanımları:
 
 ```text
 oguzhan -> oguzhangokgonul@erprefabrik.com.tr
-seyma -> oguzhangokgonul@gmail.com
+seyma -> seymainci@erprefabrik.com.tr
+turgut -> turgutpekyilmaz@erprefabrik.com.tr
+ufuk -> e-posta tanımlı değil
 ```
 
 ## Geçici Online Paylaşım
