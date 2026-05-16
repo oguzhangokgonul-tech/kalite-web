@@ -1,9 +1,11 @@
 from flask import Flask
+from flask.cli import with_appcontext
 from pathlib import Path
 
 from .config import Config
 from .extensions import db, migrate
 from .routes import bp
+from .seed import ensure_default_users
 
 
 def create_app(config_class=Config):
@@ -16,5 +18,11 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
 
     app.register_blueprint(bp)
+
+    @app.cli.command("seed-users")
+    @with_appcontext
+    def seed_users_command():
+        ensure_default_users(reset_passwords=True)
+        print("Varsayılan kullanıcılar oluşturuldu/güncellendi.")
 
     return app

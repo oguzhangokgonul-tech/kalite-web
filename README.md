@@ -84,6 +84,26 @@ Port 5000 doluysa 5001 gibi boş bir port kullanabilirsiniz:
 .\venv\Scripts\python.exe -m flask --app run.py run --host 0.0.0.0 --port 5001
 ```
 
+## Render Üzerinde Başlatma
+
+Render start command için şu komutu kullanın:
+
+```bash
+gunicorn run:app
+```
+
+Uygulama açılırken tabloları oluşturur ve varsayılan kullanıcıları eksikse otomatik ekler. Varsayılan kullanıcı şifrelerini tekrar beklenen hale getirmek için Render Environment bölümünde şu değer açık kalabilir:
+
+```text
+RESET_DEFAULT_USER_PASSWORDS=true
+```
+
+Render Shell üzerinden kullanıcıları elle yenilemek gerekirse:
+
+```bash
+flask --app run.py seed-users
+```
+
 ## Geçici Online Paylaşım
 
 Kısa süreli dış erişim için:
