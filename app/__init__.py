@@ -1,7 +1,6 @@
 from flask import Flask
 from flask.cli import with_appcontext
 from pathlib import Path
-import click
 
 from .config import Config
 from .extensions import db, migrate
@@ -25,24 +24,5 @@ def create_app(config_class=Config):
     def seed_users_command():
         ensure_default_users(reset_passwords=True)
         print("Varsayılan kullanıcılar oluşturuldu/güncellendi.")
-
-    @app.cli.command("test-mail")
-    @click.argument("to_address")
-    @with_appcontext
-    def test_mail_command(to_address):
-        from .mail import send_email
-
-        sent = send_email(
-            to_address,
-            "Aksiyon Takip test maili",
-            "Bu e-posta Aksiyon Takip mail ayarlarını test etmek için gönderildi.",
-        )
-        if sent:
-            print(f"Test maili gönderildi: {to_address}")
-        else:
-            print(
-                "Mail gönderilmedi. MAIL_ENABLED, RESEND_API_KEY/RESEND_FROM "
-                "veya SMTP ayarlarını kontrol edin."
-            )
 
     return app

@@ -15,31 +15,3 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", str(UPLOAD_FOLDER))
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024
-    MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
-    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
-    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
-    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
-    MAIL_DEFAULT_SENDER = os.environ.get(
-        "MAIL_DEFAULT_SENDER", os.environ.get("MAIL_USERNAME", "")
-    )
-    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", 20))
-    MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "true").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-    RESEND_FROM = os.environ.get("RESEND_FROM", "Aksiyon Takip <onboarding@resend.dev>")

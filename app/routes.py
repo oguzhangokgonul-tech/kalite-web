@@ -20,12 +20,21 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
 from .extensions import db
-from .mail import send_action_completed_email, send_action_created_email
 from .models import Action, ActionComment, DEPARTMENTS, User
 
 
 bp = Blueprint("main", __name__)
-ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx"}
+ALLOWED_EXTENSIONS = {
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+}
 
 
 @bp.app_errorhandler(403)
@@ -256,15 +265,6 @@ def parse_action_form(action=None):
     return action
 
 
-def flash_mail_result(sent, recipient):
-    if sent:
-        flash(f"Bilgilendirme maili gönderildi: {recipient}", "success")
-    elif recipient:
-        flash("Mail gönderilemedi. Resend veya SMTP ayarlarını kontrol edin.", "warning")
-    else:
-        flash("Aksiyon sorumlusunun e-posta adresi olmadığı için mail gönderilmedi.", "warning")
-
-
 def parse_user_form(user=None):
     user = user or User()
     username = request.form.get("username", "").strip().lower()
@@ -368,20 +368,14 @@ def create_action():
             action = parse_action_form()
             db.session.add(action)
             db.session.commit()
-            try:
-                sent = send_action_created_email(action)
-                flash_mail_result(
-                    sent,
-                    action.responsible_user.email if action.responsible_user else None,
-                )
-            except Exception as error:
-                current_app.logger.exception("Aksiyon açılış maili gönderilemedi.")
-                flash(f"Mail gönderilemedi: {error}", "warning")
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
             return redirect(url_for("main.dashboard"))
         except ValueError as error:
             if str(error) == "invalid_file_type":
-                flash("Sadece PDF, Word veya Excel dosyası yükleyebilirsiniz.", "danger")
+                flash(
+                    "Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.",
+                    "danger",
+                )
             else:
                 flash("Lütfen form alanlarını geçerli biçimde doldurun.", "danger")
 
@@ -480,7 +474,10 @@ def edit_action(action_id):
             return redirect(url_for("main.dashboard"))
         except ValueError as error:
             if str(error) == "invalid_file_type":
-                flash("Sadece PDF, Word veya Excel dosyası yükleyebilirsiniz.", "danger")
+                flash(
+                    "Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.",
+                    "danger",
+                )
             else:
                 flash("Lütfen form alanlarını geçerli biçimde doldurun.", "danger")
 
@@ -501,18 +498,8 @@ def complete_action(action_id):
     if not can_complete_action(action):
         abort(403)
 
-    closed_by = g.current_user
     action.mark_completed()
     db.session.commit()
-    try:
-        sent = send_action_completed_email(action, closed_by)
-        flash_mail_result(
-            sent,
-            action.responsible_user.email if action.responsible_user else None,
-        )
-    except Exception as error:
-        current_app.logger.exception("Aksiyon kapanış maili gönderilemedi.")
-        flash(f"Mail gönderilemedi: {error}", "warning")
     flash("Aksiyon tamamlandı.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
 
