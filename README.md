@@ -112,6 +112,24 @@ Render Shell üzerinden kullanıcıları elle yenilemek gerekirse:
 flask --app run.py seed-users
 ```
 
+### Render'da Kayıtların Silinmemesi
+
+Render free servislerde dosya sistemi geçicidir. Bu yüzden SQLite veritabanı ve yüklenen dosyalar servis yeniden başlatıldığında, yeniden deploy edildiğinde veya uyku modundan uyandığında silinebilir.
+
+Kayıtların kalıcı olması için Render'da paid instance üzerine Persistent Disk ekleyin ve disk mount path değerini şu yapın:
+
+```text
+/var/data
+```
+
+Sonra Render Environment bölümüne şu değeri ekleyin:
+
+```text
+DATA_DIR=/var/data
+```
+
+Bu ayarla uygulama veritabanını `/var/data/actions.db`, yüklenen dosyaları `/var/data/uploads` altında saklar.
+
 ## Geçici Online Paylaşım
 
 Kısa süreli dış erişim için:

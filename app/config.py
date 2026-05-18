@@ -3,12 +3,14 @@ import os
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATABASE_PATH = (BASE_DIR / "instance" / "actions.db").as_posix()
-UPLOAD_FOLDER = BASE_DIR / "instance" / "uploads"
+DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "instance"))
+DATABASE_PATH = (DATA_DIR / "actions.db").as_posix()
+UPLOAD_FOLDER = DATA_DIR / "uploads"
 
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+    DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{DATABASE_PATH}"
     )
