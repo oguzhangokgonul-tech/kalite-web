@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Bildirimler</h1>
+      <p class="text-secondary mb-0">Size atanan veya ilgili olduğunuz aksiyonlardaki son hareketler.</p>
+    </div>
+    <a class="btn btn-outline-secondary align-self-lg-start" href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+  </div>
+
+  <div class="bg-white border rounded">
+    {% if notifications %}
+      <div class="list-group list-group-flush">
+        {% for notification in notifications %}
+          <a class="list-group-item list-group-item-action py-3" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+            <div class="d-flex flex-column flex-sm-row justify-content-between gap-1">
+              <strong>{{ notification.message }}</strong>
+              <small class="text-secondary">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+            </div>
+            {% if notification.action %}
+              <div class="text-secondary small mt-1">#{{ notification.action.id }} {{ notification.action.title }}</div>
+            {% endif %}
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="p-5 text-center text-secondary">Henüz bildirim yok.</div>
+    {% endif %}
+  </div>
+{% endblock %}

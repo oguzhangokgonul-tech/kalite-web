@@ -76,12 +76,29 @@ USER_EMAILS = {
 
 def ensure_runtime_schema():
     inspector = inspect(db.engine)
-    if "users" not in inspector.get_table_names():
-        return
+    tables = set(inspector.get_table_names())
+    changed = False
 
-    columns = {column["name"] for column in inspector.get_columns("users")}
-    if "email" not in columns:
-        db.session.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+    if "users" in tables:
+        columns = {column["name"] for column in inspector.get_columns("users")}
+        if "email" not in columns:
+            db.session.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
+            changed = True
+
+    if "actions" in tables:
+        columns = {column["name"] for column in inspector.get_columns("actions")}
+        if "related_user_1_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN related_user_1_id INTEGER")
+            )
+            changed = True
+        if "related_user_2_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN related_user_2_id INTEGER")
+            )
+            changed = True
+
+    if changed:
         db.session.commit()
 
 

@@ -25,6 +25,28 @@
           {% endfor %}
         </select>
       </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="related_user_1_id">İlgili 1 (Opsiyonel)</label>
+        <select class="form-select" id="related_user_1_id" name="related_user_1_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if action and action.related_user_1_id == user.id %}selected{% endif %}>
+              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="related_user_2_id">İlgili 2 (Opsiyonel)</label>
+        <select class="form-select" id="related_user_2_id" name="related_user_2_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if action and action.related_user_2_id == user.id %}selected{% endif %}>
+              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="col-12">
         <label class="form-label" for="description">Açıklama</label>
         <textarea class="form-control" id="description" name="description" rows="4">{{ action.description if action else '' }}</textarea>

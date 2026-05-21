@@ -44,8 +44,22 @@ body {
     white-space: normal;
 }
 
+.notification-menu {
+    min-width: 320px;
+    max-width: 380px;
+}
+
+.timeline-item {
+    border-left: 4px solid #0d6efd;
+    padding-left: 14px;
+}
+
 @media (max-width: 576px) {
     .metric-box strong {
         font-size: 1.6rem;
+    }
+
+    .notification-menu {
+        min-width: 280px;
     }
 }

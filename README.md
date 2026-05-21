@@ -7,13 +7,14 @@ Flask, SQLite, SQLAlchemy ve Bootstrap ile hazırlanmış kalite yönetim sistem
 - Aksiyon başlığı, aksiyon sorumlusu, açıklama, termin ve gecikme günü takibi
 - Departman bazlı aksiyon takibi
 - Ana sayfada arama, departman, sorumlu ve durum filtreleri
+- Aksiyon geçmişi, site içi bildirimler ve ilgili kullanıcı takibi
 - Termin tarihi geçen açık aksiyonları otomatik gecikmiş olarak gösterme
 - Gecikme gününü otomatik hesaplama
 - Tamamlanan aksiyonları yeşil, geciken aksiyonları kırmızı gösterme
 - Yeni aksiyon ekleme, aksiyon düzenleme, silme ve hızlı tamamlama
 - Yeni aksiyon eklerken PDF, Word, Excel ve görsel dosyası yükleme
-- Yüklenen dosyaları dashboard üzerinden indirme
-- Dashboard üzerinde toplam, tamamlanan ve geciken aksiyon sayıları
+- Yüklenen dosyaları ana sayfa üzerinden indirme
+- Ana sayfa üzerinde toplam, tamamlanan ve geciken aksiyon sayıları
 - Kullanıcı girişi, kullanıcı yönetimi ve yetki bazlı işlem kontrolleri
 - Kendine atanmış aksiyona yorum yapma ve kapatma yetkisi
 - Kendine atanmış aksiyonu başka kullanıcıya devredebilme
@@ -182,4 +183,5 @@ Paylaşımı kapatmak için:
 - Formda durum seçimi yoktur; açık, gecikmiş ve tamamlanmış görünüm sistem tarafından yönetilir.
 - Departman seçenekleri: Üretim, Kalite, İnsan Kaynakları, Şantiye, Montaj, Proje, Teklif.
 - Dosya yükleme için izin verilen uzantılar: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.jpg`, `.jpeg`, `.png`, `.webp`.
+- Oğuzhan kullanıcısı yönetici yetkilerine sahiptir.
 - Yeni kullanıcılar ve yetkiler `Kullanıcılar` ekranından yönetilebilir.

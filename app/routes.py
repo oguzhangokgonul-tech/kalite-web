@@ -9,6 +9,7 @@ from flask import (
     current_app,
     flash,
     g,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -20,7 +21,14 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
 from .extensions import db
-from .models import Action, ActionComment, DEPARTMENTS, User
+from .models import (
+    Action,
+    ActionComment,
+    ActionHistory,
+    DEPARTMENTS,
+    Notification,
+    User,
+)
 
 
 bp = Blueprint("main", __name__)
@@ -50,6 +58,16 @@ def allowed_file(filename):
 def load_logged_in_user():
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
+    g.unread_notification_count = 0
+    g.latest_notifications = []
+    if g.current_user is not None:
+        notification_query = Notification.query.filter_by(user_id=g.current_user.id)
+        g.unread_notification_count = notification_query.filter_by(is_read=False).count()
+        g.latest_notifications = (
+            notification_query.order_by(Notification.created_at.desc())
+            .limit(5)
+            .all()
+        )
 
 
 def login_required(view):
@@ -85,6 +103,14 @@ def is_assigned_to_current_user(action):
     )
 
 
+def is_related_to_current_user(action):
+    return (
+        g.current_user is not None
+        and g.current_user.id
+        in {action.related_user_1_id, action.related_user_2_id}
+    )
+
+
 def can_complete_action(action):
     if g.current_user is None:
         return False
@@ -97,7 +123,8 @@ def can_comment_action(action):
     if g.current_user is None:
         return False
     return g.current_user.can_edit_actions or (
-        g.current_user.can_comment_assigned_actions and is_assigned_to_current_user(action)
+        g.current_user.can_comment_assigned_actions
+        and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
     )
 
 
@@ -117,6 +144,17 @@ def can_view_action(action):
         or g.current_user.can_edit_actions
         or g.current_user.can_delete_actions
         or is_assigned_to_current_user(action)
+        or is_related_to_current_user(action)
+    )
+
+
+def can_revise_termin(action):
+    if g.current_user is None or action.is_completed:
+        return False
+    return (
+        g.current_user.can_edit_actions
+        or is_assigned_to_current_user(action)
+        or is_related_to_current_user(action)
     )
 
 
@@ -128,11 +166,127 @@ def visible_actions_query():
         or g.current_user.can_delete_actions
     ):
         return query
-    return query.filter(Action.responsible_user_id == g.current_user.id)
+    return query.filter(
+        or_(
+            Action.responsible_user_id == g.current_user.id,
+            Action.related_user_1_id == g.current_user.id,
+            Action.related_user_2_id == g.current_user.id,
+        )
+    )
 
 
 def active_users():
     return User.query.filter_by(is_active=True).order_by(User.full_name.asc()).all()
+
+
+def parse_optional_user(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        return None
+
+    try:
+        user_id = int(value)
+    except ValueError:
+        raise ValueError("invalid_user") from None
+
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+    if user is None:
+        raise ValueError("invalid_user")
+    return user
+
+
+def user_name(user_id):
+    if not user_id:
+        return "-"
+    user = User.query.get(user_id)
+    return user.full_name if user else "-"
+
+
+def format_date(value):
+    return value.strftime("%d.%m.%Y") if value else "-"
+
+
+def action_snapshot(action):
+    return {
+        "title": action.title,
+        "responsible_user_id": action.responsible_user_id,
+        "related_user_1_id": action.related_user_1_id,
+        "related_user_2_id": action.related_user_2_id,
+        "department": action.department,
+        "description": action.description or "",
+        "termin_date": action.termin_date,
+        "file_original_name": action.file_original_name,
+    }
+
+
+def describe_action_changes(before, action):
+    changes = []
+    if before["title"] != action.title:
+        changes.append(f"başlığı \"{before['title']}\" -> \"{action.title}\"")
+    if before["responsible_user_id"] != action.responsible_user_id:
+        changes.append(
+            "sorumlusu "
+            f"{user_name(before['responsible_user_id'])} -> {user_name(action.responsible_user_id)}"
+        )
+    if before["related_user_1_id"] != action.related_user_1_id:
+        changes.append(
+            "İlgili 1 "
+            f"{user_name(before['related_user_1_id'])} -> {user_name(action.related_user_1_id)}"
+        )
+    if before["related_user_2_id"] != action.related_user_2_id:
+        changes.append(
+            "İlgili 2 "
+            f"{user_name(before['related_user_2_id'])} -> {user_name(action.related_user_2_id)}"
+        )
+    if before["department"] != action.department:
+        changes.append(f"departmanı {before['department']} -> {action.department}")
+    if before["termin_date"] != action.termin_date:
+        changes.append(
+            f"termini {format_date(before['termin_date'])} -> {format_date(action.termin_date)}"
+        )
+    if before["description"] != (action.description or ""):
+        changes.append("açıklaması güncellendi")
+    if before["file_original_name"] != action.file_original_name:
+        changes.append("dosyası güncellendi")
+    return changes
+
+
+def add_action_history(action, event_type, message, actor=None):
+    history = ActionHistory(
+        action=action,
+        actor_user_id=actor.id if actor else None,
+        event_type=event_type,
+        message=message,
+    )
+    db.session.add(history)
+    return history
+
+
+def notify_users(user_ids, action, message, exclude_user_id=None):
+    for user_id in {user_id for user_id in user_ids if user_id}:
+        if exclude_user_id and user_id == exclude_user_id:
+            continue
+        db.session.add(
+            Notification(
+                user_id=user_id,
+                action=action,
+                message=message,
+            )
+        )
+
+
+def notify_action_participants(action, message, exclude_user_id=None, extra_user_ids=None):
+    user_ids = set(action.participant_user_ids())
+    if extra_user_ids:
+        user_ids.update(extra_user_ids)
+    notify_users(user_ids, action, message, exclude_user_id=exclude_user_id)
+
+
+def short_text(value, length=90):
+    value = " ".join((value or "").split())
+    if len(value) <= length:
+        return value
+    return f"{value[: length - 3]}..."
 
 
 def dashboard_filters():
@@ -163,6 +317,8 @@ def filtered_actions(actions, filters):
                 action.title or "",
                 action.description or "",
                 action.responsible_owner or "",
+                action.related_user_1.full_name if action.related_user_1 else "",
+                action.related_user_2.full_name if action.related_user_2 else "",
                 action.department or "",
             ]
         ).lower():
@@ -251,10 +407,14 @@ def parse_action_form(action=None):
     ).first()
     if responsible_user is None:
         raise ValueError("invalid_user")
+    related_user_1 = parse_optional_user("related_user_1_id")
+    related_user_2 = parse_optional_user("related_user_2_id")
 
     action.title = title
     action.responsible_user_id = responsible_user.id
     action.responsible_owner = responsible_user.full_name
+    action.related_user_1_id = related_user_1.id if related_user_1 else None
+    action.related_user_2_id = related_user_2.id if related_user_2 else None
     action.department = department
     action.description = request.form.get("description", "").strip()
 
@@ -334,6 +494,48 @@ def logout():
     return redirect(url_for("main.login"))
 
 
+@bp.get("/notifications")
+@login_required
+def notifications():
+    notification_list = (
+        Notification.query.filter_by(user_id=g.current_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    unread_notifications = Notification.query.filter_by(
+        user_id=g.current_user.id, is_read=False
+    ).all()
+    for notification in unread_notifications:
+        notification.is_read = True
+    if unread_notifications:
+        db.session.commit()
+        g.unread_notification_count = 0
+    return render_template("notifications.html", notifications=notification_list)
+
+
+@bp.get("/notifications/count")
+@login_required
+def notification_count():
+    unread_count = Notification.query.filter_by(
+        user_id=g.current_user.id, is_read=False
+    ).count()
+    return jsonify({"count": unread_count})
+
+
+@bp.get("/notifications/<int:notification_id>/open")
+@login_required
+def open_notification(notification_id):
+    notification = Notification.query.filter_by(
+        id=notification_id, user_id=g.current_user.id
+    ).first_or_404()
+    notification.is_read = True
+    db.session.commit()
+    if notification.action and can_view_action(notification.action):
+        return redirect(url_for("main.action_detail", action_id=notification.action.id))
+    return redirect(url_for("main.notifications"))
+
+
 @bp.route("/")
 @login_required
 def dashboard():
@@ -367,6 +569,18 @@ def create_action():
         try:
             action = parse_action_form()
             db.session.add(action)
+            db.session.flush()
+            add_action_history(
+                action,
+                "created",
+                f"{g.current_user.full_name} aksiyonu oluşturdu.",
+                actor=g.current_user,
+            )
+            notify_action_participants(
+                action,
+                f"#{action.id} {action.title} aksiyonu size atandı.",
+                exclude_user_id=g.current_user.id,
+            )
             db.session.commit()
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
             return redirect(url_for("main.dashboard"))
@@ -403,6 +617,7 @@ def action_detail(action_id):
         can_complete=can_complete_action(action),
         can_comment=can_comment_action(action),
         can_reassign=can_reassign_action(action),
+        can_revise_termin=can_revise_termin(action),
     )
 
 
@@ -427,14 +642,72 @@ def reassign_action(action_id):
         flash("Seçilen kullanıcı bulunamadı.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
+    old_responsible_user_id = action.responsible_user_id
+    old_responsible_name = action.responsible_owner
     action.responsible_user_id = responsible_user.id
     action.responsible_owner = responsible_user.full_name
+    add_action_history(
+        action,
+        "reassigned",
+        (
+            f"{g.current_user.full_name} aksiyon sorumlusunu "
+            f"{old_responsible_name} -> {responsible_user.full_name} olarak güncelledi."
+        ),
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        f"#{action.id} {action.title} aksiyonunda sorumlu güncellendi.",
+        exclude_user_id=g.current_user.id,
+        extra_user_ids={old_responsible_user_id},
+    )
     db.session.commit()
     flash("Aksiyon sorumlusu güncellendi.", "success")
 
     if can_view_action(action):
         return redirect(url_for("main.action_detail", action_id=action.id))
     return redirect(url_for("main.dashboard"))
+
+
+@bp.post("/actions/<int:action_id>/revise-termin")
+@login_required
+def revise_action_termin(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_revise_termin(action):
+        abort(403)
+
+    termin_value = request.form.get("termin_date", "")
+    try:
+        new_termin_date = datetime.strptime(termin_value, "%Y-%m-%d").date()
+    except ValueError:
+        flash("Lütfen geçerli bir termin tarihi girin.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    old_termin_date = action.termin_date
+    if old_termin_date == new_termin_date:
+        flash("Termin tarihi zaten bu değerle kayıtlı.", "warning")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    action.termin_date = new_termin_date
+    action.refresh_delay()
+    add_action_history(
+        action,
+        "termin_revised",
+        (
+            f"{g.current_user.full_name} termini "
+            f"{format_date(old_termin_date)} -> {format_date(new_termin_date)} "
+            "olarak revize etti."
+        ),
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        f"#{action.id} {action.title} aksiyonunda termin revize edildi.",
+        exclude_user_id=g.current_user.id,
+    )
+    db.session.commit()
+    flash("Termin tarihi revize edildi.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
 
 
 @bp.post("/actions/<int:action_id>/comments")
@@ -455,6 +728,17 @@ def add_action_comment(action_id):
         comment=comment_text,
     )
     db.session.add(comment)
+    add_action_history(
+        action,
+        "commented",
+        f"{g.current_user.full_name} yorum ekledi: \"{short_text(comment_text)}\"",
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        f"#{action.id} {action.title} aksiyonuna yeni yorum eklendi.",
+        exclude_user_id=g.current_user.id,
+    )
     db.session.commit()
     flash("Yorum eklendi.", "success")
     return redirect(url_for("main.action_detail", action_id=action.id))
@@ -468,7 +752,29 @@ def edit_action(action_id):
 
     if request.method == "POST":
         try:
+            before = action_snapshot(action)
             parse_action_form(action)
+            changes = describe_action_changes(before, action)
+            if changes:
+                add_action_history(
+                    action,
+                    "updated",
+                    (
+                        f"{g.current_user.full_name} aksiyonu revize etti: "
+                        + "; ".join(changes)
+                    ),
+                    actor=g.current_user,
+                )
+                notify_action_participants(
+                    action,
+                    f"#{action.id} {action.title} aksiyonunda revizyon yapıldı.",
+                    exclude_user_id=g.current_user.id,
+                    extra_user_ids={
+                        before["responsible_user_id"],
+                        before["related_user_1_id"],
+                        before["related_user_2_id"],
+                    },
+                )
             db.session.commit()
             flash("Aksiyon kaydı güncellendi.", "success")
             return redirect(url_for("main.dashboard"))
@@ -499,6 +805,17 @@ def complete_action(action_id):
         abort(403)
 
     action.mark_completed()
+    add_action_history(
+        action,
+        "completed",
+        f"{g.current_user.full_name} aksiyonu tamamlandı olarak işaretledi.",
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        f"#{action.id} {action.title} aksiyonu tamamlandı.",
+        exclude_user_id=g.current_user.id,
+    )
     db.session.commit()
     flash("Aksiyon tamamlandı.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))

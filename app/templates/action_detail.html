@@ -17,7 +17,7 @@
       {% if g.current_user.can_edit_actions %}
         <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a>
       {% endif %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
     </div>
   </div>
 
@@ -44,6 +44,18 @@
       <div class="metric-box {% if action.is_completed %}metric-box-success{% endif %}">
         <span class="metric-label">Durum</span>
         <strong class="fs-4">{{ "Tamamlandı" if action.is_completed else "Açık" }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box">
+        <span class="metric-label">İlgili 1</span>
+        <strong class="fs-5">{{ action.related_user_1.full_name if action.related_user_1 else "-" }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="metric-box">
+        <span class="metric-label">İlgili 2</span>
+        <strong class="fs-5">{{ action.related_user_2.full_name if action.related_user_2 else "-" }}</strong>
       </div>
     </div>
   </div>
@@ -78,6 +90,21 @@
     </div>
   {% endif %}
 
+  {% if can_revise_termin %}
+    <div class="bg-white border rounded p-4 mb-4">
+      <h2 class="h5 mb-3">Revize Termin</h2>
+      <form class="row g-3 align-items-end" method="post" action="{{ url_for('main.revise_action_termin', action_id=action.id) }}">
+        <div class="col-12 col-lg-8">
+          <label class="form-label" for="termin_date_revision">Yeni termin tarihi</label>
+          <input class="form-control" id="termin_date_revision" name="termin_date" type="date" value="{{ action.termin_date.isoformat() }}" required>
+        </div>
+        <div class="col-12 col-lg-4">
+          <button class="btn btn-primary w-100" type="submit">Termini Revize Et</button>
+        </div>
+      </form>
+    </div>
+  {% endif %}
+
   <div class="bg-white border rounded p-4">
     <h2 class="h5 mb-3">Yorumlar</h2>
     {% if action.comments %}
@@ -102,6 +129,24 @@
         <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
         <button class="btn btn-primary mt-3" type="submit">Yorum Kaydet</button>
       </form>
+    {% endif %}
+  </div>
+
+  <div class="bg-white border rounded p-4 mt-4">
+    <h2 class="h5 mb-3">Aksiyon Geçmişi</h2>
+    {% if action.histories %}
+      <div class="timeline vstack gap-3">
+        {% for history in action.histories %}
+          <div class="timeline-item">
+            <div class="d-flex flex-column flex-sm-row justify-content-between gap-1">
+              <strong>{{ history.message }}</strong>
+              <small class="text-secondary">{{ history.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-secondary mb-0">Henüz geçmiş kaydı yok.</p>
     {% endif %}
   </div>
 {% endblock %}

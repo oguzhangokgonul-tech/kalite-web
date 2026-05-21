@@ -3,16 +3,40 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Aksiyon Takip Sistemi{% endblock %}</title>
+    <title>Aksiyon Takip Sistemi</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   </head>
   <body>
     <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
       <div class="container">
-        <a class="navbar-brand fw-semibold" href="{{ url_for('main.dashboard') }}">Aksiyon Takip</a>
+        <a class="navbar-brand fw-semibold" href="{{ url_for('main.dashboard') }}">Aksiyon Takip Sistemi</a>
         <div class="ms-auto d-flex align-items-center gap-2">
           {% if g.current_user %}
+            <div class="dropdown">
+              <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Bildirimler
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>
+                  {{ g.unread_notification_count }}
+                </span>
+              </button>
+              <div class="dropdown-menu dropdown-menu-end notification-menu p-0">
+                <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
+                {% if g.latest_notifications %}
+                  {% for notification in g.latest_notifications %}
+                    <a class="dropdown-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+                      <span class="d-block small">{{ notification.message }}</span>
+                      <span class="text-secondary small">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                    </a>
+                  {% endfor %}
+                {% else %}
+                  <div class="px-3 py-3 text-secondary small">Henüz bildirim yok.</div>
+                {% endif %}
+                <div class="border-top">
+                  <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
+                </div>
+              </div>
+            </div>
             {% if g.current_user.can_manage_users %}
               <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">Kullanıcılar</a>
             {% endif %}
@@ -38,5 +62,68 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% if g.current_user %}
+      <script>
+        (() => {
+          const baseTitle = "Aksiyon Takip Sistemi";
+          const badge = document.querySelector("[data-notification-badge]");
+          let unreadCount = Number("{{ g.unread_notification_count }}") || 0;
+          let blinkTimer = null;
+          let blinkOn = false;
+
+          function updateBadge(count) {
+            if (!badge) return;
+            badge.textContent = count;
+            badge.classList.toggle("d-none", count === 0);
+          }
+
+          function stopBlinking() {
+            if (blinkTimer) {
+              clearInterval(blinkTimer);
+              blinkTimer = null;
+            }
+            document.title = baseTitle;
+            blinkOn = false;
+          }
+
+          function startBlinking(count) {
+            if (count <= 0) {
+              stopBlinking();
+              return;
+            }
+            if (blinkTimer) return;
+            blinkTimer = setInterval(() => {
+              blinkOn = !blinkOn;
+              document.title = blinkOn ? `${count} yeni bildirim` : baseTitle;
+            }, 1000);
+          }
+
+          async function pollNotifications() {
+            try {
+              const response = await fetch("{{ url_for('main.notification_count') }}", {
+                headers: { "Accept": "application/json" },
+                cache: "no-store",
+              });
+              if (!response.ok) return;
+              const data = await response.json();
+              const nextCount = Number(data.count) || 0;
+              updateBadge(nextCount);
+              if (nextCount > unreadCount || nextCount > 0) {
+                startBlinking(nextCount);
+              } else if (nextCount === 0) {
+                stopBlinking();
+              }
+              unreadCount = nextCount;
+            } catch (error) {
+              // Bildirim kontrolü başarısız olursa sayfanın çalışmasını etkileme.
+            }
+          }
+
+          updateBadge(unreadCount);
+          startBlinking(unreadCount);
+          setInterval(pollNotifications, 15000);
+        })();
+      </script>
+    {% endif %}
   </body>
 </html>
