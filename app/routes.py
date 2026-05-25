@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
 from .extensions import db
+from .mail import send_action_notification_email
 from .models import (
     Action,
     ActionComment,
@@ -263,7 +264,18 @@ def add_action_history(action, event_type, message, actor=None):
 
 
 def notify_users(user_ids, action, message, exclude_user_id=None):
-    for user_id in {user_id for user_id in user_ids if user_id}:
+    target_user_ids = {user_id for user_id in user_ids if user_id}
+    if exclude_user_id:
+        target_user_ids.discard(exclude_user_id)
+
+    users = (
+        User.query.filter(User.id.in_(target_user_ids), User.is_active.is_(True)).all()
+        if target_user_ids
+        else []
+    )
+
+    for user in users:
+        user_id = user.id
         if exclude_user_id and user_id == exclude_user_id:
             continue
         db.session.add(
@@ -273,6 +285,7 @@ def notify_users(user_ids, action, message, exclude_user_id=None):
                 message=message,
             )
         )
+    send_action_notification_email(users, action, message)
 
 
 def notify_action_participants(action, message, exclude_user_id=None, extra_user_ids=None):

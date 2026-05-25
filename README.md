@@ -93,6 +93,88 @@ Port 5000 doluysa 5001 gibi boş bir port kullanabilirsiniz:
 .\venv\Scripts\python.exe -m flask --app run.py run --host 0.0.0.0 --port 5001
 ```
 
+## E-posta Bildirimleri
+
+Aksiyon açıldığında, kapatıldığında, yorum eklendiğinde veya aksiyon güncellendiğinde ilgili kullanıcılara e-posta gönderilebilir. Sistem SMTP ile çalışır; bu yüzden Google Workspace, Microsoft 365, şirket SMTP sunucusu veya SendGrid/Brevo/Amazon SES gibi herhangi bir SMTP servisi kullanılabilir. E-postalar arka planda gönderilir; SMTP yavaşlasa veya hata verse bile aksiyon kaydetme ekranı beklemez.
+
+Yerel testte mail göndermeden entegrasyonu açmak için:
+
+```powershell
+$env:MAIL_ENABLED="true"
+$env:MAIL_SUPPRESS_SEND="true"
+```
+
+Gerçek gönderim için örnek ayarlar:
+
+```powershell
+$env:MAIL_ENABLED="true"
+$env:MAIL_SERVER="smtp.office365.com"
+$env:MAIL_PORT="587"
+$env:MAIL_USE_TLS="true"
+$env:MAIL_USERNAME="aksiyon@ornek.com"
+$env:MAIL_PASSWORD="mail-sifresi-veya-uygulama-sifresi"
+$env:MAIL_DEFAULT_SENDER="aksiyon@ornek.com"
+$env:PUBLIC_BASE_URL="https://site-adresiniz.com"
+```
+
+Google Workspace SMTP relay kullanıyorsanız `MAIL_SERVER` değeri genellikle `smtp-relay.gmail.com` olur. Microsoft 365 SMTP AUTH kullanıyorsanız `smtp.office365.com` ve port `587` kullanılır. Seçilen hizmette uygulama gönderimi/SMTP relay yetkisinin açık olması gerekir.
+
+VPS üzerinde bu değerleri `/var/www/aksiyon-takip/.env` dosyasına ekleyebilirsiniz. `PUBLIC_BASE_URL`, maildeki aksiyon detay linkinin doğru site adresine gitmesi için önemlidir.
+
+Sunucuda ayarları test etmek için:
+
+```bash
+cd /var/www/aksiyon-takip
+sudo -u aksiyon ./venv/bin/python -m flask --app run.py test-mail kendi-adresiniz@ornek.com
+```
+
+### Gmail ile Gönderim
+
+Outlook/Microsoft 365 ile uğraşmak istemiyorsanız ayrı bir Gmail hesabı üzerinden de bildirim gönderebilirsiniz. Normal Gmail şifresi yerine Google hesabında 2 adımlı doğrulamayı açıp uygulama parolası üretmeniz gerekir.
+
+Proje klasöründe `.env.example` dosyasını kopyalayıp `.env` adıyla kaydedin ve kendi Gmail bilgilerinizi bu dosyada güncelleyin. `.env` dosyası git'e eklenmez; şifreler burada tutulur.
+
+Örnek ayarlar:
+
+```text
+MAIL_ENABLED=true
+MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USE_SSL=false
+MAIL_USERNAME=<gmail-adresiniz>@gmail.com
+MAIL_PASSWORD=<16 haneli Google uygulama parolası>
+MAIL_DEFAULT_SENDER=<gmail-adresiniz>@gmail.com
+MAIL_REPLY_TO=Kalite@erprefabrik.com.tr
+PUBLIC_BASE_URL=<yayındaki site adresi>
+```
+
+Gmail genellikle `From` alanında kendi Gmail adresinizi kullanmanızı bekler. Bu yüzden bildirimler Gmail adresinden gider; `MAIL_REPLY_TO` sayesinde kullanıcı cevap yazarsa yanıtlar şirket adresine yönlenebilir.
+
+### Outlook / Microsoft 365 Ayarları
+
+Şirket e-postası Outlook/Microsoft 365 ise en pratik başlangıç ayarı:
+
+```text
+MAIL_ENABLED=true
+MAIL_SERVER=smtp.office365.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USE_SSL=false
+MAIL_USERNAME=Kalite@erprefabrik.com.tr
+MAIL_PASSWORD=<IT ekibinin vereceği uygulama parolası veya servis hesabı parolası>
+MAIL_DEFAULT_SENDER=Kalite@erprefabrik.com.tr
+PUBLIC_BASE_URL=<yayındaki site adresi>
+```
+
+IT ekibinden istenecekler:
+
+- `Kalite@erprefabrik.com.tr` posta kutusunun aktif ve gönderim yapabilir olduğunu doğrulamaları.
+- Bu posta kutusu için `Authenticated SMTP` ayarını açmaları.
+- Tenant genelinde SMTP AUTH kapalıysa sadece bu posta kutusu için izin vermeleri.
+- MFA/conditional access kullanılıyorsa uygulama gönderimine uygun parola veya izin tanımlamaları.
+- Uzun vadede SMTP kullanıcı/parola yerine Microsoft Graph `Mail.Send` entegrasyonu isteniyorsa Azure App Registration bilgilerini sağlamaları.
+
 ## Render Üzerinde Başlatma
 
 Render start command için şu komutu kullanın:
