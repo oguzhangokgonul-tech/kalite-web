@@ -7,7 +7,7 @@ Flask, SQLite, SQLAlchemy ve Bootstrap ile hazırlanmış kalite yönetim sistem
 - Aksiyon başlığı, aksiyon sorumlusu, açıklama, termin ve gecikme günü takibi
 - Departman bazlı aksiyon takibi
 - Ana sayfada arama, departman, sorumlu ve durum filtreleri
-- Aksiyon geçmişi, site içi bildirimler ve ilgili kullanıcı takibi
+- Aksiyon geçmişi, site içi/e-posta bildirimleri ve ilgili kullanıcı takibi
 - Termin tarihi geçen açık aksiyonları otomatik gecikmiş olarak gösterme
 - Gecikme gününü otomatik hesaplama
 - Tamamlanan aksiyonları yeşil, geciken aksiyonları kırmızı gösterme

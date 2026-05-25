@@ -71,10 +71,10 @@
 
   {% if can_reassign and not action.is_completed %}
     <div class="bg-white border rounded p-4 mb-4">
-      <h2 class="h5 mb-3">Aksiyon Sorumlusunu Değiştir</h2>
+      <h2 class="h5 mb-3">Sorumlu ve İlgilileri Güncelle</h2>
       <form class="row g-3 align-items-end" method="post" action="{{ url_for('main.reassign_action', action_id=action.id) }}">
-        <div class="col-12 col-lg-8">
-          <label class="form-label" for="responsible_user_id">Yeni aksiyon sorumlusu</label>
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
           <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
             {% for user in users %}
               <option value="{{ user.id }}" {% if action.responsible_user_id == user.id %}selected{% endif %}>
@@ -84,7 +84,29 @@
           </select>
         </div>
         <div class="col-12 col-lg-4">
-          <button class="btn btn-primary w-100" type="submit">Sorumluyu Güncelle</button>
+          <label class="form-label" for="related_user_1_id">İlgili 1 (Opsiyonel)</label>
+          <select class="form-select" id="related_user_1_id" name="related_user_1_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if action.related_user_1_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label" for="related_user_2_id">İlgili 2 (Opsiyonel)</label>
+          <select class="form-select" id="related_user_2_id" name="related_user_2_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if action.related_user_2_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-primary" type="submit">Sorumlu ve İlgilileri Güncelle</button>
         </div>
       </form>
     </div>

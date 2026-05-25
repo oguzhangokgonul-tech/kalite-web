@@ -655,27 +655,45 @@ def reassign_action(action_id):
         flash("Seçilen kullanıcı bulunamadı.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
-    old_responsible_user_id = action.responsible_user_id
-    old_responsible_name = action.responsible_owner
+    try:
+        related_user_1 = parse_optional_user("related_user_1_id")
+        related_user_2 = parse_optional_user("related_user_2_id")
+    except ValueError:
+        flash("Lütfen geçerli ilgili kullanıcı seçin.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    before = action_snapshot(action)
     action.responsible_user_id = responsible_user.id
     action.responsible_owner = responsible_user.full_name
+    action.related_user_1_id = related_user_1.id if related_user_1 else None
+    action.related_user_2_id = related_user_2.id if related_user_2 else None
+
+    changes = describe_action_changes(before, action)
+    if not changes:
+        flash("Sorumlu ve ilgili bilgilerinde değişiklik yapılmadı.", "warning")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
     add_action_history(
         action,
         "reassigned",
         (
-            f"{g.current_user.full_name} aksiyon sorumlusunu "
-            f"{old_responsible_name} -> {responsible_user.full_name} olarak güncelledi."
+            f"{g.current_user.full_name} sorumlu/ilgili bilgilerini güncelledi: "
+            + "; ".join(changes)
         ),
         actor=g.current_user,
     )
     notify_action_participants(
         action,
-        f"#{action.id} {action.title} aksiyonunda sorumlu güncellendi.",
+        f"#{action.id} {action.title} aksiyonunda sorumlu/ilgili bilgileri güncellendi.",
         exclude_user_id=g.current_user.id,
-        extra_user_ids={old_responsible_user_id},
+        extra_user_ids={
+            before["responsible_user_id"],
+            before["related_user_1_id"],
+            before["related_user_2_id"],
+        },
     )
     db.session.commit()
-    flash("Aksiyon sorumlusu güncellendi.", "success")
+    flash("Sorumlu ve ilgili bilgileri güncellendi.", "success")
 
     if can_view_action(action):
         return redirect(url_for("main.action_detail", action_id=action.id))
