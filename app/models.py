@@ -57,6 +57,7 @@ class Action(db.Model):
     __tablename__ = "actions"
 
     id = db.Column(db.Integer, primary_key=True)
+    action_number = db.Column(db.Integer, nullable=True, unique=True)
     title = db.Column(db.String(160), nullable=False)
     responsible_owner = db.Column(db.String(120), nullable=False)
     responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -115,6 +116,10 @@ class Action(db.Model):
             if user_id
         }
 
+    @property
+    def number_label(self):
+        return f"#{self.action_number or self.id}"
+
     def calculate_delay_days(self, today=None):
         if self.is_completed:
             return 0
@@ -170,3 +175,10 @@ class Notification(db.Model):
 
     user = db.relationship("User")
     action = db.relationship("Action", back_populates="notifications")
+
+
+class AppSetting(db.Model):
+    __tablename__ = "app_settings"
+
+    key = db.Column(db.String(80), primary_key=True)
+    value = db.Column(db.String(255), nullable=False)

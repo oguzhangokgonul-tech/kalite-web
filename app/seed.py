@@ -83,6 +83,9 @@ def ensure_runtime_schema():
 
     if "actions" in tables:
         columns = {column["name"] for column in inspector.get_columns("actions")}
+        if "action_number" not in columns:
+            db.session.execute(text("ALTER TABLE actions ADD COLUMN action_number INTEGER"))
+            changed = True
         if "related_user_1_id" not in columns:
             db.session.execute(
                 text("ALTER TABLE actions ADD COLUMN related_user_1_id INTEGER")
@@ -96,6 +99,45 @@ def ensure_runtime_schema():
 
     if changed:
         db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "actions" in tables:
+        columns = {
+            column["name"] for column in inspect(db.engine).get_columns("actions")
+        }
+        if "action_number" in columns:
+            db.session.execute(
+                text("UPDATE actions SET action_number = id WHERE action_number IS NULL")
+            )
+            db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "actions" in tables and "app_settings" in tables:
+        max_number = db.session.execute(
+            text("SELECT COALESCE(MAX(COALESCE(action_number, id)), 0) FROM actions")
+        ).scalar()
+        next_number = max_number + 1
+        current_value = db.session.execute(
+            text("SELECT value FROM app_settings WHERE key = 'next_action_number'")
+        ).scalar()
+        if current_value is None:
+            db.session.execute(
+                text(
+                    "INSERT INTO app_settings (key, value) "
+                    "VALUES ('next_action_number', :value)"
+                ),
+                {"value": str(next_number)},
+            )
+            db.session.commit()
+        elif int(current_value) <= max_number:
+            db.session.execute(
+                text(
+                    "UPDATE app_settings SET value = :value "
+                    "WHERE key = 'next_action_number'"
+                ),
+                {"value": str(next_number)},
+            )
+            db.session.commit()
 
 
 def ensure_default_users(reset_passwords=True):

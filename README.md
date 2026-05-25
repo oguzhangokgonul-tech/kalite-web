@@ -5,6 +5,7 @@ Flask, SQLite, SQLAlchemy ve Bootstrap ile hazırlanmış kalite yönetim sistem
 ## Özellikler
 
 - Aksiyon başlığı, aksiyon sorumlusu, açıklama, termin ve gecikme günü takibi
+- Silinen aksiyonlardan sonra tekrar kullanılmayan kalıcı aksiyon numarası
 - Departman bazlı aksiyon takibi
 - Ana sayfada arama, departman, sorumlu ve durum filtreleri
 - Aksiyon geçmişi, site içi/e-posta bildirimleri ve ilgili kullanıcı takibi

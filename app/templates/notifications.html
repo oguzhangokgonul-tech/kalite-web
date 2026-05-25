@@ -21,7 +21,7 @@
               <small class="text-secondary">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
             </div>
             {% if notification.action %}
-              <div class="text-secondary small mt-1">#{{ notification.action.id }} {{ notification.action.title }}</div>
+              <div class="text-secondary small mt-1">{{ notification.action.number_label }} {{ notification.action.title }}</div>
             {% endif %}
           </a>
         {% endfor %}

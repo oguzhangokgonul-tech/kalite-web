@@ -49,12 +49,12 @@ def _format_date(value):
 def build_action_email(action, message):
     action_url = _action_url(action)
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
-    subject = f"{subject_prefix} #{action.id} {action.title}"
+    subject = f"{subject_prefix} {action.number_label} {action.title}"
 
     lines = [
         message,
         "",
-        f"Aksiyon No: #{action.id}",
+        f"Aksiyon No: {action.number_label}",
         f"Başlık: {action.title}",
         f"Sorumlu: {action.responsible_owner}",
         f"Departman: {action.department}",

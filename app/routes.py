@@ -26,6 +26,7 @@ from .models import (
     Action,
     ActionComment,
     ActionHistory,
+    AppSetting,
     DEPARTMENTS,
     Notification,
     User,
@@ -112,10 +113,14 @@ def is_related_to_current_user(action):
     )
 
 
+def is_oguzhan_admin():
+    return g.current_user is not None and g.current_user.username == "oguzhan"
+
+
 def can_complete_action(action):
     if g.current_user is None:
         return False
-    return g.current_user.can_edit_actions or (
+    return is_oguzhan_admin() or (
         g.current_user.can_close_assigned_actions and is_assigned_to_current_user(action)
     )
 
@@ -123,7 +128,7 @@ def can_complete_action(action):
 def can_comment_action(action):
     if g.current_user is None:
         return False
-    return g.current_user.can_edit_actions or (
+    return is_oguzhan_admin() or (
         g.current_user.can_comment_assigned_actions
         and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
     )
@@ -132,7 +137,7 @@ def can_comment_action(action):
 def can_reassign_action(action):
     if g.current_user is None:
         return False
-    return g.current_user.can_edit_actions or (
+    return is_oguzhan_admin() or (
         g.current_user.can_close_assigned_actions and is_assigned_to_current_user(action)
     )
 
@@ -141,9 +146,7 @@ def can_view_action(action):
     if g.current_user is None:
         return False
     return (
-        g.current_user.can_create_actions
-        or g.current_user.can_edit_actions
-        or g.current_user.can_delete_actions
+        is_oguzhan_admin()
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
     )
@@ -153,7 +156,7 @@ def can_revise_termin(action):
     if g.current_user is None or action.is_completed:
         return False
     return (
-        g.current_user.can_edit_actions
+        is_oguzhan_admin()
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
     )
@@ -161,11 +164,7 @@ def can_revise_termin(action):
 
 def visible_actions_query():
     query = Action.query
-    if (
-        g.current_user.can_create_actions
-        or g.current_user.can_edit_actions
-        or g.current_user.can_delete_actions
-    ):
+    if is_oguzhan_admin():
         return query
     return query.filter(
         or_(
@@ -178,6 +177,25 @@ def visible_actions_query():
 
 def active_users():
     return User.query.filter_by(is_active=True).order_by(User.full_name.asc()).all()
+
+
+def reserve_action_number():
+    max_number = (
+        db.session.query(db.func.max(db.func.coalesce(Action.action_number, Action.id)))
+        .scalar()
+        or 0
+    )
+    setting = db.session.get(AppSetting, "next_action_number")
+    if setting is None:
+        setting = AppSetting(key="next_action_number", value=str(max_number + 1))
+        db.session.add(setting)
+
+    next_number = int(setting.value)
+    if next_number <= max_number:
+        next_number = max_number + 1
+
+    setting.value = str(next_number + 1)
+    return next_number
 
 
 def parse_optional_user(field_name):
@@ -581,6 +599,7 @@ def create_action():
     if request.method == "POST":
         try:
             action = parse_action_form()
+            action.action_number = reserve_action_number()
             db.session.add(action)
             db.session.flush()
             add_action_history(
@@ -591,7 +610,7 @@ def create_action():
             )
             notify_action_participants(
                 action,
-                f"#{action.id} {action.title} aksiyonu size atandı.",
+                f"{action.number_label} {action.title} aksiyonu size atandı.",
                 exclude_user_id=g.current_user.id,
             )
             db.session.commit()
@@ -684,7 +703,10 @@ def reassign_action(action_id):
     )
     notify_action_participants(
         action,
-        f"#{action.id} {action.title} aksiyonunda sorumlu/ilgili bilgileri güncellendi.",
+        (
+            f"{action.number_label} {action.title} aksiyonunda "
+            "sorumlu/ilgili bilgileri güncellendi."
+        ),
         exclude_user_id=g.current_user.id,
         extra_user_ids={
             before["responsible_user_id"],
@@ -733,7 +755,7 @@ def revise_action_termin(action_id):
     )
     notify_action_participants(
         action,
-        f"#{action.id} {action.title} aksiyonunda termin revize edildi.",
+        f"{action.number_label} {action.title} aksiyonunda termin revize edildi.",
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
@@ -767,7 +789,7 @@ def add_action_comment(action_id):
     )
     notify_action_participants(
         action,
-        f"#{action.id} {action.title} aksiyonuna yeni yorum eklendi.",
+        f"{action.number_label} {action.title} aksiyonuna yeni yorum eklendi.",
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
@@ -798,7 +820,7 @@ def edit_action(action_id):
                 )
                 notify_action_participants(
                     action,
-                    f"#{action.id} {action.title} aksiyonunda revizyon yapıldı.",
+                    f"{action.number_label} {action.title} aksiyonunda revizyon yapıldı.",
                     exclude_user_id=g.current_user.id,
                     extra_user_ids={
                         before["responsible_user_id"],
@@ -844,7 +866,7 @@ def complete_action(action_id):
     )
     notify_action_participants(
         action,
-        f"#{action.id} {action.title} aksiyonu tamamlandı.",
+        f"{action.number_label} {action.title} aksiyonu tamamlandı.",
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
