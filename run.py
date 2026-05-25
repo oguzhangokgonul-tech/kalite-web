@@ -8,7 +8,7 @@ app = create_app()
 with app.app_context():
     db.create_all()
     reset_default_passwords = os.environ.get(
-        "RESET_DEFAULT_USER_PASSWORDS", "true"
+        "RESET_DEFAULT_USER_PASSWORDS", "false"
     ).lower() in {"1", "true", "yes", "on"}
     ensure_default_users(reset_passwords=reset_default_passwords)
 

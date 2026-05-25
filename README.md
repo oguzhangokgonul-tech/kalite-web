@@ -183,11 +183,15 @@ Render start command için şu komutu kullanın:
 gunicorn run:app
 ```
 
-Uygulama açılırken tabloları oluşturur ve varsayılan kullanıcıları eksikse otomatik ekler. Varsayılan kullanıcı şifrelerini tekrar beklenen hale getirmek için Render Environment bölümünde şu değer açık kalabilir:
+Uygulama açılırken tabloları oluşturur ve varsayılan kullanıcıları eksikse otomatik ekler. Mevcut kullanıcıların görev, e-posta ve ad soyad bilgileri restart sırasında ezilmez. Oğuzhan kullanıcısının admin yetkileri korunur.
+
+Varsayılan kullanıcı şifrelerini acil durumda tekrar üretmek için Environment bölümünde geçici olarak şu değeri kullanabilirsiniz:
 
 ```text
 RESET_DEFAULT_USER_PASSWORDS=true
 ```
+
+Normal kullanımda bu değeri kapalı bırakın veya hiç tanımlamayın.
 
 Render Shell üzerinden kullanıcıları elle yenilemek gerekirse:
 

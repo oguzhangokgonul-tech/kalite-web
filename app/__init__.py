@@ -26,7 +26,7 @@ def create_app(config_class=Config):
     @app.cli.command("seed-users")
     @with_appcontext
     def seed_users_command():
-        ensure_default_users(reset_passwords=True)
+        ensure_default_users(reset_passwords=False)
         print("Varsayılan kullanıcılar oluşturuldu/güncellendi.")
 
     @app.cli.command("test-mail")

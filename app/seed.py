@@ -67,11 +67,7 @@ DEFAULT_USERS = (
     },
 )
 
-USER_EMAILS = {
-    "oguzhan": "oguzhangokgonul@erprefabrik.com.tr",
-    "seyma": "seymainci@erprefabrik.com.tr",
-    "turgut": "turgutpekyilmaz@erprefabrik.com.tr",
-}
+ADMIN_USERNAMES = {"oguzhan"}
 
 
 def ensure_runtime_schema():
@@ -110,21 +106,24 @@ def ensure_default_users(reset_passwords=True):
         if user is None:
             user = User(username=item["username"])
             db.session.add(user)
+            user.full_name = item["full_name"]
+            user.title = item["title"]
+            user.email = item["email"]
+            user.is_active = True
 
-        user.full_name = item["full_name"]
-        user.title = item["title"]
-        user.email = item["email"]
-        user.is_active = True
+            for permission, value in item["permissions"].items():
+                setattr(user, permission, value)
 
-        for permission, value in item["permissions"].items():
-            setattr(user, permission, value)
-
-        if reset_passwords or not user.password_hash:
             user.set_password(item["password"])
+            continue
 
-    for username, email in USER_EMAILS.items():
-        user = User.query.filter_by(username=username).first()
-        if user is not None:
-            user.email = email
+        if user.username in ADMIN_USERNAMES:
+            user.is_active = True
+            for permission, value in item["permissions"].items():
+                if value:
+                    setattr(user, permission, True)
+
+        if reset_passwords and not user.password_hash:
+            user.set_password(item["password"])
 
     db.session.commit()
