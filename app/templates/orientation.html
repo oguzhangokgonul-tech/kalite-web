@@ -1,0 +1,415 @@
+{% extends "base.html" %}
+
+{% block title %}Oryantasyon Şeması - Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="orientation-page" data-can-edit="{{ 'true' if can_edit else 'false' }}">
+    <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+      <div>
+        <h1 class="h3 mb-1">Oryantasyon Şeması</h1>
+        <p class="text-secondary mb-0">Kişi, ünvan ve bağlılık yapısı</p>
+      </div>
+      {% if can_edit %}
+        <div class="d-flex flex-wrap gap-2 align-self-xl-start">
+          <button class="btn btn-primary" type="button" data-add-root>Kök kişi ekle</button>
+          <button class="btn btn-outline-primary" type="button" data-auto-layout>Hizala</button>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="orientation-workspace">
+      <section class="orientation-stage" aria-label="Oryantasyon şeması">
+        <div class="orientation-scroll" data-orientation-scroll>
+          <div class="orientation-board" data-orientation-board>
+            <svg class="orientation-lines" data-orientation-lines aria-hidden="true"></svg>
+            <div data-orientation-nodes></div>
+            <div class="orientation-empty" data-orientation-empty>
+              Henüz oryantasyon kaydı yok.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="orientation-panel">
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+          <div>
+            <h2 class="h5 mb-1">Kişi Detayı</h2>
+            <p class="text-secondary small mb-0" data-selected-status>Bir kişi seçin.</p>
+          </div>
+          {% if can_edit %}
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-add-child disabled>Alt kişi ekle</button>
+          {% endif %}
+        </div>
+
+        <form data-orientation-form>
+          <div class="mb-3">
+            <label class="form-label" for="orientation-name">İsim Soyisim</label>
+            <input class="form-control" id="orientation-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="orientation-title">Ünvan</label>
+            <input class="form-control" id="orientation-title" name="title" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="orientation-parent">Bağlı olduğu kişi</label>
+            <select class="form-select" id="orientation-parent" name="parent_id" {% if not can_edit %}disabled{% endif %}>
+              <option value="">Kök kişi</option>
+            </select>
+          </div>
+
+          {% if can_edit %}
+            <div class="d-flex flex-column flex-sm-row gap-2">
+              <button class="btn btn-primary flex-fill" type="submit" data-save-node disabled>Kaydet</button>
+              <button class="btn btn-outline-danger" type="button" data-delete-node disabled>Sil</button>
+            </div>
+          {% endif %}
+        </form>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      let nodes = {{ nodes|tojson }};
+      const canEdit = {{ can_edit|tojson }};
+      const urls = {
+        create: "{{ url_for('main.create_orientation_node') }}",
+        update: "{{ url_for('main.update_orientation_node', node_id=0) }}",
+        move: "{{ url_for('main.move_orientation_node', node_id=0) }}",
+        delete: "{{ url_for('main.delete_orientation_node', node_id=0) }}",
+      };
+
+      const board = document.querySelector("[data-orientation-board]");
+      const nodesLayer = document.querySelector("[data-orientation-nodes]");
+      const linesLayer = document.querySelector("[data-orientation-lines]");
+      const emptyState = document.querySelector("[data-orientation-empty]");
+      const form = document.querySelector("[data-orientation-form]");
+      const nameInput = document.querySelector("#orientation-name");
+      const titleInput = document.querySelector("#orientation-title");
+      const parentSelect = document.querySelector("#orientation-parent");
+      const selectedStatus = document.querySelector("[data-selected-status]");
+      const saveButton = document.querySelector("[data-save-node]");
+      const deleteButton = document.querySelector("[data-delete-node]");
+      const addChildButton = document.querySelector("[data-add-child]");
+      const addRootButton = document.querySelector("[data-add-root]");
+      const autoLayoutButton = document.querySelector("[data-auto-layout]");
+
+      let selectedId = nodes.length ? nodes[0].id : null;
+      let dragging = null;
+
+      function endpoint(template, id) {
+        return template.replace("/0/", `/${id}/`);
+      }
+
+      async function postJson(url, payload = {}) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || "İşlem tamamlanamadı.");
+        }
+        return data;
+      }
+
+      function getNode(id) {
+        return nodes.find((node) => node.id === id);
+      }
+
+      function childrenOf(parentId) {
+        return nodes
+          .filter((node) => node.parent_id === parentId)
+          .sort((first, second) => first.x - second.x || first.id - second.id);
+      }
+
+      function descendantIds(nodeId) {
+        const ids = new Set();
+        const walk = (id) => {
+          childrenOf(id).forEach((child) => {
+            ids.add(child.id);
+            walk(child.id);
+          });
+        };
+        walk(nodeId);
+        return ids;
+      }
+
+      function updateBoardSize() {
+        const maxX = Math.max(720, ...nodes.map((node) => node.x + 280));
+        const maxY = Math.max(520, ...nodes.map((node) => node.y + 180));
+        board.style.width = `${maxX}px`;
+        board.style.height = `${maxY}px`;
+        linesLayer.setAttribute("width", maxX);
+        linesLayer.setAttribute("height", maxY);
+        linesLayer.setAttribute("viewBox", `0 0 ${maxX} ${maxY}`);
+      }
+
+      function drawLines() {
+        linesLayer.innerHTML = "";
+        nodes.forEach((node) => {
+          if (!node.parent_id) return;
+          const parent = getNode(node.parent_id);
+          if (!parent) return;
+          const startX = parent.x + 120;
+          const startY = parent.y + 94;
+          const endX = node.x + 120;
+          const endY = node.y;
+          const middleY = startY + Math.max(42, (endY - startY) / 2);
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute(
+            "d",
+            `M ${startX} ${startY} C ${startX} ${middleY}, ${endX} ${middleY}, ${endX} ${endY}`
+          );
+          path.setAttribute("class", "orientation-line");
+          linesLayer.appendChild(path);
+        });
+      }
+
+      function renderParentOptions() {
+        const selectedDescendants = selectedId ? descendantIds(selectedId) : new Set();
+        parentSelect.innerHTML = '<option value="">Kök kişi</option>';
+        nodes.forEach((node) => {
+          if (node.id === selectedId || selectedDescendants.has(node.id)) return;
+          const option = document.createElement("option");
+          option.value = node.id;
+          option.textContent = node.title ? `${node.name} - ${node.title}` : node.name;
+          parentSelect.appendChild(option);
+        });
+      }
+
+      function fillPanel() {
+        const selected = selectedId ? getNode(selectedId) : null;
+        renderParentOptions();
+        if (!selected) {
+          selectedStatus.textContent = "Bir kişi seçin.";
+          nameInput.value = "";
+          titleInput.value = "";
+          parentSelect.value = "";
+          [saveButton, deleteButton, addChildButton].forEach((button) => {
+            if (button) button.disabled = true;
+          });
+          return;
+        }
+
+        selectedStatus.textContent = selected.title || "Ünvan belirtilmedi.";
+        nameInput.value = selected.name;
+        titleInput.value = selected.title || "";
+        parentSelect.value = selected.parent_id || "";
+        [saveButton, deleteButton, addChildButton].forEach((button) => {
+          if (button) button.disabled = !canEdit;
+        });
+      }
+
+      function selectNode(id) {
+        selectedId = id;
+        document.querySelectorAll(".orientation-node").forEach((element) => {
+          element.classList.toggle("is-selected", Number(element.dataset.nodeId) === id);
+        });
+        fillPanel();
+      }
+
+      function renderNodes() {
+        updateBoardSize();
+        nodesLayer.innerHTML = "";
+        emptyState.hidden = nodes.length > 0;
+
+        nodes.forEach((node) => {
+          const childCount = childrenOf(node.id).length;
+          const element = document.createElement("button");
+          element.type = "button";
+          element.className = "orientation-node";
+          element.dataset.nodeId = node.id;
+          element.style.left = `${node.x}px`;
+          element.style.top = `${node.y}px`;
+          element.innerHTML = `
+            <span class="orientation-node-name"></span>
+            <span class="orientation-node-title"></span>
+            <span class="orientation-node-count">${childCount} alt kişi</span>
+          `;
+          element.querySelector(".orientation-node-name").textContent = node.name;
+          element.querySelector(".orientation-node-title").textContent = node.title || "Ünvan";
+          element.addEventListener("click", () => selectNode(node.id));
+
+          if (canEdit) {
+            element.addEventListener("pointerdown", (event) => startDrag(event, node));
+          }
+
+          nodesLayer.appendChild(element);
+        });
+
+        drawLines();
+        fillPanel();
+        if (selectedId && getNode(selectedId)) {
+          selectNode(selectedId);
+        } else if (nodes.length) {
+          selectNode(nodes[0].id);
+        }
+      }
+
+      function startDrag(event, node) {
+        if (event.button !== 0) return;
+        const element = event.currentTarget;
+        element.setPointerCapture(event.pointerId);
+        dragging = {
+          node,
+          element,
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: node.x,
+          originY: node.y,
+          moved: false,
+        };
+      }
+
+      async function finishDrag() {
+        if (!dragging) return;
+        const { node } = dragging;
+        const moved = dragging.moved;
+        dragging = null;
+        if (!moved) return;
+        try {
+          await postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y });
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      window.addEventListener("pointermove", (event) => {
+        if (!dragging) return;
+        const dx = event.clientX - dragging.startX;
+        const dy = event.clientY - dragging.startY;
+        dragging.moved = dragging.moved || Math.abs(dx) > 3 || Math.abs(dy) > 3;
+        dragging.node.x = Math.max(20, dragging.originX + dx);
+        dragging.node.y = Math.max(20, dragging.originY + dy);
+        dragging.element.style.left = `${dragging.node.x}px`;
+        dragging.element.style.top = `${dragging.node.y}px`;
+        updateBoardSize();
+        drawLines();
+      });
+
+      window.addEventListener("pointerup", finishDrag);
+      window.addEventListener("pointercancel", finishDrag);
+
+      if (form && canEdit) {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const selected = getNode(selectedId);
+          if (!selected) return;
+          try {
+            const data = await postJson(endpoint(urls.update, selected.id), {
+              name: nameInput.value,
+              title: titleInput.value,
+              parent_id: parentSelect.value || null,
+            });
+            nodes = data.nodes;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (addRootButton) {
+        addRootButton.addEventListener("click", async () => {
+          try {
+            const data = await postJson(urls.create, {
+              name: "Yeni kişi",
+              title: "",
+              parent_id: null,
+            });
+            nodes = data.nodes;
+            selectedId = data.node.id;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (addChildButton) {
+        addChildButton.addEventListener("click", async () => {
+          if (!selectedId) return;
+          try {
+            const data = await postJson(urls.create, {
+              name: "Yeni kişi",
+              title: "",
+              parent_id: selectedId,
+            });
+            nodes = data.nodes;
+            selectedId = data.node.id;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (deleteButton) {
+        deleteButton.addEventListener("click", async () => {
+          const selected = getNode(selectedId);
+          if (!selected) return;
+          if (!confirm("Bu kişi ve bağlı alt kişiler silinsin mi?")) return;
+          try {
+            const data = await postJson(endpoint(urls.delete, selected.id));
+            nodes = data.nodes;
+            selectedId = nodes.length ? nodes[0].id : null;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      function arrangeTree() {
+        let cursorX = 80;
+        const positioned = new Map();
+        const roots = childrenOf(null);
+        const allRoots = roots.length ? roots : nodes.slice().sort((a, b) => a.id - b.id);
+
+        function arrange(node, depth) {
+          const children = childrenOf(node.id);
+          const y = 70 + depth * 170;
+          if (!children.length) {
+            positioned.set(node.id, { x: cursorX, y });
+            cursorX += 300;
+            return positioned.get(node.id);
+          }
+
+          const childPositions = children.map((child) => arrange(child, depth + 1));
+          const first = childPositions[0];
+          const last = childPositions[childPositions.length - 1];
+          const x = Math.round((first.x + last.x) / 2);
+          positioned.set(node.id, { x, y });
+          return positioned.get(node.id);
+        }
+
+        allRoots.forEach((root) => arrange(root, 0));
+        nodes = nodes.map((node) => ({ ...node, ...(positioned.get(node.id) || {}) }));
+      }
+
+      if (autoLayoutButton) {
+        autoLayoutButton.addEventListener("click", async () => {
+          arrangeTree();
+          renderNodes();
+          try {
+            await Promise.all(
+              nodes.map((node) =>
+                postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y })
+              )
+            );
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      renderNodes();
+    })();
+  </script>
+{% endblock %}

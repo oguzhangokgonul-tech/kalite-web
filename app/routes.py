@@ -29,6 +29,7 @@ from .models import (
     AppSetting,
     DEPARTMENTS,
     Notification,
+    OrientationNode,
     User,
 )
 
@@ -115,6 +116,12 @@ def is_related_to_current_user(action):
 
 def is_oguzhan_admin():
     return g.current_user is not None and g.current_user.username == "oguzhan"
+
+
+def can_manage_orientation():
+    return g.current_user is not None and (
+        is_oguzhan_admin() or g.current_user.can_manage_users
+    )
 
 
 def can_complete_action(action):
@@ -311,6 +318,46 @@ def notify_action_participants(action, message, exclude_user_id=None, extra_user
     if extra_user_ids:
         user_ids.update(extra_user_ids)
     notify_users(user_ids, action, message, exclude_user_id=exclude_user_id)
+
+
+def orientation_nodes_payload():
+    nodes = OrientationNode.query.order_by(
+        OrientationNode.y.asc(),
+        OrientationNode.x.asc(),
+        OrientationNode.id.asc(),
+    ).all()
+    return [node.to_dict() for node in nodes]
+
+
+def parse_node_parent(parent_id, current_node=None):
+    if parent_id in (None, "", "null"):
+        return None
+
+    try:
+        parent_id = int(parent_id)
+    except (TypeError, ValueError):
+        raise ValueError("invalid_parent") from None
+
+    parent = OrientationNode.query.get(parent_id)
+    if parent is None:
+        raise ValueError("invalid_parent")
+
+    if current_node is not None:
+        check_parent = parent
+        while check_parent is not None:
+            if check_parent.id == current_node.id:
+                raise ValueError("invalid_parent")
+            check_parent = check_parent.parent
+
+    return parent
+
+
+def parse_coordinate(data, key, default):
+    try:
+        value = int(float(data.get(key, default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(20, min(value, 4000))
 
 
 def short_text(value, length=90):
@@ -565,6 +612,104 @@ def open_notification(notification_id):
     if notification.action and can_view_action(notification.action):
         return redirect(url_for("main.action_detail", action_id=notification.action.id))
     return redirect(url_for("main.notifications"))
+
+
+@bp.get("/orientation")
+@login_required
+def orientation():
+    return render_template(
+        "orientation.html",
+        nodes=orientation_nodes_payload(),
+        can_edit=can_manage_orientation(),
+    )
+
+
+@bp.post("/orientation/nodes")
+@login_required
+def create_orientation_node():
+    if not can_manage_orientation():
+        abort(403)
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "Yeni kişi").strip()
+    title = (data.get("title") or "").strip()
+
+    try:
+        parent = parse_node_parent(data.get("parent_id"))
+    except ValueError:
+        return jsonify({"ok": False, "message": "Geçerli bir üst kişi seçin."}), 400
+
+    if parent is not None:
+        child_count = OrientationNode.query.filter_by(parent_id=parent.id).count()
+        default_x = parent.x + (child_count * 24)
+        default_y = parent.y + 170
+    else:
+        root_count = OrientationNode.query.filter_by(parent_id=None).count()
+        default_x = 120 + (root_count * 32)
+        default_y = 80
+
+    node = OrientationNode(
+        parent_id=parent.id if parent else None,
+        name=name[:160],
+        title=title[:160],
+        x=parse_coordinate(data, "x", default_x),
+        y=parse_coordinate(data, "y", default_y),
+    )
+    db.session.add(node)
+    db.session.commit()
+    return jsonify({"ok": True, "node": node.to_dict(), "nodes": orientation_nodes_payload()})
+
+
+@bp.post("/orientation/nodes/<int:node_id>/update")
+@login_required
+def update_orientation_node(node_id):
+    if not can_manage_orientation():
+        abort(403)
+
+    node = OrientationNode.query.get_or_404(node_id)
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    title = (data.get("title") or "").strip()
+
+    if not name:
+        return jsonify({"ok": False, "message": "İsim alanı boş bırakılamaz."}), 400
+
+    try:
+        parent = parse_node_parent(data.get("parent_id"), current_node=node)
+    except ValueError:
+        return jsonify({"ok": False, "message": "Geçerli bir üst kişi seçin."}), 400
+
+    node.name = name[:160]
+    node.title = title[:160]
+    node.parent_id = parent.id if parent else None
+    db.session.commit()
+    return jsonify({"ok": True, "node": node.to_dict(), "nodes": orientation_nodes_payload()})
+
+
+@bp.post("/orientation/nodes/<int:node_id>/move")
+@login_required
+def move_orientation_node(node_id):
+    if not can_manage_orientation():
+        abort(403)
+
+    node = OrientationNode.query.get_or_404(node_id)
+    data = request.get_json(silent=True) or {}
+    node.x = parse_coordinate(data, "x", node.x)
+    node.y = parse_coordinate(data, "y", node.y)
+    db.session.commit()
+    return jsonify({"ok": True, "node": node.to_dict()})
+
+
+@bp.post("/orientation/nodes/<int:node_id>/delete")
+@login_required
+def delete_orientation_node(node_id):
+    if not can_manage_orientation():
+        abort(403)
+
+    node = OrientationNode.query.get_or_404(node_id)
+    db.session.delete(node)
+    db.session.commit()
+    return jsonify({"ok": True, "nodes": orientation_nodes_payload()})
 
 
 @bp.route("/")

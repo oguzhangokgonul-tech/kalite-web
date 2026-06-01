@@ -182,3 +182,46 @@ class AppSetting(db.Model):
 
     key = db.Column(db.String(80), primary_key=True)
     value = db.Column(db.String(255), nullable=False)
+
+
+class OrientationNode(db.Model):
+    __tablename__ = "orientation_nodes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    parent_id = db.Column(
+        db.Integer,
+        db.ForeignKey("orientation_nodes.id"),
+        nullable=True,
+    )
+    name = db.Column(db.String(160), nullable=False)
+    title = db.Column(db.String(160), nullable=True)
+    x = db.Column(db.Integer, nullable=False, default=120)
+    y = db.Column(db.Integer, nullable=False, default=80)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    parent = db.relationship(
+        "OrientationNode",
+        remote_side=[id],
+        back_populates="children",
+    )
+    children = db.relationship(
+        "OrientationNode",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "parent_id": self.parent_id,
+            "name": self.name,
+            "title": self.title or "",
+            "x": self.x,
+            "y": self.y,
+        }

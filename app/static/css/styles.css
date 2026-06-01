@@ -7,6 +7,11 @@ body {
     color: #172033;
 }
 
+.navbar .container {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
 .metric-box {
     background: #ffffff;
     border: 1px solid #dee5ef;
@@ -54,6 +59,130 @@ body {
     padding-left: 14px;
 }
 
+.orientation-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 18px;
+    align-items: start;
+}
+
+.orientation-stage,
+.orientation-panel {
+    background: #ffffff;
+    border: 1px solid #dee5ef;
+    border-radius: 8px;
+}
+
+.orientation-stage {
+    overflow: hidden;
+}
+
+.orientation-scroll {
+    min-height: 620px;
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+    scroll-behavior: smooth;
+    background-color: #f8fafc;
+    background-image:
+        linear-gradient(#e8edf5 1px, transparent 1px),
+        linear-gradient(90deg, #e8edf5 1px, transparent 1px);
+    background-size: 32px 32px;
+}
+
+.orientation-board {
+    position: relative;
+    min-width: 720px;
+    min-height: 520px;
+}
+
+.orientation-lines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.orientation-line {
+    fill: none;
+    stroke: #5f748d;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.orientation-node {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 240px;
+    min-height: 96px;
+    padding: 14px 16px;
+    color: #172033;
+    text-align: left;
+    background: #ffffff;
+    border: 1px solid #d8e1ee;
+    border-left: 6px solid #0d6efd;
+    border-radius: 8px;
+    box-shadow: 0 12px 30px rgba(23, 32, 51, 0.12);
+    cursor: grab;
+    touch-action: none;
+}
+
+.orientation-node:active {
+    cursor: grabbing;
+}
+
+.orientation-node.is-selected {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.16), 0 16px 34px rgba(23, 32, 51, 0.16);
+}
+
+.orientation-node-name {
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.orientation-node-title {
+    color: #637083;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.orientation-node-count {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 3px 8px;
+    color: #14532d;
+    background: #dcfce7;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.orientation-empty {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 3;
+    width: min(360px, calc(100% - 48px));
+    padding: 24px;
+    color: #637083;
+    text-align: center;
+    background: #ffffff;
+    border: 1px dashed #b9c6d8;
+    border-radius: 8px;
+    transform: translate(-50%, -50%);
+}
+
+.orientation-panel {
+    position: sticky;
+    top: 86px;
+    padding: 18px;
+}
+
 @media (max-width: 576px) {
     .metric-box strong {
         font-size: 1.6rem;
@@ -61,5 +190,30 @@ body {
 
     .notification-menu {
         min-width: 280px;
+    }
+}
+
+@media (max-width: 992px) {
+    .orientation-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .orientation-panel {
+        position: static;
+    }
+
+    .orientation-scroll {
+        min-height: 520px;
+        max-height: none;
+    }
+}
+
+@media (max-width: 576px) {
+    .orientation-node {
+        width: 220px;
+    }
+
+    .orientation-scroll {
+        min-height: 460px;
     }
 }
