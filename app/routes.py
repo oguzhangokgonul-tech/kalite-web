@@ -614,14 +614,20 @@ def open_notification(notification_id):
     return redirect(url_for("main.notifications"))
 
 
-@bp.get("/orientation")
+@bp.get("/organization")
 @login_required
-def orientation():
+def organization():
     return render_template(
         "orientation.html",
         nodes=orientation_nodes_payload(),
         can_edit=can_manage_orientation(),
     )
+
+
+@bp.get("/orientation")
+@login_required
+def orientation():
+    return redirect(url_for("main.organization"))
 
 
 @bp.post("/orientation/nodes")

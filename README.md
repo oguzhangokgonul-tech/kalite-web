@@ -19,7 +19,7 @@ Flask, SQLite, SQLAlchemy ve Bootstrap ile hazırlanmış kalite yönetim sistem
 - Kullanıcı girişi, kullanıcı yönetimi ve yetki bazlı işlem kontrolleri
 - Kendine atanmış aksiyona yorum yapma ve kapatma yetkisi
 - Kendine atanmış aksiyonu başka kullanıcıya devredebilme
-- Sürüklenebilir, düzenlenebilir ve kalıcı oryantasyon şeması
+- Sürüklenebilir, yakınlaştırılabilir ve kalıcı organizasyon şeması
 - Responsive Bootstrap arayüz
 - Flask-Migrate migration yapısı
 

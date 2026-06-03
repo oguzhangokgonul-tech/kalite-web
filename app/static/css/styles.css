@@ -78,7 +78,7 @@ body {
 }
 
 .orientation-scroll {
-    min-height: 620px;
+    min-height: 660px;
     max-height: calc(100vh - 230px);
     overflow: auto;
     scroll-behavior: smooth;
@@ -89,10 +89,17 @@ body {
     background-size: 32px 32px;
 }
 
+.orientation-zoom-space {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+}
+
 .orientation-board {
     position: relative;
-    min-width: 720px;
-    min-height: 520px;
+    min-width: 1200px;
+    min-height: 760px;
+    transform-origin: 0 0;
 }
 
 .orientation-lines {
@@ -115,9 +122,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    width: 240px;
-    min-height: 96px;
-    padding: 14px 16px;
+    width: 220px;
+    min-height: 88px;
+    padding: 12px 14px;
     color: #172033;
     text-align: left;
     background: #ffffff;
@@ -127,6 +134,12 @@ body {
     box-shadow: 0 12px 30px rgba(23, 32, 51, 0.12);
     cursor: grab;
     touch-action: none;
+}
+
+.orientation-zoom-label {
+    min-width: 68px;
+    color: #172033;
+    opacity: 1;
 }
 
 .orientation-node:active {
@@ -210,7 +223,7 @@ body {
 
 @media (max-width: 576px) {
     .orientation-node {
-        width: 220px;
+        width: 210px;
     }
 
     .orientation-scroll {
