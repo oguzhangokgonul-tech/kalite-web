@@ -26,6 +26,7 @@ from .mail import send_action_notification_email
 from .models import (
     Action,
     ActionComment,
+    ActionClosureFile,
     ActionHistory,
     AppSetting,
     DEPARTMENTS,
@@ -465,7 +466,22 @@ def filtered_actions(actions, filters):
             continue
         if responsible_user_id and action.responsible_user_id != responsible_user_id:
             continue
-        if status == "open" and (action.is_completed or action.delay_days > 0):
+        if status == "open" and (
+            action.is_completed
+            or action.closure_approval_requested
+            or action.closure_rejection_reason
+            or action.delay_days > 0
+        ):
+            continue
+        if status == "pending" and (
+            action.is_completed or not action.closure_approval_requested
+        ):
+            continue
+        if status == "rejected" and (
+            action.is_completed
+            or action.closure_approval_requested
+            or not action.closure_rejection_reason
+        ):
             continue
         if status == "delayed" and (action.is_completed or action.delay_days == 0):
             continue
@@ -515,28 +531,47 @@ def save_uploaded_file(action):
 
 
 def delete_closure_evidence_file(action):
-    if not action.closure_file_stored_name:
-        return
+    for closure_file in list(action.closure_files):
+        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / closure_file.stored_name
+        if file_path.exists():
+            file_path.unlink()
+        db.session.delete(closure_file)
 
-    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / action.closure_file_stored_name
-    if file_path.exists():
-        file_path.unlink()
+    if action.closure_file_stored_name:
+        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / action.closure_file_stored_name
+        if file_path.exists():
+            file_path.unlink()
 
     action.closure_file_original_name = None
     action.closure_file_stored_name = None
     action.closure_file_mime_type = None
 
 
-def save_closure_evidence_file(action):
-    uploaded_file = request.files.get("closure_file")
-    if not uploaded_file or not uploaded_file.filename:
-        return
+def closure_evidence_uploads():
+    uploaded_files = request.files.getlist("closure_files")
+    if not uploaded_files:
+        uploaded_file = request.files.get("closure_file")
+        uploaded_files = [uploaded_file] if uploaded_file else []
+    return [uploaded_file for uploaded_file in uploaded_files if uploaded_file.filename]
+
+
+def save_closure_evidence_files(action):
+    uploaded_files = closure_evidence_uploads()
+    for uploaded_file in uploaded_files:
+        if not allowed_file(uploaded_file.filename):
+            raise ValueError("invalid_file_type")
 
     delete_closure_evidence_file(action)
-    safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
-    action.closure_file_original_name = safe_name
-    action.closure_file_stored_name = stored_name
-    action.closure_file_mime_type = mime_type
+    for uploaded_file in uploaded_files:
+        safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
+        db.session.add(
+            ActionClosureFile(
+                action=action,
+                original_name=safe_name,
+                stored_name=stored_name,
+                mime_type=mime_type,
+            )
+        )
 
 
 def refresh_all_actions():
@@ -841,6 +876,11 @@ def dashboard():
         1 for action in all_actions if not action.is_completed and action.delay_days > 0
     )
     completed_count = sum(1 for action in all_actions if action.is_completed)
+    pending_approval_count = sum(
+        1
+        for action in all_actions
+        if not action.is_completed and action.closure_approval_requested
+    )
     total_count = len(all_actions)
 
     return render_template(
@@ -848,6 +888,7 @@ def dashboard():
         actions=actions,
         delayed_count=delayed_count,
         completed_count=completed_count,
+        pending_approval_count=pending_approval_count,
         total_count=total_count,
         can_complete_action=can_complete_action,
         can_request_closure_action=can_request_closure_action,
@@ -1131,7 +1172,7 @@ def request_action_closure(action_id):
         return redirect(url_for("main.action_detail", action_id=action.id))
 
     try:
-        save_closure_evidence_file(action)
+        save_closure_evidence_files(action)
     except ValueError:
         flash("Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
@@ -1140,6 +1181,9 @@ def request_action_closure(action_id):
     action.closure_requested_at = datetime.utcnow()
     action.closure_requested_by_user_id = g.current_user.id
     action.closure_evidence_note = evidence_note
+    action.closure_rejected_at = None
+    action.closure_rejected_by_user_id = None
+    action.closure_rejection_reason = None
     add_action_history(
         action,
         "closure_requested",
@@ -1183,6 +1227,45 @@ def complete_action(action_id):
     return redirect(url_for("main.action_detail", action_id=action.id))
 
 
+@bp.post("/actions/<int:action_id>/reject-closure")
+@login_required
+def reject_action_closure(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_approve_closure_action(action):
+        abort(403)
+
+    rejection_reason = request.form.get("closure_rejection_reason", "").strip()
+    if not rejection_reason:
+        flash("Red sebebi alanını doldurun.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    action.closure_approval_requested = False
+    action.closure_rejected_at = datetime.utcnow()
+    action.closure_rejected_by_user_id = g.current_user.id
+    action.closure_rejection_reason = rejection_reason
+    add_action_history(
+        action,
+        "closure_rejected",
+        (
+            f"{g.current_user.full_name} kapatma onayını reddetti: "
+            f"\"{short_text(rejection_reason)}\""
+        ),
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        (
+            f"{action.number_label} {action.title} aksiyonunun kapatma onayı "
+            f"reddedildi. Sebep: {short_text(rejection_reason)}"
+        ),
+        exclude_user_id=g.current_user.id,
+        extra_user_ids={action.closure_requested_by_user_id},
+    )
+    db.session.commit()
+    flash("Kapatma onayı reddedildi.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
 @bp.route("/actions/<int:action_id>/delete", methods=["GET", "POST"])
 @login_required
 @permission_required("can_delete_actions")
@@ -1219,12 +1302,42 @@ def download_action_file(action_id):
     )
 
 
-@bp.get("/actions/<int:action_id>/closure-evidence/download")
+@bp.get("/actions/<int:action_id>/closure-evidence/<int:file_id>/download")
 @login_required
-def download_closure_evidence_file(action_id):
+def download_closure_evidence_file(action_id, file_id):
     action = Action.query.get_or_404(action_id)
     if not can_view_action(action):
         abort(403)
+
+    closure_file = ActionClosureFile.query.filter_by(
+        id=file_id,
+        action_id=action.id,
+    ).first_or_404()
+
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        closure_file.stored_name,
+        as_attachment=True,
+        download_name=closure_file.original_name,
+    )
+
+
+@bp.get("/actions/<int:action_id>/closure-evidence/download")
+@login_required
+def download_latest_closure_evidence_file(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_view_action(action):
+        abort(403)
+
+    if action.closure_files:
+        closure_file = action.closure_files[-1]
+        return redirect(
+            url_for(
+                "main.download_closure_evidence_file",
+                action_id=action.id,
+                file_id=closure_file.id,
+            )
+        )
 
     if not action.closure_file_stored_name:
         flash("Bu aksiyona ait kapanış kanıt dosyası bulunamadı.", "warning")

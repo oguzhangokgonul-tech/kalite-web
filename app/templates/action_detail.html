@@ -45,13 +45,15 @@
       </div>
     </div>
     <div class="col-12 col-md-4">
-      <div class="metric-box {% if action.is_completed %}metric-box-success{% elif action.closure_approval_requested %}metric-box-warning{% endif %}">
+      <div class="metric-box {% if action.is_completed %}metric-box-success{% elif action.closure_approval_requested %}metric-box-warning{% elif action.closure_rejection_reason %}metric-box-danger{% endif %}">
         <span class="metric-label">Durum</span>
         <strong class="fs-4">
           {% if action.is_completed %}
             Tamamlandı
           {% elif action.closure_approval_requested %}
             Kapanma Onayı Beklemede
+          {% elif action.closure_rejection_reason %}
+            Kapanma Onayı Reddedildi
           {% else %}
             Açık
           {% endif %}
@@ -139,51 +141,96 @@
     </div>
   {% endif %}
 
-  {% set has_closure_evidence = action.closure_evidence_note or action.closure_file_original_name or action.closure_requested_by %}
+  {% set has_closure_files = action.closure_files or action.closure_file_original_name %}
+  {% set has_closure_evidence = action.closure_evidence_note or has_closure_files or action.closure_requested_by or action.closure_rejection_reason %}
   {% if can_request_closure or can_approve_closure or action.closure_approval_requested or has_closure_evidence %}
     <div class="bg-white border rounded p-4 mb-4" id="closure-request">
-      <h2 class="h5 mb-3">Aksiyonun kapandığına dair kanıt, açıklama ve mümkünse görsel iletiniz</h2>
+      <h2 class="h5 mb-3">Aksiyon Kapanış Kanıtı</h2>
 
-      {% if action.closure_approval_requested or has_closure_evidence %}
-        <div class="alert {% if action.is_completed %}alert-success{% else %}alert-warning{% endif %} mb-3" role="alert">
+      {% if action.is_completed or action.closure_approval_requested or action.closure_rejection_reason %}
+        <div class="alert {% if action.is_completed %}alert-success{% elif action.closure_approval_requested %}alert-warning{% else %}alert-danger{% endif %} mb-3" role="alert">
           {% if action.is_completed %}
             Bu aksiyonun kapanış kanıtı Oğuzhan tarafından onaylandı.
-          {% else %}
+          {% elif action.closure_approval_requested %}
             Bu aksiyon için kapanma onayı bekleniyor.
+          {% else %}
+            Kapatma onayı reddedildi. Yeni kanıt girerek tekrar onaya gönderebilirsiniz.
           {% endif %}
         </div>
-        <div class="mb-3">
-          <div class="text-secondary small">Onay gönderen</div>
-          <strong>{{ action.closure_requested_by.full_name if action.closure_requested_by else "-" }}</strong>
-          {% if action.closure_requested_at %}
-            <span class="text-secondary small">- {{ action.closure_requested_at.strftime("%d.%m.%Y %H:%M") }}</span>
-          {% endif %}
-        </div>
+      {% endif %}
+
+      {% if has_closure_evidence %}
+        {% if action.closure_requested_by or action.closure_requested_at %}
+          <div class="mb-3">
+            <div class="text-secondary small">Onay gönderen</div>
+            <strong>{{ action.closure_requested_by.full_name if action.closure_requested_by else "-" }}</strong>
+            {% if action.closure_requested_at %}
+              <span class="text-secondary small">- {{ action.closure_requested_at.strftime("%d.%m.%Y %H:%M") }}</span>
+            {% endif %}
+          </div>
+        {% endif %}
         {% if action.closure_evidence_note %}
           <div class="mb-3">
             <div class="text-secondary small">Kapanış açıklaması</div>
             <p class="mb-0">{{ action.closure_evidence_note }}</p>
           </div>
         {% endif %}
-        {% if action.closure_file_original_name %}
-          <a class="btn btn-outline-secondary mb-3" href="{{ url_for('main.download_closure_evidence_file', action_id=action.id) }}">Kapanış kanıt dosyasını indir</a>
+        {% if action.closure_files %}
+          <div class="mb-3">
+            <div class="text-secondary small mb-2">Kapanış kanıt dosyaları</div>
+            <div class="d-flex flex-wrap gap-2">
+              {% for closure_file in action.closure_files %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_closure_evidence_file', action_id=action.id, file_id=closure_file.id) }}">
+                  {{ closure_file.original_name }}
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        {% elif action.closure_file_original_name %}
+          <a class="btn btn-outline-secondary mb-3" href="{{ url_for('main.download_latest_closure_evidence_file', action_id=action.id) }}">Kapanış kanıt dosyasını indir</a>
         {% endif %}
+        {% if action.closure_rejection_reason %}
+          <div class="border border-danger rounded p-3 mb-3">
+            <div class="text-danger small">Red sebebi</div>
+            <p class="mb-1">{{ action.closure_rejection_reason }}</p>
+            {% if action.closure_rejected_by or action.closure_rejected_at %}
+              <small class="text-secondary">
+                {{ action.closure_rejected_by.full_name if action.closure_rejected_by else "-" }}
+                {% if action.closure_rejected_at %}
+                  - {{ action.closure_rejected_at.strftime("%d.%m.%Y %H:%M") }}
+                {% endif %}
+              </small>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endif %}
 
-        {% if can_approve_closure %}
+      {% if can_approve_closure %}
+        <div class="d-flex flex-column gap-3">
           <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
             <button class="btn btn-success" type="submit">Kapatma Onayını Ver</button>
           </form>
+          <form method="post" action="{{ url_for('main.reject_action_closure', action_id=action.id) }}">
+            <label class="form-label" for="closure_rejection_reason">Red sebebi</label>
+            <textarea class="form-control" id="closure_rejection_reason" name="closure_rejection_reason" rows="3" required></textarea>
+            <button class="btn btn-outline-danger mt-3" type="submit">Kapatma Onayını Reddet</button>
+          </form>
+        </div>
+      {% endif %}
+
+      {% if can_request_closure and not action.is_completed %}
+        {% if has_closure_evidence %}
+          <hr>
         {% endif %}
-      {% elif can_request_closure and not action.is_completed %}
         <form method="post" action="{{ url_for('main.request_action_closure', action_id=action.id) }}" enctype="multipart/form-data">
           <div class="mb-3">
             <label class="form-label" for="closure_evidence_note">Açıklama</label>
             <textarea class="form-control" id="closure_evidence_note" name="closure_evidence_note" rows="4" required></textarea>
           </div>
           <div class="mb-3">
-            <label class="form-label" for="closure_file">Kanıt dosyası veya görsel</label>
-            <input class="form-control" id="closure_file" name="closure_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp">
-            <div class="form-text">PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz. Görsel mümkünse ekleyin.</div>
+            <label class="form-label" for="closure_files">Kanıt dosyaları veya görseller</label>
+            <input class="form-control" id="closure_files" name="closure_files" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" multiple>
+            <div class="form-text">PDF, Word, Excel veya birden fazla görsel dosyası yükleyebilirsiniz.</div>
           </div>
           <button class="btn btn-success" type="submit">Kapatma Onayı Gönder</button>
         </form>

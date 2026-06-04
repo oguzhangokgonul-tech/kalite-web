@@ -14,19 +14,25 @@
   </div>
 
   <div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
+    <div class="col-12 col-md-6 col-xl-3">
       <div class="metric-box">
         <span class="metric-label">Toplam Aksiyon</span>
         <strong>{{ total_count }}</strong>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-12 col-md-6 col-xl-3">
       <div class="metric-box metric-box-success">
         <span class="metric-label">Tamamlanan</span>
         <strong>{{ completed_count }}</strong>
       </div>
     </div>
-    <div class="col-12 col-md-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="metric-box metric-box-warning">
+        <span class="metric-label">Onay Bekleyen Aksiyon</span>
+        <strong>{{ pending_approval_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
       <div class="metric-box metric-box-danger">
         <span class="metric-label">Geciken Aksiyon</span>
         <strong>{{ delayed_count }}</strong>
@@ -63,6 +69,8 @@
         <select class="form-select" id="status" name="status">
           <option value="">Tümü</option>
           <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
+          <option value="pending" {% if filters.status == "pending" %}selected{% endif %}>Onay bekleyen</option>
+          <option value="rejected" {% if filters.status == "rejected" %}selected{% endif %}>Reddedilen</option>
           <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
           <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
         </select>
@@ -90,7 +98,7 @@
       </thead>
       <tbody>
         {% for action in actions %}
-          <tr class="{% if action.is_completed %}table-success{% elif action.closure_approval_requested %}table-warning{% elif action.delay_days > 0 %}table-danger{% endif %}">
+          <tr class="{% if action.is_completed %}table-success{% elif action.closure_approval_requested %}table-warning{% elif action.closure_rejection_reason or action.delay_days > 0 %}table-danger{% endif %}">
             <td>
               <a class="fw-semibold text-decoration-none" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
               {% if action.description %}
@@ -105,6 +113,8 @@
                 <span class="badge text-bg-success">Tamamlandı</span>
               {% elif action.closure_approval_requested %}
                 <span class="badge text-bg-warning">Kapanma Onayı Beklemede</span>
+              {% elif action.closure_rejection_reason %}
+                <span class="badge text-bg-danger">Kapanma Onayı Reddedildi</span>
               {% elif action.delay_days > 0 %}
                 <span class="badge text-bg-danger">Gecikti</span>
               {% else %}

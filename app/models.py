@@ -91,6 +91,13 @@ class Action(db.Model):
     closure_file_original_name = db.Column(db.String(255), nullable=True)
     closure_file_stored_name = db.Column(db.String(255), nullable=True)
     closure_file_mime_type = db.Column(db.String(120), nullable=True)
+    closure_rejected_at = db.Column(db.DateTime, nullable=True)
+    closure_rejected_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    closure_rejection_reason = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -109,6 +116,16 @@ class Action(db.Model):
     closure_requested_by = db.relationship(
         "User",
         foreign_keys=[closure_requested_by_user_id],
+    )
+    closure_rejected_by = db.relationship(
+        "User",
+        foreign_keys=[closure_rejected_by_user_id],
+    )
+    closure_files = db.relationship(
+        "ActionClosureFile",
+        back_populates="action",
+        cascade="all, delete-orphan",
+        order_by="ActionClosureFile.created_at.asc()",
     )
     comments = db.relationship(
         "ActionComment",
@@ -158,6 +175,22 @@ class Action(db.Model):
         self.completed_at = today or date.today()
         self.delay_days = 0
         self.closure_approval_requested = False
+        self.closure_rejected_at = None
+        self.closure_rejected_by_user_id = None
+        self.closure_rejection_reason = None
+
+
+class ActionClosureFile(db.Model):
+    __tablename__ = "action_closure_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(120), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    action = db.relationship("Action", back_populates="closure_files")
 
 
 class ActionComment(db.Model):

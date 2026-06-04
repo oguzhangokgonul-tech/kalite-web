@@ -54,6 +54,8 @@ def build_action_email(action, message):
         status = "Tamamlandı"
     elif action.closure_approval_requested:
         status = "Kapanma Onayı Beklemede"
+    elif action.closure_rejection_reason:
+        status = "Kapanma Onayı Reddedildi"
     else:
         status = "Açık"
 

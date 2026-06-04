@@ -130,6 +130,35 @@ def ensure_runtime_schema():
                 text("ALTER TABLE actions ADD COLUMN closure_file_mime_type VARCHAR(120)")
             )
             changed = True
+        if "closure_rejected_at" not in columns:
+            db.session.execute(text("ALTER TABLE actions ADD COLUMN closure_rejected_at DATETIME"))
+            changed = True
+        if "closure_rejected_by_user_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN closure_rejected_by_user_id INTEGER")
+            )
+            changed = True
+        if "closure_rejection_reason" not in columns:
+            db.session.execute(text("ALTER TABLE actions ADD COLUMN closure_rejection_reason TEXT"))
+            changed = True
+
+    if "action_closure_files" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE action_closure_files (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    action_id INTEGER NOT NULL,
+                    original_name VARCHAR(255) NOT NULL,
+                    stored_name VARCHAR(255) NOT NULL,
+                    mime_type VARCHAR(120),
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(action_id) REFERENCES actions (id)
+                )
+                """
+            )
+        )
+        changed = True
 
     if "orientation_nodes" in tables:
         columns = {
@@ -154,6 +183,41 @@ def ensure_runtime_schema():
 
     if changed:
         db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "actions" in tables and "action_closure_files" in tables:
+        columns = {
+            column["name"] for column in inspect(db.engine).get_columns("actions")
+        }
+        if {
+            "closure_file_original_name",
+            "closure_file_stored_name",
+            "closure_file_mime_type",
+        }.issubset(columns):
+            db.session.execute(
+                text(
+                    """
+                    INSERT INTO action_closure_files
+                        (action_id, original_name, stored_name, mime_type, created_at)
+                    SELECT
+                        id,
+                        closure_file_original_name,
+                        closure_file_stored_name,
+                        closure_file_mime_type,
+                        CURRENT_TIMESTAMP
+                    FROM actions
+                    WHERE closure_file_stored_name IS NOT NULL
+                      AND closure_file_original_name IS NOT NULL
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM action_closure_files
+                          WHERE action_closure_files.action_id = actions.id
+                            AND action_closure_files.stored_name = actions.closure_file_stored_name
+                      )
+                    """
+                )
+            )
+            db.session.commit()
 
     tables = set(inspect(db.engine).get_table_names())
     if "orientation_nodes" in tables:
