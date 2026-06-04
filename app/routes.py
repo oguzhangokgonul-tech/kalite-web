@@ -65,9 +65,11 @@ def allowed_file(filename):
 def load_logged_in_user():
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
+    g.current_user_initials = ""
     g.unread_notification_count = 0
     g.latest_notifications = []
     if g.current_user is not None:
+        g.current_user_initials = user_initials(g.current_user)
         notification_query = Notification.query.filter_by(user_id=g.current_user.id)
         g.unread_notification_count = notification_query.filter_by(is_read=False).count()
         g.latest_notifications = (

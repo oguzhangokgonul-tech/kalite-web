@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block body_class %}dashboard-body{% endblock %}
+{% block navbar %}{% endblock %}
+{% block main_class %}dashboard-app{% endblock %}
+{% block flashes %}{% endblock %}
+
+{% block content %}
+  <aside class="dashboard-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
+    <div class="offcanvas-header d-lg-none">
+      <h2 class="h6 mb-0" id="dashboardSidebarLabel">Menü</h2>
+      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="dashboard-sidebar-brand">
+        <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
+        <strong>Aksiyon Takip Sistemi</strong>
+      </div>
+      <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
+        <a class="dashboard-nav-item {% if request.endpoint == 'main.dashboard' %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+          <i class="bi bi-house-door"></i>
+          <span>Ana Sayfa</span>
+        </a>
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.create_action', 'main.edit_action', 'main.action_detail'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+          <i class="bi bi-clipboard-check"></i>
+          <span>Aksiyonlar</span>
+        </a>
+        {% if g.current_user.can_manage_users %}
+          <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
+            <i class="bi bi-people"></i>
+            <span>Kullanıcılar</span>
+          </a>
+        {% endif %}
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.organization', 'main.organization_legacy', 'main.orientation'] %}active{% endif %}" href="{{ url_for('main.organization') }}">
+          <i class="bi bi-diagram-3"></i>
+          <span>Organizasyon Şeması</span>
+        </a>
+      </nav>
+      <div class="dashboard-sidebar-user">
+        <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
+        <div>
+          <strong>{{ g.current_user.full_name }}</strong>
+          <span>{{ g.current_user.title or "Kullanıcı" }}</span>
+        </div>
+      </div>
+      <a class="dashboard-logout" href="{{ url_for('main.logout') }}">
+        <i class="bi bi-box-arrow-left"></i>
+        <span>Çıkış</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="dashboard-main">
+    <header class="dashboard-topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
+          <i class="bi bi-list"></i>
+        </button>
+        <h1 class="dashboard-topbar-title">{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}</h1>
+      </div>
+      <div class="dashboard-topbar-actions">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bell"></i>
+            <span>Bildirimler</span>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>
+              {{ g.unread_notification_count }}
+            </span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end notification-menu p-0">
+            <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
+            {% if g.latest_notifications %}
+              {% for notification in g.latest_notifications %}
+                <a class="dropdown-item notification-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+                  <span class="notification-message">{{ notification.message }}</span>
+                  <span class="notification-time">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                </a>
+              {% endfor %}
+            {% else %}
+              <div class="px-3 py-3 text-secondary small">Henüz bildirim yok.</div>
+            {% endif %}
+            <div class="border-top">
+              <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
+            </div>
+          </div>
+        </div>
+        <div class="dropdown">
+          <button class="dashboard-profile-button" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="d-none d-md-inline">{{ g.current_user.full_name }}</span>
+            <span class="dashboard-profile-avatar">{{ g.current_user_initials }}</span>
+            <i class="bi bi-chevron-down"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><span class="dropdown-item-text">{{ g.current_user.title or "Kullanıcı" }}</span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.logout') }}">Çıkış</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <section class="dashboard-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="dashboard-alert-stack">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show mb-0" role="alert">
+                {% if category == "success" %}
+                  <i class="bi bi-check-circle-fill"></i>
+                {% elif category == "danger" %}
+                  <i class="bi bi-exclamation-circle-fill"></i>
+                {% else %}
+                  <i class="bi bi-info-circle-fill"></i>
+                {% endif %}
+                <span>{{ message }}</span>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Kapat"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block app_content %}{% endblock %}
+    </section>
+  </div>
+{% endblock %}

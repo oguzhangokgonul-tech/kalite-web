@@ -204,8 +204,30 @@ body {
 }
 
 .notification-menu {
-    min-width: 320px;
-    max-width: 380px;
+    width: min(420px, calc(100vw - 24px));
+    min-width: min(360px, calc(100vw - 24px));
+    max-width: 420px;
+}
+
+.notification-menu .dropdown-item {
+    white-space: normal;
+}
+
+.notification-item {
+    display: grid;
+    gap: 4px;
+    line-height: 1.35;
+}
+
+.notification-message {
+    color: #172033;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.notification-time {
+    color: #64748b;
+    font-size: 0.78rem;
 }
 
 .dashboard-body {
@@ -744,6 +766,248 @@ body {
     color: #172033;
 }
 
+.app-card,
+.app-form-card {
+    margin-bottom: 20px;
+    padding: 22px;
+    background: #ffffff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.app-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.app-card-header h3 {
+    margin: 0;
+    color: #111827;
+    font-size: 1.1rem;
+    font-weight: 800;
+}
+
+.app-card-header p {
+    margin: 4px 0 0;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+.app-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    color: #0d6efd;
+    background: #eaf2ff;
+    border-radius: 8px;
+    font-size: 1.35rem;
+}
+
+.app-card-footer {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #e7edf5;
+}
+
+.app-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.app-heading-actions .btn,
+.app-form-actions .btn,
+.app-inline-form .btn,
+.closure-review-box .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    border-radius: 8px;
+    font-weight: 700;
+}
+
+.app-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+}
+
+.app-form-full {
+    grid-column: 1 / -1;
+}
+
+.app-form-card .form-label,
+.app-card .form-label {
+    color: #172033;
+    font-weight: 700;
+}
+
+.app-form-card .form-control,
+.app-form-card .form-select,
+.app-card .form-control,
+.app-card .form-select {
+    min-height: 44px;
+    border-color: #d8e2ef;
+    border-radius: 8px;
+}
+
+.app-file-box {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 14px;
+    padding: 16px;
+    background: #f8fbff;
+    border: 1px dashed #bfd2ec;
+    border-radius: 8px;
+}
+
+.app-file-box > i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    color: #0d6efd;
+    background: #eaf2ff;
+    border-radius: 8px;
+    font-size: 1.3rem;
+}
+
+.app-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #e7edf5;
+}
+
+.detail-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.detail-metric-card {
+    display: grid;
+    gap: 8px;
+    min-height: 96px;
+    padding: 18px;
+    background: #ffffff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.detail-metric-card span {
+    color: #64748b;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.detail-metric-card strong {
+    color: #111827;
+    font-size: 1.05rem;
+    overflow-wrap: anywhere;
+}
+
+.detail-metric-danger {
+    border-left: 5px solid #dc3545;
+}
+
+.app-inline-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: end;
+}
+
+.evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.evidence-item {
+    padding: 14px;
+    background: #f8fbff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+}
+
+.evidence-item-wide {
+    grid-column: 1 / -1;
+}
+
+.evidence-item span {
+    display: block;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.evidence-item p {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.evidence-danger {
+    background: #fff7f8;
+    border-color: #fac5cb;
+}
+
+.closure-review-box {
+    display: grid;
+    gap: 14px;
+    margin-top: 14px;
+    padding: 16px;
+    background: #fbfcfe;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+}
+
+.comment-list {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.comment-item {
+    padding: 14px;
+    background: #f8fbff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+}
+
+.comment-item > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.comment-item small {
+    color: #64748b;
+}
+
+.comment-item p {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
 @media (min-width: 992px) {
     .dashboard-sidebar {
         position: sticky;
@@ -1116,7 +1380,8 @@ body {
     }
 
     .notification-menu {
-        min-width: 280px;
+        width: calc(100vw - 24px);
+        min-width: 0;
     }
 }
 
@@ -1156,6 +1421,18 @@ body {
 
     .dashboard-filter-actions {
         grid-column: 1 / -1;
+    }
+
+    .app-heading-actions {
+        justify-content: flex-start;
+    }
+
+    .detail-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .app-inline-form {
+        grid-template-columns: 1fr;
     }
 
     .action-row {
@@ -1243,8 +1520,36 @@ body {
     }
 
     .dashboard-metrics,
-    .dashboard-filter-grid {
+    .dashboard-filter-grid,
+    .app-form-grid,
+    .detail-metrics,
+    .evidence-grid {
         grid-template-columns: 1fr;
+    }
+
+    .app-card,
+    .app-form-card {
+        padding: 18px;
+    }
+
+    .app-card-header {
+        flex-direction: column;
+    }
+
+    .app-file-box {
+        grid-template-columns: 1fr;
+    }
+
+    .app-heading-actions,
+    .app-form-actions {
+        flex-direction: column;
+    }
+
+    .app-heading-actions .btn,
+    .app-heading-actions form,
+    .app-form-actions .btn,
+    .app-inline-form .btn {
+        width: 100%;
     }
 
     .dashboard-stat-card {

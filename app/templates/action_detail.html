@@ -1,93 +1,114 @@
-{% extends "base.html" %}
+{% extends "app_shell.html" %}
 
 {% block title %}{{ action.title }} - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}Aksiyon Detayı{% endblock %}
 
-{% block content %}
-  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+{% macro detail_status_badge(action) %}
+  {% if action.is_completed %}
+    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+  {% elif action.closure_approval_requested %}
+    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Kapanma Onayı Beklemede</span>
+  {% elif action.closure_rejection_reason %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Kapanma Onayı Reddedildi</span>
+  {% elif action.delay_days > 0 %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
+  {% else %}
+    <span class="status-pill status-pill-muted"><i class="bi bi-circle-fill"></i> Açık</span>
+  {% endif %}
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
     <div>
-      <h1 class="h3 mb-1">{{ action.number_label }} {{ action.title }}</h1>
-      <p class="text-secondary mb-0">{{ action.responsible_owner }} için atanmış aksiyon</p>
+      <h2>{{ action.number_label }} {{ action.title }}</h2>
+      <p>{{ action.responsible_owner }} için atanmış aksiyon</p>
     </div>
-    <div class="d-flex flex-wrap gap-2 align-self-lg-start">
+    <div class="app-heading-actions">
       {% if can_approve_closure %}
         <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
-          <button class="btn btn-success" type="submit">Kapatma Onayını Ver</button>
+          <button class="btn btn-success" type="submit">
+            <i class="bi bi-check-circle"></i>
+            <span>Kapatma Onayını Ver</span>
+          </button>
         </form>
       {% elif can_request_closure %}
-        <a class="btn btn-success" href="#closure-request">Kapatma Onayı Gönder</a>
+        <a class="btn btn-success" href="#closure-request">
+          <i class="bi bi-send"></i>
+          <span>Kapatma Onayı Gönder</span>
+        </a>
       {% elif action.closure_approval_requested and not action.is_completed %}
         <span class="btn btn-warning disabled">Kapanma Onayı Beklemede</span>
       {% endif %}
       {% if g.current_user.can_edit_actions %}
-        <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
+          <i class="bi bi-pencil"></i>
+          <span>Düzenle</span>
+        </a>
       {% endif %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>Ana Sayfa</span>
+      </a>
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-      <div class="metric-box">
-        <span class="metric-label">Departman</span>
-        <strong class="fs-4">{{ action.department }}</strong>
-      </div>
+  <div class="detail-metrics">
+    <div class="detail-metric-card">
+      <span>Departman</span>
+      <strong>{{ action.department }}</strong>
     </div>
-    <div class="col-12 col-md-4">
-      <div class="metric-box">
-        <span class="metric-label">Termin</span>
-        <strong class="fs-4">{{ action.termin_date.strftime("%d.%m.%Y") }}</strong>
-      </div>
+    <div class="detail-metric-card">
+      <span>Termin</span>
+      <strong>{{ action.termin_date.strftime("%d.%m.%Y") }}</strong>
     </div>
-    <div class="col-12 col-md-4">
-      <div class="metric-box {% if action.is_completed %}metric-box-success{% elif action.delay_days > 0 %}metric-box-danger{% endif %}">
-        <span class="metric-label">Gecikme Günü</span>
-        <strong>{{ action.delay_days }}</strong>
-      </div>
+    <div class="detail-metric-card {% if action.delay_days > 0 and not action.is_completed %}detail-metric-danger{% endif %}">
+      <span>Gecikme Günü</span>
+      <strong>{{ action.delay_days }}</strong>
     </div>
-    <div class="col-12 col-md-4">
-      <div class="metric-box {% if action.is_completed %}metric-box-success{% elif action.closure_approval_requested %}metric-box-warning{% elif action.closure_rejection_reason %}metric-box-danger{% endif %}">
-        <span class="metric-label">Durum</span>
-        <strong class="fs-4">
-          {% if action.is_completed %}
-            Tamamlandı
-          {% elif action.closure_approval_requested %}
-            Kapanma Onayı Beklemede
-          {% elif action.closure_rejection_reason %}
-            Kapanma Onayı Reddedildi
-          {% else %}
-            Açık
-          {% endif %}
-        </strong>
-      </div>
+    <div class="detail-metric-card">
+      <span>Durum</span>
+      {{ detail_status_badge(action) }}
     </div>
-    <div class="col-12 col-md-4">
-      <div class="metric-box">
-        <span class="metric-label">İlgili 1</span>
-        <strong class="fs-5">{{ action.related_user_1.full_name if action.related_user_1 else "-" }}</strong>
-      </div>
+    <div class="detail-metric-card">
+      <span>İlgili 1</span>
+      <strong>{{ action.related_user_1.full_name if action.related_user_1 else "-" }}</strong>
     </div>
-    <div class="col-12 col-md-4">
-      <div class="metric-box">
-        <span class="metric-label">İlgili 2</span>
-        <strong class="fs-5">{{ action.related_user_2.full_name if action.related_user_2 else "-" }}</strong>
-      </div>
+    <div class="detail-metric-card">
+      <span>İlgili 2</span>
+      <strong>{{ action.related_user_2.full_name if action.related_user_2 else "-" }}</strong>
     </div>
   </div>
 
-  <div class="bg-white border rounded p-4 mb-4">
-    <h2 class="h5 mb-3">Açıklama</h2>
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-card-text"></i></span>
+      <div>
+        <h3>Açıklama</h3>
+        <p>Aksiyonun kapsamı ve beklenen çalışma bilgileri</p>
+      </div>
+    </div>
     <p class="mb-0">{{ action.description or "Açıklama girilmemiş." }}</p>
     {% if action.file_original_name %}
-      <hr>
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosyayı indir</a>
+      <div class="app-card-footer">
+        <a class="btn btn-outline-primary" href="{{ url_for('main.download_action_file', action_id=action.id) }}">
+          <i class="bi bi-download"></i>
+          <span>Dosyayı indir</span>
+        </a>
+      </div>
     {% endif %}
   </div>
 
   {% if can_reassign and not action.is_completed %}
-    <div class="bg-white border rounded p-4 mb-4">
-      <h2 class="h5 mb-3">Sorumlu ve İlgilileri Güncelle</h2>
-      <form class="row g-3 align-items-end" method="post" action="{{ url_for('main.reassign_action', action_id=action.id) }}">
-        <div class="col-12 col-lg-4">
+    <div class="app-card">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-person-gear"></i></span>
+        <div>
+          <h3>Sorumlu ve İlgilileri Güncelle</h3>
+          <p>Aksiyon sorumlusu ve ilgili kişileri gerektiğinde değiştirin.</p>
+        </div>
+      </div>
+      <form class="app-form-grid" method="post" action="{{ url_for('main.reassign_action', action_id=action.id) }}">
+        <div>
           <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
           <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
             {% for user in users %}
@@ -97,7 +118,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-12 col-lg-4">
+        <div>
           <label class="form-label" for="related_user_1_id">İlgili 1 (Opsiyonel)</label>
           <select class="form-select" id="related_user_1_id" name="related_user_1_id">
             <option value="">Seçiniz</option>
@@ -108,7 +129,7 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-12 col-lg-4">
+        <div>
           <label class="form-label" for="related_user_2_id">İlgili 2 (Opsiyonel)</label>
           <select class="form-select" id="related_user_2_id" name="related_user_2_id">
             <option value="">Seçiniz</option>
@@ -119,24 +140,31 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col-12">
-          <button class="btn btn-primary" type="submit">Sorumlu ve İlgilileri Güncelle</button>
+        <div class="app-form-actions app-form-full">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-check-lg"></i>
+            <span>Sorumlu ve İlgilileri Güncelle</span>
+          </button>
         </div>
       </form>
     </div>
   {% endif %}
 
   {% if can_revise_termin %}
-    <div class="bg-white border rounded p-4 mb-4">
-      <h2 class="h5 mb-3">Revize Termin</h2>
-      <form class="row g-3 align-items-end" method="post" action="{{ url_for('main.revise_action_termin', action_id=action.id) }}">
-        <div class="col-12 col-lg-8">
+    <div class="app-card">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-calendar2-week"></i></span>
+        <div>
+          <h3>Revize Termin</h3>
+          <p>Termin güncellemesi geçmişe kaydedilir ve ilgili kişilere bildirilir.</p>
+        </div>
+      </div>
+      <form class="app-inline-form" method="post" action="{{ url_for('main.revise_action_termin', action_id=action.id) }}">
+        <div>
           <label class="form-label" for="termin_date_revision">Yeni termin tarihi</label>
           <input class="form-control" id="termin_date_revision" name="termin_date" type="date" value="{{ action.termin_date.isoformat() }}" required>
         </div>
-        <div class="col-12 col-lg-4">
-          <button class="btn btn-primary w-100" type="submit">Termini Revize Et</button>
-        </div>
+        <button class="btn btn-primary" type="submit">Termini Revize Et</button>
       </form>
     </div>
   {% endif %}
@@ -144,11 +172,17 @@
   {% set has_closure_files = action.closure_files or action.closure_file_original_name %}
   {% set has_closure_evidence = action.closure_evidence_note or has_closure_files or action.closure_requested_by or action.closure_rejection_reason %}
   {% if can_request_closure or can_approve_closure or action.closure_approval_requested or has_closure_evidence %}
-    <div class="bg-white border rounded p-4 mb-4" id="closure-request">
-      <h2 class="h5 mb-3">Aksiyon Kapanış Kanıtı</h2>
+    <div class="app-card" id="closure-request">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-file-earmark-check"></i></span>
+        <div>
+          <h3>Aksiyon Kapanış Kanıtı</h3>
+          <p>Kapatma talebi için açıklama ve kanıt dosyalarını takip edin.</p>
+        </div>
+      </div>
 
       {% if action.is_completed or action.closure_approval_requested or action.closure_rejection_reason %}
-        <div class="alert {% if action.is_completed %}alert-success{% elif action.closure_approval_requested %}alert-warning{% else %}alert-danger{% endif %} mb-3" role="alert">
+        <div class="alert {% if action.is_completed %}alert-success{% elif action.closure_approval_requested %}alert-warning{% else %}alert-danger{% endif %}" role="alert">
           {% if action.is_completed %}
             Bu aksiyonun kapanış kanıtı Oğuzhan tarafından onaylandı.
           {% elif action.closure_approval_requested %}
@@ -160,55 +194,67 @@
       {% endif %}
 
       {% if has_closure_evidence %}
-        {% if action.closure_requested_by or action.closure_requested_at %}
-          <div class="mb-3">
-            <div class="text-secondary small">Onay gönderen</div>
-            <strong>{{ action.closure_requested_by.full_name if action.closure_requested_by else "-" }}</strong>
-            {% if action.closure_requested_at %}
-              <span class="text-secondary small">- {{ action.closure_requested_at.strftime("%d.%m.%Y %H:%M") }}</span>
-            {% endif %}
-          </div>
-        {% endif %}
-        {% if action.closure_evidence_note %}
-          <div class="mb-3">
-            <div class="text-secondary small">Kapanış açıklaması</div>
-            <p class="mb-0">{{ action.closure_evidence_note }}</p>
-          </div>
-        {% endif %}
-        {% if action.closure_files %}
-          <div class="mb-3">
-            <div class="text-secondary small mb-2">Kapanış kanıt dosyaları</div>
-            <div class="d-flex flex-wrap gap-2">
-              {% for closure_file in action.closure_files %}
-                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_closure_evidence_file', action_id=action.id, file_id=closure_file.id) }}">
-                  {{ closure_file.original_name }}
-                </a>
-              {% endfor %}
+        <div class="evidence-grid">
+          {% if action.closure_requested_by or action.closure_requested_at %}
+            <div class="evidence-item">
+              <span>Onay gönderen</span>
+              <strong>{{ action.closure_requested_by.full_name if action.closure_requested_by else "-" }}</strong>
+              {% if action.closure_requested_at %}
+                <small>{{ action.closure_requested_at.strftime("%d.%m.%Y %H:%M") }}</small>
+              {% endif %}
             </div>
-          </div>
-        {% elif action.closure_file_original_name %}
-          <a class="btn btn-outline-secondary mb-3" href="{{ url_for('main.download_latest_closure_evidence_file', action_id=action.id) }}">Kapanış kanıt dosyasını indir</a>
-        {% endif %}
-        {% if action.closure_rejection_reason %}
-          <div class="border border-danger rounded p-3 mb-3">
-            <div class="text-danger small">Red sebebi</div>
-            <p class="mb-1">{{ action.closure_rejection_reason }}</p>
-            {% if action.closure_rejected_by or action.closure_rejected_at %}
-              <small class="text-secondary">
-                {{ action.closure_rejected_by.full_name if action.closure_rejected_by else "-" }}
-                {% if action.closure_rejected_at %}
-                  - {{ action.closure_rejected_at.strftime("%d.%m.%Y %H:%M") }}
-                {% endif %}
-              </small>
-            {% endif %}
-          </div>
-        {% endif %}
+          {% endif %}
+          {% if action.closure_evidence_note %}
+            <div class="evidence-item evidence-item-wide">
+              <span>Kapanış açıklaması</span>
+              <p>{{ action.closure_evidence_note }}</p>
+            </div>
+          {% endif %}
+          {% if action.closure_files %}
+            <div class="evidence-item evidence-item-wide">
+              <span>Kapanış kanıt dosyaları</span>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                {% for closure_file in action.closure_files %}
+                  <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_closure_evidence_file', action_id=action.id, file_id=closure_file.id) }}">
+                    <i class="bi bi-download"></i>
+                    <span>{{ closure_file.original_name }}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            </div>
+          {% elif action.closure_file_original_name %}
+            <div class="evidence-item evidence-item-wide">
+              <span>Kapanış kanıt dosyası</span>
+              <a class="btn btn-sm btn-soft-primary mt-2" href="{{ url_for('main.download_latest_closure_evidence_file', action_id=action.id) }}">
+                <i class="bi bi-download"></i>
+                <span>Kapanış kanıt dosyasını indir</span>
+              </a>
+            </div>
+          {% endif %}
+          {% if action.closure_rejection_reason %}
+            <div class="evidence-item evidence-item-wide evidence-danger">
+              <span>Red sebebi</span>
+              <p>{{ action.closure_rejection_reason }}</p>
+              {% if action.closure_rejected_by or action.closure_rejected_at %}
+                <small>
+                  {{ action.closure_rejected_by.full_name if action.closure_rejected_by else "-" }}
+                  {% if action.closure_rejected_at %}
+                    - {{ action.closure_rejected_at.strftime("%d.%m.%Y %H:%M") }}
+                  {% endif %}
+                </small>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
       {% endif %}
 
       {% if can_approve_closure %}
-        <div class="d-flex flex-column gap-3">
+        <div class="closure-review-box">
           <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
-            <button class="btn btn-success" type="submit">Kapatma Onayını Ver</button>
+            <button class="btn btn-success" type="submit">
+              <i class="bi bi-check-circle"></i>
+              <span>Kapatma Onayını Ver</span>
+            </button>
           </form>
           <form method="post" action="{{ url_for('main.reject_action_closure', action_id=action.id) }}">
             <label class="form-label" for="closure_rejection_reason">Red sebebi</label>
@@ -232,23 +278,32 @@
             <input class="form-control" id="closure_files" name="closure_files" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp" multiple>
             <div class="form-text">PDF, Word, Excel veya birden fazla görsel dosyası yükleyebilirsiniz.</div>
           </div>
-          <button class="btn btn-success" type="submit">Kapatma Onayı Gönder</button>
+          <button class="btn btn-success" type="submit">
+            <i class="bi bi-send"></i>
+            <span>Kapatma Onayı Gönder</span>
+          </button>
         </form>
       {% endif %}
     </div>
   {% endif %}
 
-  <div class="bg-white border rounded p-4">
-    <h2 class="h5 mb-3">Yorumlar</h2>
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-chat-left-text"></i></span>
+      <div>
+        <h3>Yorumlar</h3>
+        <p>Aksiyonla ilgili görüş ve ek notlar</p>
+      </div>
+    </div>
     {% if action.comments %}
-      <div class="vstack gap-3 mb-4">
+      <div class="comment-list">
         {% for comment in action.comments %}
-          <div class="border rounded p-3">
-            <div class="d-flex flex-column flex-sm-row justify-content-between gap-1 mb-2">
+          <div class="comment-item">
+            <div>
               <strong>{{ comment.user.full_name }}</strong>
-              <small class="text-secondary">{{ comment.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+              <small>{{ comment.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
             </div>
-            <p class="mb-0">{{ comment.comment }}</p>
+            <p>{{ comment.comment }}</p>
           </div>
         {% endfor %}
       </div>
@@ -257,7 +312,7 @@
     {% endif %}
 
     {% if can_comment %}
-      <form method="post" action="{{ url_for('main.add_action_comment', action_id=action.id) }}">
+      <form class="mt-3" method="post" action="{{ url_for('main.add_action_comment', action_id=action.id) }}">
         <label class="form-label" for="comment">Yorum ekle</label>
         <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
         <button class="btn btn-primary mt-3" type="submit">Yorum Kaydet</button>
@@ -265,8 +320,14 @@
     {% endif %}
   </div>
 
-  <div class="bg-white border rounded p-4 mt-4">
-    <h2 class="h5 mb-3">Aksiyon Geçmişi</h2>
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-clock-history"></i></span>
+      <div>
+        <h3>Aksiyon Geçmişi</h3>
+        <p>Tarih sırasına göre yapılan değişiklikler</p>
+      </div>
+    </div>
     {% if action.histories %}
       <div class="timeline vstack gap-3">
         {% for history in action.histories %}
