@@ -8,6 +8,12 @@ from .extensions import db
 DEPARTMENTS = (
     "Üretim",
     "Kalite",
+    "Kalite Yönetim",
+    "Yönetim",
+    "Bakım",
+    "Finans",
+    "Muhasebe",
+    "Satın alma",
     "İnsan Kaynakları",
     "Şantiye",
     "Montaj",
