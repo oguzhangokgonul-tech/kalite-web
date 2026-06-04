@@ -866,9 +866,7 @@ def delete_orientation_node(node_id):
     return jsonify({"ok": True, "nodes": orientation_nodes_payload()})
 
 
-@bp.route("/")
-@login_required
-def dashboard():
+def dashboard_context():
     all_actions = refresh_all_actions()
     filters = dashboard_filters()
     actions = filtered_actions(all_actions, filters)
@@ -883,20 +881,31 @@ def dashboard():
     )
     total_count = len(all_actions)
 
-    return render_template(
-        "dashboard.html",
-        actions=actions,
-        delayed_count=delayed_count,
-        completed_count=completed_count,
-        pending_approval_count=pending_approval_count,
-        total_count=total_count,
-        can_complete_action=can_complete_action,
-        can_request_closure_action=can_request_closure_action,
-        can_approve_closure_action=can_approve_closure_action,
-        departments=DEPARTMENTS,
-        filters=filters,
-        users=active_users(),
-    )
+    return {
+        "actions": actions,
+        "delayed_count": delayed_count,
+        "completed_count": completed_count,
+        "pending_approval_count": pending_approval_count,
+        "total_count": total_count,
+        "can_complete_action": can_complete_action,
+        "can_request_closure_action": can_request_closure_action,
+        "can_approve_closure_action": can_approve_closure_action,
+        "departments": DEPARTMENTS,
+        "filters": filters,
+        "users": active_users(),
+    }
+
+
+@bp.route("/")
+@login_required
+def dashboard():
+    return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.route("/dashboard-eski")
+@login_required
+def dashboard_legacy():
+    return render_template("dashboard_legacy.html", **dashboard_context())
 
 
 @bp.route("/actions/new", methods=["GET", "POST"])
