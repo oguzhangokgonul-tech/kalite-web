@@ -1,10 +1,18 @@
-{% extends "base.html" %}
+{% extends "app_shell.html" %}
 
 {% block title %}Organizasyon Şeması - Aksiyon Takip Sistemi{% endblock %}
-{% block main_class %}container-fluid p-0{% endblock %}
+{% block topbar_title %}Organizasyon Şeması{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
-{% block content %}
-  <div class="org-fullscreen">
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Organizasyon Şeması</h2>
+      <p>Er Prefabrik organizasyon yapısını görsel olarak yönetin.</p>
+    </div>
+  </div>
+
+  <div class="org-fullscreen app-org-panel">
     <section class="org-toolbar">
       <div>
         <h1 class="h5 mb-0">Organizasyon Şeması</h1>

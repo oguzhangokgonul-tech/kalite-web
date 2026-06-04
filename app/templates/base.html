@@ -73,6 +73,7 @@
         (() => {
           const baseTitle = "Aksiyon Takip Sistemi";
           const badge = document.querySelector("[data-notification-badge]");
+          if (!badge) return;
           let unreadCount = Number("{{ g.unread_notification_count }}") || 0;
           let blinkTimer = null;
           let blinkOn = false;

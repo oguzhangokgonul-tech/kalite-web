@@ -891,6 +891,50 @@ body {
     border-top: 1px solid #e7edf5;
 }
 
+.permission-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.permission-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: flex-start;
+    min-height: 86px;
+    padding: 14px;
+    background: #f8fbff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.permission-card:hover {
+    border-color: #b8d3ff;
+    background: #f3f8ff;
+}
+
+.permission-card .form-check-input {
+    margin-top: 3px;
+}
+
+.permission-card strong,
+.permission-card small {
+    display: block;
+}
+
+.permission-card strong {
+    color: #172033;
+    font-weight: 800;
+}
+
+.permission-card small {
+    margin-top: 3px;
+    color: #64748b;
+    line-height: 1.35;
+}
+
 .detail-metrics {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1024,6 +1068,18 @@ body {
 .org-fullscreen {
     min-height: calc(100vh - 57px);
     background: #eef3f8;
+}
+
+.app-org-panel {
+    min-height: calc(100vh - 218px);
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
+}
+
+.app-org-panel .org-shell {
+    min-height: calc(100vh - 292px);
 }
 
 .org-toolbar {
@@ -1435,6 +1491,10 @@ body {
         grid-template-columns: 1fr;
     }
 
+    .permission-grid {
+        grid-template-columns: 1fr;
+    }
+
     .action-row {
         grid-template-columns: 1fr;
         gap: 14px;
@@ -1467,6 +1527,11 @@ body {
 
     .org-map {
         min-height: 620px;
+    }
+
+    .app-org-panel,
+    .app-org-panel .org-shell {
+        min-height: auto;
     }
 
     .org-inspector {

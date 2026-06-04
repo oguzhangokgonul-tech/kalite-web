@@ -1,8 +1,10 @@
-{% extends "base.html" %}
+{% extends "app_shell.html" %}
 
 {% block title %}Organizasyon1 - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}Organizasyon1{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
-{% block content %}
+{% block app_content %}
   <div class="orientation-page" data-can-edit="{{ 'true' if can_edit else 'false' }}">
     <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
       <div>
