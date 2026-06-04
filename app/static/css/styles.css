@@ -186,7 +186,7 @@ body {
     gap: 10px;
     padding-block: 7px;
     background: #ffffff;
-    border-color: color-mix(in srgb, var(--org-node-color, #198754) 45%, #d6e0ec);
+    border-color: #d6e0ec;
     border-top-color: var(--org-node-color, #198754);
     box-shadow: 0 9px 20px rgba(27, 39, 59, 0.1);
 }
@@ -217,9 +217,32 @@ body {
 
 .org-node-department .org-node-count {
     margin-top: 0;
-    color: var(--org-node-color, #198754);
-    background: color-mix(in srgb, var(--org-node-color, #198754) 12%, #ffffff);
+    color: #14532d;
+    background: #dcfce7;
     white-space: nowrap;
+}
+
+.org-snap-guide {
+    position: absolute;
+    z-index: 4;
+    display: none;
+    pointer-events: none;
+    background: #0d6efd;
+    opacity: 0.7;
+}
+
+.org-snap-guide.is-visible {
+    display: block;
+}
+
+.org-snap-guide-v {
+    top: 0;
+    width: 2px;
+}
+
+.org-snap-guide-h {
+    left: 0;
+    height: 2px;
 }
 
 .org-empty {

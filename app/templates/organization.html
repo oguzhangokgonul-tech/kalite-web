@@ -35,6 +35,8 @@
         <div class="org-canvas" data-org-canvas>
           <svg class="org-lines" data-org-lines aria-hidden="true"></svg>
           <div data-org-nodes></div>
+          <div class="org-snap-guide org-snap-guide-v" data-snap-guide-v></div>
+          <div class="org-snap-guide org-snap-guide-h" data-snap-guide-h></div>
         </div>
         <div class="org-empty" data-org-empty>
           Henüz organizasyon kaydı yok.
@@ -103,6 +105,8 @@
       const canvas = document.querySelector("[data-org-canvas]");
       const linesLayer = document.querySelector("[data-org-lines]");
       const nodesLayer = document.querySelector("[data-org-nodes]");
+      const verticalGuide = document.querySelector("[data-snap-guide-v]");
+      const horizontalGuide = document.querySelector("[data-snap-guide-h]");
       const emptyState = document.querySelector("[data-org-empty]");
       const form = document.querySelector("[data-org-form]");
       const typeInput = document.querySelector("#org-node-type");
@@ -131,6 +135,7 @@
       const nodeWidth = 240;
       const personHeight = 104;
       const departmentHeight = 42;
+      const snapThreshold = 8;
       let selectedId = nodes.length ? nodes[0].id : null;
       let zoom = 0.85;
       let panX = 80;
@@ -243,6 +248,90 @@
           path.setAttribute("class", "org-line");
           linesLayer.appendChild(path);
         });
+      }
+
+      function hideSnapGuides() {
+        verticalGuide.classList.remove("is-visible");
+        horizontalGuide.classList.remove("is-visible");
+      }
+
+      function showVerticalGuide(x) {
+        verticalGuide.style.left = `${x}px`;
+        verticalGuide.style.height = canvas.style.height;
+        verticalGuide.classList.add("is-visible");
+      }
+
+      function showHorizontalGuide(y) {
+        horizontalGuide.style.top = `${y}px`;
+        horizontalGuide.style.width = canvas.style.width;
+        horizontalGuide.classList.add("is-visible");
+      }
+
+      function snapPosition(node, x, y) {
+        const height = nodeHeight(node);
+        const xPoints = [
+          { key: "left", value: x, offset: 0 },
+          { key: "center", value: x + nodeWidth / 2, offset: nodeWidth / 2 },
+          { key: "right", value: x + nodeWidth, offset: nodeWidth },
+        ];
+        const yPoints = [
+          { key: "top", value: y, offset: 0 },
+          { key: "middle", value: y + height / 2, offset: height / 2 },
+          { key: "bottom", value: y + height, offset: height },
+        ];
+        let snappedX = x;
+        let snappedY = y;
+        let bestX = { distance: snapThreshold + 1, guide: null };
+        let bestY = { distance: snapThreshold + 1, guide: null };
+
+        nodes.forEach((other) => {
+          if (other.id === node.id) return;
+          const otherHeight = nodeHeight(other);
+          const otherXPoints = [
+            other.x,
+            other.x + nodeWidth / 2,
+            other.x + nodeWidth,
+          ];
+          const otherYPoints = [
+            other.y,
+            other.y + otherHeight / 2,
+            other.y + otherHeight,
+          ];
+
+          xPoints.forEach((point) => {
+            otherXPoints.forEach((target) => {
+              const distance = Math.abs(point.value - target);
+              if (distance < bestX.distance) {
+                bestX = { distance, guide: target, value: target - point.offset };
+              }
+            });
+          });
+
+          yPoints.forEach((point) => {
+            otherYPoints.forEach((target) => {
+              const distance = Math.abs(point.value - target);
+              if (distance < bestY.distance) {
+                bestY = { distance, guide: target, value: target - point.offset };
+              }
+            });
+          });
+        });
+
+        if (bestX.distance <= snapThreshold) {
+          snappedX = bestX.value;
+          showVerticalGuide(bestX.guide);
+        } else {
+          verticalGuide.classList.remove("is-visible");
+        }
+
+        if (bestY.distance <= snapThreshold) {
+          snappedY = bestY.value;
+          showHorizontalGuide(bestY.guide);
+        } else {
+          horizontalGuide.classList.remove("is-visible");
+        }
+
+        return { x: Math.max(20, snappedX), y: Math.max(20, snappedY) };
       }
 
       function renderParentOptions() {
@@ -367,6 +456,7 @@
         if (!draggingNode) return;
         const { node, moved } = draggingNode;
         draggingNode = null;
+        hideSnapGuides();
         if (!moved) return;
         try {
           await postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y });
@@ -395,8 +485,13 @@
           const dx = (event.clientX - draggingNode.startX) / zoom;
           const dy = (event.clientY - draggingNode.startY) / zoom;
           draggingNode.moved = draggingNode.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2;
-          draggingNode.node.x = Math.max(20, draggingNode.originX + dx);
-          draggingNode.node.y = Math.max(20, draggingNode.originY + dy);
+          const snapped = snapPosition(
+            draggingNode.node,
+            Math.max(20, draggingNode.originX + dx),
+            Math.max(20, draggingNode.originY + dy)
+          );
+          draggingNode.node.x = snapped.x;
+          draggingNode.node.y = snapped.y;
           draggingNode.element.style.left = `${draggingNode.node.x}px`;
           draggingNode.element.style.top = `${draggingNode.node.y}px`;
           updateCanvasSize();
@@ -427,6 +522,18 @@
         zoom = Math.max(0.45, Math.min(nextZoom, 1.5));
         panX = rect.width / 2 - centerX * zoom;
         panY = rect.height / 2 - centerY * zoom;
+        applyTransform();
+      }
+
+      function setZoomAt(nextZoom, clientX, clientY) {
+        const rect = map.getBoundingClientRect();
+        const mapX = clientX - rect.left;
+        const mapY = clientY - rect.top;
+        const canvasX = (mapX - panX) / zoom;
+        const canvasY = (mapY - panY) / zoom;
+        zoom = Math.max(0.45, Math.min(nextZoom, 1.5));
+        panX = mapX - canvasX * zoom;
+        panY = mapY - canvasY * zoom;
         applyTransform();
       }
 
@@ -597,6 +704,13 @@
       if (zoomRange) {
         zoomRange.addEventListener("input", () => setZoom(Number(zoomRange.value) / 100));
       }
+
+      map.addEventListener("wheel", (event) => {
+        if (event.target.closest(".org-inspector")) return;
+        event.preventDefault();
+        const factor = event.deltaY > 0 ? 0.9 : 1.1;
+        setZoomAt(zoom * factor, event.clientX, event.clientY);
+      }, { passive: false });
 
       typeInput.addEventListener("change", () => {
         const type = typeInput.value;
