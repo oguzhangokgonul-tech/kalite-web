@@ -179,13 +179,16 @@ body {
 }
 
 .org-node-department {
-    min-height: 56px;
-    justify-content: center;
-    padding-block: 9px;
-    background: #f0fdf4;
-    border-color: #9bd6ae;
-    border-top-color: #198754;
-    box-shadow: 0 10px 24px rgba(25, 135, 84, 0.12);
+    min-height: 42px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-block: 7px;
+    background: #ffffff;
+    border-color: color-mix(in srgb, var(--org-node-color, #198754) 45%, #d6e0ec);
+    border-top-color: var(--org-node-color, #198754);
+    box-shadow: 0 9px 20px rgba(27, 39, 59, 0.1);
 }
 
 .org-node-name {
@@ -213,8 +216,10 @@ body {
 }
 
 .org-node-department .org-node-count {
-    color: #14532d;
-    background: #dcfce7;
+    margin-top: 0;
+    color: var(--org-node-color, #198754);
+    background: color-mix(in srgb, var(--org-node-color, #198754) 12%, #ffffff);
+    white-space: nowrap;
 }
 
 .org-empty {
@@ -317,11 +322,11 @@ body {
 }
 
 .orientation-node-department {
-    min-height: 58px;
+    min-height: 46px;
     justify-content: center;
-    background: #f0fdf4;
-    border-color: #9bd6ae;
-    border-left-color: #198754;
+    background: #ffffff;
+    border-color: color-mix(in srgb, var(--orientation-node-color, #198754) 45%, #d6e0ec);
+    border-left-color: var(--orientation-node-color, #198754);
 }
 
 .orientation-zoom-label {

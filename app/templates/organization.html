@@ -72,6 +72,10 @@
               <option value="">Kök kayıt</option>
             </select>
           </div>
+          <div class="mb-3" data-color-field>
+            <label class="form-label" for="org-color">Departman rengi</label>
+            <input class="form-control form-control-color" id="org-color" name="color" type="color" value="#198754" {% if not can_edit %}disabled{% endif %}>
+          </div>
 
           {% if can_edit %}
             <div class="d-grid gap-2">
@@ -105,6 +109,8 @@
       const nameInput = document.querySelector("#org-name");
       const titleInput = document.querySelector("#org-title");
       const parentInput = document.querySelector("#org-parent");
+      const colorField = document.querySelector("[data-color-field]");
+      const colorInput = document.querySelector("#org-color");
       const nameLabel = document.querySelector("[data-name-label]");
       const titleLabel = document.querySelector("[data-title-label]");
       const selectedSummary = document.querySelector("[data-selected-summary]");
@@ -124,7 +130,7 @@
 
       const nodeWidth = 240;
       const personHeight = 104;
-      const departmentHeight = 56;
+      const departmentHeight = 42;
       let selectedId = nodes.length ? nodes[0].id : null;
       let zoom = 0.85;
       let panX = 80;
@@ -164,6 +170,10 @@
         return nodeType(node) === "department" ? departmentHeight : personHeight;
       }
 
+      function nodeColor(node) {
+        return node.color || "#198754";
+      }
+
       function childrenOf(parentId) {
         return nodes
           .filter((node) => node.parent_id === parentId)
@@ -190,6 +200,17 @@
         canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
         if (zoomRange) zoomRange.value = Math.round(zoom * 100);
         if (zoomValue) zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+      }
+
+      function captureView() {
+        return { panX, panY, zoom };
+      }
+
+      function restoreView(view) {
+        panX = view.panX;
+        panY = view.panY;
+        zoom = view.zoom;
+        applyTransform();
       }
 
       function updateCanvasSize() {
@@ -246,6 +267,8 @@
           titleInput.value = "";
           typeInput.value = "person";
           parentInput.value = "";
+          colorInput.value = "#198754";
+          colorField.hidden = true;
           [saveButton, deleteButton, addChildPersonButton].forEach((button) => {
             if (button) button.disabled = true;
           });
@@ -254,15 +277,17 @@
 
         const type = nodeType(selected);
         selectedSummary.textContent = type === "department"
-          ? `${descendantCount(selected)} bağlı kayıt`
+          ? `${descendantCount(selected)} bağlı kişi`
           : selected.title || "Ünvan belirtilmedi";
         selectedType.textContent = type === "department" ? "Departman" : "Kişi";
         nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
         titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
+        colorField.hidden = type !== "department";
         typeInput.value = type;
         nameInput.value = selected.name;
         titleInput.value = selected.title || "";
         parentInput.value = selected.parent_id || "";
+        colorInput.value = nodeColor(selected);
         [saveButton, deleteButton, addChildPersonButton].forEach((button) => {
           if (button) button.disabled = !canEdit;
         });
@@ -290,10 +315,11 @@
           element.dataset.nodeId = node.id;
           element.style.left = `${node.x}px`;
           element.style.top = `${node.y}px`;
+          element.style.setProperty("--org-node-color", nodeColor(node));
           element.innerHTML = type === "department"
             ? `
               <span class="org-node-name"></span>
-              <span class="org-node-count">${count} bağlı kayıt</span>
+              <span class="org-node-count">${count} bağlı kişi</span>
             `
             : `
               <span class="org-node-name"></span>
@@ -480,6 +506,7 @@
           name: nodeType === "department" ? "Yeni departman" : "Yeni kişi",
           title: "",
           node_type: nodeType,
+          color: nodeType === "department" ? colorInput.value : "#198754",
           parent_id: parentId || null,
           x,
           y,
@@ -495,14 +522,17 @@
           const selected = getNode(selectedId);
           if (!selected) return;
           try {
+            const view = captureView();
             const data = await postJson(endpoint(urls.update, selected.id), {
               name: nameInput.value,
               title: titleInput.value,
               node_type: typeInput.value,
+              color: colorInput.value,
               parent_id: parentInput.value || null,
             });
             nodes = data.nodes;
             renderNodes();
+            restoreView(view);
           } catch (error) {
             alert(error.message);
           }
@@ -531,11 +561,12 @@
           if (!selected) return;
           if (!confirm("Bu kayıt ve bağlı alt kayıtlar silinsin mi?")) return;
           try {
+            const view = captureView();
             const data = await postJson(endpoint(urls.delete, selected.id));
             nodes = data.nodes;
             selectedId = nodes.length ? nodes[0].id : null;
             renderNodes();
-            fitView();
+            restoreView(view);
           } catch (error) {
             alert(error.message);
           }
@@ -571,9 +602,13 @@
         const type = typeInput.value;
         nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
         titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
+        colorField.hidden = type !== "department";
       });
 
-      window.addEventListener("resize", fitView);
+      window.addEventListener("resize", () => {
+        updateCanvasSize();
+        applyTransform();
+      });
 
       renderNodes();
       fitView();

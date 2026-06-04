@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
+import re
 from uuid import uuid4
 
 from flask import (
@@ -36,6 +37,7 @@ from .models import (
 
 
 bp = Blueprint("main", __name__)
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 ALLOWED_EXTENSIONS = {
     "pdf",
     "doc",
@@ -331,18 +333,22 @@ def orientation_nodes_payload():
         .all()
     )
     payloads = [node.to_dict() for node in nodes]
+    payload_by_id = {payload["id"]: payload for payload in payloads}
     child_map = {}
     for payload in payloads:
         child_map.setdefault(payload["parent_id"], []).append(payload["id"])
 
-    def descendant_count(node_id):
+    def descendant_person_count(node_id):
         total = 0
         for child_id in child_map.get(node_id, []):
-            total += 1 + descendant_count(child_id)
+            child = payload_by_id[child_id]
+            if child["node_type"] == "person":
+                total += 1
+            total += descendant_person_count(child_id)
         return total
 
     for payload in payloads:
-        payload["descendant_count"] = descendant_count(payload["id"])
+        payload["descendant_count"] = descendant_person_count(payload["id"])
     return payloads
 
 
@@ -375,6 +381,13 @@ def parse_coordinate(data, key, default):
     except (TypeError, ValueError):
         value = default
     return max(20, min(value, 4000))
+
+
+def parse_node_color(value):
+    value = (value or "").strip()
+    if HEX_COLOR_PATTERN.match(value):
+        return value.lower()
+    return "#198754"
 
 
 def short_text(value, length=90):
@@ -671,6 +684,7 @@ def create_orientation_node():
     default_name = "Yeni departman" if node_type == "department" else "Yeni kişi"
     name = (data.get("name") or default_name).strip()
     title = (data.get("title") or "").strip()
+    color = parse_node_color(data.get("color"))
 
     try:
         parent = parse_node_parent(data.get("parent_id"))
@@ -691,6 +705,7 @@ def create_orientation_node():
         name=name[:160],
         title=title[:160],
         node_type=node_type,
+        color=color,
         x=parse_coordinate(data, "x", default_x),
         y=parse_coordinate(data, "y", default_y),
     )
@@ -712,6 +727,7 @@ def update_orientation_node(node_id):
     node_type = (data.get("node_type") or node.node_type or "person").strip()
     if node_type not in ORGANIZATION_NODE_TYPES:
         node_type = "person"
+    color = parse_node_color(data.get("color") or node.color)
 
     if not name:
         return jsonify({"ok": False, "message": "İsim alanı boş bırakılamaz."}), 400
@@ -724,6 +740,7 @@ def update_orientation_node(node_id):
     node.name = name[:160]
     node.title = title[:160]
     node.node_type = node_type
+    node.color = color
     node.parent_id = parent.id if parent else None
     db.session.commit()
     return jsonify({"ok": True, "node": node.to_dict(), "nodes": orientation_nodes_payload()})

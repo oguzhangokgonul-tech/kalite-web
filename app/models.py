@@ -198,6 +198,7 @@ class OrientationNode(db.Model):
     name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
     node_type = db.Column(db.String(40), nullable=False, default="person")
+    color = db.Column(db.String(20), nullable=False, default="#198754")
     x = db.Column(db.Integer, nullable=False, default=120)
     y = db.Column(db.Integer, nullable=False, default=80)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
@@ -226,6 +227,7 @@ class OrientationNode(db.Model):
             "name": self.name,
             "title": self.title or "",
             "node_type": self.node_type or "person",
+            "color": self.color or "#198754",
             "x": self.x,
             "y": self.y,
         }

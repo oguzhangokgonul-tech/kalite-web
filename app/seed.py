@@ -109,6 +109,14 @@ def ensure_runtime_schema():
                 )
             )
             changed = True
+        if "color" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE orientation_nodes "
+                    "ADD COLUMN color VARCHAR(20) NOT NULL DEFAULT '#198754'"
+                )
+            )
+            changed = True
 
     if changed:
         db.session.commit()
@@ -123,6 +131,14 @@ def ensure_runtime_schema():
                 text(
                     "UPDATE orientation_nodes SET node_type = 'person' "
                     "WHERE node_type IS NULL OR node_type = ''"
+                )
+            )
+            db.session.commit()
+        if "color" in columns:
+            db.session.execute(
+                text(
+                    "UPDATE orientation_nodes SET color = '#198754' "
+                    "WHERE color IS NULL OR color = ''"
                 )
             )
             db.session.commit()

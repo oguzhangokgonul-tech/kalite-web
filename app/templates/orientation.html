@@ -271,6 +271,7 @@
           element.dataset.nodeId = node.id;
           element.style.left = `${node.x}px`;
           element.style.top = `${node.y}px`;
+          element.style.setProperty("--orientation-node-color", node.color || "#198754");
           element.innerHTML = `
             <span class="orientation-node-name"></span>
             <span class="orientation-node-title"></span>
