@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Organizasyon Şeması - Aksiyon Takip Sistemi{% endblock %}
+{% block title %}Organizasyon1 - Aksiyon Takip Sistemi{% endblock %}
 
 {% block content %}
   <div class="orientation-page" data-can-edit="{{ 'true' if can_edit else 'false' }}">
     <div class="d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
       <div>
-        <h1 class="h3 mb-1">Organizasyon Şeması</h1>
-        <p class="text-secondary mb-0">Kişi, ünvan ve bağlılık yapısı</p>
+        <h1 class="h3 mb-1">Organizasyon1</h1>
+        <p class="text-secondary mb-0">Yedek organizasyon şeması tasarımı</p>
       </div>
       <div class="d-flex flex-wrap gap-2 align-self-xl-start">
         <div class="btn-group" role="group" aria-label="Şema yakınlığı">
@@ -17,8 +17,10 @@
         </div>
         <button class="btn btn-outline-secondary" type="button" data-zoom-fit>Sığdır</button>
         <button class="btn btn-outline-secondary" type="button" data-zoom-reset>100%</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.organization') }}">Yeni tasarım</a>
         {% if can_edit %}
           <button class="btn btn-primary" type="button" data-add-root>Kök kişi ekle</button>
+          <button class="btn btn-outline-success" type="button" data-add-department>Departman ekle</button>
           <button class="btn btn-outline-primary" type="button" data-auto-layout>Hizala</button>
         {% endif %}
       </div>
@@ -42,8 +44,8 @@
       <aside class="orientation-panel">
         <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
           <div>
-            <h2 class="h5 mb-1">Kişi Detayı</h2>
-            <p class="text-secondary small mb-0" data-selected-status>Bir kişi seçin.</p>
+            <h2 class="h5 mb-1">Kayıt Detayı</h2>
+            <p class="text-secondary small mb-0" data-selected-status>Bir kayıt seçin.</p>
           </div>
           {% if can_edit %}
             <button class="btn btn-sm btn-outline-secondary" type="button" data-add-child disabled>Alt kişi ekle</button>
@@ -52,7 +54,14 @@
 
         <form data-orientation-form>
           <div class="mb-3">
-            <label class="form-label" for="orientation-name">İsim Soyisim</label>
+            <label class="form-label" for="orientation-type">Kayıt tipi</label>
+            <select class="form-select" id="orientation-type" name="node_type" {% if not can_edit %}disabled{% endif %}>
+              <option value="person">Kişi</option>
+              <option value="department">Departman</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="orientation-name">İsim / Departman</label>
             <input class="form-control" id="orientation-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
           </div>
           <div class="mb-3">
@@ -97,6 +106,7 @@
       const form = document.querySelector("[data-orientation-form]");
       const nameInput = document.querySelector("#orientation-name");
       const titleInput = document.querySelector("#orientation-title");
+      const typeInput = document.querySelector("#orientation-type");
       const parentSelect = document.querySelector("#orientation-parent");
       const selectedStatus = document.querySelector("[data-selected-status]");
       const saveButton = document.querySelector("[data-save-node]");
@@ -104,6 +114,7 @@
       const addChildButton = document.querySelector("[data-add-child]");
       const addRootButton = document.querySelector("[data-add-root]");
       const autoLayoutButton = document.querySelector("[data-auto-layout]");
+      const addDepartmentButton = document.querySelector("[data-add-department]");
       const zoomOutButton = document.querySelector("[data-zoom-out]");
       const zoomInButton = document.querySelector("[data-zoom-in]");
       const zoomFitButton = document.querySelector("[data-zoom-fit]");
@@ -144,6 +155,10 @@
         return nodes
           .filter((node) => node.parent_id === parentId)
           .sort((first, second) => first.x - second.x || first.id - second.id);
+      }
+
+      function nodeType(node) {
+        return node.node_type || "person";
       }
 
       function descendantIds(nodeId) {
@@ -214,6 +229,7 @@
           selectedStatus.textContent = "Bir kişi seçin.";
           nameInput.value = "";
           titleInput.value = "";
+          typeInput.value = "person";
           parentSelect.value = "";
           [saveButton, deleteButton, addChildButton].forEach((button) => {
             if (button) button.disabled = true;
@@ -221,7 +237,10 @@
           return;
         }
 
-        selectedStatus.textContent = selected.title || "Ünvan belirtilmedi.";
+        selectedStatus.textContent = nodeType(selected) === "department"
+          ? `${selected.descendant_count || 0} bağlı kayıt`
+          : selected.title || "Ünvan belirtilmedi.";
+        typeInput.value = nodeType(selected);
         nameInput.value = selected.name;
         titleInput.value = selected.title || "";
         parentSelect.value = selected.parent_id || "";
@@ -244,20 +263,22 @@
         emptyState.hidden = nodes.length > 0;
 
         nodes.forEach((node) => {
-          const childCount = childrenOf(node.id).length;
+          const childCount = node.descendant_count || descendantIds(node.id).size;
+          const type = nodeType(node);
           const element = document.createElement("button");
           element.type = "button";
-          element.className = "orientation-node";
+          element.className = `orientation-node orientation-node-${type}`;
           element.dataset.nodeId = node.id;
           element.style.left = `${node.x}px`;
           element.style.top = `${node.y}px`;
           element.innerHTML = `
             <span class="orientation-node-name"></span>
             <span class="orientation-node-title"></span>
-            <span class="orientation-node-count">${childCount} alt kişi</span>
+            <span class="orientation-node-count">${childCount} toplam alt kişi</span>
           `;
           element.querySelector(".orientation-node-name").textContent = node.name;
-          element.querySelector(".orientation-node-title").textContent = node.title || "Ünvan";
+          element.querySelector(".orientation-node-title").textContent =
+            type === "department" ? "Departman" : node.title || "Ünvan";
           element.addEventListener("click", () => selectNode(node.id));
 
           if (canEdit) {
@@ -330,6 +351,7 @@
             const data = await postJson(endpoint(urls.update, selected.id), {
               name: nameInput.value,
               title: titleInput.value,
+              node_type: typeInput.value,
               parent_id: parentSelect.value || null,
             });
             nodes = data.nodes;
@@ -346,6 +368,7 @@
             const data = await postJson(urls.create, {
               name: "Yeni kişi",
               title: "",
+              node_type: "person",
               parent_id: null,
             });
             nodes = data.nodes;
@@ -364,6 +387,7 @@
             const data = await postJson(urls.create, {
               name: "Yeni kişi",
               title: "",
+              node_type: "person",
               parent_id: selectedId,
             });
             nodes = data.nodes;
@@ -384,6 +408,24 @@
             const data = await postJson(endpoint(urls.delete, selected.id));
             nodes = data.nodes;
             selectedId = nodes.length ? nodes[0].id : null;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (addDepartmentButton) {
+        addDepartmentButton.addEventListener("click", async () => {
+          try {
+            const data = await postJson(urls.create, {
+              name: "Yeni departman",
+              title: "",
+              node_type: "department",
+              parent_id: selectedId || null,
+            });
+            nodes = data.nodes;
+            selectedId = data.node.id;
             renderNodes();
           } catch (error) {
             alert(error.message);

@@ -97,8 +97,35 @@ def ensure_runtime_schema():
             )
             changed = True
 
+    if "orientation_nodes" in tables:
+        columns = {
+            column["name"] for column in inspector.get_columns("orientation_nodes")
+        }
+        if "node_type" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE orientation_nodes "
+                    "ADD COLUMN node_type VARCHAR(40) NOT NULL DEFAULT 'person'"
+                )
+            )
+            changed = True
+
     if changed:
         db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "orientation_nodes" in tables:
+        columns = {
+            column["name"] for column in inspect(db.engine).get_columns("orientation_nodes")
+        }
+        if "node_type" in columns:
+            db.session.execute(
+                text(
+                    "UPDATE orientation_nodes SET node_type = 'person' "
+                    "WHERE node_type IS NULL OR node_type = ''"
+                )
+            )
+            db.session.commit()
 
     tables = set(inspect(db.engine).get_table_names())
     if "actions" in tables:

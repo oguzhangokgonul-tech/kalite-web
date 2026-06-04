@@ -29,6 +29,7 @@ from .models import (
     AppSetting,
     DEPARTMENTS,
     Notification,
+    ORGANIZATION_NODE_TYPES,
     OrientationNode,
     User,
 )
@@ -321,12 +322,28 @@ def notify_action_participants(action, message, exclude_user_id=None, extra_user
 
 
 def orientation_nodes_payload():
-    nodes = OrientationNode.query.order_by(
-        OrientationNode.y.asc(),
-        OrientationNode.x.asc(),
-        OrientationNode.id.asc(),
-    ).all()
-    return [node.to_dict() for node in nodes]
+    nodes = (
+        OrientationNode.query.order_by(
+            OrientationNode.y.asc(),
+            OrientationNode.x.asc(),
+            OrientationNode.id.asc(),
+        )
+        .all()
+    )
+    payloads = [node.to_dict() for node in nodes]
+    child_map = {}
+    for payload in payloads:
+        child_map.setdefault(payload["parent_id"], []).append(payload["id"])
+
+    def descendant_count(node_id):
+        total = 0
+        for child_id in child_map.get(node_id, []):
+            total += 1 + descendant_count(child_id)
+        return total
+
+    for payload in payloads:
+        payload["descendant_count"] = descendant_count(payload["id"])
+    return payloads
 
 
 def parse_node_parent(parent_id, current_node=None):
@@ -618,6 +635,16 @@ def open_notification(notification_id):
 @login_required
 def organization():
     return render_template(
+        "organization.html",
+        nodes=orientation_nodes_payload(),
+        can_edit=can_manage_orientation(),
+    )
+
+
+@bp.get("/organization1")
+@login_required
+def organization_legacy():
+    return render_template(
         "orientation.html",
         nodes=orientation_nodes_payload(),
         can_edit=can_manage_orientation(),
@@ -637,7 +664,12 @@ def create_orientation_node():
         abort(403)
 
     data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "Yeni kişi").strip()
+    node_type = (data.get("node_type") or "person").strip()
+    if node_type not in ORGANIZATION_NODE_TYPES:
+        node_type = "person"
+
+    default_name = "Yeni departman" if node_type == "department" else "Yeni kişi"
+    name = (data.get("name") or default_name).strip()
     title = (data.get("title") or "").strip()
 
     try:
@@ -658,6 +690,7 @@ def create_orientation_node():
         parent_id=parent.id if parent else None,
         name=name[:160],
         title=title[:160],
+        node_type=node_type,
         x=parse_coordinate(data, "x", default_x),
         y=parse_coordinate(data, "y", default_y),
     )
@@ -676,6 +709,9 @@ def update_orientation_node(node_id):
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     title = (data.get("title") or "").strip()
+    node_type = (data.get("node_type") or node.node_type or "person").strip()
+    if node_type not in ORGANIZATION_NODE_TYPES:
+        node_type = "person"
 
     if not name:
         return jsonify({"ok": False, "message": "İsim alanı boş bırakılamaz."}), 400
@@ -687,6 +723,7 @@ def update_orientation_node(node_id):
 
     node.name = name[:160]
     node.title = title[:160]
+    node.node_type = node_type
     node.parent_id = parent.id if parent else None
     db.session.commit()
     return jsonify({"ok": True, "node": node.to_dict(), "nodes": orientation_nodes_payload()})

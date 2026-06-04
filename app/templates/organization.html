@@ -1,0 +1,582 @@
+{% extends "base.html" %}
+
+{% block title %}Organizasyon Şeması - Aksiyon Takip Sistemi{% endblock %}
+{% block main_class %}container-fluid p-0{% endblock %}
+
+{% block content %}
+  <div class="org-fullscreen">
+    <section class="org-toolbar">
+      <div>
+        <h1 class="h5 mb-0">Organizasyon Şeması</h1>
+        <span class="text-secondary small">Toplam bağlı kişi sayısı üst yöneticilere dahil edilir.</span>
+      </div>
+
+      <div class="org-toolbar-actions">
+        <div class="org-zoom-control">
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-zoom-minus>-</button>
+          <input class="form-range org-zoom-range" type="range" min="45" max="150" value="85" data-zoom-range aria-label="Yakınlaştırma">
+          <span class="org-zoom-value" data-zoom-value>85%</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-zoom-plus>+</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-fit-view>Sığdır</button>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-center-view>Ortala</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.organization_legacy') }}">Organizasyon1</a>
+        {% if can_edit %}
+          <button class="btn btn-sm btn-primary" type="button" data-add-root-person>Kök kişi</button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-add-child-person disabled>Alt kişi</button>
+          <button class="btn btn-sm btn-outline-success" type="button" data-add-department>Departman</button>
+          <button class="btn btn-sm btn-outline-dark" type="button" data-auto-layout>Hizala</button>
+        {% endif %}
+      </div>
+    </section>
+
+    <div class="org-shell">
+      <section class="org-map" data-org-map aria-label="Organizasyon haritası">
+        <div class="org-canvas" data-org-canvas>
+          <svg class="org-lines" data-org-lines aria-hidden="true"></svg>
+          <div data-org-nodes></div>
+        </div>
+        <div class="org-empty" data-org-empty>
+          Henüz organizasyon kaydı yok.
+        </div>
+      </section>
+
+      <aside class="org-inspector">
+        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+          <div>
+            <h2 class="h6 mb-1">Seçili Kayıt</h2>
+            <p class="text-secondary small mb-0" data-selected-summary>Bir kişi veya departman seçin.</p>
+          </div>
+          <span class="badge text-bg-light border" data-selected-type>Yok</span>
+        </div>
+
+        <form data-org-form>
+          <div class="mb-3">
+            <label class="form-label" for="org-node-type">Kayıt tipi</label>
+            <select class="form-select" id="org-node-type" name="node_type" {% if not can_edit %}disabled{% endif %}>
+              <option value="person">Kişi</option>
+              <option value="department">Departman</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="org-name" data-name-label>İsim Soyisim</label>
+            <input class="form-control" id="org-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="org-title" data-title-label>Ünvan</label>
+            <input class="form-control" id="org-title" name="title" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="org-parent">Bağlı olduğu kayıt</label>
+            <select class="form-select" id="org-parent" name="parent_id" {% if not can_edit %}disabled{% endif %}>
+              <option value="">Kök kayıt</option>
+            </select>
+          </div>
+
+          {% if can_edit %}
+            <div class="d-grid gap-2">
+              <button class="btn btn-primary" type="submit" data-save-node disabled>Kaydet</button>
+              <button class="btn btn-outline-danger" type="button" data-delete-node disabled>Sil</button>
+            </div>
+          {% endif %}
+        </form>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      let nodes = {{ nodes|tojson }};
+      const canEdit = {{ can_edit|tojson }};
+      const urls = {
+        create: "{{ url_for('main.create_orientation_node') }}",
+        update: "{{ url_for('main.update_orientation_node', node_id=0) }}",
+        move: "{{ url_for('main.move_orientation_node', node_id=0) }}",
+        delete: "{{ url_for('main.delete_orientation_node', node_id=0) }}",
+      };
+
+      const map = document.querySelector("[data-org-map]");
+      const canvas = document.querySelector("[data-org-canvas]");
+      const linesLayer = document.querySelector("[data-org-lines]");
+      const nodesLayer = document.querySelector("[data-org-nodes]");
+      const emptyState = document.querySelector("[data-org-empty]");
+      const form = document.querySelector("[data-org-form]");
+      const typeInput = document.querySelector("#org-node-type");
+      const nameInput = document.querySelector("#org-name");
+      const titleInput = document.querySelector("#org-title");
+      const parentInput = document.querySelector("#org-parent");
+      const nameLabel = document.querySelector("[data-name-label]");
+      const titleLabel = document.querySelector("[data-title-label]");
+      const selectedSummary = document.querySelector("[data-selected-summary]");
+      const selectedType = document.querySelector("[data-selected-type]");
+      const saveButton = document.querySelector("[data-save-node]");
+      const deleteButton = document.querySelector("[data-delete-node]");
+      const addRootPersonButton = document.querySelector("[data-add-root-person]");
+      const addChildPersonButton = document.querySelector("[data-add-child-person]");
+      const addDepartmentButton = document.querySelector("[data-add-department]");
+      const autoLayoutButton = document.querySelector("[data-auto-layout]");
+      const fitButton = document.querySelector("[data-fit-view]");
+      const centerButton = document.querySelector("[data-center-view]");
+      const zoomMinusButton = document.querySelector("[data-zoom-minus]");
+      const zoomPlusButton = document.querySelector("[data-zoom-plus]");
+      const zoomRange = document.querySelector("[data-zoom-range]");
+      const zoomValue = document.querySelector("[data-zoom-value]");
+
+      const nodeWidth = 240;
+      const personHeight = 104;
+      const departmentHeight = 56;
+      let selectedId = nodes.length ? nodes[0].id : null;
+      let zoom = 0.85;
+      let panX = 80;
+      let panY = 80;
+      let draggingNode = null;
+      let panning = null;
+
+      function endpoint(template, id) {
+        return template.replace("/0/", `/${id}/`);
+      }
+
+      async function postJson(url, payload = {}) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          throw new Error(data.message || "İşlem tamamlanamadı.");
+        }
+        return data;
+      }
+
+      function getNode(id) {
+        return nodes.find((node) => node.id === id);
+      }
+
+      function nodeType(node) {
+        return node.node_type || "person";
+      }
+
+      function nodeHeight(node) {
+        return nodeType(node) === "department" ? departmentHeight : personHeight;
+      }
+
+      function childrenOf(parentId) {
+        return nodes
+          .filter((node) => node.parent_id === parentId)
+          .sort((first, second) => first.x - second.x || first.id - second.id);
+      }
+
+      function descendantIds(nodeId) {
+        const ids = new Set();
+        const walk = (id) => {
+          childrenOf(id).forEach((child) => {
+            ids.add(child.id);
+            walk(child.id);
+          });
+        };
+        walk(nodeId);
+        return ids;
+      }
+
+      function descendantCount(node) {
+        return Number(node.descendant_count ?? descendantIds(node.id).size) || 0;
+      }
+
+      function applyTransform() {
+        canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        if (zoomRange) zoomRange.value = Math.round(zoom * 100);
+        if (zoomValue) zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+      }
+
+      function updateCanvasSize() {
+        const maxX = Math.max(1800, ...nodes.map((node) => node.x + nodeWidth + 260));
+        const maxY = Math.max(1100, ...nodes.map((node) => node.y + nodeHeight(node) + 240));
+        canvas.style.width = `${maxX}px`;
+        canvas.style.height = `${maxY}px`;
+        linesLayer.setAttribute("width", maxX);
+        linesLayer.setAttribute("height", maxY);
+        linesLayer.setAttribute("viewBox", `0 0 ${maxX} ${maxY}`);
+        applyTransform();
+      }
+
+      function drawLines() {
+        linesLayer.innerHTML = "";
+        nodes.forEach((node) => {
+          if (!node.parent_id) return;
+          const parent = getNode(node.parent_id);
+          if (!parent) return;
+          const startX = parent.x + nodeWidth / 2;
+          const startY = parent.y + nodeHeight(parent);
+          const endX = node.x + nodeWidth / 2;
+          const endY = node.y;
+          const middleY = startY + Math.max(36, (endY - startY) / 2);
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute(
+            "d",
+            `M ${startX} ${startY} C ${startX} ${middleY}, ${endX} ${middleY}, ${endX} ${endY}`
+          );
+          path.setAttribute("class", "org-line");
+          linesLayer.appendChild(path);
+        });
+      }
+
+      function renderParentOptions() {
+        const selectedDescendants = selectedId ? descendantIds(selectedId) : new Set();
+        parentInput.innerHTML = '<option value="">Kök kayıt</option>';
+        nodes.forEach((node) => {
+          if (node.id === selectedId || selectedDescendants.has(node.id)) return;
+          const option = document.createElement("option");
+          option.value = node.id;
+          option.textContent = node.title ? `${node.name} - ${node.title}` : node.name;
+          parentInput.appendChild(option);
+        });
+      }
+
+      function setPanelState() {
+        const selected = selectedId ? getNode(selectedId) : null;
+        renderParentOptions();
+        if (!selected) {
+          selectedSummary.textContent = "Bir kişi veya departman seçin.";
+          selectedType.textContent = "Yok";
+          nameInput.value = "";
+          titleInput.value = "";
+          typeInput.value = "person";
+          parentInput.value = "";
+          [saveButton, deleteButton, addChildPersonButton].forEach((button) => {
+            if (button) button.disabled = true;
+          });
+          return;
+        }
+
+        const type = nodeType(selected);
+        selectedSummary.textContent = type === "department"
+          ? `${descendantCount(selected)} bağlı kayıt`
+          : selected.title || "Ünvan belirtilmedi";
+        selectedType.textContent = type === "department" ? "Departman" : "Kişi";
+        nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
+        titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
+        typeInput.value = type;
+        nameInput.value = selected.name;
+        titleInput.value = selected.title || "";
+        parentInput.value = selected.parent_id || "";
+        [saveButton, deleteButton, addChildPersonButton].forEach((button) => {
+          if (button) button.disabled = !canEdit;
+        });
+      }
+
+      function selectNode(id) {
+        selectedId = id;
+        document.querySelectorAll(".org-node").forEach((element) => {
+          element.classList.toggle("is-selected", Number(element.dataset.nodeId) === id);
+        });
+        setPanelState();
+      }
+
+      function renderNodes() {
+        updateCanvasSize();
+        nodesLayer.innerHTML = "";
+        emptyState.hidden = nodes.length > 0;
+
+        nodes.forEach((node) => {
+          const count = descendantCount(node);
+          const type = nodeType(node);
+          const element = document.createElement("button");
+          element.type = "button";
+          element.className = `org-node org-node-${type}`;
+          element.dataset.nodeId = node.id;
+          element.style.left = `${node.x}px`;
+          element.style.top = `${node.y}px`;
+          element.innerHTML = type === "department"
+            ? `
+              <span class="org-node-name"></span>
+              <span class="org-node-count">${count} bağlı kayıt</span>
+            `
+            : `
+              <span class="org-node-name"></span>
+              <span class="org-node-title"></span>
+              <span class="org-node-count">${count} toplam alt kişi</span>
+            `;
+          element.querySelector(".org-node-name").textContent = node.name;
+          const titleElement = element.querySelector(".org-node-title");
+          if (titleElement) titleElement.textContent = node.title || "Ünvan";
+
+          element.addEventListener("click", () => selectNode(node.id));
+          if (canEdit) {
+            element.addEventListener("pointerdown", (event) => startNodeDrag(event, node));
+          }
+          nodesLayer.appendChild(element);
+        });
+
+        drawLines();
+        if (selectedId && getNode(selectedId)) {
+          selectNode(selectedId);
+        } else if (nodes.length) {
+          selectNode(nodes[0].id);
+        } else {
+          setPanelState();
+        }
+      }
+
+      function startNodeDrag(event, node) {
+        if (event.button !== 0) return;
+        event.stopPropagation();
+        const element = event.currentTarget;
+        element.setPointerCapture(event.pointerId);
+        draggingNode = {
+          node,
+          element,
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: node.x,
+          originY: node.y,
+          moved: false,
+        };
+      }
+
+      async function finishNodeDrag() {
+        if (!draggingNode) return;
+        const { node, moved } = draggingNode;
+        draggingNode = null;
+        if (!moved) return;
+        try {
+          await postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y });
+        } catch (error) {
+          alert(error.message);
+        }
+      }
+
+      function startPan(event) {
+        if (event.button !== 0 || event.target.closest(".org-node")) return;
+        panning = {
+          startX: event.clientX,
+          startY: event.clientY,
+          originX: panX,
+          originY: panY,
+        };
+        map.setPointerCapture(event.pointerId);
+      }
+
+      function stopPan() {
+        panning = null;
+      }
+
+      window.addEventListener("pointermove", (event) => {
+        if (draggingNode) {
+          const dx = (event.clientX - draggingNode.startX) / zoom;
+          const dy = (event.clientY - draggingNode.startY) / zoom;
+          draggingNode.moved = draggingNode.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2;
+          draggingNode.node.x = Math.max(20, draggingNode.originX + dx);
+          draggingNode.node.y = Math.max(20, draggingNode.originY + dy);
+          draggingNode.element.style.left = `${draggingNode.node.x}px`;
+          draggingNode.element.style.top = `${draggingNode.node.y}px`;
+          updateCanvasSize();
+          drawLines();
+          return;
+        }
+
+        if (!panning) return;
+        panX = panning.originX + event.clientX - panning.startX;
+        panY = panning.originY + event.clientY - panning.startY;
+        applyTransform();
+      });
+
+      window.addEventListener("pointerup", () => {
+        finishNodeDrag();
+        stopPan();
+      });
+      window.addEventListener("pointercancel", () => {
+        finishNodeDrag();
+        stopPan();
+      });
+      map.addEventListener("pointerdown", startPan);
+
+      function setZoom(nextZoom) {
+        const rect = map.getBoundingClientRect();
+        const centerX = (rect.width / 2 - panX) / zoom;
+        const centerY = (rect.height / 2 - panY) / zoom;
+        zoom = Math.max(0.45, Math.min(nextZoom, 1.5));
+        panX = rect.width / 2 - centerX * zoom;
+        panY = rect.height / 2 - centerY * zoom;
+        applyTransform();
+      }
+
+      function bounds() {
+        if (!nodes.length) return { minX: 0, minY: 0, maxX: 1200, maxY: 700 };
+        return nodes.reduce(
+          (box, node) => ({
+            minX: Math.min(box.minX, node.x),
+            minY: Math.min(box.minY, node.y),
+            maxX: Math.max(box.maxX, node.x + nodeWidth),
+            maxY: Math.max(box.maxY, node.y + nodeHeight(node)),
+          }),
+          { minX: Infinity, minY: Infinity, maxX: 0, maxY: 0 }
+        );
+      }
+
+      function fitView() {
+        updateCanvasSize();
+        const box = bounds();
+        const padding = 80;
+        const nextZoom = Math.max(
+          0.45,
+          Math.min(
+            1.2,
+            Math.min(
+              (map.clientWidth - padding) / Math.max(1, box.maxX - box.minX),
+              (map.clientHeight - padding) / Math.max(1, box.maxY - box.minY)
+            )
+          )
+        );
+        zoom = nextZoom;
+        panX = (map.clientWidth - (box.maxX - box.minX) * zoom) / 2 - box.minX * zoom;
+        panY = (map.clientHeight - (box.maxY - box.minY) * zoom) / 2 - box.minY * zoom;
+        applyTransform();
+      }
+
+      function centerView() {
+        const box = bounds();
+        panX = map.clientWidth / 2 - ((box.minX + box.maxX) / 2) * zoom;
+        panY = map.clientHeight / 2 - ((box.minY + box.maxY) / 2) * zoom;
+        applyTransform();
+      }
+
+      function arrangeTree() {
+        let cursorX = 90;
+        const positioned = new Map();
+        const roots = childrenOf(null);
+        const allRoots = roots.length ? roots : nodes.slice().sort((a, b) => a.id - b.id);
+
+        function arrange(node, depth) {
+          const children = childrenOf(node.id);
+          const y = 70 + depth * 145;
+          if (!children.length) {
+            positioned.set(node.id, { x: cursorX, y });
+            cursorX += 290;
+            return positioned.get(node.id);
+          }
+
+          const childPositions = children.map((child) => arrange(child, depth + 1));
+          const first = childPositions[0];
+          const last = childPositions[childPositions.length - 1];
+          const x = Math.round((first.x + last.x) / 2);
+          positioned.set(node.id, { x, y });
+          return positioned.get(node.id);
+        }
+
+        allRoots.forEach((root) => arrange(root, 0));
+        nodes = nodes.map((node) => ({ ...node, ...(positioned.get(node.id) || {}) }));
+      }
+
+      async function createNode(nodeType, parentId) {
+        const selected = parentId ? getNode(parentId) : null;
+        const siblingCount = childrenOf(parentId || null).length;
+        const x = selected ? selected.x + siblingCount * 28 : 90 + siblingCount * 36;
+        const y = selected ? selected.y + nodeHeight(selected) + 100 : 70;
+        const data = await postJson(urls.create, {
+          name: nodeType === "department" ? "Yeni departman" : "Yeni kişi",
+          title: "",
+          node_type: nodeType,
+          parent_id: parentId || null,
+          x,
+          y,
+        });
+        nodes = data.nodes;
+        selectedId = data.node.id;
+        renderNodes();
+      }
+
+      if (form && canEdit) {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const selected = getNode(selectedId);
+          if (!selected) return;
+          try {
+            const data = await postJson(endpoint(urls.update, selected.id), {
+              name: nameInput.value,
+              title: titleInput.value,
+              node_type: typeInput.value,
+              parent_id: parentInput.value || null,
+            });
+            nodes = data.nodes;
+            renderNodes();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (addRootPersonButton) {
+        addRootPersonButton.addEventListener("click", () => createNode("person", null));
+      }
+
+      if (addChildPersonButton) {
+        addChildPersonButton.addEventListener("click", () => {
+          if (selectedId) createNode("person", selectedId);
+        });
+      }
+
+      if (addDepartmentButton) {
+        addDepartmentButton.addEventListener("click", () => {
+          createNode("department", selectedId || null);
+        });
+      }
+
+      if (deleteButton) {
+        deleteButton.addEventListener("click", async () => {
+          const selected = getNode(selectedId);
+          if (!selected) return;
+          if (!confirm("Bu kayıt ve bağlı alt kayıtlar silinsin mi?")) return;
+          try {
+            const data = await postJson(endpoint(urls.delete, selected.id));
+            nodes = data.nodes;
+            selectedId = nodes.length ? nodes[0].id : null;
+            renderNodes();
+            fitView();
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (autoLayoutButton) {
+        autoLayoutButton.addEventListener("click", async () => {
+          arrangeTree();
+          renderNodes();
+          fitView();
+          try {
+            await Promise.all(
+              nodes.map((node) =>
+                postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y })
+              )
+            );
+          } catch (error) {
+            alert(error.message);
+          }
+        });
+      }
+
+      if (fitButton) fitButton.addEventListener("click", fitView);
+      if (centerButton) centerButton.addEventListener("click", centerView);
+      if (zoomMinusButton) zoomMinusButton.addEventListener("click", () => setZoom(zoom - 0.1));
+      if (zoomPlusButton) zoomPlusButton.addEventListener("click", () => setZoom(zoom + 0.1));
+      if (zoomRange) {
+        zoomRange.addEventListener("input", () => setZoom(Number(zoomRange.value) / 100));
+      }
+
+      typeInput.addEventListener("change", () => {
+        const type = typeInput.value;
+        nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
+        titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
+      });
+
+      window.addEventListener("resize", fitView);
+
+      renderNodes();
+      fitView();
+    })();
+  </script>
+{% endblock %}
