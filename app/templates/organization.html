@@ -8,7 +8,7 @@
     <section class="org-toolbar">
       <div>
         <h1 class="h5 mb-0">Organizasyon Şeması</h1>
-        <span class="text-secondary small">Toplam bağlı kişi sayısı üst yöneticilere dahil edilir.</span>
+        <span class="text-secondary small">Er Prefabrik Organizasyon Şeması</span>
       </div>
 
       <div class="org-toolbar-actions">
@@ -18,14 +18,11 @@
           <span class="org-zoom-value" data-zoom-value>85%</span>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-zoom-plus>+</button>
         </div>
-        <button class="btn btn-sm btn-outline-secondary" type="button" data-fit-view>Sığdır</button>
         <button class="btn btn-sm btn-outline-secondary" type="button" data-center-view>Ortala</button>
-        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.organization_legacy') }}">Organizasyon1</a>
         {% if can_edit %}
-          <button class="btn btn-sm btn-primary" type="button" data-add-root-person>Kök kişi</button>
-          <button class="btn btn-sm btn-outline-primary" type="button" data-add-child-person disabled>Alt kişi</button>
+          <button class="btn btn-sm btn-primary" type="button" data-add-root-person>Personel Ekle</button>
+          <button class="btn btn-sm btn-outline-primary" type="button" data-add-child-person disabled>Bağlı Personel Ekle</button>
           <button class="btn btn-sm btn-outline-success" type="button" data-add-department>Departman</button>
-          <button class="btn btn-sm btn-outline-dark" type="button" data-auto-layout>Hizala</button>
         {% endif %}
       </div>
     </section>
@@ -124,8 +121,6 @@
       const addRootPersonButton = document.querySelector("[data-add-root-person]");
       const addChildPersonButton = document.querySelector("[data-add-child-person]");
       const addDepartmentButton = document.querySelector("[data-add-department]");
-      const autoLayoutButton = document.querySelector("[data-auto-layout]");
-      const fitButton = document.querySelector("[data-fit-view]");
       const centerButton = document.querySelector("[data-center-view]");
       const zoomMinusButton = document.querySelector("[data-zoom-minus]");
       const zoomPlusButton = document.querySelector("[data-zoom-plus]");
@@ -577,33 +572,6 @@
         applyTransform();
       }
 
-      function arrangeTree() {
-        let cursorX = 90;
-        const positioned = new Map();
-        const roots = childrenOf(null);
-        const allRoots = roots.length ? roots : nodes.slice().sort((a, b) => a.id - b.id);
-
-        function arrange(node, depth) {
-          const children = childrenOf(node.id);
-          const y = 70 + depth * 145;
-          if (!children.length) {
-            positioned.set(node.id, { x: cursorX, y });
-            cursorX += 290;
-            return positioned.get(node.id);
-          }
-
-          const childPositions = children.map((child) => arrange(child, depth + 1));
-          const first = childPositions[0];
-          const last = childPositions[childPositions.length - 1];
-          const x = Math.round((first.x + last.x) / 2);
-          positioned.set(node.id, { x, y });
-          return positioned.get(node.id);
-        }
-
-        allRoots.forEach((root) => arrange(root, 0));
-        nodes = nodes.map((node) => ({ ...node, ...(positioned.get(node.id) || {}) }));
-      }
-
       async function createNode(nodeType, parentId) {
         const selected = parentId ? getNode(parentId) : null;
         const siblingCount = childrenOf(parentId || null).length;
@@ -680,24 +648,6 @@
         });
       }
 
-      if (autoLayoutButton) {
-        autoLayoutButton.addEventListener("click", async () => {
-          arrangeTree();
-          renderNodes();
-          fitView();
-          try {
-            await Promise.all(
-              nodes.map((node) =>
-                postJson(endpoint(urls.move, node.id), { x: node.x, y: node.y })
-              )
-            );
-          } catch (error) {
-            alert(error.message);
-          }
-        });
-      }
-
-      if (fitButton) fitButton.addEventListener("click", fitView);
       if (centerButton) centerButton.addEventListener("click", centerView);
       if (zoomMinusButton) zoomMinusButton.addEventListener("click", () => setZoom(zoom - 0.1));
       if (zoomPlusButton) zoomPlusButton.addEventListener("click", () => setZoom(zoom + 0.1));
