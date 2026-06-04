@@ -130,8 +130,34 @@ def can_manage_orientation():
 def can_complete_action(action):
     if g.current_user is None:
         return False
-    return is_oguzhan_admin() or (
-        g.current_user.can_close_assigned_actions and is_assigned_to_current_user(action)
+    return can_approve_closure_action(action)
+
+
+def can_request_closure_action(action):
+    if (
+        g.current_user is None
+        or is_oguzhan_admin()
+        or action.is_completed
+        or action.closure_approval_requested
+    ):
+        return False
+    return (
+        (
+            g.current_user.can_close_assigned_actions
+            and is_assigned_to_current_user(action)
+        )
+        or (
+            g.current_user.can_comment_assigned_actions
+            and is_related_to_current_user(action)
+        )
+    )
+
+
+def can_approve_closure_action(action):
+    return (
+        is_oguzhan_admin()
+        and not action.is_completed
+        and action.closure_approval_requested
     )
 
 
@@ -187,6 +213,10 @@ def visible_actions_query():
 
 def active_users():
     return User.query.filter_by(is_active=True).order_by(User.full_name.asc()).all()
+
+
+def oguzhan_user():
+    return User.query.filter_by(username="oguzhan", is_active=True).first()
 
 
 def reserve_action_number():
@@ -459,11 +489,7 @@ def delete_uploaded_file(action):
     action.file_mime_type = None
 
 
-def save_uploaded_file(action):
-    uploaded_file = request.files.get("action_file")
-    if not uploaded_file or not uploaded_file.filename:
-        return
-
+def store_uploaded_file(uploaded_file):
     if not allowed_file(uploaded_file.filename):
         raise ValueError("invalid_file_type")
 
@@ -471,13 +497,46 @@ def save_uploaded_file(action):
     extension = safe_name.rsplit(".", 1)[1].lower()
     stored_name = f"{uuid4().hex}.{extension}"
     upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+    uploaded_file.save(upload_path)
+    return safe_name, stored_name, uploaded_file.mimetype
+
+
+def save_uploaded_file(action):
+    uploaded_file = request.files.get("action_file")
+    if not uploaded_file or not uploaded_file.filename:
+        return
 
     delete_uploaded_file(action)
-    uploaded_file.save(upload_path)
+    safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
 
     action.file_original_name = safe_name
     action.file_stored_name = stored_name
-    action.file_mime_type = uploaded_file.mimetype
+    action.file_mime_type = mime_type
+
+
+def delete_closure_evidence_file(action):
+    if not action.closure_file_stored_name:
+        return
+
+    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / action.closure_file_stored_name
+    if file_path.exists():
+        file_path.unlink()
+
+    action.closure_file_original_name = None
+    action.closure_file_stored_name = None
+    action.closure_file_mime_type = None
+
+
+def save_closure_evidence_file(action):
+    uploaded_file = request.files.get("closure_file")
+    if not uploaded_file or not uploaded_file.filename:
+        return
+
+    delete_closure_evidence_file(action)
+    safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
+    action.closure_file_original_name = safe_name
+    action.closure_file_stored_name = stored_name
+    action.closure_file_mime_type = mime_type
 
 
 def refresh_all_actions():
@@ -791,6 +850,8 @@ def dashboard():
         completed_count=completed_count,
         total_count=total_count,
         can_complete_action=can_complete_action,
+        can_request_closure_action=can_request_closure_action,
+        can_approve_closure_action=can_approve_closure_action,
         departments=DEPARTMENTS,
         filters=filters,
         users=active_users(),
@@ -852,6 +913,8 @@ def action_detail(action_id):
         action=action,
         users=active_users(),
         can_complete=can_complete_action(action),
+        can_request_closure=can_request_closure_action(action),
+        can_approve_closure=can_approve_closure_action(action),
         can_comment=can_comment_action(action),
         can_reassign=can_reassign_action(action),
         can_revise_termin=can_revise_termin(action),
@@ -1055,28 +1118,69 @@ def edit_action(action_id):
     )
 
 
+@bp.post("/actions/<int:action_id>/request-closure")
+@login_required
+def request_action_closure(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_request_closure_action(action):
+        abort(403)
+
+    evidence_note = request.form.get("closure_evidence_note", "").strip()
+    if not evidence_note:
+        flash("Kapatma onayı için açıklama alanını doldurun.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    try:
+        save_closure_evidence_file(action)
+    except ValueError:
+        flash("Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    action.closure_approval_requested = True
+    action.closure_requested_at = datetime.utcnow()
+    action.closure_requested_by_user_id = g.current_user.id
+    action.closure_evidence_note = evidence_note
+    add_action_history(
+        action,
+        "closure_requested",
+        f"{g.current_user.full_name} kapatma onayı gönderdi.",
+        actor=g.current_user,
+    )
+    admin_user = oguzhan_user()
+    if admin_user:
+        notify_users(
+            {admin_user.id},
+            action,
+            f"{action.number_label} {action.title} aksiyonu için kapatma onayı bekliyor.",
+            exclude_user_id=g.current_user.id,
+        )
+    db.session.commit()
+    flash("Kapatma onayı Oğuzhan'a gönderildi.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
 @bp.post("/actions/<int:action_id>/complete")
 @login_required
 def complete_action(action_id):
     action = Action.query.get_or_404(action_id)
-    if not can_complete_action(action):
+    if not can_approve_closure_action(action):
         abort(403)
 
     action.mark_completed()
     add_action_history(
         action,
         "completed",
-        f"{g.current_user.full_name} aksiyonu tamamlandı olarak işaretledi.",
+        f"{g.current_user.full_name} kapatma onayını verdi ve aksiyonu tamamladı.",
         actor=g.current_user,
     )
     notify_action_participants(
         action,
-        f"{action.number_label} {action.title} aksiyonu tamamlandı.",
+        f"{action.number_label} {action.title} aksiyonunun kapanışı Oğuzhan tarafından onaylandı.",
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
-    flash("Aksiyon tamamlandı.", "success")
-    return redirect(request.referrer or url_for("main.dashboard"))
+    flash("Kapatma onayı verildi ve aksiyon tamamlandı.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
 
 
 @bp.route("/actions/<int:action_id>/delete", methods=["GET", "POST"])
@@ -1087,6 +1191,7 @@ def delete_action(action_id):
 
     if request.method == "POST":
         delete_uploaded_file(action)
+        delete_closure_evidence_file(action)
         db.session.delete(action)
         db.session.commit()
         flash("Aksiyon kaydı silindi.", "success")
@@ -1111,6 +1216,25 @@ def download_action_file(action_id):
         action.file_stored_name,
         as_attachment=True,
         download_name=action.file_original_name,
+    )
+
+
+@bp.get("/actions/<int:action_id>/closure-evidence/download")
+@login_required
+def download_closure_evidence_file(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_view_action(action):
+        abort(403)
+
+    if not action.closure_file_stored_name:
+        flash("Bu aksiyona ait kapanış kanıt dosyası bulunamadı.", "warning")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        action.closure_file_stored_name,
+        as_attachment=True,
+        download_name=action.closure_file_original_name,
     )
 
 

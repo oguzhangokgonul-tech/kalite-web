@@ -50,6 +50,12 @@ def build_action_email(action, message):
     action_url = _action_url(action)
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
     subject = f"{subject_prefix} {action.number_label} {action.title}"
+    if action.is_completed:
+        status = "Tamamlandı"
+    elif action.closure_approval_requested:
+        status = "Kapanma Onayı Beklemede"
+    else:
+        status = "Açık"
 
     lines = [
         message,
@@ -59,7 +65,7 @@ def build_action_email(action, message):
         f"Sorumlu: {action.responsible_owner}",
         f"Departman: {action.department}",
         f"Termin: {_format_date(action.termin_date)}",
-        f"Durum: {'Tamamlandı' if action.is_completed else 'Açık'}",
+        f"Durum: {status}",
     ]
 
     if action.description:

@@ -80,6 +80,17 @@ class Action(db.Model):
     file_original_name = db.Column(db.String(255), nullable=True)
     file_stored_name = db.Column(db.String(255), nullable=True)
     file_mime_type = db.Column(db.String(120), nullable=True)
+    closure_approval_requested = db.Column(db.Boolean, nullable=False, default=False)
+    closure_requested_at = db.Column(db.DateTime, nullable=True)
+    closure_requested_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    closure_evidence_note = db.Column(db.Text, nullable=True)
+    closure_file_original_name = db.Column(db.String(255), nullable=True)
+    closure_file_stored_name = db.Column(db.String(255), nullable=True)
+    closure_file_mime_type = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -95,6 +106,10 @@ class Action(db.Model):
     )
     related_user_1 = db.relationship("User", foreign_keys=[related_user_1_id])
     related_user_2 = db.relationship("User", foreign_keys=[related_user_2_id])
+    closure_requested_by = db.relationship(
+        "User",
+        foreign_keys=[closure_requested_by_user_id],
+    )
     comments = db.relationship(
         "ActionComment",
         back_populates="action",
@@ -142,6 +157,7 @@ class Action(db.Model):
         self.is_completed = True
         self.completed_at = today or date.today()
         self.delay_days = 0
+        self.closure_approval_requested = False
 
 
 class ActionComment(db.Model):

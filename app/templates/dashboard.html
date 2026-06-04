@@ -90,7 +90,7 @@
       </thead>
       <tbody>
         {% for action in actions %}
-          <tr class="{% if action.is_completed %}table-success{% elif action.delay_days > 0 %}table-danger{% endif %}">
+          <tr class="{% if action.is_completed %}table-success{% elif action.closure_approval_requested %}table-warning{% elif action.delay_days > 0 %}table-danger{% endif %}">
             <td>
               <a class="fw-semibold text-decoration-none" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
               {% if action.description %}
@@ -103,6 +103,8 @@
             <td>
               {% if action.is_completed %}
                 <span class="badge text-bg-success">Tamamlandı</span>
+              {% elif action.closure_approval_requested %}
+                <span class="badge text-bg-warning">Kapanma Onayı Beklemede</span>
               {% elif action.delay_days > 0 %}
                 <span class="badge text-bg-danger">Gecikti</span>
               {% else %}
@@ -120,10 +122,14 @@
             <td>
               <div class="d-flex flex-wrap justify-content-end gap-2">
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}">Detay</a>
-                {% if not action.is_completed and can_complete_action(action) %}
+                {% if can_approve_closure_action(action) %}
                   <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
-                    <button class="btn btn-sm btn-outline-success" type="submit">Tamamla</button>
+                    <button class="btn btn-sm btn-outline-success" type="submit">Kapatma Onayını Ver</button>
                   </form>
+                {% elif can_request_closure_action(action) %}
+                  <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.action_detail', action_id=action.id) }}#closure-request">Kapatma Onayı Gönder</a>
+                {% elif action.closure_approval_requested and not action.is_completed %}
+                  <span class="btn btn-sm btn-outline-warning disabled">Kapanma Onayı Beklemede</span>
                 {% endif %}
                 {% if g.current_user.can_edit_actions %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a>

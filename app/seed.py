@@ -96,6 +96,40 @@ def ensure_runtime_schema():
                 text("ALTER TABLE actions ADD COLUMN related_user_2_id INTEGER")
             )
             changed = True
+        if "closure_approval_requested" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE actions ADD COLUMN "
+                    "closure_approval_requested BOOLEAN NOT NULL DEFAULT 0"
+                )
+            )
+            changed = True
+        if "closure_requested_at" not in columns:
+            db.session.execute(text("ALTER TABLE actions ADD COLUMN closure_requested_at DATETIME"))
+            changed = True
+        if "closure_requested_by_user_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN closure_requested_by_user_id INTEGER")
+            )
+            changed = True
+        if "closure_evidence_note" not in columns:
+            db.session.execute(text("ALTER TABLE actions ADD COLUMN closure_evidence_note TEXT"))
+            changed = True
+        if "closure_file_original_name" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN closure_file_original_name VARCHAR(255)")
+            )
+            changed = True
+        if "closure_file_stored_name" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN closure_file_stored_name VARCHAR(255)")
+            )
+            changed = True
+        if "closure_file_mime_type" not in columns:
+            db.session.execute(
+                text("ALTER TABLE actions ADD COLUMN closure_file_mime_type VARCHAR(120)")
+            )
+            changed = True
 
     if "orientation_nodes" in tables:
         columns = {
