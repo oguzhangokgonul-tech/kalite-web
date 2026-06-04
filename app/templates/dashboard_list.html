@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Aksiyon Takip Sistemi{% endblock %}
+
+{% block content %}
+  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Ana Sayfa</h1>
+      <p class="text-secondary mb-0">Kalite yönetim sistemi aksiyon takip ekranı</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-self-lg-start">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Yeni görünüm</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard_legacy') }}">Eski tablo</a>
+      {% if g.current_user.can_create_actions %}
+        <a class="btn btn-primary" href="{{ url_for('main.create_action') }}">Yeni aksiyon ekle</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="metric-box">
+        <span class="metric-label">Toplam Aksiyon</span>
+        <strong>{{ total_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="metric-box metric-box-success">
+        <span class="metric-label">Tamamlanan</span>
+        <strong>{{ completed_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="metric-box metric-box-warning">
+        <span class="metric-label">Onay Bekleyen Aksiyon</span>
+        <strong>{{ pending_approval_count }}</strong>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="metric-box metric-box-danger">
+        <span class="metric-label">Geciken Aksiyon</span>
+        <strong>{{ delayed_count }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <form class="dashboard-filter" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="search">Arama</label>
+        <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Aksiyon, açıklama, sorumlu">
+      </div>
+      <div class="col-12 col-md-4 col-lg-2">
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4 col-lg-3">
+        <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Tümü</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if filters.responsible_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4 col-lg-2">
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
+          <option value="pending" {% if filters.status == "pending" %}selected{% endif %}>Onay bekleyen</option>
+          <option value="rejected" {% if filters.status == "rejected" %}selected{% endif %}>Reddedilen</option>
+          <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
+          <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-2 d-flex gap-2">
+        <button class="btn btn-primary flex-fill" type="submit">Filtrele</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard_list') }}">Temizle</a>
+      </div>
+    </div>
+  </form>
+
+  <section class="actions-panel">
+    <div class="actions-panel-header">
+      <div>
+        <h2 class="h5 mb-1">Aksiyonlar</h2>
+        <p class="text-secondary mb-0">{{ actions|length }} kayıt listeleniyor</p>
+      </div>
+    </div>
+
+    <div class="action-list">
+      {% for action in actions %}
+        <article class="action-row {% if action.is_completed %}action-row-success{% elif action.closure_approval_requested %}action-row-warning{% elif action.closure_rejection_reason or action.delay_days > 0 %}action-row-danger{% endif %}">
+          <div class="action-row-main">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              <a class="action-title" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
+              {% if action.is_completed %}
+                <span class="badge text-bg-success">Tamamlandı</span>
+              {% elif action.closure_approval_requested %}
+                <span class="badge text-bg-warning">Kapanma Onayı Beklemede</span>
+              {% elif action.closure_rejection_reason %}
+                <span class="badge text-bg-danger">Kapanma Onayı Reddedildi</span>
+              {% elif action.delay_days > 0 %}
+                <span class="badge text-bg-danger">Gecikti</span>
+              {% else %}
+                <span class="badge text-bg-secondary">Açık</span>
+              {% endif %}
+            </div>
+            {% if action.description %}
+              <p class="action-description">{{ action.description }}</p>
+            {% endif %}
+            <div class="action-meta">
+              <span>Departman: <strong>{{ action.department }}</strong></span>
+              <span>Sorumlu: <strong>{{ action.responsible_owner }}</strong></span>
+              {% if action.file_original_name %}
+                <a href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosya indir</a>
+              {% else %}
+                <span>Dosya: Yok</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="action-row-due">
+            <span class="action-due-label">Termin</span>
+            <strong>{{ action.termin_date.strftime("%d.%m.%Y") }}</strong>
+            {% if action.delay_days > 0 and not action.is_completed %}
+              <span class="action-delay">{{ action.delay_days }} gün gecikti</span>
+            {% else %}
+              <span class="text-secondary small">Gecikme yok</span>
+            {% endif %}
+          </div>
+
+          <div class="action-row-actions">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.action_detail', action_id=action.id) }}">Detay</a>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                İşlemler
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                {% if can_approve_closure_action(action) %}
+                  <li>
+                    <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                      <button class="dropdown-item text-success" type="submit">Kapatma onayını ver</button>
+                    </form>
+                  </li>
+                {% elif can_request_closure_action(action) %}
+                  <li><a class="dropdown-item text-success" href="{{ url_for('main.action_detail', action_id=action.id) }}#closure-request">Kapatma onayı gönder</a></li>
+                {% elif action.closure_approval_requested and not action.is_completed %}
+                  <li><span class="dropdown-item-text text-secondary">Kapanma onayı beklemede</span></li>
+                {% endif %}
+                {% if g.current_user.can_edit_actions %}
+                  <li><a class="dropdown-item" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a></li>
+                {% endif %}
+                {% if action.file_original_name %}
+                  <li><a class="dropdown-item" href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosyayı indir</a></li>
+                {% endif %}
+                {% if g.current_user.can_delete_actions %}
+                  <li><hr class="dropdown-divider"></li>
+                  <li><a class="dropdown-item text-danger" href="{{ url_for('main.delete_action', action_id=action.id) }}">Sil</a></li>
+                {% endif %}
+              </ul>
+            </div>
+          </div>
+        </article>
+      {% else %}
+        <div class="action-empty">
+          <strong>Henüz aksiyon kaydı yok.</strong>
+          <span>Yeni aksiyon eklendiğinde burada listelenecek.</span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

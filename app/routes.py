@@ -216,6 +216,15 @@ def active_users():
     return User.query.filter_by(is_active=True).order_by(User.full_name.asc()).all()
 
 
+def user_initials(user):
+    parts = (user.full_name or user.username or "").split()
+    if not parts:
+        return "?"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return f"{parts[0][0]}{parts[-1][0]}".upper()
+
+
 def oguzhan_user():
     return User.query.filter_by(username="oguzhan", is_active=True).first()
 
@@ -893,6 +902,7 @@ def dashboard_context():
         "departments": DEPARTMENTS,
         "filters": filters,
         "users": active_users(),
+        "current_user_initials": user_initials(g.current_user),
     }
 
 
@@ -900,6 +910,12 @@ def dashboard_context():
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.route("/dashboard-liste")
+@login_required
+def dashboard_list():
+    return render_template("dashboard_list.html", **dashboard_context())
 
 
 @bp.route("/dashboard-eski")

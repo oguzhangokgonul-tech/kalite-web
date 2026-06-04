@@ -1,178 +1,341 @@
 {% extends "base.html" %}
 
 {% block title %}Aksiyon Takip Sistemi{% endblock %}
+{% block body_class %}dashboard-body{% endblock %}
+{% block navbar %}{% endblock %}
+{% block main_class %}dashboard-app{% endblock %}
+{% block flashes %}{% endblock %}
+
+{% macro status_badge(action) %}
+  {% if action.is_completed %}
+    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+  {% elif action.closure_approval_requested %}
+    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Kapanma Onayı Beklemede</span>
+  {% elif action.closure_rejection_reason %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Kapanma Onayı Reddedildi</span>
+  {% elif action.delay_days > 0 %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
+  {% else %}
+    <span class="status-pill status-pill-muted"><i class="bi bi-circle-fill"></i> Açık</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro sidebar_content() %}
+  <div class="dashboard-sidebar-brand">
+    <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
+    <strong>Aksiyon Takip Sistemi</strong>
+  </div>
+  <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
+    <a class="dashboard-nav-item active" href="{{ url_for('main.dashboard') }}">
+      <i class="bi bi-house-door"></i>
+      <span>Ana Sayfa</span>
+    </a>
+    <a class="dashboard-nav-item" href="{{ url_for('main.dashboard') }}">
+      <i class="bi bi-clipboard-check"></i>
+      <span>Aksiyonlar</span>
+    </a>
+    <a class="dashboard-nav-item" href="{{ url_for('main.notifications') }}">
+      <i class="bi bi-bell"></i>
+      <span>Bildirimler</span>
+    </a>
+    {% if g.current_user.can_manage_users %}
+      <a class="dashboard-nav-item" href="{{ url_for('main.users') }}">
+        <i class="bi bi-people"></i>
+        <span>Kullanıcılar</span>
+      </a>
+    {% endif %}
+    <a class="dashboard-nav-item" href="{{ url_for('main.organization') }}">
+      <i class="bi bi-diagram-3"></i>
+      <span>Organizasyon Şeması</span>
+    </a>
+    <a class="dashboard-nav-item" href="{{ url_for('main.dashboard_list') }}">
+      <i class="bi bi-layout-text-sidebar-reverse"></i>
+      <span>Liste Yedeği</span>
+    </a>
+    <a class="dashboard-nav-item" href="{{ url_for('main.dashboard_legacy') }}">
+      <i class="bi bi-table"></i>
+      <span>Eski Tablo</span>
+    </a>
+  </nav>
+  <div class="dashboard-sidebar-user">
+    <div class="dashboard-avatar">{{ current_user_initials }}</div>
+    <div>
+      <strong>{{ g.current_user.full_name }}</strong>
+      <span>{{ g.current_user.title or "Kullanıcı" }}</span>
+    </div>
+  </div>
+  <a class="dashboard-logout" href="{{ url_for('main.logout') }}">
+    <i class="bi bi-box-arrow-left"></i>
+    <span>Çıkış</span>
+  </a>
+{% endmacro %}
 
 {% block content %}
-  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
-    <div>
-      <h1 class="h3 mb-1">Ana Sayfa</h1>
-      <p class="text-secondary mb-0">Kalite yönetim sistemi aksiyon takip ekranı</p>
+  <aside class="dashboard-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
+    <div class="offcanvas-header d-lg-none">
+      <h2 class="h6 mb-0" id="dashboardSidebarLabel">Menü</h2>
+      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
     </div>
-    <div class="d-flex flex-wrap gap-2 align-self-lg-start">
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard_legacy') }}">Eski görünüm</a>
-      {% if g.current_user.can_create_actions %}
-        <a class="btn btn-primary" href="{{ url_for('main.create_action') }}">Yeni aksiyon ekle</a>
-      {% endif %}
+    <div class="offcanvas-body">
+      {{ sidebar_content() }}
     </div>
-  </div>
+  </aside>
 
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="metric-box">
-        <span class="metric-label">Toplam Aksiyon</span>
-        <strong>{{ total_count }}</strong>
+  <div class="dashboard-main">
+    <header class="dashboard-topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
+          <i class="bi bi-list"></i>
+        </button>
+        <h1 class="dashboard-topbar-title">Aksiyon Takip Sistemi</h1>
       </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="metric-box metric-box-success">
-        <span class="metric-label">Tamamlanan</span>
-        <strong>{{ completed_count }}</strong>
-      </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="metric-box metric-box-warning">
-        <span class="metric-label">Onay Bekleyen Aksiyon</span>
-        <strong>{{ pending_approval_count }}</strong>
-      </div>
-    </div>
-    <div class="col-12 col-md-6 col-xl-3">
-      <div class="metric-box metric-box-danger">
-        <span class="metric-label">Geciken Aksiyon</span>
-        <strong>{{ delayed_count }}</strong>
-      </div>
-    </div>
-  </div>
-
-  <form class="dashboard-filter" method="get">
-    <div class="row g-3 align-items-end">
-      <div class="col-12 col-lg-3">
-        <label class="form-label" for="search">Arama</label>
-        <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Aksiyon, açıklama, sorumlu">
-      </div>
-      <div class="col-12 col-md-4 col-lg-2">
-        <label class="form-label" for="department">Departman</label>
-        <select class="form-select" id="department" name="department">
-          <option value="">Tümü</option>
-          {% for department in departments %}
-            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-12 col-md-4 col-lg-3">
-        <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
-        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
-          <option value="">Tümü</option>
-          {% for user in users %}
-            <option value="{{ user.id }}" {% if filters.responsible_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-12 col-md-4 col-lg-2">
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          <option value="">Tümü</option>
-          <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
-          <option value="pending" {% if filters.status == "pending" %}selected{% endif %}>Onay bekleyen</option>
-          <option value="rejected" {% if filters.status == "rejected" %}selected{% endif %}>Reddedilen</option>
-          <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
-          <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
-        </select>
-      </div>
-      <div class="col-12 col-lg-2 d-flex gap-2">
-        <button class="btn btn-primary flex-fill" type="submit">Filtrele</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Temizle</a>
-      </div>
-    </div>
-  </form>
-
-  <section class="actions-panel">
-    <div class="actions-panel-header">
-      <div>
-        <h2 class="h5 mb-1">Aksiyonlar</h2>
-        <p class="text-secondary mb-0">{{ actions|length }} kayıt listeleniyor</p>
-      </div>
-    </div>
-
-    <div class="action-list">
-      {% for action in actions %}
-        <article class="action-row {% if action.is_completed %}action-row-success{% elif action.closure_approval_requested %}action-row-warning{% elif action.closure_rejection_reason or action.delay_days > 0 %}action-row-danger{% endif %}">
-          <div class="action-row-main">
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-              <a class="action-title" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
-              {% if action.is_completed %}
-                <span class="badge text-bg-success">Tamamlandı</span>
-              {% elif action.closure_approval_requested %}
-                <span class="badge text-bg-warning">Kapanma Onayı Beklemede</span>
-              {% elif action.closure_rejection_reason %}
-                <span class="badge text-bg-danger">Kapanma Onayı Reddedildi</span>
-              {% elif action.delay_days > 0 %}
-                <span class="badge text-bg-danger">Gecikti</span>
-              {% else %}
-                <span class="badge text-bg-secondary">Açık</span>
-              {% endif %}
-            </div>
-            {% if action.description %}
-              <p class="action-description">{{ action.description }}</p>
-            {% endif %}
-            <div class="action-meta">
-              <span>Departman: <strong>{{ action.department }}</strong></span>
-              <span>Sorumlu: <strong>{{ action.responsible_owner }}</strong></span>
-              {% if action.file_original_name %}
-                <a href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosya indir</a>
-              {% else %}
-                <span>Dosya: Yok</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <div class="action-row-due">
-            <span class="action-due-label">Termin</span>
-            <strong>{{ action.termin_date.strftime("%d.%m.%Y") }}</strong>
-            {% if action.delay_days > 0 and not action.is_completed %}
-              <span class="action-delay">{{ action.delay_days }} gün gecikti</span>
+      <div class="dashboard-topbar-actions">
+        <a class="btn btn-outline-primary" href="{{ url_for('main.organization') }}">
+          <i class="bi bi-diagram-3"></i>
+          <span>Organizasyon Şeması</span>
+        </a>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-bell"></i>
+            <span>Bildirimler</span>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>
+              {{ g.unread_notification_count }}
+            </span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end notification-menu p-0">
+            <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
+            {% if g.latest_notifications %}
+              {% for notification in g.latest_notifications %}
+                <a class="dropdown-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+                  <span class="d-block small">{{ notification.message }}</span>
+                  <span class="text-secondary small">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+                </a>
+              {% endfor %}
             {% else %}
-              <span class="text-secondary small">Gecikme yok</span>
+              <div class="px-3 py-3 text-secondary small">Henüz bildirim yok.</div>
             {% endif %}
-          </div>
-
-          <div class="action-row-actions">
-            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.action_detail', action_id=action.id) }}">Detay</a>
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                İşlemler
-              </button>
-              <ul class="dropdown-menu dropdown-menu-end">
-                {% if can_approve_closure_action(action) %}
-                  <li>
-                    <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
-                      <button class="dropdown-item text-success" type="submit">Kapatma onayını ver</button>
-                    </form>
-                  </li>
-                {% elif can_request_closure_action(action) %}
-                  <li><a class="dropdown-item text-success" href="{{ url_for('main.action_detail', action_id=action.id) }}#closure-request">Kapatma onayı gönder</a></li>
-                {% elif action.closure_approval_requested and not action.is_completed %}
-                  <li><span class="dropdown-item-text text-secondary">Kapanma onayı beklemede</span></li>
-                {% endif %}
-                {% if g.current_user.can_edit_actions %}
-                  <li><a class="dropdown-item" href="{{ url_for('main.edit_action', action_id=action.id) }}">Düzenle</a></li>
-                {% endif %}
-                {% if action.file_original_name %}
-                  <li><a class="dropdown-item" href="{{ url_for('main.download_action_file', action_id=action.id) }}">Dosyayı indir</a></li>
-                {% endif %}
-                {% if g.current_user.can_delete_actions %}
-                  <li><hr class="dropdown-divider"></li>
-                  <li><a class="dropdown-item text-danger" href="{{ url_for('main.delete_action', action_id=action.id) }}">Sil</a></li>
-                {% endif %}
-              </ul>
+            <div class="border-top">
+              <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
             </div>
           </div>
-        </article>
-      {% else %}
-        <div class="action-empty">
-          <strong>Henüz aksiyon kaydı yok.</strong>
-          <span>Yeni aksiyon eklendiğinde burada listelenecek.</span>
         </div>
-      {% endfor %}
-    </div>
-  </section>
+        {% if g.current_user.can_manage_users %}
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">
+            <i class="bi bi-people"></i>
+            <span>Kullanıcılar</span>
+          </a>
+        {% endif %}
+        <div class="dropdown">
+          <button class="dashboard-profile-button" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="d-none d-md-inline">{{ g.current_user.full_name }}</span>
+            <span class="dashboard-profile-avatar">{{ current_user_initials }}</span>
+            <i class="bi bi-chevron-down"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><span class="dropdown-item-text">{{ g.current_user.title or "Kullanıcı" }}</span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('main.logout') }}">Çıkış</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <section class="dashboard-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="dashboard-alert-stack">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show mb-0" role="alert">
+                {% if category == "success" %}
+                  <i class="bi bi-check-circle-fill"></i>
+                {% elif category == "danger" %}
+                  <i class="bi bi-exclamation-circle-fill"></i>
+                {% else %}
+                  <i class="bi bi-info-circle-fill"></i>
+                {% endif %}
+                <span>{{ message }}</span>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Kapat"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="dashboard-page-heading">
+        <div>
+          <h2>Ana Sayfa</h2>
+          <p>Kalite yönetim sistemi aksiyon takip ekranı</p>
+        </div>
+        {% if g.current_user.can_create_actions %}
+          <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_action') }}">
+            <i class="bi bi-plus-lg"></i>
+            <span>Yeni aksiyon ekle</span>
+          </a>
+        {% endif %}
+      </div>
+
+      <div class="dashboard-metrics">
+        <div class="dashboard-stat-card stat-primary">
+          <span class="stat-icon"><i class="bi bi-clipboard-check"></i></span>
+          <span class="stat-label">Toplam Aksiyon</span>
+          <strong>{{ total_count }}</strong>
+        </div>
+        <div class="dashboard-stat-card stat-success">
+          <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
+          <span class="stat-label">Tamamlanan</span>
+          <strong>{{ completed_count }}</strong>
+        </div>
+        <div class="dashboard-stat-card stat-warning">
+          <span class="stat-icon"><i class="bi bi-clock"></i></span>
+          <span class="stat-label">Onay Bekleyen Aksiyon</span>
+          <strong>{{ pending_approval_count }}</strong>
+        </div>
+        <div class="dashboard-stat-card stat-danger">
+          <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+          <span class="stat-label">Geciken Aksiyon</span>
+          <strong>{{ delayed_count }}</strong>
+        </div>
+      </div>
+
+      <form class="dashboard-filter-card" method="get">
+        <div class="dashboard-filter-grid">
+          <div>
+            <label class="form-label" for="search">Arama</label>
+            <div class="dashboard-search-control">
+              <i class="bi bi-search"></i>
+              <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Aksiyon, açıklama, sorumlu">
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="department">Departman</label>
+            <select class="form-select" id="department" name="department">
+              <option value="">Tümü</option>
+              {% for department in departments %}
+                <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
+            <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+              <option value="">Tümü</option>
+              {% for user in users %}
+                <option value="{{ user.id }}" {% if filters.responsible_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="status">Durum</label>
+            <select class="form-select" id="status" name="status">
+              <option value="">Tümü</option>
+              <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
+              <option value="pending" {% if filters.status == "pending" %}selected{% endif %}>Onay bekleyen</option>
+              <option value="rejected" {% if filters.status == "rejected" %}selected{% endif %}>Reddedilen</option>
+              <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
+              <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
+            </select>
+          </div>
+          <div class="dashboard-filter-actions">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-funnel"></i>
+              <span>Filtrele</span>
+            </button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+              <i class="bi bi-arrow-clockwise"></i>
+              <span>Temizle</span>
+            </a>
+          </div>
+        </div>
+      </form>
+
+      <div class="dashboard-table-card">
+        <div class="table-responsive">
+          <table class="table dashboard-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Aksiyon başlığı</th>
+                <th>Departman</th>
+                <th>Aksiyon sorumlusu</th>
+                <th>Termin</th>
+                <th>Durum</th>
+                <th>Gecikme günü</th>
+                <th>Dosya</th>
+                <th class="text-end">İşlemler</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for action in actions %}
+                <tr>
+                  <td class="dashboard-action-title-cell">
+                    <a href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
+                    {% if action.description %}
+                      <span>{{ action.description }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ action.department }}</td>
+                  <td>{{ action.responsible_owner }}</td>
+                  <td>{{ action.termin_date.strftime("%d.%m.%Y") }}</td>
+                  <td>{{ status_badge(action) }}</td>
+                  <td>{{ action.delay_days }}</td>
+                  <td>
+                    {% if action.file_original_name %}
+                      <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_action_file', action_id=action.id) }}">
+                        <i class="bi bi-download"></i>
+                        <span>İndir</span>
+                      </a>
+                    {% else %}
+                      <span class="text-secondary">Yok</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="dashboard-row-actions">
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.action_detail', action_id=action.id) }}">
+                        <i class="bi bi-eye"></i>
+                        <span>Detay</span>
+                      </a>
+                      {% if can_approve_closure_action(action) %}
+                        <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                          <button class="btn btn-sm btn-outline-success" type="submit">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Onayla</span>
+                          </button>
+                        </form>
+                      {% elif can_request_closure_action(action) %}
+                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.action_detail', action_id=action.id) }}#closure-request">
+                          <i class="bi bi-send"></i>
+                          <span>Onay gönder</span>
+                        </a>
+                      {% endif %}
+                      {% if g.current_user.can_edit_actions %}
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
+                          <i class="bi bi-pencil"></i>
+                          <span>Düzenle</span>
+                        </a>
+                      {% endif %}
+                      {% if g.current_user.can_delete_actions %}
+                        <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_action', action_id=action.id) }}">
+                          <i class="bi bi-trash"></i>
+                          <span>Sil</span>
+                        </a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td class="dashboard-empty-row" colspan="8">
+                    <strong>Henüz aksiyon kaydı yok.</strong>
+                    <span>Yeni aksiyon eklendiğinde burada listelenecek.</span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="dashboard-table-footer">
+          <span>Toplam {{ actions|length }} kayıt</span>
+        </div>
+      </div>
+    </section>
+  </div>
 {% endblock %}
