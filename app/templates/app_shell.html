@@ -87,7 +87,7 @@
       {% endblock %}
     </header>
 
-    <section class="dashboard-content">
+    <section class="dashboard-content {% block content_extra_class %}{% endblock %}">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="dashboard-alert-stack">
