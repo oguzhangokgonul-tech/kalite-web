@@ -7,28 +7,21 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
-  <section class="login-brand-panel" aria-label="Aksiyon Takip Sistemi">
-    <div class="dashboard-sidebar-brand">
-      <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
-      <strong>Aksiyon Takip Sistemi</strong>
-    </div>
-    <div class="login-brand-copy">
-      <h1>Aksiyon Takip Sistemi</h1>
-      <p>Kalite yönetim sistemi aksiyonlarını, sorumluları ve kapanış onaylarını tek ekrandan takip edin.</p>
-    </div>
-    <div class="login-brand-footer">
-      <i class="bi bi-check-circle"></i>
-      <span>ER Prefabrik kalite ve aksiyon yönetimi</span>
-    </div>
-  </section>
-
-  <section class="login-form-panel">
+  <section class="login-form-panel" aria-label="Giriş">
     <form class="login-card" method="post">
+      <div class="login-card-brand">
+        <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
+        <div>
+          <strong>Aksiyon Takip Sistemi</strong>
+          <span>ER Prefabrik</span>
+        </div>
+      </div>
+
       <div class="app-card-header">
         <span class="app-card-icon"><i class="bi bi-box-arrow-in-right"></i></span>
         <div>
           <h2>Giriş Yap</h2>
-          <p>Kullanıcı adınız veya ad soyadınız ile oturum açın.</p>
+          <p>Kullanıcı adınız ile oturum açın.</p>
         </div>
       </div>
 
@@ -53,7 +46,7 @@
       {% endwith %}
 
       <div class="mb-3">
-        <label class="form-label" for="identity">Kullanıcı adı veya ad soyad</label>
+        <label class="form-label" for="identity">Kullanıcı adı</label>
         <div class="login-input-icon">
           <i class="bi bi-person"></i>
           <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username">
