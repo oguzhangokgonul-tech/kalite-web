@@ -21,10 +21,6 @@
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
         </a>
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.create_action', 'main.edit_action', 'main.action_detail'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
-          <i class="bi bi-clipboard-check"></i>
-          <span>Aksiyonlar</span>
-        </a>
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
             <i class="bi bi-people"></i>
@@ -51,12 +47,14 @@
   </aside>
 
   <div class="dashboard-main">
-    <header class="dashboard-topbar">
+    <header class="dashboard-topbar {% block topbar_extra_class %}{% endblock %}">
       <div class="d-flex align-items-center gap-3">
         <button class="btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
           <i class="bi bi-list"></i>
         </button>
-        <h1 class="dashboard-topbar-title">{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}</h1>
+        {% block topbar_heading %}
+          <h1 class="dashboard-topbar-title">{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}</h1>
+        {% endblock %}
       </div>
       {% block topbar_actions %}
       <div class="dashboard-topbar-actions">
@@ -84,18 +82,6 @@
               <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
             </div>
           </div>
-        </div>
-        <div class="dropdown">
-          <button class="dashboard-profile-button" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="d-none d-md-inline">{{ g.current_user.full_name }}</span>
-            <span class="dashboard-profile-avatar">{{ g.current_user_initials }}</span>
-            <i class="bi bi-chevron-down"></i>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><span class="dropdown-item-text">{{ g.current_user.title or "Kullanıcı" }}</span></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{{ url_for('main.logout') }}">Çıkış</a></li>
-          </ul>
         </div>
       </div>
       {% endblock %}

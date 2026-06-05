@@ -494,6 +494,11 @@ body {
     font-weight: 800;
 }
 
+.dashboard-topbar-mobile-only {
+    justify-content: flex-start;
+    min-height: 64px;
+}
+
 .dashboard-topbar-actions {
     display: flex;
     align-items: center;
@@ -1158,6 +1163,10 @@ body {
         position: sticky;
         top: 0;
         height: 100vh;
+    }
+
+    .dashboard-topbar-mobile-only {
+        display: none;
     }
 }
 
