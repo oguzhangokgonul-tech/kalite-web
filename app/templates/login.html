@@ -1,22 +1,75 @@
 {% extends "base.html" %}
 
 {% block title %}Giriş - Aksiyon Takip Sistemi{% endblock %}
+{% block body_class %}dashboard-body login-body{% endblock %}
+{% block navbar %}{% endblock %}
+{% block main_class %}login-shell{% endblock %}
+{% block flashes %}{% endblock %}
 
 {% block content %}
-  <div class="row justify-content-center">
-    <div class="col-12 col-md-7 col-lg-5">
-      <form class="bg-white border rounded p-4" method="post">
-        <h1 class="h4 mb-3">Giriş Yap</h1>
-        <div class="mb-3">
-          <label class="form-label" for="identity">Kullanıcı adı veya ad soyad</label>
-          <input class="form-control" id="identity" name="identity" required autofocus>
-        </div>
-        <div class="mb-4">
-          <label class="form-label" for="password">Şifre</label>
-          <input class="form-control" id="password" name="password" type="password" required>
-        </div>
-        <button class="btn btn-primary w-100" type="submit">Giriş Yap</button>
-      </form>
+  <section class="login-brand-panel" aria-label="Aksiyon Takip Sistemi">
+    <div class="dashboard-sidebar-brand">
+      <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
+      <strong>Aksiyon Takip Sistemi</strong>
     </div>
-  </div>
+    <div class="login-brand-copy">
+      <h1>Aksiyon Takip Sistemi</h1>
+      <p>Kalite yönetim sistemi aksiyonlarını, sorumluları ve kapanış onaylarını tek ekrandan takip edin.</p>
+    </div>
+    <div class="login-brand-footer">
+      <i class="bi bi-check-circle"></i>
+      <span>ER Prefabrik kalite ve aksiyon yönetimi</span>
+    </div>
+  </section>
+
+  <section class="login-form-panel">
+    <form class="login-card" method="post">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-box-arrow-in-right"></i></span>
+        <div>
+          <h2>Giriş Yap</h2>
+          <p>Kullanıcı adınız veya ad soyadınız ile oturum açın.</p>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="dashboard-alert-stack login-alert-stack">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show mb-0" role="alert">
+                {% if category == "success" %}
+                  <i class="bi bi-check-circle-fill"></i>
+                {% elif category == "danger" %}
+                  <i class="bi bi-exclamation-circle-fill"></i>
+                {% else %}
+                  <i class="bi bi-info-circle-fill"></i>
+                {% endif %}
+                <span>{{ message }}</span>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Kapat"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="mb-3">
+        <label class="form-label" for="identity">Kullanıcı adı veya ad soyad</label>
+        <div class="login-input-icon">
+          <i class="bi bi-person"></i>
+          <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username">
+        </div>
+      </div>
+      <div class="mb-4">
+        <label class="form-label" for="password">Şifre</label>
+        <div class="login-input-icon">
+          <i class="bi bi-lock"></i>
+          <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password">
+        </div>
+      </div>
+      <button class="btn btn-primary w-100" type="submit">
+        <i class="bi bi-arrow-right"></i>
+        <span>Giriş Yap</span>
+      </button>
+    </form>
+  </section>
 {% endblock %}
