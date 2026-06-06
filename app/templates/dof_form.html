@@ -18,6 +18,10 @@
       <p>Düzeltici ve önleyici faaliyet kaydı oluşturun</p>
     </div>
     <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.dof_management') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>DÖF Yönetimi</span>
+      </a>
       <button class="btn btn-outline-secondary btn-lg" type="submit" name="save_mode" value="draft" form="dofForm">
         <i class="bi bi-file-earmark"></i>
         <span>Taslak Kaydet</span>
@@ -30,7 +34,7 @@
   </div>
 
   <div class="dof-layout">
-    <form class="dof-form-card" id="dofForm" method="post" enctype="multipart/form-data">
+    <form class="dof-form-card" id="dofForm" method="post" action="{{ url_for('main.create_dof') }}" enctype="multipart/form-data">
       <div class="app-card-header">
         <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <div>

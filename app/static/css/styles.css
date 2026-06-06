@@ -818,6 +818,12 @@ body {
     border-color: #ffe2a4;
 }
 
+.status-pill-info {
+    color: #0f766e;
+    background: #e8f8f6;
+    border-color: #b8ebe6;
+}
+
 .status-pill-danger {
     color: #b4232f;
     background: #fde7ea;

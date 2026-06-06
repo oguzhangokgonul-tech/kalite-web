@@ -590,6 +590,79 @@ def filtered_actions(actions, filters):
     return result
 
 
+def dof_display_status(dof, today=None):
+    today = today or date.today()
+    if dof.status == "Taslak":
+        return "Taslak"
+    if dof.due_date and dof.due_date < today:
+        return "Gecikti"
+    return dof.status or "Açık"
+
+
+def dof_delay_days(dof, today=None):
+    today = today or date.today()
+    if dof.status == "Taslak" or not dof.due_date:
+        return 0
+    return max((today - dof.due_date).days, 0)
+
+
+def attach_dof_view_state(dofs):
+    today = date.today()
+    for dof in dofs:
+        dof.display_status = dof_display_status(dof, today=today)
+        dof.delay_days = dof_delay_days(dof, today=today)
+    return dofs
+
+
+def dof_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "responsible_id": request.args.get("responsible_id", "").strip(),
+        "status": request.args.get("status", "").strip(),
+    }
+
+
+def filtered_dofs(dofs, filters):
+    search = filters["search"].lower()
+    department = filters["department"]
+    responsible_id = filters["responsible_id"]
+    status = filters["status"]
+
+    if responsible_id:
+        try:
+            responsible_id = int(responsible_id)
+        except ValueError:
+            responsible_id = None
+
+    result = []
+    for dof in dofs:
+        if search and search not in " ".join(
+            [
+                dof.dof_no or "",
+                dof.title or "",
+                dof.department or "",
+                dof.priority or "",
+                dof.source or "",
+                dof.responsible.full_name if dof.responsible else "",
+            ]
+        ).lower():
+            continue
+        if department and dof.department != department:
+            continue
+        if responsible_id and dof.responsible_id != responsible_id:
+            continue
+        if status == "draft" and dof.display_status != "Taslak":
+            continue
+        if status == "open" and dof.display_status != "Açık":
+            continue
+        if status == "delayed" and dof.display_status != "Gecikti":
+            continue
+        result.append(dof)
+
+    return result
+
+
 def delete_uploaded_file(action):
     if not action.file_stored_name:
         return
@@ -1061,6 +1134,29 @@ def dashboard_context():
     }
 
 
+def dof_dashboard_context():
+    all_dofs = attach_dof_view_state(
+        Dof.query.order_by(Dof.created_at.desc(), Dof.id.desc()).all()
+    )
+    filters = dof_filters()
+    dofs = filtered_dofs(all_dofs, filters)
+    total_count = len(all_dofs)
+    draft_count = sum(1 for dof in all_dofs if dof.display_status == "Taslak")
+    open_count = sum(1 for dof in all_dofs if dof.display_status == "Açık")
+    delayed_count = sum(1 for dof in all_dofs if dof.display_status == "Gecikti")
+
+    return {
+        "dofs": dofs,
+        "total_count": total_count,
+        "draft_count": draft_count,
+        "open_count": open_count,
+        "delayed_count": delayed_count,
+        "departments": DEPARTMENTS,
+        "filters": filters,
+        "users": active_users(),
+    }
+
+
 @bp.route("/")
 @login_required
 def dashboard():
@@ -1079,9 +1175,15 @@ def dashboard_legacy():
     return render_template("dashboard_legacy.html", **dashboard_context())
 
 
-@bp.route("/dofs", methods=["GET", "POST"])
+@bp.route("/dofs")
 @login_required
 def dof_management():
+    return render_template("dof_dashboard.html", **dof_dashboard_context())
+
+
+@bp.route("/dofs/new", methods=["GET", "POST"])
+@login_required
+def create_dof():
     if request.method == "POST":
         save_mode = request.form.get("save_mode", "open")
         if save_mode not in {"draft", "open"}:
@@ -1119,6 +1221,30 @@ def dof_management():
         sources=DOF_SOURCES,
         today=date.today().isoformat(),
         form_data=request.form if request.method == "POST" else {},
+    )
+
+
+@bp.get("/dofs/<int:dof_id>")
+@login_required
+def dof_detail(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    attach_dof_view_state([dof])
+    return render_template("dof_detail.html", dof=dof)
+
+
+@bp.get("/dofs/<int:dof_id>/evidence/download")
+@login_required
+def download_dof_evidence_file(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not dof.evidence_stored_name:
+        flash("Bu DÖF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
+        return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        dof.evidence_stored_name,
+        as_attachment=True,
+        download_name=dof.evidence_original_name,
     )
 
 

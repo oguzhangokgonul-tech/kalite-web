@@ -1,0 +1,106 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ dof.dof_no }} - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}DÖF Detayı{% endblock %}
+
+{% macro detail_status_badge(dof) %}
+  {% if dof.display_status == "Gecikti" %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
+  {% elif dof.display_status == "Taslak" %}
+    <span class="status-pill status-pill-warning"><i class="bi bi-file-earmark-text-fill"></i> Taslak</span>
+  {% else %}
+    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> Açık</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro text_block(title, text) %}
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon dof-card-icon"><i class="bi bi-card-text"></i></span>
+      <div>
+        <h3>{{ title }}</h3>
+        <p>DÖF kaydına ait açıklama alanı</p>
+      </div>
+    </div>
+    <p class="mb-0">{{ text or "Bilgi girilmemiş." }}</p>
+  </div>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>{{ dof.dof_no }} {{ dof.title or "Başlık girilmemiş" }}</h2>
+      <p>Düzeltici ve önleyici faaliyet kayıt detayı</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dof_management') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>DÖF Yönetimi</span>
+    </a>
+  </div>
+
+  <div class="detail-metrics">
+    <div class="detail-metric-card">
+      <span>Departman</span>
+      <strong>{{ dof.department or "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
+      <span>Sorumlu</span>
+      <strong>{{ dof.responsible.full_name if dof.responsible else "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
+      <span>Durum</span>
+      {{ detail_status_badge(dof) }}
+    </div>
+    <div class="detail-metric-card">
+      <span>Açılış Tarihi</span>
+      <strong>{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</strong>
+    </div>
+    <div class="detail-metric-card {% if dof.delay_days > 0 %}detail-metric-danger{% endif %}">
+      <span>Termin</span>
+      <strong>{{ dof.due_date.strftime("%d.%m.%Y") if dof.due_date else "-" }}</strong>
+    </div>
+    <div class="detail-metric-card {% if dof.delay_days > 0 %}detail-metric-danger{% endif %}">
+      <span>Gecikme Günü</span>
+      <strong>{{ dof.delay_days }}</strong>
+    </div>
+  </div>
+
+  <div class="detail-metrics">
+    <div class="detail-metric-card">
+      <span>Öncelik</span>
+      <strong>{{ dof.priority or "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
+      <span>Kaynak</span>
+      <strong>{{ dof.source or "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
+      <span>Oluşturan</span>
+      <strong>{{ dof.created_by.full_name if dof.created_by else "-" }}</strong>
+    </div>
+  </div>
+
+  {{ text_block("Uygunsuzluk Açıklaması", dof.nonconformity_description) }}
+  {{ text_block("Kök Neden Analizi", dof.root_cause_analysis) }}
+  {{ text_block("Düzeltici Faaliyet", dof.corrective_action) }}
+  {{ text_block("Önleyici Faaliyet", dof.preventive_action) }}
+
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon dof-card-icon"><i class="bi bi-file-earmark-check"></i></span>
+      <div>
+        <h3>Kapanış Kanıtı</h3>
+        <p>Kapanış açıklaması ve yüklenen kanıt dosyası</p>
+      </div>
+    </div>
+    <p>{{ dof.closing_evidence or "Kapanış kanıtı açıklaması girilmemiş." }}</p>
+    {% if dof.evidence_original_name %}
+      <div class="app-card-footer">
+        <a class="btn btn-outline-primary" href="{{ url_for('main.download_dof_evidence_file', dof_id=dof.id) }}">
+          <i class="bi bi-download"></i>
+          <span>{{ dof.evidence_original_name }}</span>
+        </a>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
