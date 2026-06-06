@@ -34,7 +34,13 @@ DOF_SOURCES = (
     "Yönetim Gözden Geçirme",
     "Diğer",
 )
-DOF_STATUSES = ("Taslak", "Açık")
+DOF_STATUSES = ("Taslak", "Onay Akışı Bekleniyor", "Tamamlandı")
+DOF_APPROVAL_STEPS = (
+    "draft",
+    "management_representative",
+    "general_manager_deputy",
+    "completed",
+)
 
 
 class User(db.Model):
@@ -214,7 +220,21 @@ class Dof(db.Model):
     evidence_stored_name = db.Column(db.String(255), nullable=True)
     evidence_mime_type = db.Column(db.String(120), nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Taslak")
+    approval_step = db.Column(db.String(40), nullable=False, default="draft")
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    management_approved_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    management_approved_at = db.Column(db.DateTime, nullable=True)
+    deputy_approved_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    deputy_approved_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -225,6 +245,14 @@ class Dof(db.Model):
 
     responsible = db.relationship("User", foreign_keys=[responsible_id])
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    management_approved_by = db.relationship(
+        "User",
+        foreign_keys=[management_approved_by_user_id],
+    )
+    deputy_approved_by = db.relationship(
+        "User",
+        foreign_keys=[deputy_approved_by_user_id],
+    )
 
 
 class ActionClosureFile(db.Model):

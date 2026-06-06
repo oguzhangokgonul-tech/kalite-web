@@ -8,8 +8,12 @@
     <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
   {% elif dof.display_status == "Taslak" %}
     <span class="status-pill status-pill-warning"><i class="bi bi-file-earmark-text-fill"></i> Taslak</span>
+  {% elif dof.display_status == "Tamamlandı" %}
+    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+  {% elif dof.display_status == "Onay Akışı Bekleniyor" %}
+    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Akışı Bekleniyor</span>
   {% else %}
-    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> Açık</span>
+    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> {{ dof.display_status }}</span>
   {% endif %}
 {% endmacro %}
 
@@ -31,15 +35,15 @@
       <span class="stat-label">Toplam DÖF</span>
       <strong>{{ total_count }}</strong>
     </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-clock"></i></span>
+      <span class="stat-label">Onay Bekleyen DÖF</span>
+      <strong>{{ approval_count }}</strong>
+    </div>
     <div class="dashboard-stat-card stat-success">
       <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
-      <span class="stat-label">Açık DÖF</span>
-      <strong>{{ open_count }}</strong>
-    </div>
-    <div class="dashboard-stat-card stat-warning">
-      <span class="stat-icon"><i class="bi bi-file-earmark-text"></i></span>
-      <span class="stat-label">Taslak</span>
-      <strong>{{ draft_count }}</strong>
+      <span class="stat-label">Tamamlanan</span>
+      <strong>{{ completed_count }}</strong>
     </div>
     <div class="dashboard-stat-card stat-danger">
       <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
@@ -79,8 +83,9 @@
         <label class="form-label" for="status">Durum</label>
         <select class="form-select" id="status" name="status">
           <option value="">Tümü</option>
-          <option value="open" {% if filters.status == "open" %}selected{% endif %}>Açık</option>
+          <option value="approval" {% if filters.status == "approval" %}selected{% endif %}>Onay bekleyen</option>
           <option value="draft" {% if filters.status == "draft" %}selected{% endif %}>Taslak</option>
+          <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
           <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>
         </select>
       </div>

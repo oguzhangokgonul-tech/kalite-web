@@ -30,6 +30,7 @@ from .models import (
     ActionHistory,
     AppSetting,
     DEPARTMENTS,
+    DOF_APPROVAL_STEPS,
     DOF_PRIORITIES,
     DOF_SOURCES,
     Dof,
@@ -127,6 +128,63 @@ def is_related_to_current_user(action):
 
 def is_oguzhan_admin():
     return g.current_user is not None and g.current_user.username == "oguzhan"
+
+
+def normalize_for_role(value):
+    replacements = str.maketrans(
+        {
+            "ç": "c",
+            "Ç": "c",
+            "ğ": "g",
+            "Ğ": "g",
+            "ı": "i",
+            "I": "i",
+            "İ": "i",
+            "ö": "o",
+            "Ö": "o",
+            "ş": "s",
+            "Ş": "s",
+            "ü": "u",
+            "Ü": "u",
+        }
+    )
+    return (value or "").translate(replacements).lower()
+
+
+def user_title_has(user, expected_title):
+    return normalize_for_role(expected_title) in normalize_for_role(
+        getattr(user, "title", "")
+    )
+
+
+def is_management_representative(user=None):
+    user = user or g.current_user
+    return user is not None and (
+        user.username == "oguzhan" or user_title_has(user, "Yönetim Temsilcisi")
+    )
+
+
+def is_deputy_general_manager(user=None):
+    user = user or g.current_user
+    return user is not None and (
+        user.username == "oguzhan" or user_title_has(user, "Genel Müdür Yardımcısı")
+    )
+
+
+def can_approve_dof_management(dof):
+    return (
+        is_management_representative()
+        and dof.approval_step == "management_representative"
+        and dof.status != "Tamamlandı"
+    )
+
+
+def can_approve_dof_deputy(dof):
+    return (
+        is_deputy_general_manager()
+        and dof.approval_step == "general_manager_deputy"
+        and dof.status != "Tamamlandı"
+    )
 
 
 def can_manage_orientation():
@@ -591,17 +649,21 @@ def filtered_actions(actions, filters):
 
 
 def dof_display_status(dof, today=None):
-    today = today or date.today()
-    if dof.status == "Taslak":
+    if dof.status == "Taslak" or dof.approval_step == "draft":
         return "Taslak"
-    if dof.due_date and dof.due_date < today:
-        return "Gecikti"
-    return dof.status or "Açık"
+    if dof.status == "Tamamlandı" or dof.approval_step == "completed":
+        return "Tamamlandı"
+    if dof.approval_step in {
+        "management_representative",
+        "general_manager_deputy",
+    }:
+        return "Onay Akışı Bekleniyor"
+    return dof.status or "Onay Akışı Bekleniyor"
 
 
 def dof_delay_days(dof, today=None):
     today = today or date.today()
-    if dof.status == "Taslak" or not dof.due_date:
+    if dof.status in {"Taslak", "Tamamlandı"} or not dof.due_date:
         return 0
     return max((today - dof.due_date).days, 0)
 
@@ -609,9 +671,51 @@ def dof_delay_days(dof, today=None):
 def attach_dof_view_state(dofs):
     today = date.today()
     for dof in dofs:
+        if dof.approval_step not in DOF_APPROVAL_STEPS:
+            dof.approval_step = "draft" if dof.status == "Taslak" else "management_representative"
         dof.display_status = dof_display_status(dof, today=today)
         dof.delay_days = dof_delay_days(dof, today=today)
     return dofs
+
+
+def dof_approval_steps(dof):
+    step = dof.approval_step or "draft"
+    return [
+        {
+            "key": "opened",
+            "title": "DÖF Açılması",
+            "status": "Tamamlandı" if step != "draft" else "Beklemede",
+            "is_active": step == "draft",
+            "is_complete": step != "draft",
+            "actor": dof.created_by.full_name if dof.created_by else "",
+            "date": dof.created_at,
+        },
+        {
+            "key": "management_representative",
+            "title": "Yönetim Temsilcisi",
+            "status": "Tamamlandı"
+            if dof.management_approved_at
+            else ("Onay Bekliyor" if step == "management_representative" else "Beklemede"),
+            "is_active": step == "management_representative",
+            "is_complete": bool(dof.management_approved_at)
+            or step in {"general_manager_deputy", "completed"},
+            "actor": dof.management_approved_by.full_name
+            if dof.management_approved_by
+            else "",
+            "date": dof.management_approved_at,
+        },
+        {
+            "key": "general_manager_deputy",
+            "title": "Genel Müdür Yardımcısı",
+            "status": "Tamamlandı"
+            if dof.deputy_approved_at
+            else ("Onay Bekliyor" if step == "general_manager_deputy" else "Beklemede"),
+            "is_active": step == "general_manager_deputy",
+            "is_complete": bool(dof.deputy_approved_at) or step == "completed",
+            "actor": dof.deputy_approved_by.full_name if dof.deputy_approved_by else "",
+            "date": dof.deputy_approved_at,
+        },
+    ]
 
 
 def dof_filters():
@@ -654,9 +758,13 @@ def filtered_dofs(dofs, filters):
             continue
         if status == "draft" and dof.display_status != "Taslak":
             continue
-        if status == "open" and dof.display_status != "Açık":
+        if status == "approval" and dof.display_status != "Onay Akışı Bekleniyor":
             continue
-        if status == "delayed" and dof.display_status != "Gecikti":
+        if status == "completed" and dof.display_status != "Tamamlandı":
+            continue
+        if status == "delayed" and (
+            dof.display_status == "Tamamlandı" or dof.delay_days == 0
+        ):
             continue
         result.append(dof)
 
@@ -838,12 +946,9 @@ def parse_dof_form(dof=None, save_mode="open"):
         or not department
         or not responsible
         or not opening_date
-        or not due_date
         or not priority
         or not source
         or not nonconformity_description
-        or not root_cause_analysis
-        or not corrective_action
     ):
         raise ValueError("required_fields")
 
@@ -859,7 +964,17 @@ def parse_dof_form(dof=None, save_mode="open"):
     dof.corrective_action = corrective_action or None
     dof.preventive_action = preventive_action or None
     dof.closing_evidence = closing_evidence or None
-    dof.status = "Taslak" if is_draft else "Açık"
+    if is_draft:
+        dof.status = "Taslak"
+        dof.approval_step = "draft"
+    else:
+        dof.status = "Onay Akışı Bekleniyor"
+        if is_management_representative():
+            dof.approval_step = "general_manager_deputy"
+            dof.management_approved_by_user_id = g.current_user.id
+            dof.management_approved_at = datetime.utcnow()
+        else:
+            dof.approval_step = "management_representative"
     save_dof_evidence_file(dof)
     return dof
 
@@ -1142,14 +1257,22 @@ def dof_dashboard_context():
     dofs = filtered_dofs(all_dofs, filters)
     total_count = len(all_dofs)
     draft_count = sum(1 for dof in all_dofs if dof.display_status == "Taslak")
-    open_count = sum(1 for dof in all_dofs if dof.display_status == "Açık")
-    delayed_count = sum(1 for dof in all_dofs if dof.display_status == "Gecikti")
+    approval_count = sum(
+        1 for dof in all_dofs if dof.display_status == "Onay Akışı Bekleniyor"
+    )
+    completed_count = sum(1 for dof in all_dofs if dof.display_status == "Tamamlandı")
+    delayed_count = sum(
+        1
+        for dof in all_dofs
+        if dof.display_status != "Tamamlandı" and dof.delay_days > 0
+    )
 
     return {
         "dofs": dofs,
         "total_count": total_count,
         "draft_count": draft_count,
-        "open_count": open_count,
+        "approval_count": approval_count,
+        "completed_count": completed_count,
         "delayed_count": delayed_count,
         "departments": DEPARTMENTS,
         "filters": filters,
@@ -1229,7 +1352,49 @@ def create_dof():
 def dof_detail(dof_id):
     dof = Dof.query.get_or_404(dof_id)
     attach_dof_view_state([dof])
-    return render_template("dof_detail.html", dof=dof)
+    return render_template(
+        "dof_detail.html",
+        dof=dof,
+        approval_steps=dof_approval_steps(dof),
+        can_approve_management=can_approve_dof_management(dof),
+        can_approve_deputy=can_approve_dof_deputy(dof),
+    )
+
+
+@bp.post("/dofs/<int:dof_id>/approve-management")
+@login_required
+def approve_dof_management(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    attach_dof_view_state([dof])
+    if not can_approve_dof_management(dof):
+        abort(403)
+
+    dof.management_approved_by_user_id = g.current_user.id
+    dof.management_approved_at = datetime.utcnow()
+    dof.approval_step = "general_manager_deputy"
+    dof.status = "Onay Akışı Bekleniyor"
+    db.session.commit()
+    flash("DÖF kaydı Yönetim Temsilcisi tarafından onaylandı.", "success")
+    return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+
+@bp.post("/dofs/<int:dof_id>/approve-deputy")
+@login_required
+def approve_dof_deputy(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    attach_dof_view_state([dof])
+    if not can_approve_dof_deputy(dof):
+        abort(403)
+
+    now = datetime.utcnow()
+    dof.deputy_approved_by_user_id = g.current_user.id
+    dof.deputy_approved_at = now
+    dof.completed_at = now
+    dof.approval_step = "completed"
+    dof.status = "Tamamlandı"
+    db.session.commit()
+    flash("DÖF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
+    return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
 @bp.get("/dofs/<int:dof_id>/evidence/download")

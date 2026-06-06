@@ -181,6 +181,36 @@ def ensure_runtime_schema():
             )
             changed = True
 
+    if "dofs" in tables:
+        columns = {column["name"] for column in inspector.get_columns("dofs")}
+        if "approval_step" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE dofs "
+                    "ADD COLUMN approval_step VARCHAR(40) NOT NULL DEFAULT 'draft'"
+                )
+            )
+            changed = True
+        if "management_approved_by_user_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE dofs ADD COLUMN management_approved_by_user_id INTEGER")
+            )
+            changed = True
+        if "management_approved_at" not in columns:
+            db.session.execute(text("ALTER TABLE dofs ADD COLUMN management_approved_at DATETIME"))
+            changed = True
+        if "deputy_approved_by_user_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE dofs ADD COLUMN deputy_approved_by_user_id INTEGER")
+            )
+            changed = True
+        if "deputy_approved_at" not in columns:
+            db.session.execute(text("ALTER TABLE dofs ADD COLUMN deputy_approved_at DATETIME"))
+            changed = True
+        if "completed_at" not in columns:
+            db.session.execute(text("ALTER TABLE dofs ADD COLUMN completed_at DATETIME"))
+            changed = True
+
     if changed:
         db.session.commit()
 
@@ -277,6 +307,26 @@ def ensure_runtime_schema():
                     "WHERE key = 'next_action_number'"
                 ),
                 {"value": str(next_number)},
+            )
+            db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "dofs" in tables:
+        columns = {
+            column["name"] for column in inspect(db.engine).get_columns("dofs")
+        }
+        if {"approval_step", "status"}.issubset(columns):
+            db.session.execute(
+                text(
+                    """
+                    UPDATE dofs
+                    SET approval_step = 'management_representative',
+                        status = 'Onay Akışı Bekleniyor'
+                    WHERE status IS NOT NULL
+                      AND status != 'Taslak'
+                      AND (approval_step IS NULL OR approval_step = 'draft')
+                    """
+                )
             )
             db.session.commit()
 

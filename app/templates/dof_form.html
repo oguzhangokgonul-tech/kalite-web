@@ -77,7 +77,7 @@
           <input class="form-control" id="opening_date" name="opening_date" type="date" value="{{ field_value('opening_date', today)|trim }}">
         </div>
         <div>
-          <label class="form-label" for="due_date">Termin <span class="text-danger">*</span></label>
+          <label class="form-label" for="due_date">Termin</label>
           <input class="form-control" id="due_date" name="due_date" type="date" value="{{ field_value('due_date')|trim }}">
         </div>
         <div>
@@ -109,13 +109,13 @@
           <div class="dof-counter">{{ text_counter("nonconformity_description") }}</div>
         </div>
         <div class="dof-textarea-field">
-          <label class="form-label" for="root_cause_analysis">Kök Neden Analizi <span class="text-danger">*</span></label>
+          <label class="form-label" for="root_cause_analysis">Kök Neden Analizi</label>
           <textarea class="form-control" id="root_cause_analysis" name="root_cause_analysis" rows="3" maxlength="2000" data-dof-count="root_cause_analysis" placeholder="Kök nedenleri analiz edin...">{{ form_data.get("root_cause_analysis", "") }}</textarea>
           <div class="dof-counter">{{ text_counter("root_cause_analysis") }}</div>
         </div>
         <div class="dof-two-column">
           <div class="dof-textarea-field">
-            <label class="form-label" for="corrective_action">Düzeltici Faaliyet <span class="text-danger">*</span></label>
+            <label class="form-label" for="corrective_action">Düzeltici Faaliyet</label>
             <textarea class="form-control" id="corrective_action" name="corrective_action" rows="3" maxlength="2000" data-dof-count="corrective_action" placeholder="Uygulanacak düzeltici faaliyetleri açıklayın...">{{ form_data.get("corrective_action", "") }}</textarea>
             <div class="dof-counter">{{ text_counter("corrective_action") }}</div>
           </div>
@@ -154,7 +154,7 @@
             <span>Kayıt henüz kaydedilmedi</span>
           </div>
         </div>
-        <p>Kaydedildikten sonra durum güncellenecektir.</p>
+        <p>Kaydedildikten sonra kayıt onay akışına alınacaktır.</p>
       </section>
 
       <section class="dof-side-card">
@@ -163,10 +163,9 @@
           <h3>Onay Akışı</h3>
         </div>
         <ol class="dof-approval-flow">
-          <li><strong>Bölüm Sorumlusu</strong><span>Beklemede</span></li>
-          <li><strong>Kalite Sorumlusu</strong><span>Beklemede</span></li>
+          <li class="is-active"><strong>DÖF Açılması</strong><span>Form kaydedilecek</span></li>
           <li><strong>Yönetim Temsilcisi</strong><span>Beklemede</span></li>
-          <li><strong>Genel Müdür</strong><span>Beklemede</span></li>
+          <li><strong>Genel Müdür Yardımcısı</strong><span>Beklemede</span></li>
         </ol>
       </section>
 
@@ -176,11 +175,11 @@
           <h3>Kontrol Listesi</h3>
         </div>
         <ul class="dof-checklist">
-          <li><i class="bi bi-circle"></i><span>Tüm zorunlu alanlar dolduruldu</span></li>
-          <li><i class="bi bi-circle"></i><span>Kök neden analizi yapıldı</span></li>
-          <li><i class="bi bi-circle"></i><span>Düzeltici faaliyet tanımlandı</span></li>
-          <li><i class="bi bi-circle"></i><span>Termin tarihi belirlendi</span></li>
-          <li><i class="bi bi-circle"></i><span>Kapanış kanıtı yüklenecek</span></li>
+          <li><i class="bi bi-circle"></i><span>Başlık, departman ve sorumlu girildi</span></li>
+          <li><i class="bi bi-circle"></i><span>Açılış tarihi belirlendi</span></li>
+          <li><i class="bi bi-circle"></i><span>Öncelik ve kaynak seçildi</span></li>
+          <li><i class="bi bi-circle"></i><span>Uygunsuzluk açıklaması yazıldı</span></li>
+          <li><i class="bi bi-circle"></i><span>Onay akışı başlatılacak</span></li>
         </ul>
       </section>
     </aside>
