@@ -42,6 +42,16 @@ def _action_url(action):
         return ""
 
 
+def _dof_url(dof):
+    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
+    if public_base_url:
+        return f"{public_base_url}/dofs/{dof.id}"
+    try:
+        return url_for("main.dof_detail", dof_id=dof.id, _external=True)
+    except RuntimeError:
+        return ""
+
+
 def _format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
@@ -74,6 +84,33 @@ def build_action_email(action, message):
         lines.extend(["", "Açıklama:", action.description])
     if action_url:
         lines.extend(["", f"Detay: {action_url}"])
+
+    return subject, "\n".join(lines)
+
+
+def build_dof_email(dof, message):
+    dof_url = _dof_url(dof)
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
+    subject = f"{subject_prefix} {dof.dof_no} {dof.title or 'DÖF Kaydı'}"
+
+    lines = [
+        message,
+        "",
+        f"DÖF No: {dof.dof_no}",
+        f"Başlık: {dof.title or '-'}",
+        f"Departman: {dof.department or '-'}",
+        f"Sorumlu: {dof.responsible.full_name if dof.responsible else '-'}",
+        f"Açılış Tarihi: {_format_date(dof.opening_date)}",
+        f"Termin: {_format_date(dof.due_date)}",
+        f"Öncelik: {dof.priority or '-'}",
+        f"Kaynak: {dof.source or '-'}",
+        f"Durum: {dof.status or '-'}",
+    ]
+
+    if dof.nonconformity_description:
+        lines.extend(["", "Uygunsuzluk Açıklaması:", dof.nonconformity_description])
+    if dof_url:
+        lines.extend(["", f"Detay: {dof_url}"])
 
     return subject, "\n".join(lines)
 
@@ -123,7 +160,7 @@ def _send_mail_safely(settings, recipients, subject, body, logger):
             return
         send_mail_now(settings, recipients, subject, body)
     except Exception:
-        logger.exception("Aksiyon e-postası gönderilemedi.")
+        logger.exception("E-posta gönderilemedi.")
 
 
 def send_action_notification_email(users, action, message):
@@ -136,6 +173,27 @@ def send_action_notification_email(users, action, message):
         return False
 
     subject, body = build_action_email(action, message)
+    _mail_executor.submit(
+        _send_mail_safely,
+        settings,
+        recipients,
+        subject,
+        body,
+        current_app.logger,
+    )
+    return True
+
+
+def send_dof_notification_email(users, dof, message):
+    recipients = sorted({user.email for user in users if user.email})
+    if not recipients:
+        return False
+
+    settings = _mail_settings()
+    if not _mail_enabled(settings):
+        return False
+
+    subject, body = build_dof_email(dof, message)
     _mail_executor.submit(
         _send_mail_safely,
         settings,

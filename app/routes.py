@@ -22,7 +22,7 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import or_
 
 from .extensions import db
-from .mail import send_action_notification_email
+from .mail import send_action_notification_email, send_dof_notification_email
 from .models import (
     Action,
     ActionComment,
@@ -508,6 +508,52 @@ def notify_action_participants(action, message, exclude_user_id=None, extra_user
     if extra_user_ids:
         user_ids.update(extra_user_ids)
     notify_users(user_ids, action, message, exclude_user_id=exclude_user_id)
+
+
+def unique_users(users):
+    unique_by_id = {}
+    for user in users:
+        if user is not None and user.id:
+            unique_by_id[user.id] = user
+    return list(unique_by_id.values())
+
+
+def dof_management_approver_users():
+    return unique_users(
+        user for user in active_users() if is_management_representative(user)
+    )
+
+
+def dof_deputy_approver_users():
+    users = [
+        user for user in active_users() if user_title_has(user, "Genel Müdür Yardımcısı")
+    ]
+    if not users:
+        users = [oguzhan_user()]
+    return unique_users(users)
+
+
+def dof_primary_users(dof):
+    return unique_users([dof.responsible, dof.created_by])
+
+
+def notify_dof_users(users, dof, message):
+    send_dof_notification_email(unique_users(users), dof, message)
+
+
+def notify_dof_waiting_approvers(dof):
+    if dof.approval_step == "management_representative":
+        notify_dof_users(
+            dof_management_approver_users(),
+            dof,
+            f"{dof.dof_no} {dof.title or 'DÖF kaydı'} için Yönetim Temsilcisi onayınız bekleniyor.",
+        )
+    elif dof.approval_step == "general_manager_deputy":
+        notify_dof_users(
+            dof_deputy_approver_users(),
+            dof,
+            f"{dof.dof_no} {dof.title or 'DÖF kaydı'} için Genel Müdür Yardımcısı onayınız bekleniyor.",
+        )
 
 
 def orientation_nodes_payload():
@@ -1316,6 +1362,14 @@ def create_dof():
             dof.dof_no = reserve_dof_number()
             dof.created_by_user_id = g.current_user.id
             db.session.add(dof)
+            db.session.flush()
+            if save_mode != "draft":
+                notify_dof_users(
+                    [dof.responsible],
+                    dof,
+                    f"{dof.dof_no} {dof.title or 'DÖF kaydı'} size atandı.",
+                )
+                notify_dof_waiting_approvers(dof)
             db.session.commit()
             flash(
                 f"{dof.dof_no} numaralı DÖF kaydı "
@@ -1373,6 +1427,7 @@ def approve_dof_management(dof_id):
     dof.management_approved_at = datetime.utcnow()
     dof.approval_step = "general_manager_deputy"
     dof.status = "Onay Akışı Bekleniyor"
+    notify_dof_waiting_approvers(dof)
     db.session.commit()
     flash("DÖF kaydı Yönetim Temsilcisi tarafından onaylandı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
@@ -1392,6 +1447,11 @@ def approve_dof_deputy(dof_id):
     dof.completed_at = now
     dof.approval_step = "completed"
     dof.status = "Tamamlandı"
+    notify_dof_users(
+        dof_primary_users(dof),
+        dof,
+        f"{dof.dof_no} {dof.title or 'DÖF kaydı'} kapatıldı.",
+    )
     db.session.commit()
     flash("DÖF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
