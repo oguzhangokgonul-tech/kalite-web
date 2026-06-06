@@ -123,7 +123,7 @@
           {% for dof in dofs %}
             <tr>
               <td class="dashboard-action-title-cell">
-                <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }} {{ dof.title or "Başlık girilmemiş" }}</a>
+                <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }}</a>
                 {% if dof.nonconformity_description %}
                   <span><strong>Uygunsuzluğun Açıklaması:</strong> {{ dof.nonconformity_description }}</span>
                 {% endif %}

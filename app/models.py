@@ -253,6 +253,11 @@ class Dof(db.Model):
         "User",
         foreign_keys=[deputy_approved_by_user_id],
     )
+    notifications = db.relationship(
+        "Notification",
+        back_populates="dof",
+        cascade="all, delete-orphan",
+    )
 
 
 class ActionClosureFile(db.Model):
@@ -301,12 +306,14 @@ class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     user = db.relationship("User")
     action = db.relationship("Action", back_populates="notifications")
+    dof = db.relationship("Dof", back_populates="notifications")
 
 
 class AppSetting(db.Model):

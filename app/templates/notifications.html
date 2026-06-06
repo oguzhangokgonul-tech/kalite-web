@@ -6,7 +6,7 @@
   <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
     <div>
       <h1 class="h3 mb-1">Bildirimler</h1>
-      <p class="text-secondary mb-0">Size atanan veya ilgili olduğunuz aksiyonlardaki son hareketler.</p>
+      <p class="text-secondary mb-0">Size atanan aksiyon ve DÖF kayıtlarındaki son hareketler.</p>
     </div>
     <a class="btn btn-outline-secondary align-self-lg-start" href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
   </div>
@@ -22,6 +22,8 @@
             </div>
             {% if notification.action %}
               <div class="text-secondary small mt-1">{{ notification.action.number_label }} {{ notification.action.title }}</div>
+            {% elif notification.dof %}
+              <div class="text-secondary small mt-1">{{ notification.dof.dof_no }}</div>
             {% endif %}
           </a>
         {% endfor %}

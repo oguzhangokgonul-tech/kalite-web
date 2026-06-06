@@ -91,7 +91,7 @@ def build_action_email(action, message):
 def build_dof_email(dof, message):
     dof_url = _dof_url(dof)
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
-    subject = f"{subject_prefix} {dof.dof_no} {dof.title or 'DÖF Kaydı'}"
+    subject = f"{subject_prefix} {dof.dof_no}"
 
     lines = [
         message,

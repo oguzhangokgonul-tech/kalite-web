@@ -578,8 +578,27 @@ def dof_primary_users(dof):
     return unique_users([dof.responsible, dof.created_by])
 
 
-def notify_dof_users(users, dof, message):
-    send_dof_notification_email(unique_users(users), dof, message)
+def dof_label(dof):
+    return dof.dof_no or "DÖF kaydı"
+
+
+def notify_dof_users(users, dof, message, exclude_user_id=None):
+    users = [
+        user
+        for user in unique_users(users)
+        if getattr(user, "is_active", True)
+        and not (exclude_user_id and user.id == exclude_user_id)
+    ]
+
+    for user in users:
+        db.session.add(
+            Notification(
+                user_id=user.id,
+                dof=dof,
+                message=message,
+            )
+        )
+    send_dof_notification_email(users, dof, message)
 
 
 def notify_dof_waiting_approvers(dof):
@@ -587,13 +606,13 @@ def notify_dof_waiting_approvers(dof):
         notify_dof_users(
             dof_management_approver_users(),
             dof,
-            f"{dof.dof_no} {dof.title or 'DÖF kaydı'} için Yönetim Temsilcisi onayınız bekleniyor.",
+            f"{dof_label(dof)} için Yönetim Temsilcisi onayınız bekleniyor.",
         )
     elif dof.approval_step == "general_manager_deputy":
         notify_dof_users(
             dof_deputy_approver_users(),
             dof,
-            f"{dof.dof_no} {dof.title or 'DÖF kaydı'} için Genel Müdür Yardımcısı onayınız bekleniyor.",
+            f"{dof_label(dof)} için Genel Müdür Yardımcısı onayınız bekleniyor.",
         )
 
 
@@ -1182,6 +1201,8 @@ def open_notification(notification_id):
     db.session.commit()
     if notification.action and can_view_action(notification.action):
         return redirect(url_for("main.action_detail", action_id=notification.action.id))
+    if notification.dof and can_view_dof(notification.dof):
+        return redirect(url_for("main.dof_detail", dof_id=notification.dof.id))
     return redirect(url_for("main.notifications"))
 
 
@@ -1417,7 +1438,7 @@ def create_dof():
                 notify_dof_users(
                     [dof.responsible],
                     dof,
-                    f"{dof.dof_no} {dof.title or 'DÖF kaydı'} size atandı.",
+                    f"{dof_label(dof)} size atandı.",
                 )
                 notify_dof_waiting_approvers(dof)
             db.session.commit()
@@ -1507,7 +1528,7 @@ def approve_dof_deputy(dof_id):
     notify_dof_users(
         dof_primary_users(dof),
         dof,
-        f"{dof.dof_no} {dof.title or 'DÖF kaydı'} kapatıldı.",
+        f"{dof_label(dof)} kapatıldı.",
     )
     db.session.commit()
     flash("DÖF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
