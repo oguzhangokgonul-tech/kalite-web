@@ -12,6 +12,8 @@
     <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
   {% elif dof.display_status == "Onay Akışı Bekleniyor" %}
     <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Akışı Bekleniyor</span>
+  {% elif dof.display_status == "Revizyon Bekleniyor" %}
+    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Revizyon Bekleniyor</span>
   {% else %}
     <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> {{ dof.display_status }}</span>
   {% endif %}
@@ -129,7 +131,7 @@
         </div>
         <ol class="dof-approval-flow dof-detail-approval-flow">
           {% for step in approval_steps %}
-            <li class="{% if step.is_active %}is-active{% endif %} {% if step.is_complete %}is-complete{% endif %}">
+            <li class="{% if step.is_active %}is-active{% endif %} {% if step.is_complete %}is-complete{% endif %} {% if step.is_rejected %}is-rejected{% endif %}">
               <strong>{{ step.title }}</strong>
               <span>{{ step.status }}</span>
               {% if step.actor %}
@@ -139,6 +141,45 @@
           {% endfor %}
         </ol>
       </section>
+
+      {% if dof.rejection_reason %}
+        <section class="dof-detail-side-card dof-rejection-card">
+          <div class="dof-detail-side-title">
+            <i class="bi bi-x-octagon"></i>
+            <div>
+              <h3>Red Sebebi</h3>
+              <p>Revizyon yapılmadan tekrar onaya gönderilemez.</p>
+            </div>
+          </div>
+          <p>{{ dof.rejection_reason }}</p>
+          {% if dof.rejected_by or dof.rejected_at %}
+            <small>
+              {{ dof.rejected_by.full_name if dof.rejected_by else "-" }}
+              {% if dof.rejected_at %} - {{ dof.rejected_at.strftime("%d.%m.%Y %H:%M") }}{% endif %}
+            </small>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      {% if can_reject %}
+        <section class="dof-detail-side-card">
+          <div class="dof-detail-side-title">
+            <i class="bi bi-x-circle"></i>
+            <div>
+              <h3>Onayı Reddet</h3>
+              <p>Red sebebi DÖF sahibine bildirim olarak iletilir.</p>
+            </div>
+          </div>
+          <form method="post" action="{{ url_for('main.reject_dof', dof_id=dof.id) }}">
+            <label class="form-label" for="rejection_reason">Red sebebi</label>
+            <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="4" required></textarea>
+            <button class="btn btn-outline-danger w-100 mt-3" type="submit">
+              <i class="bi bi-x-circle"></i>
+              <span>DÖF Onayını Reddet</span>
+            </button>
+          </form>
+        </section>
+      {% endif %}
 
       <section class="dof-detail-side-card">
         <div class="dof-detail-side-title">
@@ -180,4 +221,136 @@
       </section>
     </aside>
   </div>
+
+  {% if can_revise %}
+    <section class="dof-detail-revision-card">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-pencil-square"></i></span>
+        <div>
+          <h3>Revizyon Yap ve Tekrar Onay Talep Et</h3>
+          <p>Değişiklikler yorum/geçmiş alanına otomatik kaydedilir.</p>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('main.revise_dof', dof_id=dof.id) }}" enctype="multipart/form-data">
+        <div class="dof-grid">
+          <div>
+            <label class="form-label" for="revision_title">Başlık *</label>
+            <input class="form-control" id="revision_title" name="title" value="{{ dof.title or '' }}" maxlength="160" required>
+          </div>
+          <div>
+            <label class="form-label" for="revision_department">Departman *</label>
+            <select class="form-select" id="revision_department" name="department" required>
+              <option value="">Seçiniz</option>
+              {% for department in departments %}
+                <option value="{{ department }}" {% if dof.department == department %}selected{% endif %}>{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="revision_responsible_id">Sorumlu *</label>
+            <select class="form-select" id="revision_responsible_id" name="responsible_id" required>
+              <option value="">Seçiniz</option>
+              {% for user in users %}
+                <option value="{{ user.id }}" {% if dof.responsible_id == user.id %}selected{% endif %}>{{ user.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="revision_opening_date">Açılış Tarihi *</label>
+            <input class="form-control" id="revision_opening_date" name="opening_date" type="date" value="{{ dof.opening_date.isoformat() if dof.opening_date else '' }}" required>
+          </div>
+          <div>
+            <label class="form-label" for="revision_due_date">Termin</label>
+            <input class="form-control" id="revision_due_date" name="due_date" type="date" value="{{ dof.due_date.isoformat() if dof.due_date else '' }}">
+          </div>
+          <div>
+            <label class="form-label" for="revision_priority">Öncelik *</label>
+            <select class="form-select" id="revision_priority" name="priority" required>
+              <option value="">Seçiniz</option>
+              {% for priority in priorities %}
+                <option value="{{ priority }}" {% if dof.priority == priority %}selected{% endif %}>{{ priority }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="revision_source">Kaynak *</label>
+            <select class="form-select" id="revision_source" name="source" required>
+              <option value="">Seçiniz</option>
+              {% for source in sources %}
+                <option value="{{ source }}" {% if dof.source == source %}selected{% endif %}>{{ source }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="dof-textarea-stack mt-3">
+          <div class="dof-textarea-field">
+            <label class="form-label" for="revision_nonconformity_description">Uygunsuzluk Açıklaması *</label>
+            <textarea class="form-control" id="revision_nonconformity_description" name="nonconformity_description" rows="3" maxlength="2000" required>{{ dof.nonconformity_description or "" }}</textarea>
+          </div>
+          <div class="dof-textarea-field">
+            <label class="form-label" for="revision_root_cause_analysis">Kök Neden Analizi</label>
+            <textarea class="form-control" id="revision_root_cause_analysis" name="root_cause_analysis" rows="3" maxlength="2000">{{ dof.root_cause_analysis or "" }}</textarea>
+          </div>
+          <div class="dof-two-column">
+            <div class="dof-textarea-field">
+              <label class="form-label" for="revision_corrective_action">Düzeltici Faaliyet</label>
+              <textarea class="form-control" id="revision_corrective_action" name="corrective_action" rows="3" maxlength="2000">{{ dof.corrective_action or "" }}</textarea>
+            </div>
+            <div class="dof-textarea-field">
+              <label class="form-label" for="revision_preventive_action">Önleyici Faaliyet</label>
+              <textarea class="form-control" id="revision_preventive_action" name="preventive_action" rows="3" maxlength="2000">{{ dof.preventive_action or "" }}</textarea>
+            </div>
+          </div>
+          <div class="dof-textarea-field">
+            <label class="form-label" for="revision_closing_evidence">Kapanış Kanıtı Açıklaması</label>
+            <textarea class="form-control" id="revision_closing_evidence" name="closing_evidence" rows="3" maxlength="2000">{{ dof.closing_evidence or "" }}</textarea>
+          </div>
+          <div class="dof-textarea-field">
+            <label class="form-label" for="revision_note">Revizyon notu</label>
+            <textarea class="form-control" id="revision_note" name="revision_note" rows="3" maxlength="2000" placeholder="Yaptığınız değişiklik hakkında kısa not yazabilirsiniz."></textarea>
+          </div>
+        </div>
+
+        <label class="dof-upload-box mt-3" for="revision_evidence_file">
+          <i class="bi bi-cloud-arrow-up"></i>
+          <strong>Kanıt dosyası seçin</strong>
+          <span>PDF, JPG, PNG dosya türleri desteklenir. Maks. 10 MB</span>
+          <input id="revision_evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png">
+        </label>
+
+        <div class="app-form-actions">
+          <button class="btn btn-primary btn-lg" type="submit">
+            <i class="bi bi-send-check"></i>
+            <span>Revizyonu Kaydet ve Onay Talep Et</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="dof-detail-comments-card">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-chat-left-text"></i></span>
+      <div>
+        <h3>Yorumlar ve Geçmiş</h3>
+        <p>Red, revizyon ve onay hareketleri tarih sırasına göre kaydedilir.</p>
+      </div>
+    </div>
+    {% if dof.comments %}
+      <div class="comment-list mt-3">
+        {% for comment in dof.comments %}
+          <div class="comment-item">
+            <div>
+              <strong>{{ comment.user.full_name if comment.user else "Sistem" }}</strong>
+              <small>{{ comment.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+            </div>
+            <p>{{ comment.comment }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="dof-detail-empty-note mt-3">Henüz yorum veya geçmiş kaydı yok.</div>
+    {% endif %}
+  </section>
 {% endblock %}

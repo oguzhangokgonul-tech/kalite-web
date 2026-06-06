@@ -34,11 +34,12 @@ DOF_SOURCES = (
     "Yönetim Gözden Geçirme",
     "Diğer",
 )
-DOF_STATUSES = ("Taslak", "Onay Akışı Bekleniyor", "Tamamlandı")
+DOF_STATUSES = ("Taslak", "Onay Akışı Bekleniyor", "Revizyon Bekleniyor", "Tamamlandı")
 DOF_APPROVAL_STEPS = (
     "draft",
     "management_representative",
     "general_manager_deputy",
+    "revision_requested",
     "completed",
 )
 
@@ -219,6 +220,10 @@ class Dof(db.Model):
     evidence_original_name = db.Column(db.String(255), nullable=True)
     evidence_stored_name = db.Column(db.String(255), nullable=True)
     evidence_mime_type = db.Column(db.String(120), nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+    rejected_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    rejected_at = db.Column(db.DateTime, nullable=True)
+    rejected_step = db.Column(db.String(40), nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Taslak")
     approval_step = db.Column(db.String(40), nullable=False, default="draft")
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -253,11 +258,32 @@ class Dof(db.Model):
         "User",
         foreign_keys=[deputy_approved_by_user_id],
     )
+    rejected_by = db.relationship("User", foreign_keys=[rejected_by_user_id])
     notifications = db.relationship(
         "Notification",
         back_populates="dof",
         cascade="all, delete-orphan",
     )
+    comments = db.relationship(
+        "DofComment",
+        back_populates="dof",
+        cascade="all, delete-orphan",
+        order_by="DofComment.created_at.asc()",
+    )
+
+
+class DofComment(db.Model):
+    __tablename__ = "dof_comments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    comment = db.Column(db.Text, nullable=False)
+    comment_type = db.Column(db.String(40), nullable=False, default="note")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    dof = db.relationship("Dof", back_populates="comments")
+    user = db.relationship("User")
 
 
 class ActionClosureFile(db.Model):

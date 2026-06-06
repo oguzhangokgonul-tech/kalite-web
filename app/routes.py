@@ -35,6 +35,7 @@ from .models import (
     DOF_PRIORITIES,
     DOF_SOURCES,
     Dof,
+    DofComment,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -78,6 +79,7 @@ def load_logged_in_user():
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
         ensure_notification_dof_column()
+        ensure_dof_rejection_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -115,6 +117,46 @@ def ensure_notification_dof_column():
             return
         db.session.rollback()
         current_app.logger.exception("DÖF bildirim kolonu kontrol edilemedi.")
+
+
+def ensure_dof_rejection_schema():
+    if current_app.extensions.get("dof_rejection_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        if "dofs" in tables:
+            columns = {column["name"] for column in inspector.get_columns("dofs")}
+            column_sql = {
+                "rejection_reason": "ALTER TABLE dofs ADD COLUMN rejection_reason TEXT",
+                "rejected_by_user_id": "ALTER TABLE dofs ADD COLUMN rejected_by_user_id INTEGER",
+                "rejected_at": "ALTER TABLE dofs ADD COLUMN rejected_at DATETIME",
+                "rejected_step": "ALTER TABLE dofs ADD COLUMN rejected_step VARCHAR(40)",
+            }
+            with db.engine.begin() as connection:
+                for column_name, statement in column_sql.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+                if "dof_comments" not in tables:
+                    connection.execute(
+                        text(
+                            """
+                            CREATE TABLE dof_comments (
+                                id INTEGER PRIMARY KEY,
+                                dof_id INTEGER NOT NULL,
+                                user_id INTEGER,
+                                comment TEXT NOT NULL,
+                                comment_type VARCHAR(40) NOT NULL DEFAULT 'note',
+                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                            )
+                            """
+                        )
+                    )
+        current_app.extensions["dof_rejection_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("DÖF red/revizyon şeması kontrol edilemedi.")
 
 
 def login_required(view):
@@ -246,6 +288,41 @@ def can_approve_dof_deputy(dof):
         is_deputy_general_manager()
         and dof.approval_step == "general_manager_deputy"
         and dof.status != "Tamamlandı"
+    )
+
+
+def can_reject_dof(dof):
+    if (
+        g.current_user is None
+        or dof.status in {"Taslak", "Tamamlandı"}
+        or dof.approval_step not in {"management_representative", "general_manager_deputy"}
+    ):
+        return False
+    return (
+        is_general_manager()
+        or (
+            is_management_representative()
+            and dof.approval_step == "management_representative"
+        )
+        or (
+            is_deputy_general_manager()
+            and dof.approval_step == "general_manager_deputy"
+        )
+    )
+
+
+def can_revise_rejected_dof(dof):
+    if (
+        g.current_user is None
+        or dof.status != "Revizyon Bekleniyor"
+        or dof.approval_step != "revision_requested"
+    ):
+        return False
+    if dof.responsible_id == g.current_user.id:
+        return True
+    return (
+        dof.rejected_step == "general_manager_deputy"
+        and is_management_representative()
     )
 
 
@@ -610,6 +687,32 @@ def dof_primary_users(dof):
     return unique_users([dof.responsible, dof.created_by])
 
 
+def add_dof_comment(dof, message, comment_type="note", actor=None):
+    comment = DofComment(
+        dof=dof,
+        user_id=actor.id if actor else None,
+        comment=message,
+        comment_type=comment_type,
+    )
+    db.session.add(comment)
+    return comment
+
+
+def dof_approver_label(step):
+    if step == "general_manager_deputy":
+        return "Genel Müdür Yardımcısı"
+    if step == "management_representative":
+        return "Yönetim Temsilcisi"
+    return "Onay"
+
+
+def dof_rejection_recipients(dof, rejected_step):
+    recipients = dof_primary_users(dof)
+    if rejected_step == "general_manager_deputy":
+        recipients.extend(dof_management_approver_users())
+    return unique_users(recipients)
+
+
 def dof_label(dof):
     return dof.dof_no or "DÖF kaydı"
 
@@ -789,6 +892,8 @@ def filtered_actions(actions, filters):
 def dof_display_status(dof, today=None):
     if dof.status == "Taslak" or dof.approval_step == "draft":
         return "Taslak"
+    if dof.status == "Revizyon Bekleniyor" or dof.approval_step == "revision_requested":
+        return "Revizyon Bekleniyor"
     if dof.status == "Tamamlandı" or dof.approval_step == "completed":
         return "Tamamlandı"
     if dof.approval_step in {
@@ -818,6 +923,8 @@ def attach_dof_view_state(dofs):
 
 def dof_approval_steps(dof):
     step = dof.approval_step or "draft"
+    is_rejected = step == "revision_requested" or dof.status == "Revizyon Bekleniyor"
+    rejected_step = dof.rejected_step if is_rejected else None
     return [
         {
             "key": "opened",
@@ -831,27 +938,61 @@ def dof_approval_steps(dof):
         {
             "key": "management_representative",
             "title": "Yönetim Temsilcisi",
-            "status": "Tamamlandı"
-            if dof.management_approved_at
-            else ("Onay Bekliyor" if step == "management_representative" else "Beklemede"),
-            "is_active": step == "management_representative",
+            "status": "Reddedildi"
+            if rejected_step == "management_representative"
+            else (
+                "Tamamlandı"
+                if dof.management_approved_at
+                else ("Onay Bekliyor" if step == "management_representative" else "Beklemede")
+            ),
+            "is_active": step == "management_representative"
+            or rejected_step == "management_representative",
             "is_complete": bool(dof.management_approved_at)
             or step in {"general_manager_deputy", "completed"},
-            "actor": dof.management_approved_by.full_name
-            if dof.management_approved_by
-            else "",
-            "date": dof.management_approved_at,
+            "is_rejected": rejected_step == "management_representative",
+            "actor": (
+                dof.rejected_by.full_name
+                if rejected_step == "management_representative" and dof.rejected_by
+                else (
+                    dof.management_approved_by.full_name
+                    if dof.management_approved_by
+                    else ""
+                )
+            ),
+            "date": (
+                dof.rejected_at
+                if rejected_step == "management_representative"
+                else dof.management_approved_at
+            ),
         },
         {
             "key": "general_manager_deputy",
             "title": "Genel Müdür Yardımcısı",
-            "status": "Tamamlandı"
-            if dof.deputy_approved_at
-            else ("Onay Bekliyor" if step == "general_manager_deputy" else "Beklemede"),
-            "is_active": step == "general_manager_deputy",
+            "status": "Reddedildi"
+            if rejected_step == "general_manager_deputy"
+            else (
+                "Tamamlandı"
+                if dof.deputy_approved_at
+                else ("Onay Bekliyor" if step == "general_manager_deputy" else "Beklemede")
+            ),
+            "is_active": step == "general_manager_deputy"
+            or rejected_step == "general_manager_deputy",
             "is_complete": bool(dof.deputy_approved_at) or step == "completed",
-            "actor": dof.deputy_approved_by.full_name if dof.deputy_approved_by else "",
-            "date": dof.deputy_approved_at,
+            "is_rejected": rejected_step == "general_manager_deputy",
+            "actor": (
+                dof.rejected_by.full_name
+                if rejected_step == "general_manager_deputy" and dof.rejected_by
+                else (
+                    dof.deputy_approved_by.full_name
+                    if dof.deputy_approved_by
+                    else ""
+                )
+            ),
+            "date": (
+                dof.rejected_at
+                if rejected_step == "general_manager_deputy"
+                else dof.deputy_approved_at
+            ),
         },
     ]
 
@@ -905,6 +1046,8 @@ def filtered_dofs(dofs, filters):
         if status == "draft" and dof.display_status != "Taslak":
             continue
         if status == "approval" and dof.display_status != "Onay Akışı Bekleniyor":
+            continue
+        if status == "revision" and dof.display_status != "Revizyon Bekleniyor":
             continue
         if status == "completed" and dof.display_status != "Tamamlandı":
             continue
@@ -1123,6 +1266,123 @@ def parse_dof_form(dof=None, save_mode="open"):
             dof.approval_step = "management_representative"
     save_dof_evidence_file(dof)
     return dof
+
+
+def dof_revision_snapshot(dof):
+    return {
+        "title": dof.title or "",
+        "department": dof.department or "",
+        "responsible_id": dof.responsible_id,
+        "opening_date": dof.opening_date,
+        "due_date": dof.due_date,
+        "priority": dof.priority or "",
+        "source": dof.source or "",
+        "nonconformity_description": dof.nonconformity_description or "",
+        "root_cause_analysis": dof.root_cause_analysis or "",
+        "corrective_action": dof.corrective_action or "",
+        "preventive_action": dof.preventive_action or "",
+        "closing_evidence": dof.closing_evidence or "",
+        "evidence_original_name": dof.evidence_original_name or "",
+    }
+
+
+def parse_dof_revision_form(dof):
+    title = request.form.get("title", "").strip()
+    department = request.form.get("department", "").strip()
+    priority = request.form.get("priority", "").strip()
+    source = request.form.get("source", "").strip()
+    responsible = parse_optional_active_user("responsible_id")
+    opening_date = parse_optional_date("opening_date")
+    due_date = parse_optional_date("due_date")
+    nonconformity_description = request.form.get(
+        "nonconformity_description", ""
+    ).strip()
+    root_cause_analysis = request.form.get("root_cause_analysis", "").strip()
+    corrective_action = request.form.get("corrective_action", "").strip()
+    preventive_action = request.form.get("preventive_action", "").strip()
+    closing_evidence = request.form.get("closing_evidence", "").strip()
+
+    for text_value in (
+        nonconformity_description,
+        root_cause_analysis,
+        corrective_action,
+        preventive_action,
+        closing_evidence,
+    ):
+        if len(text_value) > 2000:
+            raise ValueError("text_too_long")
+
+    if (
+        not title
+        or not department
+        or not responsible
+        or not opening_date
+        or not priority
+        or not source
+        or not nonconformity_description
+    ):
+        raise ValueError("required_fields")
+    if department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if priority not in DOF_PRIORITIES:
+        raise ValueError("invalid_priority")
+    if source not in DOF_SOURCES:
+        raise ValueError("invalid_source")
+
+    dof.title = title
+    dof.department = department
+    dof.responsible_id = responsible.id
+    dof.opening_date = opening_date
+    dof.due_date = due_date
+    dof.priority = priority
+    dof.source = source
+    dof.nonconformity_description = nonconformity_description
+    dof.root_cause_analysis = root_cause_analysis or None
+    dof.corrective_action = corrective_action or None
+    dof.preventive_action = preventive_action or None
+    dof.closing_evidence = closing_evidence or None
+    save_dof_evidence_file(dof)
+
+
+def describe_dof_revision_changes(before, dof):
+    labels = {
+        "title": "başlık",
+        "department": "departman",
+        "opening_date": "açılış tarihi",
+        "due_date": "termin",
+        "priority": "öncelik",
+        "source": "kaynak",
+        "nonconformity_description": "uygunsuzluk açıklaması",
+        "root_cause_analysis": "kök neden analizi",
+        "corrective_action": "düzeltici faaliyet",
+        "preventive_action": "önleyici faaliyet",
+        "closing_evidence": "kapanış kanıtı açıklaması",
+    }
+    after = dof_revision_snapshot(dof)
+    changes = []
+
+    if before["responsible_id"] != after["responsible_id"]:
+        old_user = User.query.get(before["responsible_id"]) if before["responsible_id"] else None
+        new_user = User.query.get(after["responsible_id"]) if after["responsible_id"] else None
+        changes.append(
+            "sorumlu "
+            f"{old_user.full_name if old_user else '-'} -> "
+            f"{new_user.full_name if new_user else '-'}"
+        )
+
+    for field, label in labels.items():
+        old_value = before[field]
+        new_value = after[field]
+        if field in {"opening_date", "due_date"}:
+            old_value = format_date(old_value)
+            new_value = format_date(new_value)
+        if old_value != new_value:
+            changes.append(f"{label} güncellendi")
+
+    if before["evidence_original_name"] != after["evidence_original_name"]:
+        changes.append("kanıt dosyası güncellendi")
+
+    return changes
 
 
 def parse_user_form(user=None):
@@ -1408,6 +1668,9 @@ def dof_dashboard_context():
     approval_count = sum(
         1 for dof in all_dofs if dof.display_status == "Onay Akışı Bekleniyor"
     )
+    revision_count = sum(
+        1 for dof in all_dofs if dof.display_status == "Revizyon Bekleniyor"
+    )
     completed_count = sum(1 for dof in all_dofs if dof.display_status == "Tamamlandı")
     delayed_count = sum(
         1
@@ -1420,6 +1683,7 @@ def dof_dashboard_context():
         "total_count": total_count,
         "draft_count": draft_count,
         "approval_count": approval_count,
+        "revision_count": revision_count,
         "completed_count": completed_count,
         "delayed_count": delayed_count,
         "departments": DEPARTMENTS,
@@ -1517,7 +1781,13 @@ def dof_detail(dof_id):
         approval_steps=dof_approval_steps(dof),
         can_approve_management=can_approve_dof_management(dof),
         can_approve_deputy=can_approve_dof_deputy(dof),
+        can_reject=can_reject_dof(dof),
+        can_revise=can_revise_rejected_dof(dof),
         can_delete=can_delete_dof(dof),
+        users=active_users(),
+        departments=DEPARTMENTS,
+        priorities=DOF_PRIORITIES,
+        sources=DOF_SOURCES,
     )
 
 
@@ -1535,6 +1805,12 @@ def approve_dof_management(dof_id):
     dof.management_approved_at = datetime.utcnow()
     dof.approval_step = "general_manager_deputy"
     dof.status = "Onay Akışı Bekleniyor"
+    add_dof_comment(
+        dof,
+        f"{g.current_user.full_name} Yönetim Temsilcisi onayını verdi.",
+        comment_type="approval",
+        actor=g.current_user,
+    )
     notify_dof_waiting_approvers(dof)
     db.session.commit()
     flash("DÖF kaydı Yönetim Temsilcisi tarafından onaylandı.", "success")
@@ -1557,6 +1833,12 @@ def approve_dof_deputy(dof_id):
     dof.completed_at = now
     dof.approval_step = "completed"
     dof.status = "Tamamlandı"
+    add_dof_comment(
+        dof,
+        f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi ve DÖF kapandı.",
+        comment_type="approval",
+        actor=g.current_user,
+    )
     notify_dof_users(
         dof_primary_users(dof),
         dof,
@@ -1564,6 +1846,128 @@ def approve_dof_deputy(dof_id):
     )
     db.session.commit()
     flash("DÖF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
+    return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+
+@bp.post("/dofs/<int:dof_id>/reject")
+@login_required
+def reject_dof(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
+    attach_dof_view_state([dof])
+    if not can_reject_dof(dof):
+        abort(403)
+
+    rejection_reason = request.form.get("rejection_reason", "").strip()
+    if not rejection_reason:
+        flash("Red sebebi alanını doldurun.", "danger")
+        return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+    rejected_step = dof.approval_step
+    dof.status = "Revizyon Bekleniyor"
+    dof.approval_step = "revision_requested"
+    dof.rejected_step = rejected_step
+    dof.rejection_reason = rejection_reason
+    dof.rejected_by_user_id = g.current_user.id
+    dof.rejected_at = datetime.utcnow()
+    if rejected_step == "management_representative":
+        dof.management_approved_by_user_id = None
+        dof.management_approved_at = None
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+    elif rejected_step == "general_manager_deputy":
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+
+    add_dof_comment(
+        dof,
+        (
+            f"{g.current_user.full_name} {dof_approver_label(rejected_step)} "
+            f"onayını reddetti: \"{short_text(rejection_reason)}\""
+        ),
+        comment_type="rejection",
+        actor=g.current_user,
+    )
+    notify_dof_users(
+        dof_rejection_recipients(dof, rejected_step),
+        dof,
+        (
+            f"{dof_label(dof)} {dof_approver_label(rejected_step)} tarafından "
+            f"reddedildi. Sebep: {short_text(rejection_reason)}"
+        ),
+        exclude_user_id=g.current_user.id,
+    )
+    db.session.commit()
+    flash("DÖF kaydı reddedildi ve revizyon beklemeye alındı.", "success")
+    return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+
+@bp.post("/dofs/<int:dof_id>/revision")
+@login_required
+def revise_dof(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
+    attach_dof_view_state([dof])
+    if not can_revise_rejected_dof(dof):
+        abort(403)
+
+    target_step = (
+        dof.rejected_step
+        if dof.rejected_step in {"management_representative", "general_manager_deputy"}
+        else "management_representative"
+    )
+    before = dof_revision_snapshot(dof)
+    revision_note = request.form.get("revision_note", "").strip()
+    try:
+        parse_dof_revision_form(dof)
+    except ValueError as error:
+        error_key = str(error)
+        if error_key == "invalid_dof_file_type":
+            flash("Kanıt dosyası için sadece PDF, JPG veya PNG yükleyebilirsiniz.", "danger")
+        elif error_key == "dof_file_too_large":
+            flash("Kanıt dosyası en fazla 10 MB olabilir.", "danger")
+        elif error_key == "required_fields":
+            flash("Tekrar onay talep etmek için zorunlu alanları doldurun.", "danger")
+        elif error_key == "text_too_long":
+            flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
+        else:
+            flash("Lütfen DÖF revizyon alanlarını geçerli biçimde doldurun.", "danger")
+        return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+    changes = describe_dof_revision_changes(before, dof)
+    dof.status = "Onay Akışı Bekleniyor"
+    dof.approval_step = target_step
+    dof.rejection_reason = None
+    dof.rejected_by_user_id = None
+    dof.rejected_at = None
+    dof.rejected_step = None
+    if target_step == "management_representative":
+        dof.management_approved_by_user_id = None
+        dof.management_approved_at = None
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+    elif target_step == "general_manager_deputy":
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+
+    comment_parts = [
+        f"{g.current_user.full_name} revizyon yaptı ve tekrar onay talep etti."
+    ]
+    if changes:
+        comment_parts.append("Değişiklikler: " + ", ".join(changes) + ".")
+    if revision_note:
+        comment_parts.append(f"Not: {revision_note}")
+    add_dof_comment(
+        dof,
+        " ".join(comment_parts),
+        comment_type="revision",
+        actor=g.current_user,
+    )
+    notify_dof_waiting_approvers(dof)
+    db.session.commit()
+    flash("DÖF revizyonu kaydedildi ve tekrar onaya gönderildi.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
