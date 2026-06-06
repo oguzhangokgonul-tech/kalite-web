@@ -19,7 +19,8 @@ from flask import (
     url_for,
 )
 from werkzeug.utils import secure_filename
-from sqlalchemy import or_
+from sqlalchemy import inspect, or_, text
+from sqlalchemy.exc import OperationalError
 
 from .extensions import db
 from .mail import send_action_notification_email, send_dof_notification_email
@@ -76,13 +77,44 @@ def load_logged_in_user():
     g.latest_notifications = []
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
-        notification_query = Notification.query.filter_by(user_id=g.current_user.id)
-        g.unread_notification_count = notification_query.filter_by(is_read=False).count()
-        g.latest_notifications = (
-            notification_query.order_by(Notification.created_at.desc())
-            .limit(5)
-            .all()
-        )
+        ensure_notification_dof_column()
+        try:
+            notification_query = Notification.query.filter_by(user_id=g.current_user.id)
+            g.unread_notification_count = notification_query.filter_by(
+                is_read=False
+            ).count()
+            g.latest_notifications = (
+                notification_query.order_by(Notification.created_at.desc())
+                .limit(5)
+                .all()
+            )
+        except OperationalError:
+            db.session.rollback()
+            current_app.logger.exception("Bildirimler yüklenemedi.")
+
+
+def ensure_notification_dof_column():
+    if current_app.extensions.get("notification_dof_column_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        if "notifications" in inspector.get_table_names():
+            columns = {
+                column["name"] for column in inspector.get_columns("notifications")
+            }
+            if "dof_id" not in columns:
+                with db.engine.begin() as connection:
+                    connection.execute(
+                        text("ALTER TABLE notifications ADD COLUMN dof_id INTEGER")
+                    )
+        current_app.extensions["notification_dof_column_checked"] = True
+    except OperationalError as error:
+        if "duplicate column name" in str(error).lower():
+            current_app.extensions["notification_dof_column_checked"] = True
+            return
+        db.session.rollback()
+        current_app.logger.exception("DÖF bildirim kolonu kontrol edilemedi.")
 
 
 def login_required(view):
