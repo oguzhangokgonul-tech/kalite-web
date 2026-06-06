@@ -58,7 +58,7 @@
         <label class="form-label" for="search">Arama</label>
         <div class="dashboard-search-control">
           <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="DÖF no, başlık, kaynak">
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="DÖF no, başlık, uygunsuzluk">
         </div>
       </div>
       <div>
@@ -124,8 +124,8 @@
             <tr>
               <td class="dashboard-action-title-cell">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }} {{ dof.title or "Başlık girilmemiş" }}</a>
-                {% if dof.source %}
-                  <span>Kaynak: {{ dof.source }}</span>
+                {% if dof.nonconformity_description %}
+                  <span><strong>Uygunsuzluğun Açıklaması:</strong> {{ dof.nonconformity_description }}</span>
                 {% endif %}
               </td>
               <td>{{ dof.department or "-" }}</td>
@@ -151,6 +151,12 @@
                     <i class="bi bi-eye"></i>
                     <span>Detay</span>
                   </a>
+                  {% if can_delete_dof(dof) %}
+                    <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_dof', dof_id=dof.id) }}">
+                      <i class="bi bi-trash"></i>
+                      <span>Sil</span>
+                    </a>
+                  {% endif %}
                 </div>
               </td>
             </tr>

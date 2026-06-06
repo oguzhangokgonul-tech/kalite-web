@@ -1,0 +1,42 @@
+{% extends "app_shell.html" %}
+
+{% block title %}DÖF Kaydı Sil - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}DÖF Kaydı Sil{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>DÖF kaydı silinsin mi?</h2>
+      <p>Bu işlem geri alınamaz.</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dof_management') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>DÖF Yönetimi</span>
+    </a>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-trash"></i></span>
+      <div>
+        <h3>{{ dof.dof_no }} {{ dof.title or "Başlık girilmemiş" }}</h3>
+        <p>Bu DÖF kaydı kalıcı olarak silinecek.</p>
+      </div>
+    </div>
+    {% if dof.evidence_original_name %}
+      <p class="text-secondary">
+        Bu kayda bağlı <strong>{{ dof.evidence_original_name }}</strong> kanıt dosyası da silinecek.
+      </p>
+    {% endif %}
+    <form class="app-heading-actions justify-content-start" method="post">
+      <button class="btn btn-danger" type="submit">
+        <i class="bi bi-trash"></i>
+        <span>Sil</span>
+      </button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
+        <i class="bi bi-x-lg"></i>
+        <span>Vazgeç</span>
+      </a>
+    </form>
+  </div>
+{% endblock %}

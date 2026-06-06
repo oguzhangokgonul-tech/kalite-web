@@ -79,6 +79,12 @@
         <i class="bi bi-arrow-left"></i>
         <span>DÖF Yönetimi</span>
       </a>
+      {% if can_delete %}
+        <a class="btn btn-outline-danger" href="{{ url_for('main.delete_dof', dof_id=dof.id) }}">
+          <i class="bi bi-trash"></i>
+          <span>Sil</span>
+        </a>
+      {% endif %}
     </div>
   </div>
 

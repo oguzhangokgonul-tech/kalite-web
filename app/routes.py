@@ -171,6 +171,36 @@ def is_deputy_general_manager(user=None):
     )
 
 
+def is_general_manager(user=None):
+    user = user or g.current_user
+    if user is None:
+        return False
+    normalized_title = normalize_for_role(getattr(user, "title", ""))
+    return "genel mudur" in normalized_title and "yardimci" not in normalized_title
+
+
+def can_view_all_dofs():
+    return (
+        is_management_representative()
+        or is_deputy_general_manager()
+        or is_general_manager()
+    )
+
+
+def can_view_dof(dof):
+    return (
+        g.current_user is not None
+        and (
+            can_view_all_dofs()
+            or dof.responsible_id == g.current_user.id
+        )
+    )
+
+
+def can_delete_dof(dof=None):
+    return can_view_all_dofs()
+
+
 def can_approve_dof_management(dof):
     return (
         is_management_representative()
@@ -393,6 +423,17 @@ def save_dof_evidence_file(dof):
     dof.evidence_original_name = safe_name
     dof.evidence_stored_name = stored_name
     dof.evidence_mime_type = uploaded_file.mimetype
+
+
+def delete_dof_evidence_file(dof):
+    if dof.evidence_stored_name:
+        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / dof.evidence_stored_name
+        if file_path.exists():
+            file_path.unlink()
+
+    dof.evidence_original_name = None
+    dof.evidence_stored_name = None
+    dof.evidence_mime_type = None
 
 
 def parse_optional_user(field_name):
@@ -764,6 +805,13 @@ def dof_approval_steps(dof):
     ]
 
 
+def visible_dofs_query():
+    query = Dof.query
+    if can_view_all_dofs():
+        return query
+    return query.filter(Dof.responsible_id == g.current_user.id)
+
+
 def dof_filters():
     return {
         "search": request.args.get("search", "").strip(),
@@ -791,6 +839,7 @@ def filtered_dofs(dofs, filters):
             [
                 dof.dof_no or "",
                 dof.title or "",
+                dof.nonconformity_description or "",
                 dof.department or "",
                 dof.priority or "",
                 dof.source or "",
@@ -1297,7 +1346,7 @@ def dashboard_context():
 
 def dof_dashboard_context():
     all_dofs = attach_dof_view_state(
-        Dof.query.order_by(Dof.created_at.desc(), Dof.id.desc()).all()
+        visible_dofs_query().order_by(Dof.created_at.desc(), Dof.id.desc()).all()
     )
     filters = dof_filters()
     dofs = filtered_dofs(all_dofs, filters)
@@ -1322,7 +1371,8 @@ def dof_dashboard_context():
         "delayed_count": delayed_count,
         "departments": DEPARTMENTS,
         "filters": filters,
-        "users": active_users(),
+        "users": active_users() if can_view_all_dofs() else [g.current_user],
+        "can_delete_dof": can_delete_dof,
     }
 
 
@@ -1405,6 +1455,8 @@ def create_dof():
 @login_required
 def dof_detail(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
     attach_dof_view_state([dof])
     return render_template(
         "dof_detail.html",
@@ -1412,6 +1464,7 @@ def dof_detail(dof_id):
         approval_steps=dof_approval_steps(dof),
         can_approve_management=can_approve_dof_management(dof),
         can_approve_deputy=can_approve_dof_deputy(dof),
+        can_delete=can_delete_dof(dof),
     )
 
 
@@ -1419,6 +1472,8 @@ def dof_detail(dof_id):
 @login_required
 def approve_dof_management(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
     attach_dof_view_state([dof])
     if not can_approve_dof_management(dof):
         abort(403)
@@ -1437,6 +1492,8 @@ def approve_dof_management(dof_id):
 @login_required
 def approve_dof_deputy(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
     attach_dof_view_state([dof])
     if not can_approve_dof_deputy(dof):
         abort(403)
@@ -1461,6 +1518,8 @@ def approve_dof_deputy(dof_id):
 @login_required
 def download_dof_evidence_file(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
     if not dof.evidence_stored_name:
         flash("Bu DÖF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
@@ -1471,6 +1530,23 @@ def download_dof_evidence_file(dof_id):
         as_attachment=True,
         download_name=dof.evidence_original_name,
     )
+
+
+@bp.route("/dofs/<int:dof_id>/delete", methods=["GET", "POST"])
+@login_required
+def delete_dof(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not can_delete_dof(dof):
+        abort(403)
+
+    if request.method == "POST":
+        delete_dof_evidence_file(dof)
+        db.session.delete(dof)
+        db.session.commit()
+        flash("DÖF kaydı silindi.", "success")
+        return redirect(url_for("main.dof_management"))
+
+    return render_template("dof_confirm_delete.html", dof=dof)
 
 
 @bp.route("/actions/new", methods=["GET", "POST"])
