@@ -30,6 +30,9 @@ from .models import (
     ActionHistory,
     AppSetting,
     DEPARTMENTS,
+    DOF_PRIORITIES,
+    DOF_SOURCES,
+    Dof,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -50,6 +53,8 @@ ALLOWED_EXTENSIONS = {
     "png",
     "webp",
 }
+DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
+DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 
 
 @bp.app_errorhandler(403)
@@ -248,6 +253,88 @@ def reserve_action_number():
 
     setting.value = str(next_number + 1)
     return next_number
+
+
+def reserve_dof_number(today=None):
+    today = today or date.today()
+    year = today.year
+    prefix = f"DÖF-{year}-"
+    existing_numbers = (
+        db.session.query(Dof.dof_no)
+        .filter(Dof.dof_no.like(f"{prefix}%"))
+        .all()
+    )
+    max_number = 0
+    for (dof_no,) in existing_numbers:
+        try:
+            max_number = max(max_number, int((dof_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+
+    setting_key = f"next_dof_number_{year}"
+    setting = db.session.get(AppSetting, setting_key)
+    if setting is None:
+        setting = AppSetting(key=setting_key, value=str(max_number + 1))
+        db.session.add(setting)
+
+    next_number = int(setting.value)
+    if next_number <= max_number:
+        next_number = max_number + 1
+
+    setting.value = str(next_number + 1)
+    return f"{prefix}{next_number:04d}"
+
+
+def parse_optional_date(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("invalid_date") from None
+
+
+def parse_optional_active_user(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        return None
+    try:
+        user_id = int(value)
+    except ValueError:
+        raise ValueError("invalid_user") from None
+    user = User.query.filter_by(id=user_id, is_active=True).first()
+    if user is None:
+        raise ValueError("invalid_user")
+    return user
+
+
+def validate_dof_evidence_file(uploaded_file):
+    if "." not in uploaded_file.filename:
+        raise ValueError("invalid_dof_file_type")
+    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    if extension not in DOF_EVIDENCE_EXTENSIONS:
+        raise ValueError("invalid_dof_file_type")
+
+
+def save_dof_evidence_file(dof):
+    uploaded_file = request.files.get("evidence_file")
+    if not uploaded_file or not uploaded_file.filename:
+        return
+
+    validate_dof_evidence_file(uploaded_file)
+    safe_name = secure_filename(uploaded_file.filename) or "dof-kanit"
+    extension = safe_name.rsplit(".", 1)[1].lower()
+    stored_name = f"dof-{uuid4().hex}.{extension}"
+    upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+    uploaded_file.save(upload_path)
+    if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("dof_file_too_large")
+
+    dof.evidence_original_name = safe_name
+    dof.evidence_stored_name = stored_name
+    dof.evidence_mime_type = uploaded_file.mimetype
 
 
 def parse_optional_user(field_name):
@@ -638,6 +725,72 @@ def parse_action_form(action=None):
     return action
 
 
+def parse_dof_form(dof=None, save_mode="open"):
+    dof = dof or Dof()
+    is_draft = save_mode == "draft"
+    title = request.form.get("title", "").strip()
+    department = request.form.get("department", "").strip()
+    priority = request.form.get("priority", "").strip()
+    source = request.form.get("source", "").strip()
+    responsible = parse_optional_active_user("responsible_id")
+    opening_date = parse_optional_date("opening_date")
+    due_date = parse_optional_date("due_date")
+    nonconformity_description = request.form.get(
+        "nonconformity_description", ""
+    ).strip()
+    root_cause_analysis = request.form.get("root_cause_analysis", "").strip()
+    corrective_action = request.form.get("corrective_action", "").strip()
+    preventive_action = request.form.get("preventive_action", "").strip()
+    closing_evidence = request.form.get("closing_evidence", "").strip()
+
+    for text_value in (
+        nonconformity_description,
+        root_cause_analysis,
+        corrective_action,
+        preventive_action,
+        closing_evidence,
+    ):
+        if len(text_value) > 2000:
+            raise ValueError("text_too_long")
+
+    if department and department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if priority and priority not in DOF_PRIORITIES:
+        raise ValueError("invalid_priority")
+    if source and source not in DOF_SOURCES:
+        raise ValueError("invalid_source")
+
+    if not is_draft and (
+        not title
+        or not department
+        or not responsible
+        or not opening_date
+        or not due_date
+        or not priority
+        or not source
+        or not nonconformity_description
+        or not root_cause_analysis
+        or not corrective_action
+    ):
+        raise ValueError("required_fields")
+
+    dof.title = title or None
+    dof.department = department or None
+    dof.responsible_id = responsible.id if responsible else None
+    dof.opening_date = opening_date
+    dof.due_date = due_date
+    dof.priority = priority or None
+    dof.source = source or None
+    dof.nonconformity_description = nonconformity_description or None
+    dof.root_cause_analysis = root_cause_analysis or None
+    dof.corrective_action = corrective_action or None
+    dof.preventive_action = preventive_action or None
+    dof.closing_evidence = closing_evidence or None
+    dof.status = "Taslak" if is_draft else "Açık"
+    save_dof_evidence_file(dof)
+    return dof
+
+
 def parse_user_form(user=None):
     user = user or User()
     username = request.form.get("username", "").strip().lower()
@@ -924,6 +1077,49 @@ def dashboard_list():
 @login_required
 def dashboard_legacy():
     return render_template("dashboard_legacy.html", **dashboard_context())
+
+
+@bp.route("/dofs", methods=["GET", "POST"])
+@login_required
+def dof_management():
+    if request.method == "POST":
+        save_mode = request.form.get("save_mode", "open")
+        if save_mode not in {"draft", "open"}:
+            save_mode = "open"
+        try:
+            dof = parse_dof_form(save_mode=save_mode)
+            dof.dof_no = reserve_dof_number()
+            dof.created_by_user_id = g.current_user.id
+            db.session.add(dof)
+            db.session.commit()
+            flash(
+                f"{dof.dof_no} numaralı DÖF kaydı "
+                f"{'taslak olarak ' if save_mode == 'draft' else ''}kaydedildi.",
+                "success",
+            )
+            return redirect(url_for("main.dof_management"))
+        except ValueError as error:
+            error_key = str(error)
+            if error_key == "invalid_dof_file_type":
+                flash("Kapanış kanıtı için sadece PDF, JPG veya PNG yükleyebilirsiniz.", "danger")
+            elif error_key == "dof_file_too_large":
+                flash("Kapanış kanıtı dosyası en fazla 10 MB olabilir.", "danger")
+            elif error_key == "required_fields":
+                flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
+            elif error_key == "text_too_long":
+                flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
+            else:
+                flash("Lütfen DÖF form alanlarını geçerli biçimde doldurun.", "danger")
+
+    return render_template(
+        "dof_form.html",
+        users=active_users(),
+        departments=DEPARTMENTS,
+        priorities=DOF_PRIORITIES,
+        sources=DOF_SOURCES,
+        today=date.today().isoformat(),
+        form_data=request.form if request.method == "POST" else {},
+    )
 
 
 @bp.route("/actions/new", methods=["GET", "POST"])

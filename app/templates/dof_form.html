@@ -1,0 +1,229 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Yeni DÖF Kaydı - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
+
+{% macro field_value(name, fallback="") %}
+  {{ form_data.get(name, fallback) }}
+{% endmacro %}
+
+{% macro text_counter(name) %}
+  <span data-dof-counter-for="{{ name }}">{{ form_data.get(name, "")|length }} / 2000</span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Yeni DÖF Kaydı</h2>
+      <p>Düzeltici ve önleyici faaliyet kaydı oluşturun</p>
+    </div>
+    <div class="app-heading-actions">
+      <button class="btn btn-outline-secondary btn-lg" type="submit" name="save_mode" value="draft" form="dofForm">
+        <i class="bi bi-file-earmark"></i>
+        <span>Taslak Kaydet</span>
+      </button>
+      <button class="btn btn-primary btn-lg" type="submit" name="save_mode" value="open" form="dofForm">
+        <i class="bi bi-save"></i>
+        <span>Kaydet</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="dof-layout">
+    <form class="dof-form-card" id="dofForm" method="post" enctype="multipart/form-data">
+      <div class="app-card-header">
+        <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-pulse"></i></span>
+        <div>
+          <h3>DÖF Bilgileri</h3>
+          <p>Düzeltici ve önleyici faaliyet kaydının temel bilgilerini girin.</p>
+        </div>
+      </div>
+
+      <div class="dof-grid">
+        <div>
+          <label class="form-label" for="dof_no">DÖF No</label>
+          <input class="form-control" id="dof_no" value="Otomatik atanacaktır" disabled>
+        </div>
+        <div>
+          <label class="form-label" for="title">Başlık <span class="text-danger">*</span></label>
+          <input class="form-control" id="title" name="title" value="{{ field_value('title')|trim }}" maxlength="160" placeholder="DÖF başlığını girin">
+        </div>
+        <div>
+          <label class="form-label" for="department">Departman <span class="text-danger">*</span></label>
+          <select class="form-select" id="department" name="department">
+            <option value="">Seçiniz</option>
+            {% for department in departments %}
+              <option value="{{ department }}" {% if form_data.get('department') == department %}selected{% endif %}>{{ department }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="responsible_id">Sorumlu <span class="text-danger">*</span></label>
+          <select class="form-select" id="responsible_id" name="responsible_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if form_data.get('responsible_id') == user.id|string %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="opening_date">Açılış Tarihi <span class="text-danger">*</span></label>
+          <input class="form-control" id="opening_date" name="opening_date" type="date" value="{{ field_value('opening_date', today)|trim }}">
+        </div>
+        <div>
+          <label class="form-label" for="due_date">Termin <span class="text-danger">*</span></label>
+          <input class="form-control" id="due_date" name="due_date" type="date" value="{{ field_value('due_date')|trim }}">
+        </div>
+        <div>
+          <label class="form-label" for="priority">Öncelik <span class="text-danger">*</span></label>
+          <select class="form-select" id="priority" name="priority">
+            <option value="">Seçiniz</option>
+            {% for priority in priorities %}
+              <option value="{{ priority }}" {% if form_data.get('priority') == priority %}selected{% endif %}>{{ priority }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="source">Kaynak <span class="text-danger">*</span></label>
+          <select class="form-select" id="source" name="source">
+            <option value="">Seçiniz</option>
+            {% for source in sources %}
+              <option value="{{ source }}" {% if form_data.get('source') == source %}selected{% endif %}>{{ source }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="dof-section-divider"></div>
+
+      <div class="dof-textarea-stack">
+        <div class="dof-textarea-field">
+          <label class="form-label" for="nonconformity_description">Uygunsuzluk Açıklaması <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="nonconformity_description" name="nonconformity_description" rows="3" maxlength="2000" data-dof-count="nonconformity_description" placeholder="Uygunsuzluğu açıklayın...">{{ form_data.get("nonconformity_description", "") }}</textarea>
+          <div class="dof-counter">{{ text_counter("nonconformity_description") }}</div>
+        </div>
+        <div class="dof-textarea-field">
+          <label class="form-label" for="root_cause_analysis">Kök Neden Analizi <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="root_cause_analysis" name="root_cause_analysis" rows="3" maxlength="2000" data-dof-count="root_cause_analysis" placeholder="Kök nedenleri analiz edin...">{{ form_data.get("root_cause_analysis", "") }}</textarea>
+          <div class="dof-counter">{{ text_counter("root_cause_analysis") }}</div>
+        </div>
+        <div class="dof-two-column">
+          <div class="dof-textarea-field">
+            <label class="form-label" for="corrective_action">Düzeltici Faaliyet <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="corrective_action" name="corrective_action" rows="3" maxlength="2000" data-dof-count="corrective_action" placeholder="Uygulanacak düzeltici faaliyetleri açıklayın...">{{ form_data.get("corrective_action", "") }}</textarea>
+            <div class="dof-counter">{{ text_counter("corrective_action") }}</div>
+          </div>
+          <div class="dof-textarea-field">
+            <label class="form-label" for="preventive_action">Önleyici Faaliyet</label>
+            <textarea class="form-control" id="preventive_action" name="preventive_action" rows="3" maxlength="2000" data-dof-count="preventive_action" placeholder="Benzer uygunsuzlukların tekrarlanmaması için alınacak önlemleri açıklayın...">{{ form_data.get("preventive_action", "") }}</textarea>
+            <div class="dof-counter">{{ text_counter("preventive_action") }}</div>
+          </div>
+        </div>
+        <div class="dof-textarea-field">
+          <label class="form-label" for="closing_evidence">Kapanış Kanıtı</label>
+          <textarea class="form-control" id="closing_evidence" name="closing_evidence" rows="3" maxlength="2000" data-dof-count="closing_evidence" placeholder="Kapanış kanıtı açıklaması veya notu girin...">{{ form_data.get("closing_evidence", "") }}</textarea>
+          <div class="dof-counter">{{ text_counter("closing_evidence") }}</div>
+        </div>
+      </div>
+
+      <label class="dof-upload-box" for="evidence_file" data-dof-upload-box>
+        <i class="bi bi-cloud-arrow-up"></i>
+        <strong>Dosya seçin</strong>
+        <span data-dof-file-name>veya buraya sürükleyin</span>
+        <small>PDF, JPG, PNG dosya türleri desteklenir. Maks. 10 MB</small>
+        <input id="evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png" data-dof-file-input>
+      </label>
+    </form>
+
+    <aside class="dof-side-panel">
+      <section class="dof-side-card">
+        <div class="dof-side-title">
+          <i class="bi bi-bookmark"></i>
+          <h3>Durum</h3>
+        </div>
+        <div class="dof-status-box">
+          <i class="bi bi-clock"></i>
+          <div>
+            <strong>Taslak</strong>
+            <span>Kayıt henüz kaydedilmedi</span>
+          </div>
+        </div>
+        <p>Kaydedildikten sonra durum güncellenecektir.</p>
+      </section>
+
+      <section class="dof-side-card">
+        <div class="dof-side-title">
+          <i class="bi bi-diagram-3"></i>
+          <h3>Onay Akışı</h3>
+        </div>
+        <ol class="dof-approval-flow">
+          <li><strong>Bölüm Sorumlusu</strong><span>Beklemede</span></li>
+          <li><strong>Kalite Sorumlusu</strong><span>Beklemede</span></li>
+          <li><strong>Yönetim Temsilcisi</strong><span>Beklemede</span></li>
+          <li><strong>Genel Müdür</strong><span>Beklemede</span></li>
+        </ol>
+      </section>
+
+      <section class="dof-side-card">
+        <div class="dof-side-title">
+          <i class="bi bi-check2-square"></i>
+          <h3>Kontrol Listesi</h3>
+        </div>
+        <ul class="dof-checklist">
+          <li><i class="bi bi-circle"></i><span>Tüm zorunlu alanlar dolduruldu</span></li>
+          <li><i class="bi bi-circle"></i><span>Kök neden analizi yapıldı</span></li>
+          <li><i class="bi bi-circle"></i><span>Düzeltici faaliyet tanımlandı</span></li>
+          <li><i class="bi bi-circle"></i><span>Termin tarihi belirlendi</span></li>
+          <li><i class="bi bi-circle"></i><span>Kapanış kanıtı yüklenecek</span></li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    document.querySelectorAll("[data-dof-count]").forEach((field) => {
+      const counter = document.querySelector(`[data-dof-counter-for="${field.dataset.dofCount}"]`);
+      const updateCounter = () => {
+        if (counter) counter.textContent = `${field.value.length} / 2000`;
+      };
+      field.addEventListener("input", updateCounter);
+      updateCounter();
+    });
+
+    const uploadBox = document.querySelector("[data-dof-upload-box]");
+    const fileInput = document.querySelector("[data-dof-file-input]");
+    const fileName = document.querySelector("[data-dof-file-name]");
+
+    function updateFileName() {
+      if (fileName && fileInput?.files?.length) {
+        fileName.textContent = fileInput.files[0].name;
+      }
+    }
+
+    if (uploadBox && fileInput) {
+      fileInput.addEventListener("change", updateFileName);
+      ["dragenter", "dragover"].forEach((eventName) => {
+        uploadBox.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          uploadBox.classList.add("is-dragging");
+        });
+      });
+      ["dragleave", "drop"].forEach((eventName) => {
+        uploadBox.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          uploadBox.classList.remove("is-dragging");
+        });
+      });
+      uploadBox.addEventListener("drop", (event) => {
+        if (event.dataTransfer.files.length) {
+          fileInput.files = event.dataTransfer.files;
+          updateFileName();
+        }
+      });
+    }
+  </script>
+{% endblock %}

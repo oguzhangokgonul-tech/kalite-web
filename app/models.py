@@ -23,6 +23,19 @@ DEPARTMENTS = (
 
 ORGANIZATION_NODE_TYPES = ("person", "department")
 
+DOF_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
+DOF_SOURCES = (
+    "İç Denetim",
+    "Müşteri Şikayeti",
+    "Tedarikçi",
+    "Üretim",
+    "Kalite Kontrol",
+    "Saha",
+    "Yönetim Gözden Geçirme",
+    "Diğer",
+)
+DOF_STATUSES = ("Taslak", "Açık")
+
 
 class User(db.Model):
     __tablename__ = "users"
@@ -178,6 +191,40 @@ class Action(db.Model):
         self.closure_rejected_at = None
         self.closure_rejected_by_user_id = None
         self.closure_rejection_reason = None
+
+
+class Dof(db.Model):
+    __tablename__ = "dofs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    dof_no = db.Column(db.String(30), nullable=False, unique=True)
+    title = db.Column(db.String(160), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    responsible_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    opening_date = db.Column(db.Date, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    priority = db.Column(db.String(40), nullable=True)
+    source = db.Column(db.String(120), nullable=True)
+    nonconformity_description = db.Column(db.Text, nullable=True)
+    root_cause_analysis = db.Column(db.Text, nullable=True)
+    corrective_action = db.Column(db.Text, nullable=True)
+    preventive_action = db.Column(db.Text, nullable=True)
+    closing_evidence = db.Column(db.Text, nullable=True)
+    evidence_original_name = db.Column(db.String(255), nullable=True)
+    evidence_stored_name = db.Column(db.String(255), nullable=True)
+    evidence_mime_type = db.Column(db.String(120), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Taslak")
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    responsible = db.relationship("User", foreign_keys=[responsible_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
 
 
 class ActionClosureFile(db.Model):

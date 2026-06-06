@@ -31,6 +31,10 @@
           <i class="bi bi-diagram-3"></i>
           <span>Organizasyon Şeması</span>
         </a>
+        <a class="dashboard-nav-item {% if request.endpoint == 'main.dof_management' %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
+          <i class="bi bi-clipboard2-pulse"></i>
+          <span>DÖF Yönetimi</span>
+        </a>
       </nav>
       <div class="dashboard-sidebar-user">
         <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
