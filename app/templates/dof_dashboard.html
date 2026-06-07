@@ -31,6 +31,15 @@
   {% endif %}
 {% endmacro %}
 
+{%- macro dof_short_no(dof_no) -%}
+  {% set parts = (dof_no or "").split("-") %}
+  {% if parts|length >= 3 %}
+    {{ parts[0] }}-{{ parts[-1] }}
+  {% else %}
+    {{ dof_no or "-" }}
+  {% endif %}
+{%- endmacro -%}
+
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
@@ -142,7 +151,7 @@
           {% for dof in dofs %}
             <tr>
               <td class="dashboard-action-title-cell" data-label="DÖF Kaydı" title="{{ dof.dof_no }}">
-                <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }}</a>
+                <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
               </td>
               <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması">{{ dof.nonconformity_description or "-" }}</td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
