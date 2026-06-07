@@ -131,18 +131,18 @@
         <tbody>
           {% for dof in dofs %}
             <tr>
-              <td class="dashboard-action-title-cell">
+              <td class="dashboard-action-title-cell" data-label="DÖF kaydı">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }}</a>
               </td>
-              <td class="dof-nonconformity-cell">{{ dof.nonconformity_description or "-" }}</td>
-              <td>{{ dof.department or "-" }}</td>
-              <td>{{ dof.responsible.full_name if dof.responsible else "-" }}</td>
-              <td>{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</td>
-              <td>{{ dof.due_date.strftime("%d.%m.%Y") if dof.due_date else "-" }}</td>
-              <td>{{ dof.priority or "-" }}</td>
-              <td>{{ dof_status_badge(dof) }}</td>
-              <td>{{ dof.delay_days }}</td>
-              <td>
+              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması">{{ dof.nonconformity_description or "-" }}</td>
+              <td data-label="Departman">{{ dof.department or "-" }}</td>
+              <td data-label="Sorumlu">{{ dof.responsible.full_name if dof.responsible else "-" }}</td>
+              <td data-label="Açılış">{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</td>
+              <td data-label="Termin">{{ dof.due_date.strftime("%d.%m.%Y") if dof.due_date else "-" }}</td>
+              <td data-label="Öncelik">{{ dof.priority or "-" }}</td>
+              <td data-label="Durum">{{ dof_status_badge(dof) }}</td>
+              <td data-label="Gecikme günü">{{ dof.delay_days }}</td>
+              <td data-label="Kanıt">
                 {% if dof.evidence_original_name %}
                   <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_dof_evidence_file', dof_id=dof.id) }}">
                     <i class="bi bi-download"></i>
@@ -152,7 +152,7 @@
                   <span class="text-secondary">Yok</span>
                 {% endif %}
               </td>
-              <td>
+              <td data-label="İşlemler">
                 <div class="dashboard-row-actions">
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
                     <i class="bi bi-eye"></i>
