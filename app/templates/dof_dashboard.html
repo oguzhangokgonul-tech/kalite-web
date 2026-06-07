@@ -31,7 +31,7 @@
     </a>
   </div>
 
-  <div class="dashboard-metrics">
+  <div class="dashboard-metrics dof-dashboard-metrics">
     <div class="dashboard-stat-card stat-primary">
       <span class="stat-icon"><i class="bi bi-clipboard2-pulse"></i></span>
       <span class="stat-label">Toplam DÖF</span>
@@ -116,6 +116,7 @@
         <thead>
           <tr>
             <th>DÖF kaydı</th>
+            <th>Uygunsuzluğun Açıklaması</th>
             <th>Departman</th>
             <th>Sorumlu</th>
             <th>Açılış</th>
@@ -132,10 +133,8 @@
             <tr>
               <td class="dashboard-action-title-cell">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }}</a>
-                {% if dof.nonconformity_description %}
-                  <span><strong>Uygunsuzluğun Açıklaması:</strong> {{ dof.nonconformity_description }}</span>
-                {% endif %}
               </td>
+              <td class="dof-nonconformity-cell">{{ dof.nonconformity_description or "-" }}</td>
               <td>{{ dof.department or "-" }}</td>
               <td>{{ dof.responsible.full_name if dof.responsible else "-" }}</td>
               <td>{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</td>
@@ -170,7 +169,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="10">
+              <td class="dashboard-empty-row" colspan="11">
                 <strong>Henüz DÖF kaydı yok.</strong>
                 <span>Yeni DÖF kaydı eklendiğinde burada listelenecek.</span>
               </td>
