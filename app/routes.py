@@ -1659,7 +1659,7 @@ def dashboard_context():
 
 def dof_dashboard_context():
     all_dofs = attach_dof_view_state(
-        visible_dofs_query().order_by(Dof.created_at.desc(), Dof.id.desc()).all()
+        visible_dofs_query().order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
     )
     filters = dof_filters()
     dofs = filtered_dofs(all_dofs, filters)
