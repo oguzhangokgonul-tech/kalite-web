@@ -691,6 +691,7 @@ body {
     font-size: 0.92rem;
     line-height: 1.45;
     overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .dof-dashboard-table {
@@ -702,9 +703,22 @@ body {
 .dof-dashboard-table th,
 .dof-dashboard-table td {
     padding: 14px 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dof-dashboard-table .dof-nonconformity-cell {
+    overflow: visible;
+    text-overflow: clip;
     white-space: normal;
     overflow-wrap: anywhere;
-    word-break: normal;
+}
+
+.dof-dashboard-table .dashboard-action-title-cell a {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .dof-dashboard-table thead th {
@@ -768,7 +782,7 @@ body {
     padding: 5px 8px;
     line-height: 1.2;
     text-align: left;
-    white-space: normal;
+    white-space: nowrap;
 }
 
 .dof-dashboard-table .dashboard-row-actions {

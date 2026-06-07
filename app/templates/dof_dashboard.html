@@ -131,16 +131,16 @@
         <tbody>
           {% for dof in dofs %}
             <tr>
-              <td class="dashboard-action-title-cell" data-label="DÖF kaydı">
+              <td class="dashboard-action-title-cell" data-label="DÖF kaydı" title="{{ dof.dof_no }}">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof.dof_no }}</a>
               </td>
               <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması">{{ dof.nonconformity_description or "-" }}</td>
-              <td data-label="Departman">{{ dof.department or "-" }}</td>
-              <td data-label="Sorumlu">{{ dof.responsible.full_name if dof.responsible else "-" }}</td>
-              <td data-label="Açılış">{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</td>
-              <td data-label="Termin">{{ dof.due_date.strftime("%d.%m.%Y") if dof.due_date else "-" }}</td>
-              <td data-label="Öncelik">{{ dof.priority or "-" }}</td>
-              <td data-label="Durum">{{ dof_status_badge(dof) }}</td>
+              <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
+              <td data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof.responsible.full_name if dof.responsible else "-" }}</td>
+              <td data-label="Açılış" title="{{ dof.opening_date.strftime('%d.%m.%Y') if dof.opening_date else '-' }}">{{ dof.opening_date.strftime("%d.%m.%Y") if dof.opening_date else "-" }}</td>
+              <td data-label="Termin" title="{{ dof.due_date.strftime('%d.%m.%Y') if dof.due_date else '-' }}">{{ dof.due_date.strftime("%d.%m.%Y") if dof.due_date else "-" }}</td>
+              <td data-label="Öncelik" title="{{ dof.priority or '-' }}">{{ dof.priority or "-" }}</td>
+              <td data-label="Durum" title="{{ dof.display_status }}">{{ dof_status_badge(dof) }}</td>
               <td data-label="Gecikme günü">{{ dof.delay_days }}</td>
               <td data-label="Kanıt">
                 {% if dof.evidence_original_name %}
