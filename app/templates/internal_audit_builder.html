@@ -1,0 +1,233 @@
+{% extends "app_shell.html" %}
+
+{% block title %}İç Denetim Oluştur - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>İç Denetim Oluştur</h2>
+      <p>Soru listesini, cevap seçeneklerini ve tetkik konularını hazırlayın.</p>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.internal_audit') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>İç Denetim Akışı</span>
+      </a>
+      <button class="btn btn-primary btn-lg" type="submit" form="internalAuditBuilderForm">
+        <i class="bi bi-save"></i>
+        <span>Denetimi Oluştur</span>
+      </button>
+    </div>
+  </div>
+
+  <form class="audit-builder-form" id="internalAuditBuilderForm" method="post" data-audit-builder>
+    <input type="hidden" name="question_indexes" value="" data-question-indexes>
+
+    <section class="audit-builder-card">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-clipboard-check"></i></span>
+        <div>
+          <h3>Denetim Bilgileri</h3>
+          <p>Yeni iç denetim için genel bilgileri girin.</p>
+        </div>
+      </div>
+
+      <div class="audit-builder-main-grid">
+        <div>
+          <label class="form-label" for="title">Denetim Başlığı</label>
+          <input class="form-control" id="title" name="title" value="{{ form_data.get('title', '') }}" maxlength="160" placeholder="Örn. 2026 İç Denetim">
+        </div>
+        <div>
+          <label class="form-label" for="planned_date">Planlanan Tarih</label>
+          <input class="form-control" id="planned_date" name="planned_date" type="date" value="{{ form_data.get('planned_date', today) }}">
+        </div>
+        <div>
+          <label class="form-label" for="question_count">Soru Sayısı</label>
+          <div class="audit-question-count-control">
+            <input class="form-control" id="question_count" type="number" min="1" max="150" value="{{ questions|length }}" data-question-count>
+            <button class="btn btn-outline-primary" type="button" data-apply-question-count>
+              <i class="bi bi-check2"></i>
+              <span>Uygula</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="audit-builder-card">
+      <div class="audit-builder-section-head">
+        <div>
+          <h3>Sorular</h3>
+          <p>Soru sırasını yukarıdan aşağıya göre oluşturun. Cevap seçeneklerini virgülle ayırabilirsiniz.</p>
+        </div>
+        <button class="btn btn-outline-primary" type="button" data-add-question>
+          <i class="bi bi-plus-lg"></i>
+          <span>Soru Ekle</span>
+        </button>
+      </div>
+
+      <div class="audit-builder-question-list" data-question-list>
+        {% for question in questions %}
+          <article class="audit-builder-question" data-question-card data-question-index="{{ loop.index }}">
+            <div class="audit-builder-question-head">
+              <strong>Soru <span data-question-number>{{ loop.index }}</span></strong>
+              <div class="audit-builder-question-actions">
+                <label class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" name="is_required_{{ loop.index }}" {% if question.get('is_required', True) %}checked{% endif %}>
+                  <span class="form-check-label">Zorunlu</span>
+                </label>
+                <button class="btn btn-sm btn-outline-danger" type="button" data-remove-question>
+                  <i class="bi bi-trash"></i>
+                  <span>Sil</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="audit-builder-question-grid">
+              <div>
+                <label class="form-label">İlgili Standart</label>
+                <input class="form-control" name="standard_{{ loop.index }}" value="{{ question.get('standard', '') }}" maxlength="160" placeholder="ISO 9001:2015 - Kalite Yönetim Sistemi">
+              </div>
+              <div>
+                <label class="form-label">Tetkik Konusu</label>
+                <input class="form-control" name="audit_topic_{{ loop.index }}" value="{{ question.get('audit_topic', '') }}" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
+              </div>
+              <div>
+                <label class="form-label">Değerlendirilecek Departman</label>
+                <select class="form-select" name="evaluated_department_{{ loop.index }}">
+                  <option value="">Seçiniz</option>
+                  {% for department in departments %}
+                    <option value="{{ department }}" {% if question.get('evaluated_department') == department %}selected{% endif %}>{{ department }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Cevap Seçenekleri</label>
+                <input class="form-control" name="answer_options_{{ loop.index }}" value="{{ question.get('answer_options', default_answer_options) }}" placeholder="Evet, Hayır, Kısmen, Uygulanabilir Değil">
+              </div>
+              <div class="audit-builder-question-text">
+                <label class="form-label">Soru</label>
+                <textarea class="form-control" name="question_text_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın...">{{ question.get('question_text', '') }}</textarea>
+              </div>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </form>
+
+  <template data-question-template>
+    <article class="audit-builder-question" data-question-card data-question-index="__INDEX__">
+      <div class="audit-builder-question-head">
+        <strong>Soru <span data-question-number>__NUMBER__</span></strong>
+        <div class="audit-builder-question-actions">
+          <label class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="is_required___INDEX__" checked>
+            <span class="form-check-label">Zorunlu</span>
+          </label>
+          <button class="btn btn-sm btn-outline-danger" type="button" data-remove-question>
+            <i class="bi bi-trash"></i>
+            <span>Sil</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="audit-builder-question-grid">
+        <div>
+          <label class="form-label">İlgili Standart</label>
+          <input class="form-control" name="standard___INDEX__" value="ISO 9001:2015 - Kalite Yönetim Sistemi" maxlength="160" placeholder="ISO 9001:2015 - Kalite Yönetim Sistemi">
+        </div>
+        <div>
+          <label class="form-label">Tetkik Konusu</label>
+          <input class="form-control" name="audit_topic___INDEX__" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
+        </div>
+        <div>
+          <label class="form-label">Değerlendirilecek Departman</label>
+          <select class="form-select" name="evaluated_department___INDEX__">
+            <option value="">Seçiniz</option>
+            {% for department in departments %}
+              <option value="{{ department }}">{{ department }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Cevap Seçenekleri</label>
+          <input class="form-control" name="answer_options___INDEX__" value="{{ default_answer_options }}" placeholder="Evet, Hayır, Kısmen, Uygulanabilir Değil">
+        </div>
+        <div class="audit-builder-question-text">
+          <label class="form-label">Soru</label>
+          <textarea class="form-control" name="question_text___INDEX__" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın..."></textarea>
+        </div>
+      </div>
+    </article>
+  </template>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (() => {
+      const form = document.querySelector("[data-audit-builder]");
+      const list = document.querySelector("[data-question-list]");
+      const template = document.querySelector("[data-question-template]");
+      const indexField = document.querySelector("[data-question-indexes]");
+      const countInput = document.querySelector("[data-question-count]");
+      const addButton = document.querySelector("[data-add-question]");
+      const applyCountButton = document.querySelector("[data-apply-question-count]");
+      let nextIndex = Math.max(
+        0,
+        ...Array.from(document.querySelectorAll("[data-question-card]")).map((card) => Number(card.dataset.questionIndex) || 0)
+      ) + 1;
+
+      function cards() {
+        return Array.from(document.querySelectorAll("[data-question-card]"));
+      }
+
+      function refreshIndexes() {
+        const activeCards = cards();
+        activeCards.forEach((card, position) => {
+          const number = card.querySelector("[data-question-number]");
+          if (number) number.textContent = position + 1;
+        });
+        if (indexField) {
+          indexField.value = activeCards.map((card) => card.dataset.questionIndex).join(",");
+        }
+        if (countInput) {
+          countInput.value = activeCards.length;
+        }
+      }
+
+      function addQuestion() {
+        const html = template.innerHTML
+          .replaceAll("__INDEX__", String(nextIndex))
+          .replaceAll("__NUMBER__", String(cards().length + 1));
+        nextIndex += 1;
+        list.insertAdjacentHTML("beforeend", html);
+        refreshIndexes();
+      }
+
+      function removeQuestion(card) {
+        if (cards().length <= 1) return;
+        card.remove();
+        refreshIndexes();
+      }
+
+      addButton?.addEventListener("click", addQuestion);
+      applyCountButton?.addEventListener("click", () => {
+        const target = Math.max(1, Math.min(150, Number(countInput?.value) || 1));
+        while (cards().length < target) addQuestion();
+        while (cards().length > target) cards().at(-1)?.remove();
+        refreshIndexes();
+      });
+
+      list?.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-remove-question]");
+        if (!removeButton) return;
+        removeQuestion(removeButton.closest("[data-question-card]"));
+      });
+
+      form?.addEventListener("submit", refreshIndexes);
+      refreshIndexes();
+    })();
+  </script>
+{% endblock %}

@@ -12,10 +12,18 @@
       <h2>İç Denetim Akıllı Soru Akışı</h2>
       <p>Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.</p>
     </div>
-    <span class="audit-flow-audit-no">
-      <i class="bi bi-clipboard-check"></i>
-      {{ audit.audit_no }}
-    </span>
+    <div class="app-heading-actions">
+      {% if can_create_internal_audit %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_internal_audit') }}">
+          <i class="bi bi-plus-lg"></i>
+          <span>İç Denetim oluştur</span>
+        </a>
+      {% endif %}
+      <span class="audit-flow-audit-no">
+        <i class="bi bi-clipboard-check"></i>
+        {{ audit.audit_no }}
+      </span>
+    </div>
   </div>
 
   <section class="audit-progress-card">
@@ -70,7 +78,7 @@
             <span class="audit-answer-label">Cevap Seçenekleri</span>
             {% for value, label, tone in result_choices %}
               <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
-                <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}">
+                <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if value|lower in ['hayır', 'kısmen'] or 'uygunsuz' in value|lower or 'kısmen' in value|lower %}true{% else %}false{% endif %}">
                 <span></span>
                 <strong>{{ value }}</strong>
               </label>
@@ -172,7 +180,7 @@
         <span>Mevcut DÖF</span>
       </a>
     {% else %}
-      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result == 'Hayır' %}is-urgent{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}">
+      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}">
         <i class="bi bi-exclamation-triangle"></i>
         <span>Uygunsuzluk Aç</span>
       </button>
@@ -217,7 +225,7 @@
           summary.value = selected.value;
         }
         if (nonconformityButton) {
-          nonconformityButton.classList.toggle("is-urgent", selected?.value === "Hayır");
+          nonconformityButton.classList.toggle("is-urgent", selected?.dataset.auditRequiresFinding === "true");
         }
       }
 
