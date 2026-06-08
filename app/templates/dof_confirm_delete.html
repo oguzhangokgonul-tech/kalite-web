@@ -28,6 +28,11 @@
         Bu kayda bağlı <strong>{{ dof.evidence_original_name }}</strong> kanıt dosyası da silinecek.
       </p>
     {% endif %}
+    {% if dof.files %}
+      <p class="text-secondary">
+        Bu kayda bağlı <strong>{{ dof.files|length }}</strong> açılış görseli de silinecek.
+      </p>
+    {% endif %}
     <form class="app-heading-actions justify-content-start" method="post">
       <button class="btn btn-danger" type="submit">
         <i class="bi bi-trash"></i>

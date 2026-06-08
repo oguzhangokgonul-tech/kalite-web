@@ -125,19 +125,14 @@
             <div class="dof-counter">{{ text_counter("preventive_action") }}</div>
           </div>
         </div>
-        <div class="dof-textarea-field">
-          <label class="form-label" for="closing_evidence">Kapanış Kanıtı</label>
-          <textarea class="form-control" id="closing_evidence" name="closing_evidence" rows="3" maxlength="2000" data-dof-count="closing_evidence" placeholder="Kapanış kanıtı açıklaması veya notu girin...">{{ form_data.get("closing_evidence", "") }}</textarea>
-          <div class="dof-counter">{{ text_counter("closing_evidence") }}</div>
-        </div>
       </div>
 
-      <label class="dof-upload-box" for="evidence_file" data-dof-upload-box>
+      <label class="dof-upload-box" for="opening_files" data-dof-upload-box>
         <i class="bi bi-cloud-arrow-up"></i>
-        <strong>Dosya seçin</strong>
+        <strong>Uygunsuzluk görselleri seçin</strong>
         <span data-dof-file-name>veya buraya sürükleyin</span>
-        <small>PDF, JPG, PNG dosya türleri desteklenir. Maks. 10 MB</small>
-        <input id="evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png" data-dof-file-input>
+        <small>JPG, PNG, WEBP görseller desteklenir. Her dosya maks. 10 MB</small>
+        <input id="opening_files" name="opening_files" type="file" accept=".jpg,.jpeg,.png,.webp" multiple data-dof-file-input>
       </label>
     </form>
 
@@ -174,7 +169,9 @@
 
     function updateFileName() {
       if (fileName && fileInput?.files?.length) {
-        fileName.textContent = fileInput.files[0].name;
+        fileName.textContent = fileInput.files.length === 1
+          ? fileInput.files[0].name
+          : `${fileInput.files.length} görsel seçildi`;
       }
     }
 

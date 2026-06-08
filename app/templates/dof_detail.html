@@ -54,6 +54,14 @@
   {% endif %}
 {% endmacro %}
 
+{% macro dof_file_button(dof_file, extra_class="") %}
+  <a class="dof-evidence-link {{ extra_class }}" href="{{ url_for('main.download_dof_file', dof_id=dof.id, file_id=dof_file.id) }}">
+    <span class="dof-evidence-file-icon"><i class="bi bi-image"></i></span>
+    <span class="dof-evidence-name">{{ dof_file.original_name }}</span>
+    <i class="bi bi-download ms-auto"></i>
+  </a>
+{% endmacro %}
+
 {% block app_content %}
   <div class="dashboard-page-heading dof-detail-heading">
     <div>
@@ -185,14 +193,17 @@
         <div class="dof-detail-side-title">
           <i class="bi bi-paperclip"></i>
           <div>
-            <h3>Dosyalar / Kanıt</h3>
-            <p>Bu DÖF kaydına ait yüklenen dosyalar.</p>
+            <h3>Dosyalar / Görseller</h3>
+            <p>Bu DÖF kaydına ait yüklenen görseller ve kanıt dosyaları.</p>
           </div>
         </div>
-        {% if dof.evidence_original_name %}
+        {% if dof.files or dof.evidence_original_name %}
+          {% for dof_file in dof.files %}
+            {{ dof_file_button(dof_file) }}
+          {% endfor %}
           {{ evidence_button() }}
         {% else %}
-          <div class="dof-detail-empty-note">Yüklenen kanıt dosyası yok.</div>
+          <div class="dof-detail-empty-note">Yüklenen dosya yok.</div>
         {% endif %}
       </section>
 

@@ -36,6 +36,7 @@ from .models import (
     DOF_SOURCES,
     Dof,
     DofComment,
+    DofFile,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -57,6 +58,7 @@ ALLOWED_EXTENSIONS = {
     "webp",
 }
 DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
+DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 
 
@@ -80,6 +82,7 @@ def load_logged_in_user():
         g.current_user_initials = user_initials(g.current_user)
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
+        ensure_dof_files_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -157,6 +160,36 @@ def ensure_dof_rejection_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("DÖF red/revizyon şeması kontrol edilemedi.")
+
+
+def ensure_dof_files_schema():
+    if current_app.extensions.get("dof_files_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        if "dofs" in tables and "dof_files" not in tables:
+            with db.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE dof_files (
+                            id INTEGER PRIMARY KEY,
+                            dof_id INTEGER NOT NULL,
+                            original_name VARCHAR(255) NOT NULL,
+                            stored_name VARCHAR(255) NOT NULL,
+                            mime_type VARCHAR(120),
+                            file_type VARCHAR(40) NOT NULL DEFAULT 'opening',
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+        current_app.extensions["dof_files_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("DÖF dosya şeması kontrol edilemedi.")
 
 
 def login_required(view):
@@ -514,6 +547,54 @@ def validate_dof_evidence_file(uploaded_file):
         raise ValueError("invalid_dof_file_type")
 
 
+def validate_dof_opening_file(uploaded_file):
+    if "." not in uploaded_file.filename:
+        raise ValueError("invalid_dof_opening_file_type")
+    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    if extension not in DOF_OPENING_FILE_EXTENSIONS:
+        raise ValueError("invalid_dof_opening_file_type")
+
+
+def dof_opening_file_uploads():
+    uploaded_files = request.files.getlist("opening_files")
+    return [uploaded_file for uploaded_file in uploaded_files if uploaded_file.filename]
+
+
+def save_dof_opening_files(dof):
+    uploaded_files = dof_opening_file_uploads()
+    if not uploaded_files:
+        return
+
+    for uploaded_file in uploaded_files:
+        validate_dof_opening_file(uploaded_file)
+
+    saved_paths = []
+    try:
+        for uploaded_file in uploaded_files:
+            safe_name = secure_filename(uploaded_file.filename) or "dof-gorsel"
+            extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+            stored_name = f"dof-opening-{uuid4().hex}.{extension}"
+            upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+            uploaded_file.save(upload_path)
+            saved_paths.append(upload_path)
+            if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
+                raise ValueError("dof_opening_file_too_large")
+            db.session.add(
+                DofFile(
+                    dof=dof,
+                    original_name=safe_name,
+                    stored_name=stored_name,
+                    mime_type=uploaded_file.mimetype,
+                    file_type="opening",
+                )
+            )
+    except ValueError:
+        for saved_path in saved_paths:
+            if saved_path.exists():
+                saved_path.unlink()
+        raise
+
+
 def save_dof_evidence_file(dof):
     uploaded_file = request.files.get("evidence_file")
     if not uploaded_file or not uploaded_file.filename:
@@ -535,6 +616,12 @@ def save_dof_evidence_file(dof):
 
 
 def delete_dof_evidence_file(dof):
+    for dof_file in list(dof.files):
+        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / dof_file.stored_name
+        if file_path.exists():
+            file_path.unlink()
+        db.session.delete(dof_file)
+
     if dof.evidence_stored_name:
         file_path = Path(current_app.config["UPLOAD_FOLDER"]) / dof.evidence_stored_name
         if file_path.exists():
@@ -1211,14 +1298,12 @@ def parse_dof_form(dof=None, save_mode="open"):
     root_cause_analysis = request.form.get("root_cause_analysis", "").strip()
     corrective_action = request.form.get("corrective_action", "").strip()
     preventive_action = request.form.get("preventive_action", "").strip()
-    closing_evidence = request.form.get("closing_evidence", "").strip()
 
     for text_value in (
         nonconformity_description,
         root_cause_analysis,
         corrective_action,
         preventive_action,
-        closing_evidence,
     ):
         if len(text_value) > 2000:
             raise ValueError("text_too_long")
@@ -1252,7 +1337,6 @@ def parse_dof_form(dof=None, save_mode="open"):
     dof.root_cause_analysis = root_cause_analysis or None
     dof.corrective_action = corrective_action or None
     dof.preventive_action = preventive_action or None
-    dof.closing_evidence = closing_evidence or None
     if is_draft:
         dof.status = "Taslak"
         dof.approval_step = "draft"
@@ -1264,7 +1348,6 @@ def parse_dof_form(dof=None, save_mode="open"):
             dof.management_approved_at = datetime.utcnow()
         else:
             dof.approval_step = "management_representative"
-    save_dof_evidence_file(dof)
     return dof
 
 
@@ -1730,6 +1813,7 @@ def create_dof():
             dof.created_by_user_id = g.current_user.id
             db.session.add(dof)
             db.session.flush()
+            save_dof_opening_files(dof)
             if save_mode != "draft":
                 notify_dof_users(
                     [dof.responsible],
@@ -1745,11 +1829,16 @@ def create_dof():
             )
             return redirect(url_for("main.dof_management"))
         except ValueError as error:
+            db.session.rollback()
             error_key = str(error)
             if error_key == "invalid_dof_file_type":
                 flash("Kapanış kanıtı için sadece PDF, JPG veya PNG yükleyebilirsiniz.", "danger")
             elif error_key == "dof_file_too_large":
                 flash("Kapanış kanıtı dosyası en fazla 10 MB olabilir.", "danger")
+            elif error_key == "invalid_dof_opening_file_type":
+                flash("Uygunsuzluk görselleri için sadece JPG, PNG veya WEBP yükleyebilirsiniz.", "danger")
+            elif error_key == "dof_opening_file_too_large":
+                flash("Uygunsuzluk görsellerinin her biri en fazla 10 MB olabilir.", "danger")
             elif error_key == "required_fields":
                 flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
             elif error_key == "text_too_long":
@@ -1986,6 +2075,22 @@ def download_dof_evidence_file(dof_id):
         dof.evidence_stored_name,
         as_attachment=True,
         download_name=dof.evidence_original_name,
+    )
+
+
+@bp.get("/dofs/<int:dof_id>/files/<int:file_id>/download")
+@login_required
+def download_dof_file(dof_id, file_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
+
+    dof_file = DofFile.query.filter_by(id=file_id, dof_id=dof.id).first_or_404()
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        dof_file.stored_name,
+        as_attachment=True,
+        download_name=dof_file.original_name,
     )
 
 

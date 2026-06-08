@@ -160,7 +160,12 @@
               <td data-label="Durum" title="{{ dof.display_status }}">{{ dof_status_badge(dof) }}</td>
               <td data-label="Gecikme günü">{{ dof.delay_days }}</td>
               <td data-label="Kanıt">
-                {% if dof.evidence_original_name %}
+                {% if dof.files %}
+                  <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
+                    <i class="bi bi-images"></i>
+                    <span>{{ dof.files|length }} görsel</span>
+                  </a>
+                {% elif dof.evidence_original_name %}
                   <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_dof_evidence_file', dof_id=dof.id) }}">
                     <i class="bi bi-download"></i>
                     <span>İndir</span>

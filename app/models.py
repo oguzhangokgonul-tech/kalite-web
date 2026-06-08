@@ -270,6 +270,26 @@ class Dof(db.Model):
         cascade="all, delete-orphan",
         order_by="DofComment.created_at.asc()",
     )
+    files = db.relationship(
+        "DofFile",
+        back_populates="dof",
+        cascade="all, delete-orphan",
+        order_by="DofFile.created_at.asc()",
+    )
+
+
+class DofFile(db.Model):
+    __tablename__ = "dof_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False)
+    mime_type = db.Column(db.String(120), nullable=True)
+    file_type = db.Column(db.String(40), nullable=False, default="opening")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    dof = db.relationship("Dof", back_populates="files")
 
 
 class DofComment(db.Model):
