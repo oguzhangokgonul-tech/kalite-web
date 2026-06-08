@@ -9,6 +9,7 @@ DEPARTMENTS = (
     "Üretim",
     "Kalite",
     "Kalite Yönetim",
+    "Kalite Yönetim Departmanı",
     "Yönetim",
     "Bakım",
     "Finans",
@@ -349,6 +350,7 @@ class InternalAuditQuestion(db.Model):
     question_text = db.Column(db.Text, nullable=False)
     evaluated_department = db.Column(db.String(80), nullable=True)
     answer_options = db.Column(db.Text, nullable=True)
+    expected_answer = db.Column(db.Text, nullable=True)
     is_required = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 

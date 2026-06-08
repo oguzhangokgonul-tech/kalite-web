@@ -95,12 +95,8 @@
               </div>
               <div>
                 <label class="form-label">Değerlendirilecek Departman</label>
-                <select class="form-select" name="evaluated_department_{{ loop.index }}">
-                  <option value="">Seçiniz</option>
-                  {% for department in departments %}
-                    <option value="{{ department }}" {% if question.get('evaluated_department') == department %}selected{% endif %}>{{ department }}</option>
-                  {% endfor %}
-                </select>
+                <input type="hidden" name="evaluated_department_{{ loop.index }}" value="{{ locked_department }}">
+                <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
               </div>
               <div>
                 <label class="form-label">Cevap Seçenekleri</label>
@@ -109,6 +105,11 @@
               <div class="audit-builder-question-text">
                 <label class="form-label">Soru</label>
                 <textarea class="form-control" name="question_text_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın...">{{ question.get('question_text', '') }}</textarea>
+              </div>
+              <div class="audit-builder-question-text">
+                <label class="form-label">Beklenen Cevap</label>
+                <textarea class="form-control" name="expected_answer_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Karşı taraftan duymak istediğiniz cevabı yazın...">{{ question.get('expected_answer', '') }}</textarea>
+                <div class="form-text">Bu not sadece Oğuzhan hesabında soru altında görünür.</div>
               </div>
             </div>
           </article>
@@ -144,12 +145,8 @@
         </div>
         <div>
           <label class="form-label">Değerlendirilecek Departman</label>
-          <select class="form-select" name="evaluated_department___INDEX__">
-            <option value="">Seçiniz</option>
-            {% for department in departments %}
-              <option value="{{ department }}">{{ department }}</option>
-            {% endfor %}
-          </select>
+          <input type="hidden" name="evaluated_department___INDEX__" value="{{ locked_department }}">
+          <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
         </div>
         <div>
           <label class="form-label">Cevap Seçenekleri</label>
@@ -158,6 +155,11 @@
         <div class="audit-builder-question-text">
           <label class="form-label">Soru</label>
           <textarea class="form-control" name="question_text___INDEX__" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın..."></textarea>
+        </div>
+        <div class="audit-builder-question-text">
+          <label class="form-label">Beklenen Cevap</label>
+          <textarea class="form-control" name="expected_answer___INDEX__" rows="3" maxlength="2000" placeholder="Karşı taraftan duymak istediğiniz cevabı yazın..."></textarea>
+          <div class="form-text">Bu not sadece Oğuzhan hesabında soru altında görünür.</div>
         </div>
       </div>
     </article>

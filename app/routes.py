@@ -73,6 +73,7 @@ INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS = {"Hayır", "Kısmen"}
 DEFAULT_INTERNAL_AUDIT_OPTION_TEXT = ", ".join(
     value for value, _label, _tone in INTERNAL_AUDIT_RESULTS
 )
+INTERNAL_AUDIT_LOCKED_DEPARTMENT = "Kalite Yönetim Departmanı"
 
 
 @bp.app_errorhandler(403)
@@ -247,6 +248,7 @@ def ensure_internal_audit_schema():
                             question_text TEXT NOT NULL,
                             evaluated_department VARCHAR(80),
                             answer_options TEXT,
+                            expected_answer TEXT,
                             is_required BOOLEAN NOT NULL DEFAULT 1,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                         )
@@ -264,6 +266,13 @@ def ensure_internal_audit_schema():
                         text(
                             "ALTER TABLE internal_audit_questions "
                             "ADD COLUMN answer_options TEXT"
+                        )
+                    )
+                if "expected_answer" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE internal_audit_questions "
+                            "ADD COLUMN expected_answer TEXT"
                         )
                     )
 
@@ -667,6 +676,21 @@ def can_create_internal_audit():
     return is_oguzhan_admin()
 
 
+def can_delete_internal_audit(audit=None):
+    return is_oguzhan_admin()
+
+
+def visible_internal_audits():
+    query = InternalAudit.query
+    if not (
+        is_oguzhan_admin()
+        or g.current_user.can_manage_users
+        or can_view_all_dofs()
+    ):
+        query = query.filter(InternalAudit.auditor_id == g.current_user.id)
+    return query.order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc()).all()
+
+
 def internal_audit_option_meta(value):
     if value in INTERNAL_AUDIT_RESULT_MAP:
         return INTERNAL_AUDIT_RESULT_MAP[value]
@@ -753,7 +777,8 @@ def parse_internal_audit_builder_form():
         standard = request.form.get(f"standard_{index}", "").strip()
         audit_topic = request.form.get(f"audit_topic_{index}", "").strip()
         question_text = request.form.get(f"question_text_{index}", "").strip()
-        evaluated_department = request.form.get(f"evaluated_department_{index}", "").strip()
+        expected_answer = request.form.get(f"expected_answer_{index}", "").strip()
+        evaluated_department = INTERNAL_AUDIT_LOCKED_DEPARTMENT
         answer_options_raw = request.form.get(f"answer_options_{index}", "").strip()
         is_required = request.form.get(f"is_required_{index}") == "on"
 
@@ -762,18 +787,18 @@ def parse_internal_audit_builder_form():
                 standard,
                 audit_topic,
                 question_text,
-                evaluated_department,
+                expected_answer,
                 answer_options_raw,
             ]
         )
         if not has_any_value:
             continue
-        if not standard or not audit_topic or not question_text or not evaluated_department:
+        if not standard or not audit_topic or not question_text:
             raise ValueError("question_required_fields")
-        if evaluated_department not in DEPARTMENTS:
-            raise ValueError("invalid_department")
         if len(question_text) > 2000:
             raise ValueError("question_too_long")
+        if len(expected_answer) > 2000:
+            raise ValueError("expected_answer_too_long")
 
         answer_options = internal_audit_options_from_text(answer_options_raw)
         if not answer_options:
@@ -788,6 +813,7 @@ def parse_internal_audit_builder_form():
                 "question_text": question_text,
                 "evaluated_department": evaluated_department,
                 "answer_options": answer_options,
+                "expected_answer": expected_answer or None,
                 "is_required": is_required,
             }
         )
@@ -804,8 +830,9 @@ def internal_audit_builder_blank_questions():
             "standard": "ISO 9001:2015 - Kalite Yönetim Sistemi",
             "audit_topic": "",
             "question_text": "",
-            "evaluated_department": "",
+            "evaluated_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
             "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
+            "expected_answer": "",
             "is_required": True,
         }
     ]
@@ -831,7 +858,8 @@ def create_internal_audit_for_current_user():
                 standard=item["standard"],
                 audit_topic=item["audit_topic"],
                 question_text=item["question_text"],
-                evaluated_department=item.get("evaluated_department"),
+                evaluated_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
+                expected_answer=item.get("expected_answer"),
                 is_required=item.get("is_required", True),
             )
         )
@@ -860,7 +888,8 @@ def current_internal_audit():
                     standard=item["standard"],
                     audit_topic=item["audit_topic"],
                     question_text=item["question_text"],
-                    evaluated_department=item.get("evaluated_department"),
+                    evaluated_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
+                    expected_answer=item.get("expected_answer"),
                     is_required=item.get("is_required", True),
                 )
             )
@@ -973,8 +1002,7 @@ def internal_audit_history_items(audit, active_question):
 def internal_audit_previous_nonconformities(question, selected_dof_id=None):
     query = Dof.query.filter(Dof.source == "İç Denetim")
     conditions = []
-    if question.evaluated_department:
-        conditions.append(Dof.department == question.evaluated_department)
+    conditions.append(Dof.department == INTERNAL_AUDIT_LOCKED_DEPARTMENT)
     if question.standard:
         conditions.append(Dof.nonconformity_description.ilike(f"%{question.standard}%"))
     if question.audit_topic:
@@ -1001,11 +1029,7 @@ def internal_audit_previous_nonconformities(question, selected_dof_id=None):
 
 
 def parse_internal_audit_answer_form(audit, question, is_draft=False):
-    evaluated_department = (
-        request.form.get("evaluated_department", "").strip()
-        or question.evaluated_department
-        or ""
-    )
+    evaluated_department = INTERNAL_AUDIT_LOCKED_DEPARTMENT
     result = request.form.get("result", "").strip()
     technical_findings = request.form.get("technical_findings", "").strip()
     previous_nonconformity_id = request.form.get("previous_nonconformity_id", "").strip()
@@ -2355,7 +2379,10 @@ def internal_audit_question_context(audit, question):
         "result_choices": internal_audit_question_result_choices(question),
         "result_map": internal_audit_question_result_map(question),
         "departments": DEPARTMENTS,
+        "locked_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
         "history_items": internal_audit_history_items(audit, question),
+        "available_audits": visible_internal_audits(),
+        "can_delete_internal_audit": can_delete_internal_audit(),
         "previous_nonconformities": internal_audit_previous_nonconformities(
             question,
             selected_previous_dof_id,
@@ -2438,13 +2465,14 @@ def create_internal_audit():
                     "standard": request.form.get(f"standard_{index}", "").strip(),
                     "audit_topic": request.form.get(f"audit_topic_{index}", "").strip(),
                     "question_text": request.form.get(f"question_text_{index}", "").strip(),
-                    "evaluated_department": request.form.get(
-                        f"evaluated_department_{index}",
-                        "",
-                    ).strip(),
+                    "evaluated_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
                     "answer_options": request.form.get(
                         f"answer_options_{index}",
                         DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
+                    ).strip(),
+                    "expected_answer": request.form.get(
+                        f"expected_answer_{index}",
+                        "",
                     ).strip(),
                     "is_required": request.form.get(f"is_required_{index}") == "on",
                 }
@@ -2456,11 +2484,13 @@ def create_internal_audit():
         except ValueError as error:
             error_key = str(error)
             if error_key == "question_required_fields":
-                flash("Her soru için standart, tetkik konusu, soru ve departman alanlarını doldurun.", "danger")
+                flash("Her soru için standart, tetkik konusu ve soru alanlarını doldurun.", "danger")
             elif error_key == "invalid_department":
                 flash("Sorulardaki departman alanlarından biri geçerli değil.", "danger")
             elif error_key == "question_too_long":
                 flash("Soru metni en fazla 2000 karakter olabilir.", "danger")
+            elif error_key == "expected_answer_too_long":
+                flash("Beklenen cevap en fazla 2000 karakter olabilir.", "danger")
             elif error_key == "not_enough_answer_options":
                 flash("Her soru için en az iki cevap seçeneği girin.", "danger")
             elif error_key == "no_questions":
@@ -2492,6 +2522,7 @@ def create_internal_audit():
                             question["answer_options"],
                             ensure_ascii=False,
                         ),
+                        expected_answer=question["expected_answer"],
                         is_required=question["is_required"],
                     )
                 )
@@ -2512,9 +2543,24 @@ def create_internal_audit():
         form_data=form_data,
         questions=questions,
         departments=DEPARTMENTS,
+        locked_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
         default_answer_options=DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
         today=date.today().isoformat(),
     )
+
+
+@bp.post("/ic-denetim/<int:audit_id>/sil")
+@login_required
+def delete_internal_audit(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_delete_internal_audit(audit):
+        abort(403)
+
+    deleted_audit_no = audit.audit_no
+    db.session.delete(audit)
+    db.session.commit()
+    flash(f"{deleted_audit_no} numaralı iç denetim silindi.", "success")
+    return redirect(url_for("main.internal_audit"))
 
 
 @bp.get("/ic-denetim/<int:audit_id>/soru/<int:question_id>")

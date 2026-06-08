@@ -4,7 +4,7 @@
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% set current_result = answer.result if answer else "" %}
-{% set current_department = answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department %}
+{% set current_department = locked_department %}
 
 {% block app_content %}
   <div class="dashboard-page-heading audit-flow-heading">
@@ -19,10 +19,40 @@
           <span>İç Denetim oluştur</span>
         </a>
       {% endif %}
-      <span class="audit-flow-audit-no">
-        <i class="bi bi-clipboard-check"></i>
-        {{ audit.audit_no }}
-      </span>
+      <div class="dropdown audit-selector">
+        <button class="audit-selector-button dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-clipboard-check"></i>
+          <span>{{ audit.audit_no }}</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end audit-selector-menu">
+          <div class="audit-selector-title">Açılmış İç Denetimler</div>
+          {% for audit_item in available_audits %}
+            {% set first_question = audit_item.questions|first %}
+            <div class="audit-selector-row {% if audit_item.id == audit.id %}is-active{% endif %}">
+              {% if first_question %}
+                <a class="audit-selector-link" href="{{ url_for('main.internal_audit_question', audit_id=audit_item.id, question_id=first_question.id) }}">
+                  <strong>{{ audit_item.audit_no }}</strong>
+                  <span>{{ audit_item.title }}</span>
+                </a>
+              {% else %}
+                <span class="audit-selector-link">
+                  <strong>{{ audit_item.audit_no }}</strong>
+                  <span>Soru listesi bulunamadı</span>
+                </span>
+              {% endif %}
+              {% if can_delete_internal_audit %}
+                <form method="post" action="{{ url_for('main.delete_internal_audit', audit_id=audit_item.id) }}" onsubmit="return confirm('{{ audit_item.audit_no }} numaralı iç denetim silinsin mi?');">
+                  <button class="audit-selector-delete" type="submit" aria-label="{{ audit_item.audit_no }} sil">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="audit-selector-empty">Henüz iç denetim yok.</div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
 
@@ -72,45 +102,39 @@
 
         <section class="audit-current-question">
           <span class="audit-question-icon"><i class="bi bi-question-lg"></i></span>
-          <h3>{{ question.question_text }}</h3>
+          <div class="audit-current-question-body">
+            <h3>{{ question.question_text }}</h3>
+            {% if can_create_internal_audit and question.expected_answer %}
+              <div class="audit-expected-answer">
+                <strong>Beklenen Cevap</strong>
+                <p>{{ question.expected_answer }}</p>
+              </div>
+            {% endif %}
 
-          <div class="audit-answer-options" role="radiogroup" aria-label="Cevap seçenekleri">
-            <span class="audit-answer-label">Cevap Seçenekleri</span>
-            {% for value, label, tone in result_choices %}
-              <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
-                <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if value|lower in ['hayır', 'kısmen'] or 'uygunsuz' in value|lower or 'kısmen' in value|lower %}true{% else %}false{% endif %}">
-                <span></span>
-                <strong>{{ value }}</strong>
-              </label>
-            {% endfor %}
+            <div class="audit-answer-options" role="radiogroup" aria-label="Cevap seçenekleri">
+              <span class="audit-answer-label">Cevap Seçenekleri</span>
+              {% for value, label, tone in result_choices %}
+                <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
+                  <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if value|lower in ['hayır', 'kısmen'] or 'uygunsuz' in value|lower or 'kısmen' in value|lower %}true{% else %}false{% endif %}">
+                  <span></span>
+                  <strong>{{ value }}</strong>
+                </label>
+              {% endfor %}
+            </div>
           </div>
         </section>
 
         <div class="audit-detail-grid">
           <div>
             <label class="form-label" for="evaluated_department">Değerlendirilecek Departman</label>
-            <select class="form-select" id="evaluated_department" name="evaluated_department">
-              <option value="">Departman seçiniz...</option>
-              {% for department in departments %}
-                <option value="{{ department }}" {% if current_department == department %}selected{% endif %}>{{ department }}</option>
-              {% endfor %}
-            </select>
+            <input type="hidden" name="evaluated_department" value="{{ current_department }}">
+            <input class="form-control audit-locked-field" id="evaluated_department" value="{{ current_department }}" disabled>
           </div>
 
           <div class="audit-textarea-field">
             <label class="form-label" for="technical_findings">Teknik Bulgular</label>
             <textarea class="form-control" id="technical_findings" name="technical_findings" rows="4" maxlength="1000" data-audit-count placeholder="Gözlemler, kanıtlar ve teknik bulguları giriniz...">{{ answer.technical_findings if answer else "" }}</textarea>
             <div class="audit-counter"><span data-audit-counter>0 / 1000</span></div>
-          </div>
-
-          <div>
-            <label class="form-label" for="audit_result_summary">Sonuç</label>
-            <select class="form-select" id="audit_result_summary" disabled data-audit-result-summary>
-              <option value="">Sonuç seçiniz...</option>
-              {% for value, label, tone in result_choices %}
-                <option value="{{ value }}" {% if current_result == value %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
           </div>
 
           <div>
@@ -207,7 +231,6 @@
       const textarea = document.querySelector("[data-audit-count]");
       const counter = document.querySelector("[data-audit-counter]");
       const radios = document.querySelectorAll("[data-audit-result-radio]");
-      const summary = document.querySelector("[data-audit-result-summary]");
       const nonconformityButton = document.querySelector(".audit-nonconformity-button");
 
       function updateCounter() {
@@ -221,9 +244,6 @@
         document.querySelectorAll(".audit-answer-option").forEach((option) => {
           option.classList.toggle("is-selected", option.querySelector("input")?.checked);
         });
-        if (summary && selected) {
-          summary.value = selected.value;
-        }
         if (nonconformityButton) {
           nonconformityButton.classList.toggle("is-urgent", selected?.dataset.auditRequiresFinding === "true");
         }
