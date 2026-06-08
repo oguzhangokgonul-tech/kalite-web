@@ -96,6 +96,7 @@ def load_logged_in_user():
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
+        ensure_internal_audit_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -203,6 +204,98 @@ def ensure_dof_files_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("DÖF dosya şeması kontrol edilemedi.")
+
+
+def ensure_internal_audit_schema():
+    if current_app.extensions.get("internal_audit_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "internal_audits" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE internal_audits (
+                            id INTEGER PRIMARY KEY,
+                            audit_no VARCHAR(30) NOT NULL UNIQUE,
+                            title VARCHAR(160) NOT NULL,
+                            auditor_id INTEGER,
+                            planned_date DATE,
+                            status VARCHAR(40) NOT NULL DEFAULT 'Devam Ediyor',
+                            active_question_order INTEGER NOT NULL DEFAULT 1,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                tables.add("internal_audits")
+
+            if "internal_audit_questions" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE internal_audit_questions (
+                            id INTEGER PRIMARY KEY,
+                            audit_id INTEGER NOT NULL,
+                            order_no INTEGER NOT NULL,
+                            standard VARCHAR(160) NOT NULL,
+                            audit_topic VARCHAR(200) NOT NULL,
+                            question_text TEXT NOT NULL,
+                            evaluated_department VARCHAR(80),
+                            answer_options TEXT,
+                            is_required BOOLEAN NOT NULL DEFAULT 1,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                tables.add("internal_audit_questions")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("internal_audit_questions")
+                }
+                if "answer_options" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE internal_audit_questions "
+                            "ADD COLUMN answer_options TEXT"
+                        )
+                    )
+
+            if "internal_audit_answers" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE internal_audit_answers (
+                            id INTEGER PRIMARY KEY,
+                            audit_id INTEGER NOT NULL,
+                            question_id INTEGER NOT NULL,
+                            standard VARCHAR(160) NOT NULL,
+                            audit_topic VARCHAR(200) NOT NULL,
+                            question_text TEXT NOT NULL,
+                            evaluated_department VARCHAR(80),
+                            technical_findings TEXT,
+                            result VARCHAR(40),
+                            previous_nonconformity_id INTEGER,
+                            dof_id INTEGER,
+                            answered_by_user_id INTEGER,
+                            answered_at DATETIME,
+                            is_draft BOOLEAN NOT NULL DEFAULT 1,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+        current_app.extensions["internal_audit_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("İç denetim şeması kontrol edilemedi.")
 
 
 def login_required(view):
