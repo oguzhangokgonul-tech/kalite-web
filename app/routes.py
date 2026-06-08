@@ -24,7 +24,7 @@ from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import OperationalError
 
 from .extensions import db
-from .internal_audit_data import INTERNAL_AUDIT_QUESTION_BANK, INTERNAL_AUDIT_RESULTS
+from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import send_action_notification_email, send_dof_notification_email
 from .models import (
     Action,
@@ -661,15 +661,7 @@ def reserve_internal_audit_number(today=None):
 
 
 def can_view_internal_audit(audit):
-    return (
-        g.current_user is not None
-        and (
-            audit.auditor_id == g.current_user.id
-            or is_oguzhan_admin()
-            or g.current_user.can_manage_users
-            or can_view_all_dofs()
-        )
-    )
+    return is_oguzhan_admin()
 
 
 def can_create_internal_audit():
@@ -682,12 +674,8 @@ def can_delete_internal_audit(audit=None):
 
 def visible_internal_audits():
     query = InternalAudit.query
-    if not (
-        is_oguzhan_admin()
-        or g.current_user.can_manage_users
-        or can_view_all_dofs()
-    ):
-        query = query.filter(InternalAudit.auditor_id == g.current_user.id)
+    if not is_oguzhan_admin():
+        query = query.filter(InternalAudit.id == 0)
     return query.order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc()).all()
 
 
@@ -838,63 +826,42 @@ def internal_audit_builder_blank_questions():
     ]
 
 
-def create_internal_audit_for_current_user():
-    audit = InternalAudit(
-        audit_no=reserve_internal_audit_number(),
-        title=f"{date.today().year} İç Denetim",
-        auditor_id=g.current_user.id,
-        planned_date=date.today(),
-        status="Devam Ediyor",
-        active_question_order=1,
+def internal_audit_open_question(audit):
+    if not audit.questions:
+        return None
+    return (
+        internal_audit_question_by_order(audit, audit.active_question_order or 1)
+        or internal_audit_question_by_order(audit, 1)
+        or audit.questions[0]
     )
-    db.session.add(audit)
-    db.session.flush()
-
-    for order_no, item in enumerate(INTERNAL_AUDIT_QUESTION_BANK, start=1):
-        db.session.add(
-            InternalAuditQuestion(
-                audit=audit,
-                order_no=order_no,
-                standard=item["standard"],
-                audit_topic=item["audit_topic"],
-                question_text=item["question_text"],
-                evaluated_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
-                expected_answer=item.get("expected_answer"),
-                is_required=item.get("is_required", True),
-            )
-        )
-
-    db.session.commit()
-    return audit
 
 
-def current_internal_audit():
-    audit = (
-        InternalAudit.query.filter(
-            InternalAudit.auditor_id == g.current_user.id,
-            InternalAudit.status != "Tamamlandı",
-        )
-        .order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc())
-        .first()
-    )
-    if audit is None:
-        audit = create_internal_audit_for_current_user()
-    elif not audit.questions:
-        for order_no, item in enumerate(INTERNAL_AUDIT_QUESTION_BANK, start=1):
-            db.session.add(
-                InternalAuditQuestion(
-                    audit=audit,
-                    order_no=order_no,
-                    standard=item["standard"],
-                    audit_topic=item["audit_topic"],
-                    question_text=item["question_text"],
-                    evaluated_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
-                    expected_answer=item.get("expected_answer"),
-                    is_required=item.get("is_required", True),
-                )
-            )
-        db.session.commit()
-    return audit
+def internal_audit_dashboard_context():
+    if not is_oguzhan_admin():
+        return {
+            "can_access_internal_audit": False,
+            "audits": [],
+            "total_count": 0,
+            "active_count": 0,
+            "completed_count": 0,
+            "empty_question_count": 0,
+            "open_question_for_audit": internal_audit_open_question,
+            "progress_for_audit": internal_audit_progress,
+            "can_delete_internal_audit": False,
+        }
+
+    audits = visible_internal_audits()
+    return {
+        "can_access_internal_audit": True,
+        "audits": audits,
+        "total_count": len(audits),
+        "active_count": sum(1 for audit in audits if audit.status != "Tamamlandı"),
+        "completed_count": sum(1 for audit in audits if audit.status == "Tamamlandı"),
+        "empty_question_count": sum(1 for audit in audits if not audit.questions),
+        "open_question_for_audit": internal_audit_open_question,
+        "progress_for_audit": internal_audit_progress,
+        "can_delete_internal_audit": can_delete_internal_audit(),
+    }
 
 
 def internal_audit_answer_for_question(audit, question):
@@ -2430,20 +2397,9 @@ def dof_management():
 @bp.route("/ic-denetim")
 @login_required
 def internal_audit():
-    audit = current_internal_audit()
-    question = internal_audit_question_by_order(
-        audit,
-        audit.active_question_order or 1,
-    ) or internal_audit_question_by_order(audit, 1)
-    if question is None:
-        flash("İç denetim soru listesi oluşturulamadı.", "danger")
-        return redirect(url_for("main.dashboard"))
-    return redirect(
-        url_for(
-            "main.internal_audit_question",
-            audit_id=audit.id,
-            question_id=question.id,
-        )
+    return render_template(
+        "internal_audit_dashboard.html",
+        **internal_audit_dashboard_context(),
     )
 
 

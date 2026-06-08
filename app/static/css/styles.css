@@ -816,6 +816,10 @@ body {
     color: #f59f00;
 }
 
+.stat-info {
+    color: #0d6efd;
+}
+
 .stat-danger {
     color: #dc3545;
 }
@@ -830,6 +834,10 @@ body {
 
 .stat-warning .stat-icon {
     background: #fff3cd;
+}
+
+.stat-info .stat-icon {
+    background: #eef5ff;
 }
 
 .stat-danger .stat-icon {
@@ -1877,6 +1885,75 @@ body {
     padding: 14px 10px;
     color: #64748b;
     font-size: 0.9rem;
+}
+
+.audit-access-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.audit-access-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    color: #0d6efd;
+    background: #eef5ff;
+    border-radius: 8px;
+    font-size: 1.5rem;
+}
+
+.audit-access-card h3 {
+    margin: 0 0 4px;
+    color: #111827;
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.audit-access-card p {
+    margin: 0;
+    color: #64748b;
+}
+
+.audit-dashboard-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.audit-dashboard-table .dashboard-row-actions form {
+    margin: 0;
+}
+
+.audit-dashboard-progress {
+    display: grid;
+    gap: 7px;
+    min-width: 120px;
+}
+
+.audit-dashboard-progress span {
+    color: #334155;
+    font-weight: 800;
+}
+
+.audit-dashboard-progress div {
+    height: 8px;
+    overflow: hidden;
+    background: #e8eef8;
+    border-radius: 999px;
+}
+
+.audit-dashboard-progress i {
+    display: block;
+    height: 100%;
+    background: #0d6efd;
+    border-radius: inherit;
 }
 
 .audit-progress-card,
@@ -3080,7 +3157,8 @@ body {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .dof-dashboard-metrics {
+    .dof-dashboard-metrics,
+    .audit-dashboard-metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -3303,6 +3381,7 @@ body {
 
     .dashboard-metrics,
     .dof-dashboard-metrics,
+    .audit-dashboard-metrics,
     .dashboard-filter-grid,
     .app-form-grid,
     .audit-question-fields,
@@ -3331,6 +3410,10 @@ body {
     .audit-current-question {
         grid-template-columns: 1fr;
         padding: 20px;
+    }
+
+    .audit-access-card {
+        grid-template-columns: 1fr;
     }
 
     .audit-answer-options {
