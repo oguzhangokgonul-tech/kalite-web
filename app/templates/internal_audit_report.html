@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ audit.audit_no }} İç Denetim Raporu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  </head>
+  <body class="audit-report-body">
+    <div class="audit-report-toolbar">
+      <a class="audit-report-toolbar-button" href="{{ url_for('main.internal_audit') }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>İç Denetim Yönetimi</span>
+      </a>
+      <button class="audit-report-toolbar-button is-primary" type="button" onclick="window.print()">
+        <i class="bi bi-printer"></i>
+        <span>Yazdır / PDF indir</span>
+      </button>
+    </div>
+
+    <main class="audit-report-page">
+      <header class="audit-report-cover">
+        <div>
+          <span class="audit-report-kicker">Er Prefabrik İç Denetim Raporu</span>
+          <h1>{{ audit.audit_no }}</h1>
+          <p>{{ audit.title }}</p>
+        </div>
+        <div class="audit-report-status">
+          <span>Durum</span>
+          <strong>{{ audit.status }}</strong>
+        </div>
+      </header>
+
+      <section class="audit-report-summary-grid">
+        <div>
+          <span>Planlanan Tarih</span>
+          <strong>{{ audit.planned_date.strftime("%d.%m.%Y") if audit.planned_date else "-" }}</strong>
+        </div>
+        <div>
+          <span>Oluşturan</span>
+          <strong>{{ audit.auditor.full_name if audit.auditor else "-" }}</strong>
+        </div>
+        <div>
+          <span>Değerlendiren Departman</span>
+          <strong>{{ locked_department }}</strong>
+        </div>
+        <div>
+          <span>Oluşturma Tarihi</span>
+          <strong>{{ audit.created_at.strftime("%d.%m.%Y %H:%M") if audit.created_at else "-" }}</strong>
+        </div>
+        <div>
+          <span>Toplam Soru</span>
+          <strong>{{ progress.total }}</strong>
+        </div>
+        <div>
+          <span>Tamamlanan Soru</span>
+          <strong>{{ progress.completed }}</strong>
+        </div>
+        <div>
+          <span>Kalan Soru</span>
+          <strong>{{ progress.remaining }}</strong>
+        </div>
+        <div>
+          <span>Hazırlanma Tarihi</span>
+          <strong>{{ report_generated_at.strftime("%d.%m.%Y %H:%M") }}</strong>
+        </div>
+      </section>
+
+      <section class="audit-report-section">
+        <div class="audit-report-section-head">
+          <h2>Sonuç Özeti</h2>
+          <span>{{ progress.completed }} / {{ progress.total }} soru tamamlandı</span>
+        </div>
+        <div class="audit-report-result-grid">
+          {% for result, count in result_counts.items() %}
+            <div>
+              <span>{{ result }}</span>
+              <strong>{{ count }}</strong>
+            </div>
+          {% else %}
+            <div>
+              <span>Henüz cevap yok</span>
+              <strong>0</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="audit-report-section">
+        <div class="audit-report-section-head">
+          <h2>Soru ve Bulgular</h2>
+          <span>{{ question_rows|length }} kayıt</span>
+        </div>
+
+        <div class="audit-report-question-list">
+          {% for row in question_rows %}
+            <article class="audit-report-question">
+              <div class="audit-report-question-title">
+                <span>{{ row.question.order_no }}</span>
+                <div>
+                  <h3>{{ row.question.question_text }}</h3>
+                  <p>{{ row.question.standard }} | {{ row.question.audit_topic }}</p>
+                </div>
+                <strong class="audit-report-result audit-tone-{{ row.tone }}">{{ row.result or "Bekliyor" }}</strong>
+              </div>
+
+              <dl class="audit-report-detail-grid">
+                <div>
+                  <dt>Değerlendirilen Departman</dt>
+                  <dd>{{ row.evaluated_department or "-" }}</dd>
+                </div>
+                <div>
+                  <dt>Değerlendiren Departman</dt>
+                  <dd>{{ row.evaluator_department or "-" }}</dd>
+                </div>
+                <div>
+                  <dt>Cevaplayan</dt>
+                  <dd>{{ row.answered_by.full_name if row.answered_by else "-" }}</dd>
+                </div>
+                <div>
+                  <dt>Cevap Tarihi</dt>
+                  <dd>{{ row.answered_at.strftime("%d.%m.%Y %H:%M") if row.answered_at else "-" }}</dd>
+                </div>
+              </dl>
+
+              {% if row.question.expected_answer %}
+                <div class="audit-report-note">
+                  <strong>Beklenen Cevap</strong>
+                  <p>{{ row.question.expected_answer }}</p>
+                </div>
+              {% endif %}
+
+              <div class="audit-report-note">
+                <strong>Teknik Bulgular</strong>
+                <p>{{ row.technical_findings or "Teknik bulgu girilmemiş." }}</p>
+              </div>
+
+              {% if row.previous_nonconformity or row.dof %}
+                <div class="audit-report-linked-records">
+                  {% if row.previous_nonconformity %}
+                    <span>Önceki Uygunsuzluk: {{ row.previous_nonconformity.dof_no }}</span>
+                  {% endif %}
+                  {% if row.dof %}
+                    <span>Açılan DÖF: {{ row.dof.dof_no }}</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </article>
+          {% else %}
+            <div class="audit-report-empty">Bu iç denetimde soru bulunmuyor.</div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="audit-report-signatures">
+        <div>
+          <span>Hazırlayan</span>
+          <strong>{{ prepared_by.full_name if prepared_by else "-" }}</strong>
+        </div>
+        <div>
+          <span>Yönetim Temsilcisi</span>
+          <strong>Ad / İmza</strong>
+        </div>
+        <div>
+          <span>Genel Müdür Yardımcısı</span>
+          <strong>Ad / İmza</strong>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

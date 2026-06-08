@@ -958,6 +958,55 @@ def internal_audit_dashboard_context():
     }
 
 
+def internal_audit_report_context(audit):
+    answers_by_question = internal_audit_answer_map(audit)
+    question_rows = []
+    result_counts = {}
+
+    for question in audit.questions:
+        answer = answers_by_question.get(question.id)
+        result = answer.result if answer and not answer.is_draft else ""
+        result_meta = internal_audit_result_meta(result, question)
+        if result:
+            result_counts[result] = result_counts.get(result, 0) + 1
+        question_rows.append(
+            {
+                "question": question,
+                "answer": answer,
+                "result": result,
+                "result_label": result_meta["label"],
+                "tone": result_meta["tone"],
+                "technical_findings": answer.technical_findings if answer else "",
+                "evaluated_department": (
+                    answer.evaluated_department
+                    if answer and answer.evaluated_department
+                    else question.evaluated_department
+                ),
+                "evaluator_department": (
+                    answer.evaluator_department
+                    if answer and answer.evaluator_department
+                    else question.evaluator_department
+                    or INTERNAL_AUDIT_LOCKED_DEPARTMENT
+                ),
+                "answered_by": answer.answered_by if answer else None,
+                "answered_at": answer.answered_at if answer else None,
+                "previous_nonconformity": answer.previous_nonconformity if answer else None,
+                "dof": answer.dof if answer else None,
+            }
+        )
+
+    progress = internal_audit_progress(audit)
+    return {
+        "audit": audit,
+        "question_rows": question_rows,
+        "progress": progress,
+        "result_counts": result_counts,
+        "report_generated_at": datetime.utcnow(),
+        "prepared_by": g.current_user,
+        "locked_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
+    }
+
+
 def internal_audit_answer_for_question(audit, question):
     return InternalAuditAnswer.query.filter_by(
         audit_id=audit.id,
@@ -2680,6 +2729,18 @@ def edit_internal_audit(audit_id):
         page_description=f"{audit.audit_no} numaralı iç denetimin sorularını ve bilgilerini güncelleyin.",
         submit_label="Değişiklikleri Kaydet",
         is_edit=True,
+    )
+
+
+@bp.get("/ic-denetim/<int:audit_id>/rapor")
+@login_required
+def internal_audit_report(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+    return render_template(
+        "internal_audit_report.html",
+        **internal_audit_report_context(audit),
     )
 
 
