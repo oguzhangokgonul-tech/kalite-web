@@ -306,6 +306,95 @@ class DofComment(db.Model):
     user = db.relationship("User")
 
 
+class InternalAudit(db.Model):
+    __tablename__ = "internal_audits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    audit_no = db.Column(db.String(30), nullable=False, unique=True)
+    title = db.Column(db.String(160), nullable=False, default="İç Denetim")
+    auditor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    planned_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Devam Ediyor")
+    active_question_order = db.Column(db.Integer, nullable=False, default=1)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    auditor = db.relationship("User")
+    questions = db.relationship(
+        "InternalAuditQuestion",
+        back_populates="audit",
+        cascade="all, delete-orphan",
+        order_by="InternalAuditQuestion.order_no.asc()",
+    )
+    answers = db.relationship(
+        "InternalAuditAnswer",
+        back_populates="audit",
+        cascade="all, delete-orphan",
+    )
+
+
+class InternalAuditQuestion(db.Model):
+    __tablename__ = "internal_audit_questions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    audit_id = db.Column(db.Integer, db.ForeignKey("internal_audits.id"), nullable=False)
+    order_no = db.Column(db.Integer, nullable=False)
+    standard = db.Column(db.String(160), nullable=False)
+    audit_topic = db.Column(db.String(200), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    evaluated_department = db.Column(db.String(80), nullable=True)
+    is_required = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    audit = db.relationship("InternalAudit", back_populates="questions")
+    answers = db.relationship(
+        "InternalAuditAnswer",
+        back_populates="question",
+        cascade="all, delete-orphan",
+    )
+
+
+class InternalAuditAnswer(db.Model):
+    __tablename__ = "internal_audit_answers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    audit_id = db.Column(db.Integer, db.ForeignKey("internal_audits.id"), nullable=False)
+    question_id = db.Column(
+        db.Integer,
+        db.ForeignKey("internal_audit_questions.id"),
+        nullable=False,
+    )
+    standard = db.Column(db.String(160), nullable=False)
+    audit_topic = db.Column(db.String(200), nullable=False)
+    question_text = db.Column(db.Text, nullable=False)
+    evaluated_department = db.Column(db.String(80), nullable=True)
+    technical_findings = db.Column(db.Text, nullable=True)
+    result = db.Column(db.String(40), nullable=True)
+    previous_nonconformity_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    answered_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    answered_at = db.Column(db.DateTime, nullable=True)
+    is_draft = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    audit = db.relationship("InternalAudit", back_populates="answers")
+    question = db.relationship("InternalAuditQuestion", back_populates="answers")
+    previous_nonconformity = db.relationship("Dof", foreign_keys=[previous_nonconformity_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    answered_by = db.relationship("User", foreign_keys=[answered_by_user_id])
+
+
 class ActionClosureFile(db.Model):
     __tablename__ = "action_closure_files"
 

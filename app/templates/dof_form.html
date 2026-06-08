@@ -35,6 +35,9 @@
 
   <div class="dof-layout">
     <form class="dof-form-card" id="dofForm" method="post" action="{{ url_for('main.create_dof') }}" enctype="multipart/form-data">
+      {% if form_data.get("internal_audit_answer_id") %}
+        <input type="hidden" name="internal_audit_answer_id" value="{{ form_data.get('internal_audit_answer_id') }}">
+      {% endif %}
       <div class="app-card-header">
         <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <div>

@@ -23,6 +23,7 @@ from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import OperationalError
 
 from .extensions import db
+from .internal_audit_data import INTERNAL_AUDIT_QUESTION_BANK, INTERNAL_AUDIT_RESULTS
 from .mail import send_action_notification_email, send_dof_notification_email
 from .models import (
     Action,
@@ -37,6 +38,9 @@ from .models import (
     Dof,
     DofComment,
     DofFile,
+    InternalAudit,
+    InternalAuditAnswer,
+    InternalAuditQuestion,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -60,6 +64,11 @@ ALLOWED_EXTENSIONS = {
 DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
 DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
+INTERNAL_AUDIT_RESULT_MAP = {
+    value: {"label": label, "tone": tone}
+    for value, label, tone in INTERNAL_AUDIT_RESULTS
+}
+INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS = {"Hayır", "Kısmen"}
 
 
 @bp.app_errorhandler(403)
@@ -513,6 +522,314 @@ def reserve_dof_number(today=None):
 
     setting.value = str(next_number + 1)
     return f"{prefix}{next_number:04d}"
+
+
+def reserve_internal_audit_number(today=None):
+    today = today or date.today()
+    year = today.year
+    prefix = f"ICD-{year}-"
+    existing_numbers = (
+        db.session.query(InternalAudit.audit_no)
+        .filter(InternalAudit.audit_no.like(f"{prefix}%"))
+        .all()
+    )
+    max_number = 0
+    for (audit_no,) in existing_numbers:
+        try:
+            max_number = max(max_number, int((audit_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+
+    setting_key = f"next_internal_audit_number_{year}"
+    setting = db.session.get(AppSetting, setting_key)
+    if setting is None:
+        setting = AppSetting(key=setting_key, value=str(max_number + 1))
+        db.session.add(setting)
+
+    next_number = int(setting.value)
+    if next_number <= max_number:
+        next_number = max_number + 1
+
+    setting.value = str(next_number + 1)
+    return f"{prefix}{next_number:04d}"
+
+
+def can_view_internal_audit(audit):
+    return (
+        g.current_user is not None
+        and (
+            audit.auditor_id == g.current_user.id
+            or is_oguzhan_admin()
+            or g.current_user.can_manage_users
+            or can_view_all_dofs()
+        )
+    )
+
+
+def create_internal_audit_for_current_user():
+    audit = InternalAudit(
+        audit_no=reserve_internal_audit_number(),
+        title=f"{date.today().year} İç Denetim",
+        auditor_id=g.current_user.id,
+        planned_date=date.today(),
+        status="Devam Ediyor",
+        active_question_order=1,
+    )
+    db.session.add(audit)
+    db.session.flush()
+
+    for order_no, item in enumerate(INTERNAL_AUDIT_QUESTION_BANK, start=1):
+        db.session.add(
+            InternalAuditQuestion(
+                audit=audit,
+                order_no=order_no,
+                standard=item["standard"],
+                audit_topic=item["audit_topic"],
+                question_text=item["question_text"],
+                evaluated_department=item.get("evaluated_department"),
+                is_required=item.get("is_required", True),
+            )
+        )
+
+    db.session.commit()
+    return audit
+
+
+def current_internal_audit():
+    audit = (
+        InternalAudit.query.filter(
+            InternalAudit.auditor_id == g.current_user.id,
+            InternalAudit.status != "Tamamlandı",
+        )
+        .order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc())
+        .first()
+    )
+    if audit is None:
+        audit = create_internal_audit_for_current_user()
+    elif not audit.questions:
+        for order_no, item in enumerate(INTERNAL_AUDIT_QUESTION_BANK, start=1):
+            db.session.add(
+                InternalAuditQuestion(
+                    audit=audit,
+                    order_no=order_no,
+                    standard=item["standard"],
+                    audit_topic=item["audit_topic"],
+                    question_text=item["question_text"],
+                    evaluated_department=item.get("evaluated_department"),
+                    is_required=item.get("is_required", True),
+                )
+            )
+        db.session.commit()
+    return audit
+
+
+def internal_audit_answer_for_question(audit, question):
+    return InternalAuditAnswer.query.filter_by(
+        audit_id=audit.id,
+        question_id=question.id,
+    ).first()
+
+
+def internal_audit_answer_map(audit):
+    return {
+        answer.question_id: answer
+        for answer in InternalAuditAnswer.query.filter_by(audit_id=audit.id).all()
+    }
+
+
+def completed_internal_audit_answers(audit):
+    return [
+        answer
+        for answer in audit.answers
+        if answer.result and not answer.is_draft
+    ]
+
+
+def internal_audit_progress(audit):
+    total = len(audit.questions)
+    completed = len(completed_internal_audit_answers(audit))
+    remaining = max(total - completed, 0)
+    percent = int((completed / total) * 100) if total else 0
+    return {
+        "total": total,
+        "completed": completed,
+        "remaining": remaining,
+        "percent": percent,
+    }
+
+
+def internal_audit_is_complete(audit):
+    required_question_ids = {question.id for question in audit.questions if question.is_required}
+    completed_question_ids = {
+        answer.question_id
+        for answer in completed_internal_audit_answers(audit)
+    }
+    return required_question_ids.issubset(completed_question_ids)
+
+
+def internal_audit_question_by_order(audit, order_no):
+    return InternalAuditQuestion.query.filter_by(
+        audit_id=audit.id,
+        order_no=order_no,
+    ).first()
+
+
+def internal_audit_next_order(audit, question):
+    total = len(audit.questions)
+    return min(question.order_no + 1, total) if total else question.order_no
+
+
+def internal_audit_previous_order(audit, question):
+    return max(question.order_no - 1, 1)
+
+
+def internal_audit_result_meta(result):
+    return INTERNAL_AUDIT_RESULT_MAP.get(
+        result,
+        {"label": result or "Bekliyor", "tone": "secondary"},
+    )
+
+
+def internal_audit_history_items(audit, active_question):
+    answers_by_question = internal_audit_answer_map(audit)
+    questions = list(audit.questions)
+    if not questions:
+        return []
+
+    active_index = max(active_question.order_no - 1, 0)
+    start = max(active_index - 4, 0)
+    end = min(start + 8, len(questions))
+    start = max(end - 8, 0)
+    items = []
+    for question in questions[start:end]:
+        answer = answers_by_question.get(question.id)
+        result = answer.result if answer and not answer.is_draft else None
+        result_meta = internal_audit_result_meta(result)
+        items.append(
+            {
+                "question": question,
+                "answer": answer,
+                "is_active": question.id == active_question.id,
+                "is_complete": bool(answer and answer.result and not answer.is_draft),
+                "result": result,
+                "result_label": result_meta["label"],
+                "tone": result_meta["tone"],
+                "date": answer.answered_at or answer.updated_at if answer else None,
+            }
+        )
+    return items
+
+
+def internal_audit_previous_nonconformities(question, selected_dof_id=None):
+    query = Dof.query.filter(Dof.source == "İç Denetim")
+    conditions = []
+    if question.evaluated_department:
+        conditions.append(Dof.department == question.evaluated_department)
+    if question.standard:
+        conditions.append(Dof.nonconformity_description.ilike(f"%{question.standard}%"))
+    if question.audit_topic:
+        topic_pattern = f"%{question.audit_topic}%"
+        conditions.append(
+            or_(
+                Dof.title.ilike(topic_pattern),
+                Dof.nonconformity_description.ilike(topic_pattern),
+            )
+        )
+    if conditions:
+        query = query.filter(or_(*conditions))
+
+    candidates = [
+        dof
+        for dof in query.order_by(Dof.created_at.desc(), Dof.id.desc()).limit(40).all()
+        if can_view_dof(dof)
+    ]
+    if selected_dof_id and all(dof.id != selected_dof_id for dof in candidates):
+        selected_dof = Dof.query.get(selected_dof_id)
+        if selected_dof and can_view_dof(selected_dof):
+            candidates.insert(0, selected_dof)
+    return candidates
+
+
+def parse_internal_audit_answer_form(audit, question, is_draft=False):
+    evaluated_department = (
+        request.form.get("evaluated_department", "").strip()
+        or question.evaluated_department
+        or ""
+    )
+    result = request.form.get("result", "").strip()
+    technical_findings = request.form.get("technical_findings", "").strip()
+    previous_nonconformity_id = request.form.get("previous_nonconformity_id", "").strip()
+
+    if len(technical_findings) > 1000:
+        raise ValueError("technical_findings_too_long")
+    if evaluated_department and evaluated_department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if result and result not in INTERNAL_AUDIT_RESULT_MAP:
+        raise ValueError("invalid_result")
+    if not is_draft and (
+        not question.standard
+        or not question.audit_topic
+        or not question.question_text
+        or not evaluated_department
+        or not result
+    ):
+        raise ValueError("required_fields")
+    if (
+        not is_draft
+        and result in INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS
+        and not technical_findings
+    ):
+        raise ValueError("technical_findings_required")
+
+    previous_dof = None
+    if previous_nonconformity_id:
+        try:
+            previous_dof_id = int(previous_nonconformity_id)
+        except ValueError:
+            raise ValueError("invalid_previous_nonconformity") from None
+        previous_dof = Dof.query.get(previous_dof_id)
+        if previous_dof is None or not can_view_dof(previous_dof):
+            raise ValueError("invalid_previous_nonconformity")
+
+    answer = internal_audit_answer_for_question(audit, question)
+    if answer is None:
+        answer = InternalAuditAnswer(audit=audit, question=question)
+        db.session.add(answer)
+
+    answer.standard = question.standard
+    answer.audit_topic = question.audit_topic
+    answer.question_text = question.question_text
+    answer.evaluated_department = evaluated_department
+    answer.technical_findings = technical_findings or None
+    answer.result = result or None
+    answer.previous_nonconformity_id = previous_dof.id if previous_dof else None
+    answer.answered_by_user_id = g.current_user.id
+    answer.answered_at = datetime.utcnow()
+    answer.is_draft = is_draft
+    return answer
+
+
+def internal_audit_dof_prefill(answer):
+    finding_text = answer.technical_findings or "Teknik bulgu girilmemiş."
+    return {
+        "internal_audit_answer_id": str(answer.id),
+        "title": short_text(answer.audit_topic or answer.question_text, 150),
+        "department": answer.evaluated_department or "",
+        "responsible_id": str(g.current_user.id),
+        "opening_date": date.today().isoformat(),
+        "priority": "Orta",
+        "source": "İç Denetim",
+        "nonconformity_description": (
+            f"Soru: {answer.question_text}\n\n"
+            f"İlgili Standart: {answer.standard}\n"
+            f"Tetkik Konusu: {answer.audit_topic}\n"
+            f"Sonuç: {answer.result or '-'}\n\n"
+            f"Teknik Bulgular: {finding_text}"
+        ),
+        "root_cause_analysis": "",
+        "corrective_action": "",
+        "preventive_action": "",
+    }
 
 
 def parse_optional_date(field_name):
@@ -1776,6 +2093,34 @@ def dof_dashboard_context():
     }
 
 
+def internal_audit_question_context(audit, question):
+    answer = internal_audit_answer_for_question(audit, question)
+    selected_previous_dof_id = answer.previous_nonconformity_id if answer else None
+    return {
+        "audit": audit,
+        "question": question,
+        "answer": answer,
+        "progress": internal_audit_progress(audit),
+        "result_choices": INTERNAL_AUDIT_RESULTS,
+        "result_map": INTERNAL_AUDIT_RESULT_MAP,
+        "departments": DEPARTMENTS,
+        "history_items": internal_audit_history_items(audit, question),
+        "previous_nonconformities": internal_audit_previous_nonconformities(
+            question,
+            selected_previous_dof_id,
+        ),
+        "previous_question": internal_audit_question_by_order(
+            audit,
+            internal_audit_previous_order(audit, question),
+        ),
+        "next_question": internal_audit_question_by_order(
+            audit,
+            internal_audit_next_order(audit, question),
+        ),
+        "is_complete": internal_audit_is_complete(audit),
+    }
+
+
 @bp.route("/")
 @login_required
 def dashboard():
@@ -1800,6 +2145,230 @@ def dof_management():
     return render_template("dof_dashboard.html", **dof_dashboard_context())
 
 
+@bp.route("/ic-denetim")
+@login_required
+def internal_audit():
+    audit = current_internal_audit()
+    question = internal_audit_question_by_order(
+        audit,
+        audit.active_question_order or 1,
+    ) or internal_audit_question_by_order(audit, 1)
+    if question is None:
+        flash("İç denetim soru listesi oluşturulamadı.", "danger")
+        return redirect(url_for("main.dashboard"))
+    return redirect(
+        url_for(
+            "main.internal_audit_question",
+            audit_id=audit.id,
+            question_id=question.id,
+        )
+    )
+
+
+@bp.get("/ic-denetim/<int:audit_id>/soru/<int:question_id>")
+@login_required
+def internal_audit_question(audit_id, question_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+
+    question = InternalAuditQuestion.query.filter_by(
+        id=question_id,
+        audit_id=audit.id,
+    ).first_or_404()
+    if audit.active_question_order != question.order_no:
+        audit.active_question_order = question.order_no
+        db.session.commit()
+
+    return render_template(
+        "internal_audit_flow.html",
+        **internal_audit_question_context(audit, question),
+    )
+
+
+@bp.get("/ic-denetim/<int:audit_id>/onceki-soru")
+@login_required
+def previous_internal_audit_question(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+    current_question_id = request.args.get("question_id", type=int)
+    question = InternalAuditQuestion.query.filter_by(
+        id=current_question_id,
+        audit_id=audit.id,
+    ).first()
+    if question is None:
+        question = internal_audit_question_by_order(audit, audit.active_question_order or 1)
+    previous_question = internal_audit_question_by_order(
+        audit,
+        internal_audit_previous_order(audit, question),
+    )
+    return redirect(
+        url_for(
+            "main.internal_audit_question",
+            audit_id=audit.id,
+            question_id=previous_question.id,
+        )
+    )
+
+
+@bp.post("/ic-denetim/<int:audit_id>/cevap-kaydet")
+@login_required
+def save_internal_audit_answer(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+
+    question_id = request.form.get("question_id", type=int)
+    question = InternalAuditQuestion.query.filter_by(
+        id=question_id,
+        audit_id=audit.id,
+    ).first_or_404()
+    submit_action = request.form.get("submit_action", "next")
+    is_draft = submit_action == "draft"
+
+    try:
+        answer = parse_internal_audit_answer_form(audit, question, is_draft=is_draft)
+    except ValueError as error:
+        error_key = str(error)
+        if error_key == "required_fields":
+            flash("Kaydetmek için değerlendirilecek departman ve sonucu seçin.", "danger")
+        elif error_key == "technical_findings_required":
+            flash("Hayır veya Kısmen sonucunda teknik bulgular alanı zorunludur.", "danger")
+        elif error_key == "technical_findings_too_long":
+            flash("Teknik bulgular en fazla 1000 karakter olabilir.", "danger")
+        else:
+            flash("Lütfen iç denetim cevap alanlarını geçerli biçimde doldurun.", "danger")
+        return redirect(
+            url_for(
+                "main.internal_audit_question",
+                audit_id=audit.id,
+                question_id=question.id,
+            )
+        )
+
+    if is_draft:
+        audit.active_question_order = question.order_no
+        db.session.commit()
+        flash("Soru taslak olarak kaydedildi.", "success")
+        return redirect(
+            url_for(
+                "main.internal_audit_question",
+                audit_id=audit.id,
+                question_id=question.id,
+            )
+        )
+
+    next_question = internal_audit_question_by_order(
+        audit,
+        internal_audit_next_order(audit, question),
+    )
+    if internal_audit_is_complete(audit):
+        audit.status = "Tamamlandı"
+        audit.active_question_order = question.order_no
+        db.session.commit()
+        flash("İç denetimdeki tüm zorunlu sorular tamamlandı.", "success")
+        return redirect(
+            url_for(
+                "main.internal_audit_question",
+                audit_id=audit.id,
+                question_id=question.id,
+            )
+        )
+
+    audit.status = "Devam Ediyor"
+    audit.active_question_order = next_question.order_no if next_question else question.order_no
+    db.session.commit()
+    if answer.result == "Hayır":
+        flash("Soru kaydedildi. Bu cevap için Uygunsuzluk Aç butonu ile DÖF oluşturabilirsiniz.", "warning")
+    else:
+        flash("Soru kaydedildi ve bir sonraki soruya geçildi.", "success")
+
+    return redirect(
+        url_for(
+            "main.internal_audit_question",
+            audit_id=audit.id,
+            question_id=(next_question.id if next_question else question.id),
+        )
+    )
+
+
+@bp.post("/ic-denetim/<int:audit_id>/uygunsuzluk-ac")
+@login_required
+def open_internal_audit_nonconformity(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+
+    question_id = request.form.get("question_id", type=int)
+    question = InternalAuditQuestion.query.filter_by(
+        id=question_id,
+        audit_id=audit.id,
+    ).first_or_404()
+
+    try:
+        answer = parse_internal_audit_answer_form(audit, question, is_draft=False)
+    except ValueError as error:
+        error_key = str(error)
+        if error_key == "technical_findings_required":
+            flash("DÖF açmak için teknik bulgular alanını doldurun.", "danger")
+        elif error_key == "required_fields":
+            flash("DÖF açmak için departman, sonuç ve zorunlu alanları tamamlayın.", "danger")
+        else:
+            flash("DÖF açmadan önce iç denetim cevabını geçerli biçimde doldurun.", "danger")
+        return redirect(
+            url_for(
+                "main.internal_audit_question",
+                audit_id=audit.id,
+                question_id=question.id,
+            )
+        )
+
+    if answer.result not in INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS:
+        db.session.rollback()
+        flash("DÖF açmak için sonuç Hayır veya Kısmen olmalıdır.", "warning")
+        return redirect(
+            url_for(
+                "main.internal_audit_question",
+                audit_id=audit.id,
+                question_id=question.id,
+            )
+        )
+
+    db.session.flush()
+    if answer.dof_id:
+        db.session.commit()
+        flash("Bu soru için daha önce DÖF açılmış. Mevcut DÖF detayına yönlendirildiniz.", "info")
+        return redirect(url_for("main.dof_detail", dof_id=answer.dof_id))
+
+    audit.active_question_order = question.order_no
+    db.session.commit()
+    return redirect(url_for("main.create_dof", internal_audit_answer_id=answer.id))
+
+
+@bp.post("/ic-denetim/<int:audit_id>/bitir")
+@login_required
+def complete_internal_audit(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+    if not internal_audit_is_complete(audit):
+        flash("Tüm zorunlu sorular tamamlanmadan denetim bitirilemez.", "danger")
+        return redirect(url_for("main.internal_audit"))
+
+    audit.status = "Tamamlandı"
+    db.session.commit()
+    flash("İç denetim tamamlandı. Rapor ekranı için özet kayıt hazır.", "success")
+    question = internal_audit_question_by_order(audit, audit.active_question_order or 1)
+    return redirect(
+        url_for(
+            "main.internal_audit_question",
+            audit_id=audit.id,
+            question_id=question.id,
+        )
+    )
+
+
 @bp.route("/dofs/new", methods=["GET", "POST"])
 @login_required
 def create_dof():
@@ -1807,6 +2376,16 @@ def create_dof():
         save_mode = request.form.get("save_mode", "open")
         if save_mode not in {"draft", "open"}:
             save_mode = "open"
+        audit_answer = None
+        audit_answer_id = request.form.get("internal_audit_answer_id", type=int)
+        if audit_answer_id:
+            audit_answer = InternalAuditAnswer.query.get(audit_answer_id)
+            if audit_answer is None or not can_view_internal_audit(audit_answer.audit):
+                flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
+                return redirect(url_for("main.dof_management"))
+            if audit_answer.dof_id:
+                flash("Bu iç denetim cevabı için daha önce DÖF açılmış.", "info")
+                return redirect(url_for("main.dof_detail", dof_id=audit_answer.dof_id))
         try:
             dof = parse_dof_form(save_mode=save_mode)
             dof.dof_no = reserve_dof_number()
@@ -1814,6 +2393,17 @@ def create_dof():
             db.session.add(dof)
             db.session.flush()
             save_dof_opening_files(dof)
+            if audit_answer is not None:
+                audit_answer.dof_id = dof.id
+                add_dof_comment(
+                    dof,
+                    (
+                        "DÖF iç denetim soru akışından açıldı. "
+                        f"Soru: {short_text(audit_answer.question_text, 140)}"
+                    ),
+                    comment_type="internal_audit",
+                    actor=g.current_user,
+                )
             if save_mode != "draft":
                 notify_dof_users(
                     [dof.responsible],
@@ -1846,6 +2436,19 @@ def create_dof():
             else:
                 flash("Lütfen DÖF form alanlarını geçerli biçimde doldurun.", "danger")
 
+    form_data = request.form if request.method == "POST" else {}
+    if request.method == "GET":
+        audit_answer_id = request.args.get("internal_audit_answer_id", type=int)
+        if audit_answer_id:
+            audit_answer = InternalAuditAnswer.query.get(audit_answer_id)
+            if audit_answer is None or not can_view_internal_audit(audit_answer.audit):
+                flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
+                return redirect(url_for("main.dof_management"))
+            if audit_answer.dof_id:
+                flash("Bu iç denetim cevabı için daha önce DÖF açılmış.", "info")
+                return redirect(url_for("main.dof_detail", dof_id=audit_answer.dof_id))
+            form_data = internal_audit_dof_prefill(audit_answer)
+
     return render_template(
         "dof_form.html",
         users=active_users(),
@@ -1853,7 +2456,7 @@ def create_dof():
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
         today=date.today().isoformat(),
-        form_data=request.form if request.method == "POST" else {},
+        form_data=form_data,
     )
 
 
@@ -2102,6 +2705,14 @@ def delete_dof(dof_id):
         abort(403)
 
     if request.method == "POST":
+        InternalAuditAnswer.query.filter_by(dof_id=dof.id).update(
+            {"dof_id": None},
+            synchronize_session=False,
+        )
+        InternalAuditAnswer.query.filter_by(previous_nonconformity_id=dof.id).update(
+            {"previous_nonconformity_id": None},
+            synchronize_session=False,
+        )
         delete_dof_evidence_file(dof)
         db.session.delete(dof)
         db.session.commit()

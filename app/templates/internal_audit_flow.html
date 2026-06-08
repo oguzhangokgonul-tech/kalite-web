@@ -1,0 +1,230 @@
+{% extends "app_shell.html" %}
+
+{% block title %}İç Denetim Akıllı Soru Akışı - Aksiyon Takip Sistemi{% endblock %}
+{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
+
+{% set current_result = answer.result if answer else "" %}
+{% set current_department = answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading audit-flow-heading">
+    <div>
+      <h2>İç Denetim Akıllı Soru Akışı</h2>
+      <p>Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.</p>
+    </div>
+    <span class="audit-flow-audit-no">
+      <i class="bi bi-clipboard-check"></i>
+      {{ audit.audit_no }}
+    </span>
+  </div>
+
+  <section class="audit-progress-card">
+    <div class="audit-progress-meta">
+      <strong>{{ progress.completed }} / {{ progress.total }} soru tamamlandı</strong>
+      <span>Kalan {{ progress.remaining }} soru</span>
+    </div>
+    <div class="audit-progress-track" aria-label="İç denetim ilerleme durumu">
+      <span style="width: {{ progress.percent }}%"></span>
+    </div>
+  </section>
+
+  <div class="audit-flow-layout">
+    <div class="audit-flow-main">
+      <form class="audit-question-card" id="auditQuestionForm" method="post" action="{{ url_for('main.save_internal_audit_answer', audit_id=audit.id) }}">
+        <input type="hidden" name="question_id" value="{{ question.id }}">
+
+        <div class="audit-question-head">
+          <div>
+            <span class="audit-section-label">Aktif Soru</span>
+            <span class="audit-question-number">{{ question.order_no }}</span>
+          </div>
+          <span class="audit-required-badge">
+            {% if question.is_required %}
+              Zorunlu <i class="bi bi-bookmark"></i>
+            {% else %}
+              Opsiyonel <i class="bi bi-bookmark"></i>
+            {% endif %}
+          </span>
+        </div>
+
+        <div class="audit-question-fields">
+          <div>
+            <label class="form-label" for="audit_standard">İlgili Standart</label>
+            <select class="form-select" id="audit_standard" disabled>
+              <option>{{ question.standard }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="audit_topic">Tetkik Konusu</label>
+            <select class="form-select" id="audit_topic" disabled>
+              <option>{{ question.audit_topic }}</option>
+            </select>
+          </div>
+        </div>
+
+        <section class="audit-current-question">
+          <span class="audit-question-icon"><i class="bi bi-question-lg"></i></span>
+          <h3>{{ question.question_text }}</h3>
+
+          <div class="audit-answer-options" role="radiogroup" aria-label="Cevap seçenekleri">
+            <span class="audit-answer-label">Cevap Seçenekleri</span>
+            {% for value, label, tone in result_choices %}
+              <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
+                <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}">
+                <span></span>
+                <strong>{{ value }}</strong>
+              </label>
+            {% endfor %}
+          </div>
+        </section>
+
+        <div class="audit-detail-grid">
+          <div>
+            <label class="form-label" for="evaluated_department">Değerlendirilecek Departman</label>
+            <select class="form-select" id="evaluated_department" name="evaluated_department">
+              <option value="">Departman seçiniz...</option>
+              {% for department in departments %}
+                <option value="{{ department }}" {% if current_department == department %}selected{% endif %}>{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="audit-textarea-field">
+            <label class="form-label" for="technical_findings">Teknik Bulgular</label>
+            <textarea class="form-control" id="technical_findings" name="technical_findings" rows="4" maxlength="1000" data-audit-count placeholder="Gözlemler, kanıtlar ve teknik bulguları giriniz...">{{ answer.technical_findings if answer else "" }}</textarea>
+            <div class="audit-counter"><span data-audit-counter>0 / 1000</span></div>
+          </div>
+
+          <div>
+            <label class="form-label" for="audit_result_summary">Sonuç</label>
+            <select class="form-select" id="audit_result_summary" disabled data-audit-result-summary>
+              <option value="">Sonuç seçiniz...</option>
+              {% for value, label, tone in result_choices %}
+                <option value="{{ value }}" {% if current_result == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label" for="previous_nonconformity_id">Daha Önce Açılan Uygunsuzluk</label>
+            <select class="form-select" id="previous_nonconformity_id" name="previous_nonconformity_id">
+              <option value="">İlgili uygunsuzluk seçiniz (opsiyonel)...</option>
+              {% for dof in previous_nonconformities %}
+                <option value="{{ dof.id }}" {% if answer and answer.previous_nonconformity_id == dof.id %}selected{% endif %}>
+                  {{ dof.dof_no }} - {{ dof.department or "-" }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <aside class="audit-history-card">
+      <div class="audit-history-head">
+        <div>
+          <h3>Soru Geçmişi</h3>
+          <p>Son cevaplanan ve bekleyen sorular</p>
+        </div>
+        <span>Son 8 Soru</span>
+      </div>
+
+      <ol class="audit-history-list">
+        {% for item in history_items %}
+          <li class="{% if item.is_active %}is-active{% elif item.is_complete %}is-complete{% else %}is-pending{% endif %}">
+            <a href="{{ url_for('main.internal_audit_question', audit_id=audit.id, question_id=item.question.id) }}">
+              <span class="audit-history-state">
+                {% if item.is_active %}
+                  <i class="bi bi-chevron-right"></i>
+                {% elif item.is_complete %}
+                  <i class="bi bi-check"></i>
+                {% else %}
+                  <i class="bi bi-clock"></i>
+                {% endif %}
+              </span>
+              <span class="audit-history-number">{{ item.question.order_no }}</span>
+              <span class="audit-history-text">{{ item.question.question_text }}</span>
+              <span class="audit-history-result audit-tone-{{ item.tone }}">
+                {% if item.is_complete %}{{ item.result }}{% elif item.is_active %}Cevaplanıyor{% else %}Bekliyor{% endif %}
+              </span>
+              {% if item.date %}
+                <small>{{ item.date.strftime("%d.%m.%Y %H:%M") }}</small>
+              {% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ol>
+    </aside>
+  </div>
+
+  <div class="audit-action-bar">
+    <a class="btn btn-outline-secondary btn-lg {% if question.order_no == 1 %}disabled{% endif %}" href="{{ url_for('main.previous_internal_audit_question', audit_id=audit.id, question_id=question.id) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Önceki Soru</span>
+    </a>
+    <button class="btn btn-outline-primary btn-lg" type="submit" name="submit_action" value="draft" form="auditQuestionForm">
+      <i class="bi bi-file-earmark-text"></i>
+      <span>Taslak Kaydet</span>
+    </button>
+    {% if answer and answer.dof_id %}
+      <a class="btn btn-outline-warning btn-lg" href="{{ url_for('main.dof_detail', dof_id=answer.dof_id) }}">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Mevcut DÖF</span>
+      </a>
+    {% else %}
+      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result == 'Hayır' %}is-urgent{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}">
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Uygunsuzluk Aç</span>
+      </button>
+    {% endif %}
+    {% if is_complete %}
+      <button class="btn btn-success btn-lg" type="submit" form="completeAuditForm">
+        <i class="bi bi-check2-circle"></i>
+        <span>Denetimi Bitir</span>
+      </button>
+    {% else %}
+      <button class="btn btn-primary btn-lg" type="submit" name="submit_action" value="next" form="auditQuestionForm">
+        <span>Kaydet ve Sonraki Soru</span>
+        <i class="bi bi-arrow-right"></i>
+      </button>
+    {% endif %}
+  </div>
+
+  <form id="completeAuditForm" method="post" action="{{ url_for('main.complete_internal_audit', audit_id=audit.id) }}"></form>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    (() => {
+      const textarea = document.querySelector("[data-audit-count]");
+      const counter = document.querySelector("[data-audit-counter]");
+      const radios = document.querySelectorAll("[data-audit-result-radio]");
+      const summary = document.querySelector("[data-audit-result-summary]");
+      const nonconformityButton = document.querySelector(".audit-nonconformity-button");
+
+      function updateCounter() {
+        if (textarea && counter) {
+          counter.textContent = `${textarea.value.length} / 1000`;
+        }
+      }
+
+      function updateResultState() {
+        const selected = document.querySelector("[data-audit-result-radio]:checked");
+        document.querySelectorAll(".audit-answer-option").forEach((option) => {
+          option.classList.toggle("is-selected", option.querySelector("input")?.checked);
+        });
+        if (summary && selected) {
+          summary.value = selected.value;
+        }
+        if (nonconformityButton) {
+          nonconformityButton.classList.toggle("is-urgent", selected?.value === "Hayır");
+        }
+      }
+
+      textarea?.addEventListener("input", updateCounter);
+      radios.forEach((radio) => radio.addEventListener("change", updateResultState));
+      updateCounter();
+      updateResultState();
+    })();
+  </script>
+{% endblock %}
