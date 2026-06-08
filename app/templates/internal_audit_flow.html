@@ -4,7 +4,8 @@
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% set current_result = answer.result if answer else "" %}
-{% set current_department = locked_department %}
+{% set current_department = answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department %}
+{% set current_evaluator_department = answer.evaluator_department if answer and answer.evaluator_department else evaluator_department %}
 
 {% block app_content %}
   <div class="dashboard-page-heading audit-flow-heading">
@@ -126,9 +127,19 @@
 
         <div class="audit-detail-grid">
           <div>
-            <label class="form-label" for="evaluated_department">Değerlendirilecek Departman</label>
-            <input type="hidden" name="evaluated_department" value="{{ current_department }}">
-            <input class="form-control audit-locked-field" id="evaluated_department" value="{{ current_department }}" disabled>
+            <label class="form-label" for="evaluated_department">Değerlendirilen Departman</label>
+            <select class="form-select" id="evaluated_department" name="evaluated_department">
+              <option value="">Departman seçiniz...</option>
+              {% for department in departments %}
+                <option value="{{ department }}" {% if current_department == department %}selected{% endif %}>{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label" for="evaluator_department">Değerlendiren Departman</label>
+            <input type="hidden" name="evaluator_department" value="{{ current_evaluator_department }}">
+            <input class="form-control audit-locked-field" id="evaluator_department" value="{{ current_evaluator_department }}" disabled>
           </div>
 
           <div class="audit-textarea-field">

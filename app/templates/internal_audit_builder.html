@@ -1,13 +1,13 @@
 {% extends "app_shell.html" %}
 
-{% block title %}İç Denetim Oluştur - Aksiyon Takip Sistemi{% endblock %}
+{% block title %}{{ page_title or "İç Denetim Oluştur" }} - Aksiyon Takip Sistemi{% endblock %}
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
-      <h2>İç Denetim Oluştur</h2>
-      <p>Soru listesini, cevap seçeneklerini ve tetkik konularını hazırlayın.</p>
+      <h2>{{ page_title or "İç Denetim Oluştur" }}</h2>
+      <p>{{ page_description or "Soru listesini, cevap seçeneklerini ve tetkik konularını hazırlayın." }}</p>
     </div>
     <div class="app-heading-actions">
       <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.internal_audit') }}">
@@ -16,7 +16,7 @@
       </a>
       <button class="btn btn-primary btn-lg" type="submit" form="internalAuditBuilderForm">
         <i class="bi bi-save"></i>
-        <span>Denetimi Oluştur</span>
+        <span>{{ submit_label or "Denetimi Oluştur" }}</span>
       </button>
     </div>
   </div>
@@ -94,8 +94,17 @@
                 <input class="form-control" name="audit_topic_{{ loop.index }}" value="{{ question.get('audit_topic', '') }}" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
               </div>
               <div>
-                <label class="form-label">Değerlendirilecek Departman</label>
-                <input type="hidden" name="evaluated_department_{{ loop.index }}" value="{{ locked_department }}">
+                <label class="form-label">Değerlendirilen Departman</label>
+                <select class="form-select" name="evaluated_department_{{ loop.index }}">
+                  <option value="">Seçiniz</option>
+                  {% for department in departments %}
+                    <option value="{{ department }}" {% if question.get('evaluated_department') == department %}selected{% endif %}>{{ department }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="form-label">Değerlendiren Departman</label>
+                <input type="hidden" name="evaluator_department_{{ loop.index }}" value="{{ locked_department }}">
                 <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
               </div>
               <div>
@@ -144,8 +153,17 @@
           <input class="form-control" name="audit_topic___INDEX__" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
         </div>
         <div>
-          <label class="form-label">Değerlendirilecek Departman</label>
-          <input type="hidden" name="evaluated_department___INDEX__" value="{{ locked_department }}">
+          <label class="form-label">Değerlendirilen Departman</label>
+          <select class="form-select" name="evaluated_department___INDEX__">
+            <option value="">Seçiniz</option>
+            {% for department in departments %}
+              <option value="{{ department }}">{{ department }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Değerlendiren Departman</label>
+          <input type="hidden" name="evaluator_department___INDEX__" value="{{ locked_department }}">
           <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
         </div>
         <div>

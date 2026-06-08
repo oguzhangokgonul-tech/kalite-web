@@ -2122,6 +2122,7 @@ body {
     color: #14532d;
     line-height: 1.45;
     overflow-wrap: anywhere;
+    white-space: pre-wrap;
 }
 
 .audit-answer-options {

@@ -112,6 +112,12 @@
                         <span>Soru listesi yok</span>
                       </button>
                     {% endif %}
+                    {% if can_edit_internal_audit %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_internal_audit', audit_id=audit.id) }}">
+                        <i class="bi bi-pencil"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
                     {% if can_delete_internal_audit %}
                       <form method="post" action="{{ url_for('main.delete_internal_audit', audit_id=audit.id) }}" onsubmit="return confirm('{{ audit.audit_no }} numaralı iç denetim silinsin mi?');">
                         <button class="btn btn-sm btn-outline-danger" type="submit">
