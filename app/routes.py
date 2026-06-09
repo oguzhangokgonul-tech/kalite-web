@@ -2772,6 +2772,20 @@ def internal_audit_report(audit_id):
     return render_template(
         "internal_audit_report.html",
         **internal_audit_report_context(audit),
+        report_variant="full",
+    )
+
+
+@bp.get("/ic-denetim/<int:audit_id>/rapor/personel")
+@login_required
+def internal_audit_personnel_report(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_view_internal_audit(audit):
+        abort(403)
+    return render_template(
+        "internal_audit_report.html",
+        **internal_audit_report_context(audit),
+        report_variant="personnel",
     )
 
 
