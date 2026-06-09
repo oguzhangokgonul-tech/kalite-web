@@ -314,6 +314,8 @@ class InternalAudit(db.Model):
     audit_no = db.Column(db.String(30), nullable=False, unique=True)
     title = db.Column(db.String(160), nullable=False, default="İç Denetim")
     auditor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    evaluated_department = db.Column(db.String(80), nullable=True)
+    audited_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     planned_date = db.Column(db.Date, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Devam Ediyor")
     active_question_order = db.Column(db.Integer, nullable=False, default=1)
@@ -325,7 +327,8 @@ class InternalAudit(db.Model):
         onupdate=db.func.now(),
     )
 
-    auditor = db.relationship("User")
+    auditor = db.relationship("User", foreign_keys=[auditor_id])
+    audited_user = db.relationship("User", foreign_keys=[audited_user_id])
     questions = db.relationship(
         "InternalAuditQuestion",
         back_populates="audit",

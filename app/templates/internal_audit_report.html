@@ -46,6 +46,14 @@
           <strong>{{ locked_department }}</strong>
         </div>
         <div>
+          <span>Değerlendirilen Departman</span>
+          <strong>{{ evaluated_department or "-" }}</strong>
+        </div>
+        <div>
+          <span>Denetlenen Personel</span>
+          <strong>{{ audited_user.full_name if audited_user else "-" }}</strong>
+        </div>
+        <div>
           <span>Oluşturma Tarihi</span>
           <strong>{{ audit.created_at.strftime("%d.%m.%Y %H:%M") if audit.created_at else "-" }}</strong>
         </div>
@@ -107,20 +115,16 @@
 
               <dl class="audit-report-detail-grid">
                 <div>
-                  <dt>Değerlendirilen Departman</dt>
-                  <dd>{{ row.evaluated_department or "-" }}</dd>
-                </div>
-                <div>
                   <dt>Değerlendiren Departman</dt>
                   <dd>{{ row.evaluator_department or "-" }}</dd>
                 </div>
                 <div>
-                  <dt>Cevaplayan</dt>
-                  <dd>{{ row.answered_by.full_name if row.answered_by else "-" }}</dd>
+                  <dt>Değerlendirilen Departman</dt>
+                  <dd>{{ row.evaluated_department or "-" }}</dd>
                 </div>
                 <div>
-                  <dt>Cevap Tarihi</dt>
-                  <dd>{{ row.answered_at.strftime("%d.%m.%Y %H:%M") if row.answered_at else "-" }}</dd>
+                  <dt>Cevaplayan</dt>
+                  <dd>{{ row.answered_by.full_name if row.answered_by else "-" }}</dd>
                 </div>
               </dl>
 

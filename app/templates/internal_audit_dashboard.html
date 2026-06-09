@@ -89,7 +89,13 @@
                     <strong>{{ audit.audit_no }}</strong>
                   {% endif %}
                 </td>
-                <td data-label="Başlık" title="{{ audit.title }}">{{ audit.title }}</td>
+                <td data-label="Başlık" title="{{ audit.title }}">
+                  <strong>{{ audit.title }}</strong>
+                  <div class="text-secondary small">
+                    {{ audit.evaluated_department or "-" }}
+                    {% if audit.audited_user %} | {{ audit.audited_user.full_name }}{% endif %}
+                  </div>
+                </td>
                 <td data-label="Planlanan Tarih">{{ audit.planned_date.strftime("%d.%m.%Y") if audit.planned_date else "-" }}</td>
                 <td data-label="Soru Sayısı">{{ audit.questions|length }}</td>
                 <td data-label="İlerleme">

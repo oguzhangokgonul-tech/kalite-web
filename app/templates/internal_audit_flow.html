@@ -4,7 +4,7 @@
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% set current_result = current_result if current_result is defined else (answer.result if answer else "") %}
-{% set current_department = answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department %}
+{% set current_department = evaluated_department if evaluated_department is defined else (answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department) %}
 {% set current_evaluator_department = answer.evaluator_department if answer and answer.evaluator_department else evaluator_department %}
 
 {% block app_content %}
@@ -132,12 +132,12 @@
         <div class="audit-detail-grid">
           <div>
             <label class="form-label" for="evaluated_department">Değerlendirilen Departman</label>
-            <select class="form-select" id="evaluated_department" name="evaluated_department">
-              <option value="">Departman seçiniz...</option>
-              {% for department in departments %}
-                <option value="{{ department }}" {% if current_department == department %}selected{% endif %}>{{ department }}</option>
-              {% endfor %}
-            </select>
+            <input class="form-control audit-locked-field" id="evaluated_department" value="{{ current_department or '-' }}" disabled>
+          </div>
+
+          <div>
+            <label class="form-label" for="audited_user">Denetlenen Personel</label>
+            <input class="form-control audit-locked-field" id="audited_user" value="{{ audited_user.full_name if audited_user else '-' }}" disabled>
           </div>
 
           <div>

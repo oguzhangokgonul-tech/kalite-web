@@ -43,6 +43,28 @@
           <input class="form-control" id="planned_date" name="planned_date" type="date" value="{{ form_data.get('planned_date', today) }}">
         </div>
         <div>
+          <label class="form-label" for="evaluated_department">Değerlendirilen Departman</label>
+          <select class="form-select" id="evaluated_department" name="evaluated_department" required>
+            <option value="">Seçiniz</option>
+            {% for department in departments %}
+              <option value="{{ department }}" {% if form_data.get('evaluated_department') == department %}selected{% endif %}>{{ department }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="audited_user_id">Denetlenen Personel</label>
+          <select class="form-select" id="audited_user_id" name="audited_user_id" required>
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if form_data.get('audited_user_id')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="locked_department">Değerlendiren Departman</label>
+          <input class="form-control audit-locked-field" id="locked_department" value="{{ locked_department }}" disabled>
+        </div>
+        <div>
           <label class="form-label" for="question_count">Soru Sayısı</label>
           <div class="audit-question-count-control">
             <input class="form-control" id="question_count" type="number" min="1" max="150" value="{{ questions|length }}" data-question-count>
@@ -94,20 +116,6 @@
                 <input class="form-control" name="audit_topic_{{ loop.index }}" value="{{ question.get('audit_topic', '') }}" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
               </div>
               <div>
-                <label class="form-label">Değerlendirilen Departman</label>
-                <select class="form-select" name="evaluated_department_{{ loop.index }}">
-                  <option value="">Seçiniz</option>
-                  {% for department in departments %}
-                    <option value="{{ department }}" {% if question.get('evaluated_department') == department %}selected{% endif %}>{{ department }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div>
-                <label class="form-label">Değerlendiren Departman</label>
-                <input type="hidden" name="evaluator_department_{{ loop.index }}" value="{{ locked_department }}">
-                <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
-              </div>
-              <div>
                 <label class="form-label">Cevap Seçenekleri</label>
                 <input class="form-control audit-locked-field" value="{{ default_answer_options }}" disabled>
                 <div class="form-text">Cevap seçenekleri sabittir ve değiştirilemez.</div>
@@ -152,20 +160,6 @@
         <div>
           <label class="form-label">Tetkik Konusu</label>
           <input class="form-control" name="audit_topic___INDEX__" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
-        </div>
-        <div>
-          <label class="form-label">Değerlendirilen Departman</label>
-          <select class="form-select" name="evaluated_department___INDEX__">
-            <option value="">Seçiniz</option>
-            {% for department in departments %}
-              <option value="{{ department }}">{{ department }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label class="form-label">Değerlendiren Departman</label>
-          <input type="hidden" name="evaluator_department___INDEX__" value="{{ locked_department }}">
-          <input class="form-control audit-locked-field" value="{{ locked_department }}" disabled>
         </div>
         <div>
           <label class="form-label">Cevap Seçenekleri</label>
