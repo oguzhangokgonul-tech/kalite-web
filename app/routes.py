@@ -69,7 +69,7 @@ INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
 }
-INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS = {"Hayır", "Kısmen"}
+INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS = {"Kısmen Uygun", "Uygun Değil"}
 DEFAULT_INTERNAL_AUDIT_OPTION_TEXT = ", ".join(
     value for value, _label, _tone in INTERNAL_AUDIT_RESULTS
 )
@@ -708,13 +708,36 @@ def internal_audit_option_meta(value):
     if value in INTERNAL_AUDIT_RESULT_MAP:
         return INTERNAL_AUDIT_RESULT_MAP[value]
     normalized = normalize_for_role(value)
-    if "hayir" in normalized or "uygunsuz" in normalized:
-        return {"label": "Uygunsuz", "tone": "danger"}
+    if (
+        "hayir" in normalized
+        or "uygunsuz" in normalized
+        or "uygun degil" in normalized
+        or "uygun olmayan" in normalized
+    ):
+        return {"label": "Uygun Değil", "tone": "danger"}
     if "kismen" in normalized:
         return {"label": "Kısmen Uygun", "tone": "warning"}
     if "evet" in normalized or "uygun" in normalized:
         return {"label": "Uygun", "tone": "success"}
     return {"label": value, "tone": "secondary"}
+
+
+def internal_audit_canonical_result(value):
+    normalized = normalize_for_role(value)
+    if not normalized:
+        return ""
+    if "kismen" in normalized:
+        return "Kısmen Uygun"
+    if (
+        "hayir" in normalized
+        or "uygunsuz" in normalized
+        or "uygun degil" in normalized
+        or "uygun olmayan" in normalized
+    ):
+        return "Uygun Değil"
+    if "evet" in normalized or normalized == "uygun" or "uygun" in normalized:
+        return "Uygun"
+    return value.strip()
 
 
 def internal_audit_options_from_text(value):
@@ -734,30 +757,7 @@ def internal_audit_options_from_text(value):
 
 
 def internal_audit_question_result_choices(question):
-    options = []
-    if question.answer_options:
-        try:
-            stored_options = json.loads(question.answer_options)
-        except (TypeError, ValueError):
-            stored_options = []
-        if isinstance(stored_options, list):
-            for item in stored_options:
-                option = ""
-                if isinstance(item, dict):
-                    option = str(item.get("value") or item.get("label") or "").strip()
-                else:
-                    option = str(item).strip()
-                if option:
-                    options.append(option[:80])
-
-    if not options:
-        return INTERNAL_AUDIT_RESULTS
-
-    choices = []
-    for option in options:
-        meta = internal_audit_option_meta(option)
-        choices.append((option, meta["label"], meta["tone"]))
-    return choices
+    return INTERNAL_AUDIT_RESULTS
 
 
 def internal_audit_question_result_map(question):
@@ -768,15 +768,7 @@ def internal_audit_question_result_map(question):
 
 
 def internal_audit_result_requires_finding(result):
-    normalized = normalize_for_role(result)
-    if not normalized or "uygulanabilir degil" in normalized or "kapsam disi" in normalized:
-        return False
-    return (
-        result in INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS
-        or "hayir" in normalized
-        or "uygunsuz" in normalized
-        or "kismen" in normalized
-    )
+    return internal_audit_canonical_result(result) in INTERNAL_AUDIT_FINDING_REQUIRED_RESULTS
 
 
 def parse_internal_audit_builder_form():
@@ -793,7 +785,6 @@ def parse_internal_audit_builder_form():
         expected_answer = request.form.get(f"expected_answer_{index}", "").strip()
         evaluated_department = request.form.get(f"evaluated_department_{index}", "").strip()
         evaluator_department = INTERNAL_AUDIT_LOCKED_DEPARTMENT
-        answer_options_raw = request.form.get(f"answer_options_{index}", "").strip()
         is_required = request.form.get(f"is_required_{index}") == "on"
 
         has_any_value = any(
@@ -803,7 +794,6 @@ def parse_internal_audit_builder_form():
                 question_text,
                 expected_answer,
                 evaluated_department,
-                answer_options_raw,
             ]
         )
         if not has_any_value:
@@ -817,12 +807,6 @@ def parse_internal_audit_builder_form():
         if len(expected_answer) > 2000:
             raise ValueError("expected_answer_too_long")
 
-        answer_options = internal_audit_options_from_text(answer_options_raw)
-        if not answer_options:
-            answer_options = [value for value, _label, _tone in INTERNAL_AUDIT_RESULTS]
-        if len(answer_options) < 2:
-            raise ValueError("not_enough_answer_options")
-
         questions.append(
             {
                 "standard": standard[:160],
@@ -830,7 +814,7 @@ def parse_internal_audit_builder_form():
                 "question_text": question_text,
                 "evaluated_department": evaluated_department,
                 "evaluator_department": evaluator_department,
-                "answer_options": answer_options,
+                "answer_options": [value for value, _label, _tone in INTERNAL_AUDIT_RESULTS],
                 "expected_answer": expected_answer or None,
                 "is_required": is_required,
             }
@@ -860,15 +844,6 @@ def internal_audit_builder_blank_questions():
 def internal_audit_builder_questions_from_audit(audit):
     questions = []
     for question in audit.questions:
-        answer_options = DEFAULT_INTERNAL_AUDIT_OPTION_TEXT
-        if question.answer_options:
-            try:
-                stored_options = json.loads(question.answer_options)
-            except (TypeError, ValueError):
-                stored_options = []
-            if isinstance(stored_options, list) and stored_options:
-                answer_options = ", ".join(str(item).strip() for item in stored_options if str(item).strip())
-
         questions.append(
             {
                 "standard": question.standard,
@@ -877,7 +852,7 @@ def internal_audit_builder_questions_from_audit(audit):
                 "evaluated_department": question.evaluated_department or "",
                 "evaluator_department": question.evaluator_department
                 or INTERNAL_AUDIT_LOCKED_DEPARTMENT,
-                "answer_options": answer_options,
+                "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
                 "expected_answer": question.expected_answer or "",
                 "is_required": question.is_required,
             }
@@ -965,7 +940,11 @@ def internal_audit_report_context(audit):
 
     for question in audit.questions:
         answer = answers_by_question.get(question.id)
-        result = answer.result if answer and not answer.is_draft else ""
+        result = (
+            internal_audit_canonical_result(answer.result)
+            if answer and not answer.is_draft
+            else ""
+        )
         result_meta = internal_audit_result_meta(result, question)
         if result:
             result_counts[result] = result_counts.get(result, 0) + 1
@@ -1073,8 +1052,9 @@ def internal_audit_result_meta(result, question=None):
         if question is not None
         else INTERNAL_AUDIT_RESULT_MAP
     )
+    canonical_result = internal_audit_canonical_result(result)
     return result_map.get(
-        result,
+        canonical_result or result,
         {"label": result or "Bekliyor", "tone": "secondary"},
     )
 
@@ -1092,7 +1072,11 @@ def internal_audit_history_items(audit, active_question):
     items = []
     for question in questions[start:end]:
         answer = answers_by_question.get(question.id)
-        result = answer.result if answer and not answer.is_draft else None
+        result = (
+            internal_audit_canonical_result(answer.result)
+            if answer and not answer.is_draft
+            else None
+        )
         result_meta = internal_audit_result_meta(result, question)
         items.append(
             {
@@ -1110,33 +1094,16 @@ def internal_audit_history_items(audit, active_question):
 
 
 def internal_audit_previous_nonconformities(question, selected_dof_id=None):
-    query = Dof.query.filter(Dof.source == "İç Denetim")
-    conditions = []
-    if question.evaluated_department:
-        conditions.append(Dof.department == question.evaluated_department)
-    if question.standard:
-        conditions.append(Dof.nonconformity_description.ilike(f"%{question.standard}%"))
-    if question.audit_topic:
-        topic_pattern = f"%{question.audit_topic}%"
-        conditions.append(
-            or_(
-                Dof.title.ilike(topic_pattern),
-                Dof.nonconformity_description.ilike(topic_pattern),
-            )
-        )
-    if conditions:
-        query = query.filter(or_(*conditions))
-
     candidates = [
         dof
-        for dof in query.order_by(Dof.created_at.desc(), Dof.id.desc()).limit(40).all()
+        for dof in Dof.query.order_by(Dof.created_at.desc(), Dof.id.desc()).limit(200).all()
         if can_view_dof(dof)
     ]
     if selected_dof_id and all(dof.id != selected_dof_id for dof in candidates):
         selected_dof = Dof.query.get(selected_dof_id)
         if selected_dof and can_view_dof(selected_dof):
             candidates.insert(0, selected_dof)
-    return candidates
+    return attach_dof_view_state(candidates)
 
 
 def parse_internal_audit_answer_form(audit, question, is_draft=False):
@@ -1146,7 +1113,7 @@ def parse_internal_audit_answer_form(audit, question, is_draft=False):
         or ""
     )
     evaluator_department = INTERNAL_AUDIT_LOCKED_DEPARTMENT
-    result = request.form.get("result", "").strip()
+    result = internal_audit_canonical_result(request.form.get("result", "").strip())
     technical_findings = request.form.get("technical_findings", "").strip()
     previous_nonconformity_id = request.form.get("previous_nonconformity_id", "").strip()
 
@@ -2488,6 +2455,7 @@ def dof_dashboard_context():
 def internal_audit_question_context(audit, question):
     answer = internal_audit_answer_for_question(audit, question)
     selected_previous_dof_id = answer.previous_nonconformity_id if answer else None
+    current_result = internal_audit_canonical_result(answer.result if answer else "")
     return {
         "audit": audit,
         "question": question,
@@ -2516,9 +2484,8 @@ def internal_audit_question_context(audit, question):
         ),
         "is_complete": internal_audit_is_complete(audit),
         "can_create_internal_audit": can_create_internal_audit(),
-        "current_result_requires_finding": internal_audit_result_requires_finding(
-            answer.result if answer else ""
-        ),
+        "current_result": current_result,
+        "current_result_requires_finding": internal_audit_result_requires_finding(current_result),
     }
 
 
@@ -2578,10 +2545,7 @@ def create_internal_audit():
                         "",
                     ).strip(),
                     "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
-                    "answer_options": request.form.get(
-                        f"answer_options_{index}",
-                        DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
-                    ).strip(),
+                    "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
                     "expected_answer": request.form.get(
                         f"expected_answer_{index}",
                         "",
@@ -2642,7 +2606,7 @@ def create_internal_audit():
         default_answer_options=DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
         today=date.today().isoformat(),
         page_title="İç Denetim Oluştur",
-        page_description="Soru listesini, cevap seçeneklerini ve tetkik konularını hazırlayın.",
+        page_description="Soru listesini ve tetkik konularını hazırlayın.",
         submit_label="Denetimi Oluştur",
         is_edit=False,
     )
@@ -2675,10 +2639,7 @@ def edit_internal_audit(audit_id):
                         "",
                     ).strip(),
                     "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
-                    "answer_options": request.form.get(
-                        f"answer_options_{index}",
-                        DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
-                    ).strip(),
+                    "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
                     "expected_answer": request.form.get(
                         f"expected_answer_{index}",
                         "",
@@ -2827,7 +2788,7 @@ def save_internal_audit_answer(audit_id):
         if error_key == "required_fields":
             flash("Kaydetmek için değerlendirilecek departman ve sonucu seçin.", "danger")
         elif error_key == "technical_findings_required":
-            flash("Hayır veya Kısmen sonucunda teknik bulgular alanı zorunludur.", "danger")
+            flash("Kısmen Uygun veya Uygun Değil sonucunda teknik bulgular alanı zorunludur.", "danger")
         elif error_key == "technical_findings_too_long":
             flash("Teknik bulgular en fazla 1000 karakter olabilir.", "danger")
         else:
@@ -2872,7 +2833,7 @@ def save_internal_audit_answer(audit_id):
     audit.status = "Devam Ediyor"
     audit.active_question_order = next_question.order_no if next_question else question.order_no
     db.session.commit()
-    if answer.result == "Hayır":
+    if internal_audit_result_requires_finding(answer.result):
         flash("Soru kaydedildi. Bu cevap için Uygunsuzluk Aç butonu ile DÖF oluşturabilirsiniz.", "warning")
     else:
         flash("Soru kaydedildi ve bir sonraki soruya geçildi.", "success")
@@ -2919,7 +2880,7 @@ def open_internal_audit_nonconformity(audit_id):
 
     if not internal_audit_result_requires_finding(answer.result):
         db.session.rollback()
-        flash("DÖF açmak için sonuç Hayır, Kısmen veya uygunsuzluk belirten bir cevap olmalıdır.", "warning")
+        flash("DÖF açmak için sonuç Kısmen Uygun veya Uygun Değil olmalıdır.", "warning")
         return redirect(
             url_for(
                 "main.internal_audit_question",

@@ -7,7 +7,7 @@
   <div class="dashboard-page-heading">
     <div>
       <h2>{{ page_title or "İç Denetim Oluştur" }}</h2>
-      <p>{{ page_description or "Soru listesini, cevap seçeneklerini ve tetkik konularını hazırlayın." }}</p>
+      <p>{{ page_description or "Soru listesini ve tetkik konularını hazırlayın." }}</p>
     </div>
     <div class="app-heading-actions">
       <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.internal_audit') }}">
@@ -59,7 +59,7 @@
       <div class="audit-builder-section-head">
         <div>
           <h3>Sorular</h3>
-          <p>Soru sırasını yukarıdan aşağıya göre oluşturun. Cevap seçeneklerini virgülle ayırabilirsiniz.</p>
+          <p>Soru sırasını yukarıdan aşağıya göre oluşturun. Cevap seçenekleri Uygun, Kısmen Uygun ve Uygun Değil olarak sabittir.</p>
         </div>
         <button class="btn btn-outline-primary" type="button" data-add-question>
           <i class="bi bi-plus-lg"></i>
@@ -109,7 +109,8 @@
               </div>
               <div>
                 <label class="form-label">Cevap Seçenekleri</label>
-                <input class="form-control" name="answer_options_{{ loop.index }}" value="{{ question.get('answer_options', default_answer_options) }}" placeholder="Evet, Hayır, Kısmen, Uygulanabilir Değil">
+                <input class="form-control audit-locked-field" value="{{ default_answer_options }}" disabled>
+                <div class="form-text">Cevap seçenekleri sabittir ve değiştirilemez.</div>
               </div>
               <div class="audit-builder-question-text">
                 <label class="form-label">Soru</label>
@@ -168,7 +169,8 @@
         </div>
         <div>
           <label class="form-label">Cevap Seçenekleri</label>
-          <input class="form-control" name="answer_options___INDEX__" value="{{ default_answer_options }}" placeholder="Evet, Hayır, Kısmen, Uygulanabilir Değil">
+          <input class="form-control audit-locked-field" value="{{ default_answer_options }}" disabled>
+          <div class="form-text">Cevap seçenekleri sabittir ve değiştirilemez.</div>
         </div>
         <div class="audit-builder-question-text">
           <label class="form-label">Soru</label>

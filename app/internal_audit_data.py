@@ -1,8 +1,7 @@
 INTERNAL_AUDIT_RESULTS = (
-    ("Evet", "Uygun", "success"),
-    ("Hayır", "Uygunsuz", "danger"),
-    ("Kısmen", "Kısmen Uygun", "warning"),
-    ("Uygulanabilir Değil", "Kapsam Dışı", "secondary"),
+    ("Uygun", "Uygun", "success"),
+    ("Kısmen Uygun", "Kısmen Uygun", "warning"),
+    ("Uygun Değil", "Uygun Değil", "danger"),
 )
 
 

@@ -3,7 +3,7 @@
 {% block title %}İç Denetim Akıllı Soru Akışı - Aksiyon Takip Sistemi{% endblock %}
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
-{% set current_result = answer.result if answer else "" %}
+{% set current_result = current_result if current_result is defined else (answer.result if answer else "") %}
 {% set current_department = answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department %}
 {% set current_evaluator_department = answer.evaluator_department if answer and answer.evaluator_department else evaluator_department %}
 
@@ -120,7 +120,7 @@
               <span class="audit-answer-label">Cevap Seçenekleri</span>
               {% for value, label, tone in result_choices %}
                 <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
-                  <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if value|lower in ['hayır', 'kısmen'] or 'uygunsuz' in value|lower or 'kısmen' in value|lower %}true{% else %}false{% endif %}">
+                  <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if tone in ['warning', 'danger'] %}true{% else %}false{% endif %}">
                   <span></span>
                   <strong>{{ value }}</strong>
                 </label>
@@ -158,7 +158,7 @@
               <option value="">İlgili uygunsuzluk seçiniz (opsiyonel)...</option>
               {% for dof in previous_nonconformities %}
                 <option value="{{ dof.id }}" {% if answer and answer.previous_nonconformity_id == dof.id %}selected{% endif %}>
-                  {{ dof.dof_no }} - {{ dof.department or "-" }}
+                  {{ dof.dof_no }} - {{ dof.department or "-" }}{% if dof.title %} - {{ dof.title }}{% endif %}
                 </option>
               {% endfor %}
             </select>
@@ -219,7 +219,7 @@
         <span>Mevcut DÖF</span>
       </a>
     {% else %}
-      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}">
+      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% else %}is-hidden{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}" {% if not current_result_requires_finding %}disabled{% endif %}>
         <i class="bi bi-exclamation-triangle"></i>
         <span>Uygunsuzluk Aç</span>
       </button>
@@ -260,7 +260,10 @@
           option.classList.toggle("is-selected", option.querySelector("input")?.checked);
         });
         if (nonconformityButton) {
-          nonconformityButton.classList.toggle("is-urgent", selected?.dataset.auditRequiresFinding === "true");
+          const canOpenDof = selected?.dataset.auditRequiresFinding === "true";
+          nonconformityButton.classList.toggle("is-urgent", canOpenDof);
+          nonconformityButton.classList.toggle("is-hidden", !canOpenDof);
+          nonconformityButton.disabled = !canOpenDof;
         }
       }
 

@@ -2453,6 +2453,21 @@ body {
     cursor: pointer;
 }
 
+.audit-answer-option.audit-tone-success {
+    background: #f6fffb;
+    border-color: #bdebd2;
+}
+
+.audit-answer-option.audit-tone-warning {
+    background: #fffaf0;
+    border-color: #f8d99a;
+}
+
+.audit-answer-option.audit-tone-danger {
+    background: #fff6f6;
+    border-color: #f4b8be;
+}
+
 .audit-answer-option strong {
     min-width: 0;
     line-height: 1.25;
@@ -2700,6 +2715,10 @@ body {
     background: #fd7e14;
     border-color: #fd7e14;
     box-shadow: 0 10px 24px rgba(253, 126, 20, 0.2);
+}
+
+.audit-nonconformity-button.is-hidden {
+    display: none;
 }
 
 .audit-builder-form {
