@@ -36,7 +36,7 @@
       <header class="audit-report-cover">
         <div>
           <span class="audit-report-kicker">{% if is_personnel_report %}Denetlenen Personel Çıktısı{% else %}İç Denetim Raporu{% endif %}</span>
-          <h1>{{ report_document_title }}</h1>
+          <h1 class="audit-report-document-title">{{ report_document_title }}</h1>
           <p>{{ audit.audit_no }} | {{ audit.title }}</p>
         </div>
         {% if not is_personnel_report %}

@@ -2031,6 +2031,11 @@ body {
     font-weight: 900;
 }
 
+.audit-report-cover h1.audit-report-document-title {
+    font-size: 1rem;
+    line-height: 1.35;
+}
+
 .audit-report-cover p {
     margin: 0;
     color: #475569;
