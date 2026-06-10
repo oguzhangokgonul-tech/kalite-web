@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
 {% block title %}{{ dof.dof_no }} - Aksiyon Takip Sistemi{% endblock %}
-{% block topbar_title %}DÖF Detayı{% endblock %}
+{% block topbar_title %}İF Detayı{% endblock %}
 
 {% macro detail_status_badge(dof) %}
   {% if dof.display_status == "Gecikti" %}
@@ -87,7 +87,7 @@
       {% endif %}
       <a class="btn btn-outline-secondary" href="{{ url_for('main.dof_management') }}">
         <i class="bi bi-arrow-left"></i>
-        <span>DÖF Yönetimi</span>
+        <span>İF Yönetimi</span>
       </a>
       {% if can_delete %}
         <a class="btn btn-outline-danger" href="{{ url_for('main.delete_dof', dof_id=dof.id) }}">
@@ -112,10 +112,10 @@
 
   <div class="dof-detail-layout">
     <div class="dof-detail-main">
-      {{ content_card("bi-card-text", "tone-teal", "Uygunsuzluk Açıklaması", "DÖF kaydına ait açıklama alanı", dof.nonconformity_description) }}
-      {{ content_card("bi-diagram-2", "tone-green", "Kök Neden Analizi", "DÖF kaydına ait açıklama alanı", dof.root_cause_analysis) }}
-      {{ content_card("bi-wrench-adjustable", "tone-blue", "Düzeltici Faaliyet", "DÖF kaydına ait açıklama alanı", dof.corrective_action) }}
-      {{ content_card("bi-shield-check", "tone-purple", "Önleyici Faaliyet", "DÖF kaydına ait açıklama alanı", dof.preventive_action) }}
+      {{ content_card("bi-card-text", "tone-teal", "Uygunsuzluk Açıklaması", "İF kaydına ait açıklama alanı", dof.nonconformity_description) }}
+      {{ content_card("bi-diagram-2", "tone-green", "Kök Neden Analizi", "İF kaydına ait açıklama alanı", dof.root_cause_analysis) }}
+      {{ content_card("bi-wrench-adjustable", "tone-blue", "Düzeltici Faaliyet", "İF kaydına ait açıklama alanı", dof.corrective_action) }}
+      {{ content_card("bi-shield-check", "tone-purple", "Önleyici Faaliyet", "İF kaydına ait açıklama alanı", dof.preventive_action) }}
 
       <section class="dof-detail-content-card">
         <span class="dof-detail-content-icon tone-teal"><i class="bi bi-file-earmark-check"></i></span>
@@ -134,7 +134,7 @@
           <i class="bi bi-diagram-3"></i>
           <div>
             <h3>Onay Akışı</h3>
-            <p>DÖF kaydının hangi onay seviyesinde olduğunu gösterir.</p>
+            <p>İF kaydının hangi onay seviyesinde olduğunu gösterir.</p>
           </div>
         </div>
         <ol class="dof-approval-flow dof-detail-approval-flow">
@@ -175,7 +175,7 @@
             <i class="bi bi-x-circle"></i>
             <div>
               <h3>Onayı Reddet</h3>
-              <p>Red sebebi DÖF sahibine bildirim olarak iletilir.</p>
+              <p>Red sebebi İF sahibine bildirim olarak iletilir.</p>
             </div>
           </div>
           <form method="post" action="{{ url_for('main.reject_dof', dof_id=dof.id) }}">
@@ -183,7 +183,7 @@
             <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="4" required></textarea>
             <button class="btn btn-outline-danger w-100 mt-3" type="submit">
               <i class="bi bi-x-circle"></i>
-              <span>DÖF Onayını Reddet</span>
+              <span>İF Onayını Reddet</span>
             </button>
           </form>
         </section>
@@ -194,7 +194,7 @@
           <i class="bi bi-paperclip"></i>
           <div>
             <h3>Dosyalar / Görseller</h3>
-            <p>Bu DÖF kaydına ait yüklenen görseller ve kanıt dosyaları.</p>
+            <p>Bu İF kaydına ait yüklenen görseller ve kanıt dosyaları.</p>
           </div>
         </div>
         {% if dof.files or dof.evidence_original_name %}

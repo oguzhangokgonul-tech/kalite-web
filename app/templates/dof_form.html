@@ -1,6 +1,6 @@
 {% extends "app_shell.html" %}
 
-{% block title %}Yeni DÖF Kaydı - Aksiyon Takip Sistemi{% endblock %}
+{% block title %}Yeni İF Kaydı - Aksiyon Takip Sistemi{% endblock %}
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% macro field_value(name, fallback="") %}
@@ -14,13 +14,13 @@
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
-      <h2>Yeni DÖF Kaydı</h2>
+      <h2>Yeni İF Kaydı</h2>
       <p>Düzeltici ve önleyici faaliyet kaydı oluşturun</p>
     </div>
     <div class="app-heading-actions">
       <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.dof_management') }}">
         <i class="bi bi-arrow-left"></i>
-        <span>DÖF Yönetimi</span>
+        <span>İF Yönetimi</span>
       </a>
       <button class="btn btn-outline-secondary btn-lg" type="submit" name="save_mode" value="draft" form="dofForm">
         <i class="bi bi-file-earmark"></i>
@@ -41,19 +41,19 @@
       <div class="app-card-header">
         <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-pulse"></i></span>
         <div>
-          <h3>DÖF Bilgileri</h3>
+          <h3>İF Bilgileri</h3>
           <p>Düzeltici ve önleyici faaliyet kaydının temel bilgilerini girin.</p>
         </div>
       </div>
 
       <div class="dof-grid">
         <div>
-          <label class="form-label" for="dof_no">DÖF No</label>
+          <label class="form-label" for="dof_no">İF No</label>
           <input class="form-control" id="dof_no" value="Otomatik atanacaktır" disabled>
         </div>
         <div>
           <label class="form-label" for="title">Başlık <span class="text-danger">*</span></label>
-          <input class="form-control" id="title" name="title" value="{{ field_value('title')|trim }}" maxlength="160" placeholder="DÖF başlığını girin">
+          <input class="form-control" id="title" name="title" value="{{ field_value('title')|trim }}" maxlength="160" placeholder="İF başlığını girin">
         </div>
         <div>
           <label class="form-label" for="department">Departman <span class="text-danger">*</span></label>
@@ -146,7 +146,7 @@
           <h3>Onay Akışı</h3>
         </div>
         <ol class="dof-approval-flow">
-          <li class="is-active"><strong>DÖF Açılması</strong><span>Form kaydedilecek</span></li>
+          <li class="is-active"><strong>İF Açılması</strong><span>Form kaydedilecek</span></li>
           <li><strong>Yönetim Temsilcisi</strong><span>Beklemede</span></li>
           <li><strong>Genel Müdür Yardımcısı</strong><span>Beklemede</span></li>
         </ol>

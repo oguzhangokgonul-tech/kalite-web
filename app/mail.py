@@ -96,7 +96,7 @@ def build_dof_email(dof, message):
     lines = [
         message,
         "",
-        f"DÖF No: {dof.dof_no}",
+        f"İF No: {dof.dof_no}",
         f"Başlık: {dof.title or '-'}",
         f"Departman: {dof.department or '-'}",
         f"Sorumlu: {dof.responsible.full_name if dof.responsible else '-'}",

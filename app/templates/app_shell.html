@@ -33,7 +33,7 @@
         </a>
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-clipboard2-pulse"></i>
-          <span>DÖF Yönetimi</span>
+          <span>İF Yönetimi</span>
         </a>
         <a class="dashboard-nav-item {% if request.endpoint in ['main.internal_audit', 'main.create_internal_audit', 'main.edit_internal_audit', 'main.internal_audit_report', 'main.delete_internal_audit', 'main.internal_audit_question', 'main.save_internal_audit_answer', 'main.open_internal_audit_nonconformity', 'main.complete_internal_audit'] %}active{% endif %}" href="{{ url_for('main.internal_audit') }}">
           <i class="bi bi-clipboard-check"></i>

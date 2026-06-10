@@ -109,7 +109,11 @@
             <div class="audit-builder-question-grid">
               <div>
                 <label class="form-label">İlgili Standart</label>
-                <input class="form-control" name="standard_{{ loop.index }}" value="{{ question.get('standard', '') }}" maxlength="160" placeholder="ISO 9001:2015 - Kalite Yönetim Sistemi">
+                <select class="form-select" name="standard_{{ loop.index }}">
+                  {% for standard in standard_choices %}
+                    <option value="{{ standard }}" {% if question.get('standard', '') == standard %}selected{% endif %}>{{ standard }}</option>
+                  {% endfor %}
+                </select>
               </div>
               <div>
                 <label class="form-label">Tetkik Konusu</label>
@@ -125,7 +129,7 @@
                 <textarea class="form-control" name="question_text_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın...">{{ question.get('question_text', '') }}</textarea>
               </div>
               <div class="audit-builder-question-text">
-                <label class="form-label">Beklenen Cevap</label>
+                <label class="form-label">Cevap</label>
                 <textarea class="form-control" name="expected_answer_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Karşı taraftan duymak istediğiniz cevabı yazın...">{{ question.get('expected_answer', '') }}</textarea>
                 <div class="form-text">Bu not sadece Oğuzhan hesabında soru altında görünür.</div>
               </div>
@@ -155,7 +159,11 @@
       <div class="audit-builder-question-grid">
         <div>
           <label class="form-label">İlgili Standart</label>
-          <input class="form-control" name="standard___INDEX__" value="ISO 9001:2015 - Kalite Yönetim Sistemi" maxlength="160" placeholder="ISO 9001:2015 - Kalite Yönetim Sistemi">
+          <select class="form-select" name="standard___INDEX__">
+            {% for standard in standard_choices %}
+              <option value="{{ standard }}">{{ standard }}</option>
+            {% endfor %}
+          </select>
         </div>
         <div>
           <label class="form-label">Tetkik Konusu</label>
@@ -171,7 +179,7 @@
           <textarea class="form-control" name="question_text___INDEX__" rows="3" maxlength="2000" placeholder="Denetimde sorulacak soruyu yazın..."></textarea>
         </div>
         <div class="audit-builder-question-text">
-          <label class="form-label">Beklenen Cevap</label>
+          <label class="form-label">Cevap</label>
           <textarea class="form-control" name="expected_answer___INDEX__" rows="3" maxlength="2000" placeholder="Karşı taraftan duymak istediğiniz cevabı yazın..."></textarea>
           <div class="form-text">Bu not sadece Oğuzhan hesabında soru altında görünür.</div>
         </div>

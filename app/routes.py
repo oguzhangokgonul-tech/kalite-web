@@ -74,6 +74,14 @@ DEFAULT_INTERNAL_AUDIT_OPTION_TEXT = ", ".join(
     value for value, _label, _tone in INTERNAL_AUDIT_RESULTS
 )
 INTERNAL_AUDIT_LOCKED_DEPARTMENT = "Kalite Yönetim Departmanı"
+INTERNAL_AUDIT_STANDARD_CHOICES = (
+    "ISO 9001:2015 - Kalite Yönetim Sistemi",
+    (
+        "ISO 9001:2015 - Kalite Yönetim Sistemi + "
+        "TSE K 118:2018 - Ön Dökümlü Betonarme Yapı Elemanları Kalite Yönetim Sistemi"
+    ),
+    "TSE K 118:2018 - Ön Dökümlü Betonarme Yapı Elemanları Kalite Yönetim Sistemi",
+)
 
 
 @bp.app_errorhandler(403)
@@ -134,7 +142,7 @@ def ensure_notification_dof_column():
             current_app.extensions["notification_dof_column_checked"] = True
             return
         db.session.rollback()
-        current_app.logger.exception("DÖF bildirim kolonu kontrol edilemedi.")
+        current_app.logger.exception("İF bildirim kolonu kontrol edilemedi.")
 
 
 def ensure_dof_rejection_schema():
@@ -174,7 +182,7 @@ def ensure_dof_rejection_schema():
         current_app.extensions["dof_rejection_schema_checked"] = True
     except OperationalError:
         db.session.rollback()
-        current_app.logger.exception("DÖF red/revizyon şeması kontrol edilemedi.")
+        current_app.logger.exception("İF red/revizyon şeması kontrol edilemedi.")
 
 
 def ensure_dof_files_schema():
@@ -204,7 +212,7 @@ def ensure_dof_files_schema():
         current_app.extensions["dof_files_schema_checked"] = True
     except OperationalError:
         db.session.rollback()
-        current_app.logger.exception("DÖF dosya şeması kontrol edilemedi.")
+        current_app.logger.exception("İF dosya şeması kontrol edilemedi.")
 
 
 def ensure_internal_audit_schema():
@@ -664,7 +672,7 @@ def reserve_action_number():
 def reserve_dof_number(today=None):
     today = today or date.today()
     year = today.year
-    prefix = f"DÖF-{year}-"
+    prefix = f"İF-{year}-"
     existing_numbers = (
         db.session.query(Dof.dof_no)
         .filter(Dof.dof_no.like(f"{prefix}%"))
@@ -845,6 +853,8 @@ def parse_internal_audit_builder_form():
             continue
         if not standard or not audit_topic or not question_text:
             raise ValueError("question_required_fields")
+        if standard not in INTERNAL_AUDIT_STANDARD_CHOICES:
+            raise ValueError("invalid_standard")
         if len(question_text) > 2000:
             raise ValueError("question_too_long")
         if len(expected_answer) > 2000:
@@ -1521,7 +1531,7 @@ def dof_rejection_recipients(dof, rejected_step):
 
 
 def dof_label(dof):
-    return dof.dof_no or "DÖF kaydı"
+    return dof.dof_no or "İF kaydı"
 
 
 def notify_dof_users(users, dof, message, exclude_user_id=None):
@@ -1735,7 +1745,7 @@ def dof_approval_steps(dof):
     return [
         {
             "key": "opened",
-            "title": "DÖF Açılması",
+            "title": "İF Açılması",
             "status": "Tamamlandı" if step != "draft" else "Beklemede",
             "is_active": step == "draft",
             "is_complete": step != "draft",
@@ -2612,6 +2622,8 @@ def create_internal_audit():
                 flash("İç denetim için değerlendirilen departman ve denetlenen personel seçin.", "danger")
             elif error_key == "question_required_fields":
                 flash("Her soru için standart, tetkik konusu ve soru alanlarını doldurun.", "danger")
+            elif error_key == "invalid_standard":
+                flash("Sorulardaki ilgili standart alanlarından biri geçerli değil.", "danger")
             elif error_key == "invalid_department":
                 flash("Değerlendirilen departman geçerli değil.", "danger")
             elif error_key == "invalid_user":
@@ -2658,6 +2670,7 @@ def create_internal_audit():
         questions=questions,
         departments=DEPARTMENTS,
         users=active_users(),
+        standard_choices=INTERNAL_AUDIT_STANDARD_CHOICES,
         locked_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
         default_answer_options=DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
         today=date.today().isoformat(),
@@ -2720,6 +2733,8 @@ def edit_internal_audit(audit_id):
                 flash("İç denetim için değerlendirilen departman ve denetlenen personel seçin.", "danger")
             elif error_key == "question_required_fields":
                 flash("Her soru için standart, tetkik konusu ve soru alanlarını doldurun.", "danger")
+            elif error_key == "invalid_standard":
+                flash("Sorulardaki ilgili standart alanlarından biri geçerli değil.", "danger")
             elif error_key == "invalid_department":
                 flash("Değerlendirilen departman geçerli değil.", "danger")
             elif error_key == "invalid_user":
@@ -2752,6 +2767,7 @@ def edit_internal_audit(audit_id):
         questions=questions,
         departments=DEPARTMENTS,
         users=active_users(),
+        standard_choices=INTERNAL_AUDIT_STANDARD_CHOICES,
         locked_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
         default_answer_options=DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
         today=date.today().isoformat(),
@@ -2918,7 +2934,7 @@ def save_internal_audit_answer(audit_id):
     audit.active_question_order = next_question.order_no if next_question else question.order_no
     db.session.commit()
     if internal_audit_result_requires_finding(answer.result):
-        flash("Soru kaydedildi. Bu cevap için Uygunsuzluk Aç butonu ile DÖF oluşturabilirsiniz.", "warning")
+        flash("Soru kaydedildi. Bu cevap için Uygunsuzluk Aç butonu ile İF oluşturabilirsiniz.", "warning")
     else:
         flash("Soru kaydedildi ve bir sonraki soruya geçildi.", "success")
 
@@ -2949,11 +2965,11 @@ def open_internal_audit_nonconformity(audit_id):
     except ValueError as error:
         error_key = str(error)
         if error_key == "technical_findings_required":
-            flash("DÖF açmak için teknik bulgular alanını doldurun.", "danger")
+            flash("İF açmak için teknik bulgular alanını doldurun.", "danger")
         elif error_key == "required_fields":
-            flash("DÖF açmak için departman, sonuç ve zorunlu alanları tamamlayın.", "danger")
+            flash("İF açmak için departman, sonuç ve zorunlu alanları tamamlayın.", "danger")
         else:
-            flash("DÖF açmadan önce iç denetim cevabını geçerli biçimde doldurun.", "danger")
+            flash("İF açmadan önce iç denetim cevabını geçerli biçimde doldurun.", "danger")
         return redirect(
             url_for(
                 "main.internal_audit_question",
@@ -2964,7 +2980,7 @@ def open_internal_audit_nonconformity(audit_id):
 
     if not internal_audit_result_requires_finding(answer.result):
         db.session.rollback()
-        flash("DÖF açmak için sonuç Kısmen Uygun veya Uygun Değil olmalıdır.", "warning")
+        flash("İF açmak için sonuç Kısmen Uygun veya Uygun Değil olmalıdır.", "warning")
         return redirect(
             url_for(
                 "main.internal_audit_question",
@@ -2976,7 +2992,7 @@ def open_internal_audit_nonconformity(audit_id):
     db.session.flush()
     if answer.dof_id:
         db.session.commit()
-        flash("Bu soru için daha önce DÖF açılmış. Mevcut DÖF detayına yönlendirildiniz.", "info")
+        flash("Bu soru için daha önce İF açılmış. Mevcut İF detayına yönlendirildiniz.", "info")
         return redirect(url_for("main.dof_detail", dof_id=answer.dof_id))
 
     audit.active_question_order = question.order_no
@@ -3022,7 +3038,7 @@ def create_dof():
                 flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
                 return redirect(url_for("main.dof_management"))
             if audit_answer.dof_id:
-                flash("Bu iç denetim cevabı için daha önce DÖF açılmış.", "info")
+                flash("Bu iç denetim cevabı için daha önce İF açılmış.", "info")
                 return redirect(url_for("main.dof_detail", dof_id=audit_answer.dof_id))
         try:
             dof = parse_dof_form(save_mode=save_mode)
@@ -3036,7 +3052,7 @@ def create_dof():
                 add_dof_comment(
                     dof,
                     (
-                        "DÖF iç denetim soru akışından açıldı. "
+                        "İF iç denetim soru akışından açıldı. "
                         f"Soru: {short_text(audit_answer.question_text, 140)}"
                     ),
                     comment_type="internal_audit",
@@ -3051,7 +3067,7 @@ def create_dof():
                 notify_dof_waiting_approvers(dof)
             db.session.commit()
             flash(
-                f"{dof.dof_no} numaralı DÖF kaydı "
+                f"{dof.dof_no} numaralı İF kaydı "
                 f"{'taslak olarak ' if save_mode == 'draft' else ''}kaydedildi.",
                 "success",
             )
@@ -3072,7 +3088,7 @@ def create_dof():
             elif error_key == "text_too_long":
                 flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
             else:
-                flash("Lütfen DÖF form alanlarını geçerli biçimde doldurun.", "danger")
+                flash("Lütfen İF form alanlarını geçerli biçimde doldurun.", "danger")
 
     form_data = request.form if request.method == "POST" else {}
     if request.method == "GET":
@@ -3083,7 +3099,7 @@ def create_dof():
                 flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
                 return redirect(url_for("main.dof_management"))
             if audit_answer.dof_id:
-                flash("Bu iç denetim cevabı için daha önce DÖF açılmış.", "info")
+                flash("Bu iç denetim cevabı için daha önce İF açılmış.", "info")
                 return redirect(url_for("main.dof_detail", dof_id=audit_answer.dof_id))
             form_data = internal_audit_dof_prefill(audit_answer)
 
@@ -3143,7 +3159,7 @@ def approve_dof_management(dof_id):
     )
     notify_dof_waiting_approvers(dof)
     db.session.commit()
-    flash("DÖF kaydı Yönetim Temsilcisi tarafından onaylandı.", "success")
+    flash("İF kaydı Yönetim Temsilcisi tarafından onaylandı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
@@ -3165,7 +3181,7 @@ def approve_dof_deputy(dof_id):
     dof.status = "Tamamlandı"
     add_dof_comment(
         dof,
-        f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi ve DÖF kapandı.",
+        f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi ve İF kapandı.",
         comment_type="approval",
         actor=g.current_user,
     )
@@ -3175,7 +3191,7 @@ def approve_dof_deputy(dof_id):
         f"{dof_label(dof)} kapatıldı.",
     )
     db.session.commit()
-    flash("DÖF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
+    flash("İF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
@@ -3229,7 +3245,7 @@ def reject_dof(dof_id):
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
-    flash("DÖF kaydı reddedildi ve revizyon beklemeye alındı.", "success")
+    flash("İF kaydı reddedildi ve revizyon beklemeye alındı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
@@ -3263,7 +3279,7 @@ def revise_dof(dof_id):
         elif error_key == "text_too_long":
             flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
         else:
-            flash("Lütfen DÖF revizyon alanlarını geçerli biçimde doldurun.", "danger")
+            flash("Lütfen İF revizyon alanlarını geçerli biçimde doldurun.", "danger")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
     changes = describe_dof_revision_changes(before, dof)
@@ -3297,7 +3313,7 @@ def revise_dof(dof_id):
     )
     notify_dof_waiting_approvers(dof)
     db.session.commit()
-    flash("DÖF revizyonu kaydedildi ve tekrar onaya gönderildi.", "success")
+    flash("İF revizyonu kaydedildi ve tekrar onaya gönderildi.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
@@ -3308,7 +3324,7 @@ def download_dof_evidence_file(dof_id):
     if not can_view_dof(dof):
         abort(403)
     if not dof.evidence_stored_name:
-        flash("Bu DÖF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
+        flash("Bu İF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
     return send_from_directory(
@@ -3354,7 +3370,7 @@ def delete_dof(dof_id):
         delete_dof_evidence_file(dof)
         db.session.delete(dof)
         db.session.commit()
-        flash("DÖF kaydı silindi.", "success")
+        flash("İF kaydı silindi.", "success")
         return redirect(url_for("main.dof_management"))
 
     return render_template("dof_confirm_delete.html", dof=dof)

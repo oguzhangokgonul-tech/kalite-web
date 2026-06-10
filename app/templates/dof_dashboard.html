@@ -1,6 +1,6 @@
 {% extends "app_shell.html" %}
 
-{% block title %}DÖF Yönetimi - Aksiyon Takip Sistemi{% endblock %}
+{% block title %}İF Yönetimi - Aksiyon Takip Sistemi{% endblock %}
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% macro dof_status_badge(dof) %}
@@ -43,24 +43,24 @@
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
-      <h2>DÖF Yönetimi</h2>
+      <h2>İF Yönetimi</h2>
       <p>Düzeltici ve önleyici faaliyet kayıtlarını takip edin</p>
     </div>
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_dof') }}">
       <i class="bi bi-plus-lg"></i>
-      <span>Yeni DÖF Kaydı</span>
+      <span>Yeni İF Kaydı</span>
     </a>
   </div>
 
   <div class="dashboard-metrics dof-dashboard-metrics">
     <div class="dashboard-stat-card stat-primary">
       <span class="stat-icon"><i class="bi bi-clipboard2-pulse"></i></span>
-      <span class="stat-label">Toplam DÖF</span>
+      <span class="stat-label">Toplam İF</span>
       <strong>{{ total_count }}</strong>
     </div>
     <div class="dashboard-stat-card stat-warning">
       <span class="stat-icon"><i class="bi bi-clock"></i></span>
-      <span class="stat-label">Onay Bekleyen DÖF</span>
+      <span class="stat-label">Onay Bekleyen İF</span>
       <strong>{{ approval_count }}</strong>
     </div>
     <div class="dashboard-stat-card stat-success">
@@ -75,7 +75,7 @@
     </div>
     <div class="dashboard-stat-card stat-danger">
       <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
-      <span class="stat-label">Geciken DÖF</span>
+      <span class="stat-label">Geciken İF</span>
       <strong>{{ delayed_count }}</strong>
     </div>
   </div>
@@ -86,7 +86,7 @@
         <label class="form-label" for="search">Arama</label>
         <div class="dashboard-search-control">
           <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="DÖF no, başlık, uygunsuzluk">
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="İF no, başlık, uygunsuzluk">
         </div>
       </div>
       <div>
@@ -136,7 +136,7 @@
       <table class="table dashboard-table dof-dashboard-table align-middle mb-0">
         <thead>
           <tr>
-            <th>DÖF Kaydı</th>
+            <th>İF Kaydı</th>
             <th>Uygunsuzluğun Açıklaması</th>
             <th>Departman</th>
             <th>Sorumlu</th>
@@ -150,7 +150,7 @@
         <tbody>
           {% for dof in dofs %}
             <tr>
-              <td class="dashboard-action-title-cell" data-label="DÖF Kaydı" title="{{ dof.dof_no }}">
+              <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
               </td>
               <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması">{{ dof.nonconformity_description or "-" }}</td>
@@ -192,8 +192,8 @@
           {% else %}
             <tr>
               <td class="dashboard-empty-row" colspan="9">
-                <strong>Henüz DÖF kaydı yok.</strong>
-                <span>Yeni DÖF kaydı eklendiğinde burada listelenecek.</span>
+                <strong>Henüz İF kaydı yok.</strong>
+                <span>Yeni İF kaydı eklendiğinde burada listelenecek.</span>
               </td>
             </tr>
           {% endfor %}

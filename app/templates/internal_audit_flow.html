@@ -111,7 +111,7 @@
             <h3>{{ question.question_text }}</h3>
             {% if can_create_internal_audit and question.expected_answer %}
               <div class="audit-expected-answer">
-                <strong>Beklenen Cevap</strong>
+                <strong>Cevap</strong>
                 <p>{{ question.expected_answer }}</p>
               </div>
             {% endif %}
@@ -216,12 +216,12 @@
     {% if answer and answer.dof_id %}
       <a class="btn btn-outline-warning btn-lg" href="{{ url_for('main.dof_detail', dof_id=answer.dof_id) }}">
         <i class="bi bi-exclamation-triangle"></i>
-        <span>Mevcut DÖF</span>
+        <span>Mevcut İF</span>
       </a>
     {% else %}
       <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% else %}is-hidden{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}" {% if not current_result_requires_finding %}disabled{% endif %}>
         <i class="bi bi-exclamation-triangle"></i>
-        <span>Uygunsuzluk Aç</span>
+        <span>İF Aç</span>
       </button>
     {% endif %}
     {% if is_complete %}
