@@ -2852,6 +2852,10 @@ body {
     grid-column: 1 / -1;
 }
 
+.audit-builder-question-topic {
+    grid-column: 1 / -1;
+}
+
 .audit-builder-question textarea {
     min-height: 92px;
     resize: vertical;
