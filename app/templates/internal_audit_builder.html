@@ -116,13 +116,17 @@
                 </select>
               </div>
               <div>
+                <label class="form-label">Tetkik Başlık No</label>
+                <input class="form-control" name="audit_topic_{{ loop.index }}" value="{{ question.get('audit_topic', '') }}" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
+              </div>
+              <div>
                 <label class="form-label">Cevap Seçenekleri</label>
                 <input class="form-control audit-locked-field" value="{{ default_answer_options }}" disabled>
                 <div class="form-text">Cevap seçenekleri sabittir ve değiştirilemez.</div>
               </div>
               <div class="audit-builder-question-topic">
                 <label class="form-label">Tetkik Konusu</label>
-                <input class="form-control" name="audit_topic_{{ loop.index }}" value="{{ question.get('audit_topic', '') }}" maxlength="200" placeholder="Tetkik konusunu yazın...">
+                <textarea class="form-control" name="audit_subject_{{ loop.index }}" rows="3" maxlength="2000" placeholder="Tetkik konusunu yazın...">{{ question.get('audit_subject', '') }}</textarea>
               </div>
               <div class="audit-builder-question-text">
                 <label class="form-label">Soru</label>
@@ -166,13 +170,17 @@
           </select>
         </div>
         <div>
+          <label class="form-label">Tetkik Başlık No</label>
+          <input class="form-control" name="audit_topic___INDEX__" maxlength="200" placeholder="Örn. 7.5 - Dokümante Edilmiş Bilgiler">
+        </div>
+        <div>
           <label class="form-label">Cevap Seçenekleri</label>
           <input class="form-control audit-locked-field" value="{{ default_answer_options }}" disabled>
           <div class="form-text">Cevap seçenekleri sabittir ve değiştirilemez.</div>
         </div>
         <div class="audit-builder-question-topic">
           <label class="form-label">Tetkik Konusu</label>
-          <input class="form-control" name="audit_topic___INDEX__" maxlength="200" placeholder="Tetkik konusunu yazın...">
+          <textarea class="form-control" name="audit_subject___INDEX__" rows="3" maxlength="2000" placeholder="Tetkik konusunu yazın..."></textarea>
         </div>
         <div class="audit-builder-question-text">
           <label class="form-label">Soru</label>

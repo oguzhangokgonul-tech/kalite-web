@@ -98,7 +98,7 @@
             </select>
           </div>
           <div>
-            <label class="form-label" for="audit_topic">Tetkik Konusu</label>
+            <label class="form-label" for="audit_topic">Tetkik Başlık No</label>
             <select class="form-select" id="audit_topic" disabled>
               <option>{{ question.audit_topic }}</option>
             </select>
@@ -108,6 +108,12 @@
         <section class="audit-current-question">
           <span class="audit-question-icon"><i class="bi bi-question-lg"></i></span>
           <div class="audit-current-question-body">
+            {% if question.audit_subject %}
+              <div class="audit-expected-answer audit-subject-note">
+                <strong>Tetkik Konusu</strong>
+                <p>{{ question.audit_subject }}</p>
+              </div>
+            {% endif %}
             <h3>{{ question.question_text }}</h3>
             {% if can_create_internal_audit and question.expected_answer %}
               <div class="audit-expected-answer">

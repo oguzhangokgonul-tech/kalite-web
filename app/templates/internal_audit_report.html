@@ -129,7 +129,10 @@
                 <span>{{ row.question.order_no }}</span>
                 <div>
                   <h3>{{ row.question.question_text }}</h3>
-                  <p>{{ row.question.standard }} | {{ row.question.audit_topic }}</p>
+                  <p>{{ row.question.standard }} | Tetkik Başlık No: {{ row.question.audit_topic }}</p>
+                  {% if row.question.audit_subject %}
+                    <p>Tetkik Konusu: {{ row.question.audit_subject }}</p>
+                  {% endif %}
                 </div>
                 {% if not is_personnel_report %}
                   <strong class="audit-report-result audit-tone-{{ row.tone }}">{{ row.result or "Bekliyor" }}</strong>

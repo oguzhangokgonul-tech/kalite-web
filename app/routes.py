@@ -293,6 +293,7 @@ def ensure_internal_audit_schema():
                             order_no INTEGER NOT NULL,
                             standard VARCHAR(160) NOT NULL,
                             audit_topic VARCHAR(200) NOT NULL,
+                            audit_subject TEXT,
                             question_text TEXT NOT NULL,
                             evaluated_department VARCHAR(80),
                             evaluator_department VARCHAR(80),
@@ -331,6 +332,13 @@ def ensure_internal_audit_schema():
                             "ADD COLUMN evaluator_department VARCHAR(80)"
                         )
                     )
+                if "audit_subject" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE internal_audit_questions "
+                            "ADD COLUMN audit_subject TEXT"
+                        )
+                    )
 
             if "internal_audit_answers" not in tables:
                 connection.execute(
@@ -342,6 +350,7 @@ def ensure_internal_audit_schema():
                             question_id INTEGER NOT NULL,
                             standard VARCHAR(160) NOT NULL,
                             audit_topic VARCHAR(200) NOT NULL,
+                            audit_subject TEXT,
                             question_text TEXT NOT NULL,
                             evaluated_department VARCHAR(80),
                             evaluator_department VARCHAR(80),
@@ -368,6 +377,13 @@ def ensure_internal_audit_schema():
                         text(
                             "ALTER TABLE internal_audit_answers "
                             "ADD COLUMN evaluator_department VARCHAR(80)"
+                        )
+                    )
+                if "audit_subject" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE internal_audit_answers "
+                            "ADD COLUMN audit_subject TEXT"
                         )
                     )
         current_app.extensions["internal_audit_schema_checked"] = True
@@ -836,6 +852,7 @@ def parse_internal_audit_builder_form():
     for index in indexes:
         standard = request.form.get(f"standard_{index}", "").strip()
         audit_topic = request.form.get(f"audit_topic_{index}", "").strip()
+        audit_subject = request.form.get(f"audit_subject_{index}", "").strip()
         question_text = request.form.get(f"question_text_{index}", "").strip()
         expected_answer = request.form.get(f"expected_answer_{index}", "").strip()
         evaluator_department = INTERNAL_AUDIT_LOCKED_DEPARTMENT
@@ -845,6 +862,7 @@ def parse_internal_audit_builder_form():
             [
                 standard,
                 audit_topic,
+                audit_subject,
                 question_text,
                 expected_answer,
             ]
@@ -857,6 +875,8 @@ def parse_internal_audit_builder_form():
             raise ValueError("invalid_standard")
         if len(question_text) > 2000:
             raise ValueError("question_too_long")
+        if len(audit_subject) > 2000:
+            raise ValueError("audit_subject_too_long")
         if len(expected_answer) > 2000:
             raise ValueError("expected_answer_too_long")
 
@@ -864,6 +884,7 @@ def parse_internal_audit_builder_form():
             {
                 "standard": standard[:160],
                 "audit_topic": audit_topic[:200],
+                "audit_subject": audit_subject or None,
                 "question_text": question_text,
                 "evaluated_department": evaluated_department,
                 "evaluator_department": evaluator_department,
@@ -884,6 +905,7 @@ def internal_audit_builder_blank_questions():
         {
             "standard": "ISO 9001:2015 - Kalite Yönetim Sistemi",
             "audit_topic": "",
+            "audit_subject": "",
             "question_text": "",
             "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
             "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
@@ -900,6 +922,7 @@ def internal_audit_builder_questions_from_audit(audit):
             {
                 "standard": question.standard,
                 "audit_topic": question.audit_topic,
+                "audit_subject": question.audit_subject or "",
                 "question_text": question.question_text,
                 "evaluated_department": audit.evaluated_department
                 or question.evaluated_department
@@ -926,6 +949,7 @@ def apply_internal_audit_questions(audit, parsed_questions):
         question.order_no = order_no
         question.standard = question_data["standard"]
         question.audit_topic = question_data["audit_topic"]
+        question.audit_subject = question_data["audit_subject"]
         question.question_text = question_data["question_text"]
         question.evaluated_department = question_data["evaluated_department"]
         question.evaluator_department = question_data["evaluator_department"]
@@ -939,6 +963,7 @@ def apply_internal_audit_questions(audit, parsed_questions):
         for answer in question.answers:
             answer.standard = question.standard
             answer.audit_topic = question.audit_topic
+            answer.audit_subject = question.audit_subject
             answer.question_text = question.question_text
             answer.evaluated_department = question.evaluated_department
             answer.evaluator_department = question.evaluator_department
@@ -1210,6 +1235,7 @@ def parse_internal_audit_answer_form(audit, question, is_draft=False):
 
     answer.standard = question.standard
     answer.audit_topic = question.audit_topic
+    answer.audit_subject = question.audit_subject
     answer.question_text = question.question_text
     answer.evaluated_department = evaluated_department
     answer.evaluator_department = evaluator_department
@@ -1226,7 +1252,7 @@ def internal_audit_dof_prefill(answer):
     finding_text = answer.technical_findings or "Teknik bulgu girilmemiş."
     return {
         "internal_audit_answer_id": str(answer.id),
-        "title": short_text(answer.audit_topic or answer.question_text, 150),
+        "title": short_text(answer.audit_subject or answer.audit_topic or answer.question_text, 150),
         "department": answer.evaluated_department or "",
         "responsible_id": str(answer.audit.audited_user_id or g.current_user.id),
         "opening_date": date.today().isoformat(),
@@ -1235,7 +1261,8 @@ def internal_audit_dof_prefill(answer):
         "nonconformity_description": (
             f"Soru: {answer.question_text}\n\n"
             f"İlgili Standart: {answer.standard}\n"
-            f"Tetkik Konusu: {answer.audit_topic}\n"
+            f"Tetkik Başlık No: {answer.audit_topic}\n"
+            f"Tetkik Konusu: {answer.audit_subject or '-'}\n"
             f"Sonuç: {answer.result or '-'}\n\n"
             f"Teknik Bulgular: {finding_text}"
         ),
@@ -2596,6 +2623,7 @@ def create_internal_audit():
                 {
                     "standard": request.form.get(f"standard_{index}", "").strip(),
                     "audit_topic": request.form.get(f"audit_topic_{index}", "").strip(),
+                    "audit_subject": request.form.get(f"audit_subject_{index}", "").strip(),
                     "question_text": request.form.get(f"question_text_{index}", "").strip(),
                     "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
                     "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
@@ -2621,7 +2649,7 @@ def create_internal_audit():
             if error_key == "audit_scope_required":
                 flash("İç denetim için değerlendirilen departman ve denetlenen personel seçin.", "danger")
             elif error_key == "question_required_fields":
-                flash("Her soru için standart, tetkik konusu ve soru alanlarını doldurun.", "danger")
+                flash("Her soru için standart, tetkik başlık no ve soru alanlarını doldurun.", "danger")
             elif error_key == "invalid_standard":
                 flash("Sorulardaki ilgili standart alanlarından biri geçerli değil.", "danger")
             elif error_key == "invalid_department":
@@ -2630,6 +2658,8 @@ def create_internal_audit():
                 flash("Denetlenen personel geçerli değil.", "danger")
             elif error_key == "question_too_long":
                 flash("Soru metni en fazla 2000 karakter olabilir.", "danger")
+            elif error_key == "audit_subject_too_long":
+                flash("Tetkik konusu en fazla 2000 karakter olabilir.", "danger")
             elif error_key == "expected_answer_too_long":
                 flash("Beklenen cevap en fazla 2000 karakter olabilir.", "danger")
             elif error_key == "not_enough_answer_options":
@@ -2707,6 +2737,7 @@ def edit_internal_audit(audit_id):
                 {
                     "standard": request.form.get(f"standard_{index}", "").strip(),
                     "audit_topic": request.form.get(f"audit_topic_{index}", "").strip(),
+                    "audit_subject": request.form.get(f"audit_subject_{index}", "").strip(),
                     "question_text": request.form.get(f"question_text_{index}", "").strip(),
                     "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
                     "answer_options": DEFAULT_INTERNAL_AUDIT_OPTION_TEXT,
@@ -2732,7 +2763,7 @@ def edit_internal_audit(audit_id):
             if error_key == "audit_scope_required":
                 flash("İç denetim için değerlendirilen departman ve denetlenen personel seçin.", "danger")
             elif error_key == "question_required_fields":
-                flash("Her soru için standart, tetkik konusu ve soru alanlarını doldurun.", "danger")
+                flash("Her soru için standart, tetkik başlık no ve soru alanlarını doldurun.", "danger")
             elif error_key == "invalid_standard":
                 flash("Sorulardaki ilgili standart alanlarından biri geçerli değil.", "danger")
             elif error_key == "invalid_department":
@@ -2741,6 +2772,8 @@ def edit_internal_audit(audit_id):
                 flash("Denetlenen personel geçerli değil.", "danger")
             elif error_key == "question_too_long":
                 flash("Soru metni en fazla 2000 karakter olabilir.", "danger")
+            elif error_key == "audit_subject_too_long":
+                flash("Tetkik konusu en fazla 2000 karakter olabilir.", "danger")
             elif error_key == "expected_answer_too_long":
                 flash("Beklenen cevap en fazla 2000 karakter olabilir.", "danger")
             elif error_key == "not_enough_answer_options":
