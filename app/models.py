@@ -15,6 +15,7 @@ DEPARTMENTS = (
     "Finans",
     "Muhasebe",
     "Satın alma",
+    "Depo",
     "İnsan Kaynakları",
     "Şantiye",
     "Montaj",
