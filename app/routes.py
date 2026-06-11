@@ -500,12 +500,22 @@ def can_view_dof(dof):
         and (
             can_view_all_dofs()
             or dof.responsible_id == g.current_user.id
+            or dof.created_by_user_id == g.current_user.id
         )
     )
 
 
 def can_delete_dof(dof=None):
     return can_view_all_dofs()
+
+
+def can_edit_dof_draft(dof):
+    return (
+        g.current_user is not None
+        and dof is not None
+        and (dof.status == "Taslak" or dof.approval_step == "draft")
+        and can_view_dof(dof)
+    )
 
 
 def can_approve_dof_management(dof):
@@ -1845,7 +1855,12 @@ def visible_dofs_query():
     query = Dof.query
     if can_view_all_dofs():
         return query
-    return query.filter(Dof.responsible_id == g.current_user.id)
+    return query.filter(
+        or_(
+            Dof.responsible_id == g.current_user.id,
+            Dof.created_by_user_id == g.current_user.id,
+        )
+    )
 
 
 def dof_filters():
@@ -2097,15 +2112,45 @@ def parse_dof_form(dof=None, save_mode="open"):
     if is_draft:
         dof.status = "Taslak"
         dof.approval_step = "draft"
+        dof.management_approved_by_user_id = None
+        dof.management_approved_at = None
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+        dof.completed_at = None
     else:
         dof.status = "Onay Akışı Bekleniyor"
+        dof.rejection_reason = None
+        dof.rejected_by_user_id = None
+        dof.rejected_at = None
+        dof.rejected_step = None
+        dof.deputy_approved_by_user_id = None
+        dof.deputy_approved_at = None
+        dof.completed_at = None
         if is_management_representative():
             dof.approval_step = "general_manager_deputy"
             dof.management_approved_by_user_id = g.current_user.id
             dof.management_approved_at = datetime.utcnow()
         else:
             dof.approval_step = "management_representative"
+            dof.management_approved_by_user_id = None
+            dof.management_approved_at = None
     return dof
+
+
+def dof_form_data_from_record(dof):
+    return {
+        "title": dof.title or "",
+        "department": dof.department or "",
+        "responsible_id": str(dof.responsible_id or ""),
+        "opening_date": dof.opening_date.isoformat() if dof.opening_date else "",
+        "due_date": dof.due_date.isoformat() if dof.due_date else "",
+        "priority": dof.priority or "",
+        "source": dof.source or "",
+        "nonconformity_description": dof.nonconformity_description or "",
+        "root_cause_analysis": dof.root_cause_analysis or "",
+        "corrective_action": dof.corrective_action or "",
+        "preventive_action": dof.preventive_action or "",
+    }
 
 
 def dof_revision_snapshot(dof):
@@ -2530,6 +2575,7 @@ def dof_dashboard_context():
         "filters": filters,
         "users": active_users() if can_view_all_dofs() else [g.current_user],
         "can_delete_dof": can_delete_dof,
+        "can_edit_dof_draft": can_edit_dof_draft,
     }
 
 
@@ -3186,6 +3232,74 @@ def create_dof():
         sources=DOF_SOURCES,
         today=date.today().isoformat(),
         form_data=form_data,
+        form_action=url_for("main.create_dof"),
+        page_title="Yeni İF Kaydı",
+        page_description="Düzeltici ve önleyici faaliyet kaydı oluşturun",
+    )
+
+
+@bp.route("/dofs/<int:dof_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_dof_draft(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    if not can_view_dof(dof):
+        abort(403)
+    if not can_edit_dof_draft(dof):
+        flash("Yalnızca taslak durumundaki İF kayıtları bu ekrandan düzenlenebilir.", "warning")
+        return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+    if request.method == "POST":
+        save_mode = request.form.get("save_mode", "open")
+        if save_mode not in {"draft", "open"}:
+            save_mode = "open"
+        try:
+            parse_dof_form(dof, save_mode=save_mode)
+            save_dof_opening_files(dof)
+            if save_mode == "draft":
+                flash(f"{dof.dof_no} numaralı İF taslağı güncellendi.", "success")
+            else:
+                add_dof_comment(
+                    dof,
+                    f"{g.current_user.full_name} İF taslağını onay akışına gönderdi.",
+                    comment_type="approval",
+                    actor=g.current_user,
+                )
+                notify_dof_users(
+                    [dof.responsible],
+                    dof,
+                    f"{dof_label(dof)} size atandı.",
+                )
+                notify_dof_waiting_approvers(dof)
+                flash(f"{dof.dof_no} numaralı İF kaydı onay akışına alındı.", "success")
+            db.session.commit()
+            return redirect(url_for("main.dof_detail", dof_id=dof.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "invalid_dof_opening_file_type":
+                flash("Uygunsuzluk görselleri için sadece JPG, PNG veya WEBP yükleyebilirsiniz.", "danger")
+            elif error_key == "dof_opening_file_too_large":
+                flash("Uygunsuzluk görsellerinin her biri en fazla 10 MB olabilir.", "danger")
+            elif error_key == "required_fields":
+                flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
+            elif error_key == "text_too_long":
+                flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
+            else:
+                flash("Lütfen İF form alanlarını geçerli biçimde doldurun.", "danger")
+
+    form_data = request.form if request.method == "POST" else dof_form_data_from_record(dof)
+    return render_template(
+        "dof_form.html",
+        users=active_users(),
+        departments=DEPARTMENTS,
+        priorities=DOF_PRIORITIES,
+        sources=DOF_SOURCES,
+        today=date.today().isoformat(),
+        form_data=form_data,
+        form_action=url_for("main.edit_dof_draft", dof_id=dof.id),
+        page_title="İF Taslağını Düzenle",
+        page_description=f"{dof.dof_no} numaralı taslağı güncelleyin veya onay akışına gönderin.",
+        dof=dof,
     )
 
 
@@ -3204,6 +3318,7 @@ def dof_detail(dof_id):
         can_approve_deputy=can_approve_dof_deputy(dof),
         can_reject=can_reject_dof(dof),
         can_revise=can_revise_rejected_dof(dof),
+        can_edit_draft=can_edit_dof_draft(dof),
         can_delete=can_delete_dof(dof),
         users=active_users(),
         departments=DEPARTMENTS,
