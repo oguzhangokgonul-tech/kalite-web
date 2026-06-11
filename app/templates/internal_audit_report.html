@@ -1,6 +1,6 @@
 <!doctype html>
 {% set is_personnel_report = report_variant == "personnel" %}
-{% set report_document_title = "LST.02 Kalite İç Tetkik Soru Listesi | Rev. No: 6 | Yayın Tarihi: 01.07.2026 | Sayfa No: 1" %}
+{% set report_document_title = "LST.02 Kalite İç Tetkik soru Listesi | Rev. No:6 | Yayın Tarihi 01.07.2026 | Rev. Tarihi: 10.06.2026 | Sayfa No: 1" %}
 <html lang="tr">
   <head>
     <meta charset="utf-8">
@@ -35,7 +35,9 @@
     <main class="audit-report-page">
       <header class="audit-report-cover">
         <div>
-          <span class="audit-report-kicker">{% if is_personnel_report %}Denetlenen Personel Çıktısı{% else %}İç Denetim Raporu{% endif %}</span>
+          {% if not is_personnel_report %}
+            <span class="audit-report-kicker">İç Denetim Raporu</span>
+          {% endif %}
           <h1 class="audit-report-document-title">{{ report_document_title }}</h1>
           <p>{{ audit.audit_no }} | {{ audit.title }}</p>
         </div>

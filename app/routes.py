@@ -2838,6 +2838,48 @@ def internal_audit_personnel_report(audit_id):
     )
 
 
+@bp.post("/ic-denetim/<int:audit_id>/kopyala")
+@login_required
+def copy_internal_audit(audit_id):
+    audit = InternalAudit.query.get_or_404(audit_id)
+    if not can_create_internal_audit():
+        abort(403)
+
+    copied_title = f"{audit.title} - Kopya"
+    copied_audit = InternalAudit(
+        audit_no=reserve_internal_audit_number(date.today()),
+        title=copied_title[:160],
+        auditor_id=g.current_user.id,
+        evaluated_department=audit.evaluated_department,
+        audited_user_id=audit.audited_user_id,
+        planned_date=audit.planned_date,
+        status="Devam Ediyor",
+        active_question_order=1,
+    )
+    db.session.add(copied_audit)
+    db.session.flush()
+
+    for question in audit.questions:
+        copied_question = InternalAuditQuestion(
+            audit=copied_audit,
+            order_no=question.order_no,
+            standard=question.standard,
+            audit_topic=question.audit_topic,
+            audit_subject=question.audit_subject,
+            question_text=question.question_text,
+            evaluated_department=audit.evaluated_department or question.evaluated_department,
+            evaluator_department=question.evaluator_department,
+            answer_options=question.answer_options,
+            expected_answer=question.expected_answer,
+            is_required=question.is_required,
+        )
+        db.session.add(copied_question)
+
+    db.session.commit()
+    flash(f"{audit.audit_no} kopyalandı. Yeni kayıt: {copied_audit.audit_no}", "success")
+    return redirect(url_for("main.edit_internal_audit", audit_id=copied_audit.id))
+
+
 @bp.post("/ic-denetim/<int:audit_id>/sil")
 @login_required
 def delete_internal_audit(audit_id):

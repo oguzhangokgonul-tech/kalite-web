@@ -123,6 +123,12 @@
                         <i class="bi bi-pencil"></i>
                         <span>Düzenle</span>
                       </a>
+                      <form method="post" action="{{ url_for('main.copy_internal_audit', audit_id=audit.id) }}" onsubmit="return confirm('{{ audit.audit_no }} numaralı iç denetimin kopyası oluşturulsun mu?');">
+                        <button class="btn btn-sm btn-outline-secondary" type="submit">
+                          <i class="bi bi-copy"></i>
+                          <span>Kopya Oluştur</span>
+                        </button>
+                      </form>
                     {% endif %}
                     {% if open_question %}
                       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.internal_audit_report', audit_id=audit.id) }}" target="_blank" rel="noopener">
