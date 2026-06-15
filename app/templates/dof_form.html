@@ -22,13 +22,15 @@
         <i class="bi bi-arrow-left"></i>
         <span>İF Yönetimi</span>
       </a>
-      <button class="btn btn-outline-secondary btn-lg" type="submit" name="save_mode" value="draft" form="dofForm">
-        <i class="bi bi-file-earmark"></i>
-        <span>Taslak Kaydet</span>
-      </button>
+      {% if can_save_draft is not defined or can_save_draft %}
+        <button class="btn btn-outline-secondary btn-lg" type="submit" name="save_mode" value="draft" form="dofForm">
+          <i class="bi bi-file-earmark"></i>
+          <span>Taslak Kaydet</span>
+        </button>
+      {% endif %}
       <button class="btn btn-primary btn-lg" type="submit" name="save_mode" value="open" form="dofForm">
         <i class="bi bi-save"></i>
-        <span>Kaydet</span>
+        <span>{{ submit_label or "Kaydet" }}</span>
       </button>
     </div>
   </div>

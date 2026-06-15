@@ -180,10 +180,10 @@
                     <i class="bi bi-eye"></i>
                     <span>Detay</span>
                   </a>
-                  {% if can_edit_dof_draft(dof) %}
+                  {% if can_edit_dof(dof) %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}">
                       <i class="bi bi-pencil-square"></i>
-                      <span>Taslağı Düzenle</span>
+                      <span>{% if can_edit_dof_draft(dof) %}Taslağı Düzenle{% else %}Düzenle{% endif %}</span>
                     </a>
                   {% endif %}
                   {% if can_delete_dof(dof) %}

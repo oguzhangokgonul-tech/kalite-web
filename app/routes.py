@@ -518,6 +518,22 @@ def can_edit_dof_draft(dof):
     )
 
 
+def can_edit_dof(dof):
+    if (
+        g.current_user is None
+        or dof is None
+        or dof.status == "Tamamlandı"
+        or dof.approval_step == "completed"
+    ):
+        return False
+    return (
+        can_edit_dof_draft(dof)
+        or can_view_all_dofs()
+        or dof.responsible_id == g.current_user.id
+        or dof.created_by_user_id == g.current_user.id
+    )
+
+
 def can_approve_dof_management(dof):
     return (
         is_management_representative()
@@ -2054,7 +2070,7 @@ def parse_action_form(action=None):
     return action
 
 
-def parse_dof_form(dof=None, save_mode="open"):
+def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     dof = dof or Dof()
     is_draft = save_mode == "draft"
     title = request.form.get("title", "").strip()
@@ -2109,6 +2125,9 @@ def parse_dof_form(dof=None, save_mode="open"):
     dof.root_cause_analysis = root_cause_analysis or None
     dof.corrective_action = corrective_action or None
     dof.preventive_action = preventive_action or None
+    if not update_workflow:
+        return dof
+
     if is_draft:
         dof.status = "Taslak"
         dof.approval_step = "draft"
@@ -2576,6 +2595,7 @@ def dof_dashboard_context():
         "users": active_users() if can_view_all_dofs() else [g.current_user],
         "can_delete_dof": can_delete_dof,
         "can_edit_dof_draft": can_edit_dof_draft,
+        "can_edit_dof": can_edit_dof,
     }
 
 
@@ -3244,20 +3264,29 @@ def edit_dof_draft(dof_id):
     dof = Dof.query.get_or_404(dof_id)
     if not can_view_dof(dof):
         abort(403)
-    if not can_edit_dof_draft(dof):
-        flash("Yalnızca taslak durumundaki İF kayıtları bu ekrandan düzenlenebilir.", "warning")
+    if not can_edit_dof(dof):
+        flash("Bu İF kaydını düzenleme yetkiniz yok veya kayıt tamamlanmış durumda.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
+    is_draft_record = can_edit_dof_draft(dof)
     if request.method == "POST":
         save_mode = request.form.get("save_mode", "open")
         if save_mode not in {"draft", "open"}:
             save_mode = "open"
+        if not is_draft_record:
+            save_mode = "open"
+        before = dof_revision_snapshot(dof)
+        old_responsible_id = dof.responsible_id
         try:
-            parse_dof_form(dof, save_mode=save_mode)
+            parse_dof_form(
+                dof,
+                save_mode=save_mode,
+                update_workflow=is_draft_record,
+            )
             save_dof_opening_files(dof)
-            if save_mode == "draft":
+            if is_draft_record and save_mode == "draft":
                 flash(f"{dof.dof_no} numaralı İF taslağı güncellendi.", "success")
-            else:
+            elif is_draft_record:
                 add_dof_comment(
                     dof,
                     f"{g.current_user.full_name} İF taslağını onay akışına gönderdi.",
@@ -3271,6 +3300,26 @@ def edit_dof_draft(dof_id):
                 )
                 notify_dof_waiting_approvers(dof)
                 flash(f"{dof.dof_no} numaralı İF kaydı onay akışına alındı.", "success")
+            else:
+                changes = describe_dof_revision_changes(before, dof)
+                add_dof_comment(
+                    dof,
+                    (
+                        f"{g.current_user.full_name} İF kaydını düzenledi: "
+                        + ", ".join(changes)
+                    )
+                    if changes
+                    else f"{g.current_user.full_name} İF kaydını düzenledi.",
+                    comment_type="edit",
+                    actor=g.current_user,
+                )
+                if old_responsible_id != dof.responsible_id:
+                    notify_dof_users(
+                        [dof.responsible],
+                        dof,
+                        f"{dof_label(dof)} sorumluluğu size atandı.",
+                    )
+                flash(f"{dof.dof_no} numaralı İF kaydı güncellendi.", "success")
             db.session.commit()
             return redirect(url_for("main.dof_detail", dof_id=dof.id))
         except ValueError as error:
@@ -3297,8 +3346,14 @@ def edit_dof_draft(dof_id):
         today=date.today().isoformat(),
         form_data=form_data,
         form_action=url_for("main.edit_dof_draft", dof_id=dof.id),
-        page_title="İF Taslağını Düzenle",
-        page_description=f"{dof.dof_no} numaralı taslağı güncelleyin veya onay akışına gönderin.",
+        page_title="İF Taslağını Düzenle" if is_draft_record else "İF Kaydını Düzenle",
+        page_description=(
+            f"{dof.dof_no} numaralı taslağı güncelleyin veya onay akışına gönderin."
+            if is_draft_record
+            else f"{dof.dof_no} numaralı İF kaydını onay akışını bozmadan güncelleyin."
+        ),
+        can_save_draft=is_draft_record,
+        submit_label="Kaydet" if is_draft_record else "Değişiklikleri Kaydet",
         dof=dof,
     )
 
@@ -3319,6 +3374,7 @@ def dof_detail(dof_id):
         can_reject=can_reject_dof(dof),
         can_revise=can_revise_rejected_dof(dof),
         can_edit_draft=can_edit_dof_draft(dof),
+        can_edit=can_edit_dof(dof),
         can_delete=can_delete_dof(dof),
         users=active_users(),
         departments=DEPARTMENTS,

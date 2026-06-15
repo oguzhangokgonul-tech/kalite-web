@@ -69,10 +69,10 @@
       <p>Düzeltici ve önleyici faaliyet kayıt detayı</p>
     </div>
     <div class="app-heading-actions">
-      {% if can_edit_draft %}
+      {% if can_edit %}
         <a class="btn btn-primary" href="{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}">
           <i class="bi bi-pencil-square"></i>
-          <span>Taslağı Düzenle</span>
+          <span>{% if can_edit_draft %}Taslağı Düzenle{% else %}Düzenle{% endif %}</span>
         </a>
       {% endif %}
       {% if can_approve_management %}
