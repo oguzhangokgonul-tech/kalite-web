@@ -1,6 +1,6 @@
 <!doctype html>
 {% set is_personnel_report = report_variant == "personnel" %}
-{% set report_document_title = "LST.02 Kalite İç Tetkik soru Listesi | Rev. No:6 | Yayın Tarihi 01.07.2026 | Rev. Tarihi: 10.06.2026 | Sayfa No: 1" %}
+{% set report_document_title = "LST.02 Kalite İç Tetkik Soru Listesi | Rev. No:6 | Yayın Tarihi: 01.07.2018 | Rev. Tarihi: 10.06.2026 | Sayfa No: 1" %}
 <html lang="tr">
   <head>
     <meta charset="utf-8">
@@ -158,14 +158,14 @@
 
               {% if row.question.expected_answer %}
                 <div class="audit-report-note">
-                  <strong>Cevap</strong>
+                  <strong>{% if is_personnel_report %}Teknik Bulgu{% else %}Teknik Bulgular{% endif %}</strong>
                   <p>{{ row.question.expected_answer }}</p>
                 </div>
               {% endif %}
 
               {% if not is_personnel_report %}
                 <div class="audit-report-note">
-                  <strong>Teknik Bulgular</strong>
+                  <strong>Sonuç</strong>
                   <p>{{ row.technical_findings or "Teknik bulgu girilmemiş." }}</p>
                 </div>
 
