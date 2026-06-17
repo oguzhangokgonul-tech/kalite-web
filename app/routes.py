@@ -110,6 +110,7 @@ def load_logged_in_user():
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
         ensure_internal_audit_schema()
+        ensure_action_sub_task_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -394,6 +395,68 @@ def ensure_internal_audit_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("İç denetim şeması kontrol edilemedi.")
+
+
+def ensure_action_sub_task_schema():
+    if current_app.extensions.get("action_sub_task_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "action_sub_tasks" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE action_sub_tasks (
+                            id INTEGER PRIMARY KEY,
+                            parent_action_id INTEGER NOT NULL,
+                            title VARCHAR(160) NOT NULL,
+                            description TEXT,
+                            responsible_id INTEGER,
+                            related_user_1_id INTEGER,
+                            related_user_2_id INTEGER,
+                            due_date DATE,
+                            priority VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                            status VARCHAR(40) NOT NULL DEFAULT 'Beklemede',
+                            evidence_required BOOLEAN NOT NULL DEFAULT 0,
+                            evidence_original_name VARCHAR(255),
+                            evidence_stored_name VARCHAR(255),
+                            evidence_mime_type VARCHAR(120),
+                            closing_note TEXT,
+                            completed_at DATETIME,
+                            completed_by_user_id INTEGER,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("action_sub_tasks")
+                }
+                if "related_user_1_id" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE action_sub_tasks "
+                            "ADD COLUMN related_user_1_id INTEGER"
+                        )
+                    )
+                if "related_user_2_id" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE action_sub_tasks "
+                            "ADD COLUMN related_user_2_id INTEGER"
+                        )
+                    )
+        current_app.extensions["action_sub_task_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Alt aksiyon şeması kontrol edilemedi.")
 
 
 def login_required(view):

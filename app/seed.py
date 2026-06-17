@@ -160,6 +160,61 @@ def ensure_runtime_schema():
         )
         changed = True
 
+    if "action_sub_tasks" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE action_sub_tasks (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    parent_action_id INTEGER NOT NULL,
+                    title VARCHAR(160) NOT NULL,
+                    description TEXT,
+                    responsible_id INTEGER,
+                    related_user_1_id INTEGER,
+                    related_user_2_id INTEGER,
+                    due_date DATE,
+                    priority VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                    status VARCHAR(40) NOT NULL DEFAULT 'Beklemede',
+                    evidence_required BOOLEAN NOT NULL DEFAULT 0,
+                    evidence_original_name VARCHAR(255),
+                    evidence_stored_name VARCHAR(255),
+                    evidence_mime_type VARCHAR(120),
+                    closing_note TEXT,
+                    completed_at DATETIME,
+                    completed_by_user_id INTEGER,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(parent_action_id) REFERENCES actions (id),
+                    FOREIGN KEY(responsible_id) REFERENCES users (id),
+                    FOREIGN KEY(related_user_1_id) REFERENCES users (id),
+                    FOREIGN KEY(related_user_2_id) REFERENCES users (id),
+                    FOREIGN KEY(completed_by_user_id) REFERENCES users (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+    else:
+        columns = {
+            column["name"] for column in inspector.get_columns("action_sub_tasks")
+        }
+        action_sub_task_columns = {
+            "related_user_1_id": (
+                "ALTER TABLE action_sub_tasks "
+                "ADD COLUMN related_user_1_id INTEGER"
+            ),
+            "related_user_2_id": (
+                "ALTER TABLE action_sub_tasks "
+                "ADD COLUMN related_user_2_id INTEGER"
+            ),
+        }
+        for column_name, statement in action_sub_task_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+
     if "orientation_nodes" in tables:
         columns = {
             column["name"] for column in inspector.get_columns("orientation_nodes")
