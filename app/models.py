@@ -24,6 +24,8 @@ DEPARTMENTS = (
 )
 
 ORGANIZATION_NODE_TYPES = ("person", "department")
+ACTION_SUB_TASK_STATUSES = ("Beklemede", "Devam Ediyor", "Tamamlandı", "İptal Edildi")
+ACTION_SUB_TASK_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 
 DOF_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 DOF_SOURCES = (
@@ -149,6 +151,12 @@ class Action(db.Model):
         cascade="all, delete-orphan",
         order_by="ActionClosureFile.created_at.asc()",
     )
+    sub_actions = db.relationship(
+        "ActionSubTask",
+        back_populates="parent_action",
+        cascade="all, delete-orphan",
+        order_by="ActionSubTask.created_at.asc()",
+    )
     comments = db.relationship(
         "ActionComment",
         back_populates="action",
@@ -191,6 +199,43 @@ class Action(db.Model):
 
     def refresh_delay(self, today=None):
         self.delay_days = self.calculate_delay_days(today)
+
+    @property
+    def sub_action_total(self):
+        return len(self.sub_actions)
+
+    @property
+    def sub_action_completed_count(self):
+        return sum(1 for item in self.sub_actions if item.status == "Tamamlandı")
+
+    @property
+    def sub_action_waiting_count(self):
+        return sum(1 for item in self.sub_actions if item.status == "Beklemede")
+
+    @property
+    def sub_action_active_count(self):
+        return sum(1 for item in self.sub_actions if item.status == "Devam Ediyor")
+
+    @property
+    def sub_action_cancelled_count(self):
+        return sum(1 for item in self.sub_actions if item.status == "İptal Edildi")
+
+    @property
+    def sub_action_progress_percent(self):
+        relevant_items = [
+            item for item in self.sub_actions if item.status != "İptal Edildi"
+        ]
+        if not relevant_items:
+            return 0
+        completed = sum(1 for item in relevant_items if item.status == "Tamamlandı")
+        return int(round((completed / len(relevant_items)) * 100))
+
+    @property
+    def has_open_sub_actions(self):
+        return any(
+            item.status not in {"Tamamlandı", "İptal Edildi"}
+            for item in self.sub_actions
+        )
 
     def mark_completed(self, today=None):
         self.is_completed = True
@@ -417,6 +462,43 @@ class ActionClosureFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     action = db.relationship("Action", back_populates="closure_files")
+
+
+class ActionSubTask(db.Model):
+    __tablename__ = "action_sub_tasks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    parent_action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
+    title = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    responsible_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    priority = db.Column(db.String(40), nullable=False, default="Orta")
+    status = db.Column(db.String(40), nullable=False, default="Beklemede")
+    evidence_required = db.Column(db.Boolean, nullable=False, default=False)
+    evidence_original_name = db.Column(db.String(255), nullable=True)
+    evidence_stored_name = db.Column(db.String(255), nullable=True)
+    evidence_mime_type = db.Column(db.String(120), nullable=True)
+    closing_note = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    parent_action = db.relationship("Action", back_populates="sub_actions")
+    responsible = db.relationship("User", foreign_keys=[responsible_id])
+    completed_by = db.relationship("User", foreign_keys=[completed_by_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    @property
+    def evidence_uploaded(self):
+        return bool(self.evidence_stored_name)
 
 
 class ActionComment(db.Model):

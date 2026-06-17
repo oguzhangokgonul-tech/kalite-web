@@ -17,6 +17,18 @@
   {% endif %}
 {% endmacro %}
 
+{% macro sub_action_status_badge(status) %}
+  {% if status == "Tamamlandı" %}
+    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+  {% elif status == "Devam Ediyor" %}
+    <span class="status-pill status-pill-info"><i class="bi bi-play-circle-fill"></i> Devam Ediyor</span>
+  {% elif status == "İptal Edildi" %}
+    <span class="status-pill status-pill-muted"><i class="bi bi-dash-circle-fill"></i> İptal Edildi</span>
+  {% else %}
+    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Beklemede</span>
+  {% endif %}
+{% endmacro %}
+
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
@@ -95,6 +107,179 @@
           <span>Dosyayı indir</span>
         </a>
       </div>
+    {% endif %}
+  </div>
+
+  <div class="app-card" id="sub-actions">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-list-task"></i></span>
+      <div>
+        <h3>Alt Aksiyonlar</h3>
+        <p>Bu ana aksiyona bağlı işleri, sorumluları ve ilerlemeyi takip edin.</p>
+      </div>
+    </div>
+
+    <div class="sub-action-summary-grid">
+      <div><span>Toplam Alt Aksiyon</span><strong>{{ action.sub_action_total }}</strong></div>
+      <div><span>Tamamlanan</span><strong>{{ action.sub_action_completed_count }}</strong></div>
+      <div><span>Devam Eden</span><strong>{{ action.sub_action_active_count }}</strong></div>
+      <div><span>Bekleyen</span><strong>{{ action.sub_action_waiting_count }}</strong></div>
+      <div><span>İptal Edilen</span><strong>{{ action.sub_action_cancelled_count }}</strong></div>
+      <div>
+        <span>İlerleme</span>
+        <strong>%{{ action.sub_action_progress_percent }}</strong>
+      </div>
+    </div>
+    <div class="sub-action-progress">
+      <span style="width: {{ action.sub_action_progress_percent }}%"></span>
+    </div>
+
+    {% if action.sub_actions %}
+      <div class="table-responsive mt-3">
+        <table class="table dashboard-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Alt Aksiyon Başlığı</th>
+              <th>Sorumlu</th>
+              <th>Termin</th>
+              <th>Öncelik</th>
+              <th>Durum</th>
+              <th>Kanıt</th>
+              <th class="text-end">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sub_action in action.sub_actions %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                  <a class="fw-semibold text-decoration-none" href="{{ url_for('main.sub_action_detail', sub_action_id=sub_action.id) }}">{{ sub_action.title }}</a>
+                  {% if sub_action.description %}
+                    <div class="text-secondary small">{{ sub_action.description }}</div>
+                  {% endif %}
+                </td>
+                <td>{{ sub_action.responsible.full_name if sub_action.responsible else "-" }}</td>
+                <td>{{ sub_action.due_date.strftime("%d.%m.%Y") if sub_action.due_date else "-" }}</td>
+                <td>{{ sub_action.priority }}</td>
+                <td>{{ sub_action_status_badge(sub_action.status) }}</td>
+                <td>
+                  {% if sub_action.evidence_stored_name %}
+                    <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_sub_action_evidence', sub_action_id=sub_action.id) }}">
+                      <i class="bi bi-download"></i>
+                      <span>İndir</span>
+                    </a>
+                  {% elif sub_action.evidence_required %}
+                    <span class="status-pill status-pill-warning">Zorunlu</span>
+                  {% else %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="dashboard-row-actions">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.sub_action_detail', sub_action_id=sub_action.id) }}">
+                      <i class="bi bi-eye"></i>
+                      <span>Detay</span>
+                    </a>
+                    {% if can_edit_sub_action(sub_action) %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_sub_action', sub_action_id=sub_action.id) }}">
+                        <i class="bi bi-pencil"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
+                    {% if can_complete_sub_action(sub_action) %}
+                      {% if sub_action.evidence_required %}
+                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.edit_sub_action', sub_action_id=sub_action.id) }}#complete-sub-action">
+                          <i class="bi bi-check-circle"></i>
+                          <span>Tamamla</span>
+                        </a>
+                      {% else %}
+                        <form method="post" action="{{ url_for('main.complete_sub_action', sub_action_id=sub_action.id) }}">
+                          <button class="btn btn-sm btn-outline-success" type="submit">
+                            <i class="bi bi-check-circle"></i>
+                            <span>Tamamlandı</span>
+                          </button>
+                        </form>
+                      {% endif %}
+                    {% endif %}
+                    {% if can_delete_sub_action(sub_action) %}
+                      <form method="post" action="{{ url_for('main.delete_sub_action', sub_action_id=sub_action.id) }}" onsubmit="return confirm('Alt aksiyon silinsin mi?');">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-trash"></i>
+                          <span>Sil</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-secondary mt-3 mb-0">Bu aksiyona bağlı alt aksiyon yok.</p>
+    {% endif %}
+
+    {% if can_create_sub_action %}
+      <hr>
+      <form class="app-form-grid" method="post" action="{{ url_for('main.create_sub_action', action_id=action.id) }}" enctype="multipart/form-data">
+        <div>
+          <label class="form-label" for="sub_title">Alt Aksiyon Başlığı</label>
+          <input class="form-control" id="sub_title" name="title" maxlength="160" required>
+        </div>
+        <div>
+          <label class="form-label" for="sub_responsible_id">Sorumlu</label>
+          <select class="form-select" id="sub_responsible_id" name="responsible_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="sub_due_date">Termin</label>
+          <input class="form-control" id="sub_due_date" name="due_date" type="date">
+        </div>
+        <div>
+          <label class="form-label" for="sub_priority">Öncelik</label>
+          <select class="form-select" id="sub_priority" name="priority">
+            {% for priority in sub_action_priorities %}
+              <option value="{{ priority }}" {% if priority == "Orta" %}selected{% endif %}>{{ priority }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="sub_status">Durum</label>
+          <select class="form-select" id="sub_status" name="status">
+            {% for status in sub_action_statuses %}
+              <option value="{{ status }}" {% if status == "Beklemede" %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label d-block" for="sub_evidence_required">Kanıt zorunlu mu?</label>
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" id="sub_evidence_required" name="evidence_required" type="checkbox">
+            <label class="form-check-label" for="sub_evidence_required">Evet</label>
+          </div>
+        </div>
+        <div class="app-form-full">
+          <label class="form-label" for="sub_description">Açıklama</label>
+          <textarea class="form-control" id="sub_description" name="description" rows="3" maxlength="2000"></textarea>
+        </div>
+        <div class="app-form-full">
+          <label class="form-label" for="sub_evidence_file">Kanıt dosyası</label>
+          <input class="form-control" id="sub_evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx">
+          <div class="form-text">PDF, JPG, PNG, DOCX veya XLSX dosyası yükleyebilirsiniz.</div>
+        </div>
+        <div class="app-form-actions app-form-full">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-plus-lg"></i>
+            <span>Alt Aksiyon Ekle</span>
+          </button>
+        </div>
+      </form>
     {% endif %}
   </div>
 

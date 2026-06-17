@@ -31,6 +31,9 @@ from .models import (
     ActionComment,
     ActionClosureFile,
     ActionHistory,
+    ActionSubTask,
+    ACTION_SUB_TASK_PRIORITIES,
+    ACTION_SUB_TASK_STATUSES,
     AppSetting,
     DEPARTMENTS,
     DOF_APPROVAL_STEPS,
@@ -65,6 +68,7 @@ ALLOWED_EXTENSIONS = {
 DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
 DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
+SUB_ACTION_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "docx", "xlsx"}
 INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
@@ -649,6 +653,7 @@ def can_view_action(action):
         is_oguzhan_admin()
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
+        or any(item.responsible_id == g.current_user.id for item in action.sub_actions)
     )
 
 
@@ -662,6 +667,41 @@ def can_revise_termin(action):
     )
 
 
+def can_create_sub_action(action):
+    if g.current_user is None or action.is_completed:
+        return False
+    return (
+        is_oguzhan_admin()
+        or g.current_user.can_edit_actions
+        or is_assigned_to_current_user(action)
+        or is_related_to_current_user(action)
+    )
+
+
+def can_edit_sub_action(sub_action):
+    action = sub_action.parent_action
+    if g.current_user is None or action.is_completed:
+        return False
+    return can_create_sub_action(action) or sub_action.responsible_id == g.current_user.id
+
+
+def can_delete_sub_action(sub_action):
+    action = sub_action.parent_action
+    if g.current_user is None or action.is_completed:
+        return False
+    return (
+        is_oguzhan_admin()
+        or g.current_user.can_edit_actions
+        or sub_action.created_by_user_id == g.current_user.id
+    )
+
+
+def can_complete_sub_action(sub_action):
+    if sub_action.status in {"Tamamlandı", "İptal Edildi"}:
+        return False
+    return can_edit_sub_action(sub_action)
+
+
 def visible_actions_query():
     query = Action.query
     if is_oguzhan_admin():
@@ -671,6 +711,7 @@ def visible_actions_query():
             Action.responsible_user_id == g.current_user.id,
             Action.related_user_1_id == g.current_user.id,
             Action.related_user_2_id == g.current_user.id,
+            Action.sub_actions.any(ActionSubTask.responsible_id == g.current_user.id),
         )
     )
 
@@ -1948,8 +1989,13 @@ def delete_uploaded_file(action):
     action.file_mime_type = None
 
 
-def store_uploaded_file(uploaded_file):
-    if not allowed_file(uploaded_file.filename):
+def store_uploaded_file(uploaded_file, allowed_extensions=None):
+    extension_allowed = (
+        "." in uploaded_file.filename
+        and uploaded_file.filename.rsplit(".", 1)[1].lower()
+        in (allowed_extensions or ALLOWED_EXTENSIONS)
+    )
+    if not extension_allowed:
         raise ValueError("invalid_file_type")
 
     safe_name = secure_filename(uploaded_file.filename)
@@ -2015,6 +2061,135 @@ def save_closure_evidence_files(action):
                 mime_type=mime_type,
             )
         )
+
+
+def delete_sub_action_evidence_file(sub_action):
+    if not sub_action.evidence_stored_name:
+        return
+
+    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / sub_action.evidence_stored_name
+    if file_path.exists():
+        file_path.unlink()
+
+    sub_action.evidence_original_name = None
+    sub_action.evidence_stored_name = None
+    sub_action.evidence_mime_type = None
+
+
+def save_sub_action_evidence_file(sub_action):
+    uploaded_file = request.files.get("evidence_file")
+    if not uploaded_file or not uploaded_file.filename:
+        return
+
+    delete_sub_action_evidence_file(sub_action)
+    safe_name, stored_name, mime_type = store_uploaded_file(
+        uploaded_file,
+        SUB_ACTION_EVIDENCE_EXTENSIONS,
+    )
+    sub_action.evidence_original_name = safe_name
+    sub_action.evidence_stored_name = stored_name
+    sub_action.evidence_mime_type = mime_type
+
+
+def parse_sub_action_form(sub_action=None):
+    sub_action = sub_action or ActionSubTask()
+    title = request.form.get("title", "").strip()
+    responsible = parse_optional_user("responsible_id")
+    due_date = parse_optional_date("due_date")
+    priority = request.form.get("priority", "Orta").strip() or "Orta"
+    status = request.form.get("status", "Beklemede").strip() or "Beklemede"
+    description = request.form.get("description", "").strip()
+    closing_note = request.form.get("closing_note", "").strip()
+    evidence_required = request.form.get("evidence_required") == "on"
+
+    if not title:
+        raise ValueError("required_fields")
+    if len(title) > 160 or len(description) > 2000 or len(closing_note) > 2000:
+        raise ValueError("text_too_long")
+    if priority not in ACTION_SUB_TASK_PRIORITIES:
+        raise ValueError("invalid_priority")
+    if status not in ACTION_SUB_TASK_STATUSES:
+        raise ValueError("invalid_status")
+
+    sub_action.title = title
+    sub_action.responsible_id = responsible.id if responsible else None
+    sub_action.due_date = due_date
+    sub_action.priority = priority
+    sub_action.status = status
+    sub_action.description = description or None
+    sub_action.evidence_required = evidence_required
+    sub_action.closing_note = closing_note or None
+    save_sub_action_evidence_file(sub_action)
+
+    if status == "Tamamlandı":
+        if evidence_required and not sub_action.evidence_stored_name:
+            raise ValueError("evidence_required")
+        if evidence_required and not closing_note:
+            raise ValueError("closing_note_required")
+        sub_action.completed_at = sub_action.completed_at or datetime.utcnow()
+        sub_action.completed_by_user_id = sub_action.completed_by_user_id or g.current_user.id
+    else:
+        sub_action.completed_at = None
+        sub_action.completed_by_user_id = None
+    return sub_action
+
+
+def parse_sub_action_inline(index):
+    title = request.form.get(f"sub_action_title_{index}", "").strip()
+    description = request.form.get(f"sub_action_description_{index}", "").strip()
+    responsible = parse_optional_user(f"sub_action_responsible_id_{index}")
+    due_date = parse_optional_date(f"sub_action_due_date_{index}")
+    priority = request.form.get(f"sub_action_priority_{index}", "Orta").strip() or "Orta"
+    status = request.form.get(f"sub_action_status_{index}", "Beklemede").strip() or "Beklemede"
+    evidence_required = request.form.get(f"sub_action_evidence_required_{index}") == "on"
+
+    has_any_value = any([title, description, responsible, due_date])
+    if not has_any_value:
+        return None
+    if not title:
+        raise ValueError("sub_action_required_fields")
+    if len(title) > 160 or len(description) > 2000:
+        raise ValueError("text_too_long")
+    if priority not in ACTION_SUB_TASK_PRIORITIES:
+        raise ValueError("invalid_sub_action_priority")
+    if status not in ACTION_SUB_TASK_STATUSES:
+        raise ValueError("invalid_sub_action_status")
+    if status == "Tamamlandı" and evidence_required:
+        raise ValueError("sub_action_completion_requires_evidence")
+
+    return {
+        "title": title,
+        "description": description or None,
+        "responsible_id": responsible.id if responsible else None,
+        "due_date": due_date,
+        "priority": priority,
+        "status": status,
+        "evidence_required": evidence_required,
+    }
+
+
+def create_inline_sub_actions(action):
+    indexes = [
+        index.strip()
+        for index in request.form.get("sub_action_indexes", "").split(",")
+        if index.strip()
+    ]
+    created_items = []
+    for index in indexes:
+        data = parse_sub_action_inline(index)
+        if not data:
+            continue
+        sub_action = ActionSubTask(
+            parent_action=action,
+            created_by_user_id=g.current_user.id,
+            **data,
+        )
+        if sub_action.status == "Tamamlandı":
+            sub_action.completed_at = datetime.utcnow()
+            sub_action.completed_by_user_id = g.current_user.id
+        db.session.add(sub_action)
+        created_items.append(sub_action)
+    return created_items
 
 
 def refresh_all_actions():
@@ -3632,24 +3807,53 @@ def create_action():
             action.action_number = reserve_action_number()
             db.session.add(action)
             db.session.flush()
+            created_sub_actions = create_inline_sub_actions(action)
             add_action_history(
                 action,
                 "created",
                 f"{g.current_user.full_name} aksiyonu oluşturdu.",
                 actor=g.current_user,
             )
+            if created_sub_actions:
+                add_action_history(
+                    action,
+                    "sub_actions_created",
+                    f"{len(created_sub_actions)} alt aksiyon eklendi.",
+                    actor=g.current_user,
+                )
             notify_action_participants(
                 action,
                 f"{action.number_label} {action.title} aksiyonu size atandı.",
                 exclude_user_id=g.current_user.id,
             )
+            for sub_action in created_sub_actions:
+                if sub_action.responsible_id:
+                    notify_users(
+                        {sub_action.responsible_id},
+                        action,
+                        (
+                            f"{action.number_label} {action.title} aksiyonu altında "
+                            f"'{sub_action.title}' alt aksiyonu size atandı."
+                        ),
+                        exclude_user_id=g.current_user.id,
+                    )
             db.session.commit()
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
             return redirect(url_for("main.dashboard"))
         except ValueError as error:
-            if str(error) == "invalid_file_type":
+            error_key = str(error)
+            if error_key == "invalid_file_type":
                 flash(
                     "Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.",
+                    "danger",
+                )
+            elif error_key == "sub_action_required_fields":
+                flash("Alt aksiyon eklediyseniz alt aksiyon başlığını doldurun.", "danger")
+            elif error_key in {"invalid_sub_action_priority", "invalid_sub_action_status"}:
+                flash("Alt aksiyon öncelik veya durum alanını kontrol edin.", "danger")
+            elif error_key == "sub_action_completion_requires_evidence":
+                flash(
+                    "Kanıt zorunlu alt aksiyonu ilk kayıtta tamamlandı olarak açamazsınız.",
                     "danger",
                 )
             else:
@@ -3662,6 +3866,8 @@ def create_action():
         departments=DEPARTMENTS,
         today=date.today().isoformat(),
         title="Yeni Aksiyon",
+        sub_action_statuses=ACTION_SUB_TASK_STATUSES,
+        sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
 
 
@@ -3682,6 +3888,12 @@ def action_detail(action_id):
         can_comment=can_comment_action(action),
         can_reassign=can_reassign_action(action),
         can_revise_termin=can_revise_termin(action),
+        can_create_sub_action=can_create_sub_action(action),
+        can_edit_sub_action=can_edit_sub_action,
+        can_delete_sub_action=can_delete_sub_action,
+        can_complete_sub_action=can_complete_sub_action,
+        sub_action_statuses=ACTION_SUB_TASK_STATUSES,
+        sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
 
 
@@ -3879,6 +4091,213 @@ def edit_action(action_id):
         departments=DEPARTMENTS,
         today=date.today().isoformat(),
         title="Aksiyon Düzenle",
+        sub_action_statuses=ACTION_SUB_TASK_STATUSES,
+        sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
+    )
+
+
+@bp.post("/actions/<int:action_id>/sub-actions/create")
+@login_required
+def create_sub_action(action_id):
+    action = Action.query.get_or_404(action_id)
+    if not can_create_sub_action(action):
+        abort(403)
+
+    try:
+        sub_action = parse_sub_action_form()
+        sub_action.parent_action = action
+        sub_action.created_by_user_id = g.current_user.id
+        db.session.add(sub_action)
+        db.session.flush()
+        add_action_history(
+            action,
+            "sub_action_created",
+            f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu ekledi.",
+            actor=g.current_user,
+        )
+        if sub_action.responsible_id:
+            notify_users(
+                {sub_action.responsible_id},
+                action,
+                (
+                    f"{action.number_label} {action.title} aksiyonu altında "
+                    f"'{sub_action.title}' alt aksiyonu size atandı."
+                ),
+                exclude_user_id=g.current_user.id,
+            )
+        db.session.commit()
+        flash("Alt aksiyon eklendi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        error_key = str(error)
+        if error_key == "invalid_file_type":
+            flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+        elif error_key == "evidence_required":
+            flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kanıt dosyası yüklenmelidir.", "danger")
+        elif error_key == "closing_note_required":
+            flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kapanış açıklaması yazılmalıdır.", "danger")
+        else:
+            flash("Alt aksiyon bilgilerini kontrol edin.", "danger")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
+@bp.get("/sub-actions/<int:sub_action_id>")
+@login_required
+def sub_action_detail(sub_action_id):
+    sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    if not can_view_action(sub_action.parent_action):
+        abort(403)
+    return render_template(
+        "sub_action_detail.html",
+        sub_action=sub_action,
+        action=sub_action.parent_action,
+        can_edit=can_edit_sub_action(sub_action),
+        can_delete=can_delete_sub_action(sub_action),
+        can_complete=can_complete_sub_action(sub_action),
+    )
+
+
+@bp.route("/sub-actions/<int:sub_action_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_sub_action(sub_action_id):
+    sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    action = sub_action.parent_action
+    if not can_edit_sub_action(sub_action):
+        abort(403)
+
+    if request.method == "POST":
+        old_responsible_id = sub_action.responsible_id
+        old_status = sub_action.status
+        try:
+            parse_sub_action_form(sub_action)
+            add_action_history(
+                action,
+                "sub_action_updated",
+                f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu düzenledi.",
+                actor=g.current_user,
+            )
+            if old_responsible_id != sub_action.responsible_id and sub_action.responsible_id:
+                notify_users(
+                    {sub_action.responsible_id},
+                    action,
+                    (
+                        f"{action.number_label} {action.title} aksiyonu altında "
+                        f"'{sub_action.title}' alt aksiyonu size atandı."
+                    ),
+                    exclude_user_id=g.current_user.id,
+                )
+            if old_status != "Tamamlandı" and sub_action.status == "Tamamlandı":
+                notify_users(
+                    {action.responsible_user_id},
+                    action,
+                    f"'{sub_action.title}' alt aksiyonu tamamlandı.",
+                    exclude_user_id=g.current_user.id,
+                )
+            db.session.commit()
+            flash("Alt aksiyon güncellendi.", "success")
+            return redirect(url_for("main.action_detail", action_id=action.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "invalid_file_type":
+                flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+            elif error_key == "evidence_required":
+                flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kanıt dosyası yüklenmelidir.", "danger")
+            elif error_key == "closing_note_required":
+                flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kapanış açıklaması yazılmalıdır.", "danger")
+            else:
+                flash("Alt aksiyon bilgilerini kontrol edin.", "danger")
+
+    return render_template(
+        "sub_action_form.html",
+        sub_action=sub_action,
+        action=action,
+        users=active_users(),
+        sub_action_statuses=ACTION_SUB_TASK_STATUSES,
+        sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
+    )
+
+
+@bp.post("/sub-actions/<int:sub_action_id>/complete")
+@login_required
+def complete_sub_action(sub_action_id):
+    sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    action = sub_action.parent_action
+    if not can_complete_sub_action(sub_action):
+        abort(403)
+
+    closing_note = request.form.get("closing_note", "").strip()
+    if closing_note:
+        sub_action.closing_note = closing_note
+    try:
+        save_sub_action_evidence_file(sub_action)
+    except ValueError:
+        flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    if sub_action.evidence_required and not sub_action.evidence_stored_name:
+        flash("Bu alt aksiyon için kanıt dosyası yüklenmeden tamamlanamaz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+    if sub_action.evidence_required and not sub_action.closing_note:
+        flash("Bu alt aksiyon için kapanış açıklaması yazılmadan tamamlanamaz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+
+    sub_action.status = "Tamamlandı"
+    sub_action.completed_at = datetime.utcnow()
+    sub_action.completed_by_user_id = g.current_user.id
+    add_action_history(
+        action,
+        "sub_action_completed",
+        f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu tamamladı.",
+        actor=g.current_user,
+    )
+    notify_users(
+        {action.responsible_user_id},
+        action,
+        f"'{sub_action.title}' alt aksiyonu tamamlandı.",
+        exclude_user_id=g.current_user.id,
+    )
+    db.session.commit()
+    flash("Alt aksiyon tamamlandı.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
+@bp.post("/sub-actions/<int:sub_action_id>/delete")
+@login_required
+def delete_sub_action(sub_action_id):
+    sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    action = sub_action.parent_action
+    if not can_delete_sub_action(sub_action):
+        abort(403)
+
+    title = sub_action.title
+    delete_sub_action_evidence_file(sub_action)
+    db.session.delete(sub_action)
+    add_action_history(
+        action,
+        "sub_action_deleted",
+        f"{g.current_user.full_name} '{title}' alt aksiyonunu sildi.",
+        actor=g.current_user,
+    )
+    db.session.commit()
+    flash("Alt aksiyon silindi.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
+@bp.get("/sub-actions/<int:sub_action_id>/evidence/download")
+@login_required
+def download_sub_action_evidence(sub_action_id):
+    sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    if not can_view_action(sub_action.parent_action):
+        abort(403)
+    if not sub_action.evidence_stored_name:
+        flash("Bu alt aksiyon için kanıt dosyası bulunmuyor.", "warning")
+        return redirect(url_for("main.sub_action_detail", sub_action_id=sub_action.id))
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        sub_action.evidence_stored_name,
+        as_attachment=True,
+        download_name=sub_action.evidence_original_name,
     )
 
 
@@ -3888,6 +4307,14 @@ def request_action_closure(action_id):
     action = Action.query.get_or_404(action_id)
     if not can_request_closure_action(action):
         abort(403)
+
+    if action.has_open_sub_actions:
+        flash(
+            "Bu aksiyona bağlı tamamlanmamış alt aksiyonlar bulunmaktadır. "
+            "Ana aksiyonu kapatmadan önce alt aksiyonları tamamlayınız.",
+            "warning",
+        )
+        return redirect(url_for("main.action_detail", action_id=action.id))
 
     evidence_note = request.form.get("closure_evidence_note", "").strip()
     if not evidence_note:
@@ -3932,6 +4359,14 @@ def complete_action(action_id):
     action = Action.query.get_or_404(action_id)
     if not can_approve_closure_action(action):
         abort(403)
+
+    if action.has_open_sub_actions:
+        flash(
+            "Bu aksiyona bağlı tamamlanmamış alt aksiyonlar bulunmaktadır. "
+            "Ana aksiyonu kapatmadan önce alt aksiyonları tamamlayınız.",
+            "warning",
+        )
+        return redirect(url_for("main.action_detail", action_id=action.id))
 
     action.mark_completed()
     add_action_history(
@@ -3996,6 +4431,8 @@ def delete_action(action_id):
     action = Action.query.get_or_404(action_id)
 
     if request.method == "POST":
+        for sub_action in list(action.sub_actions):
+            delete_sub_action_evidence_file(sub_action)
         delete_uploaded_file(action)
         delete_closure_evidence_file(action)
         db.session.delete(action)

@@ -128,6 +128,12 @@
                 {% if action.description %}
                   <span>{{ action.description }}</span>
                 {% endif %}
+                {% if action.sub_action_total %}
+                  <span class="sub-action-inline-progress">
+                    Alt aksiyon: {{ action.sub_action_completed_count }}/{{ action.sub_action_total }} tamamlandı
+                    <small>%{{ action.sub_action_progress_percent }}</small>
+                  </span>
+                {% endif %}
               </td>
               <td>{{ action.department }}</td>
               <td>{{ action.responsible_owner }}</td>

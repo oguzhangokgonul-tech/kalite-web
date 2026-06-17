@@ -97,6 +97,84 @@
       </div>
     </div>
 
+    {% if not action %}
+      <div class="app-card mt-4">
+        <div class="app-card-header">
+          <span class="app-card-icon"><i class="bi bi-list-task"></i></span>
+          <div>
+            <h3>Alt Aksiyonlar</h3>
+            <p>İsterseniz bu ana aksiyona bağlı alt aksiyonları şimdiden ekleyebilirsiniz.</p>
+          </div>
+        </div>
+        <input type="hidden" name="sub_action_indexes" value="" data-sub-action-indexes>
+        <div class="sub-action-builder" data-sub-action-builder>
+          <div class="sub-action-builder-list" data-sub-action-list></div>
+          <button class="btn btn-outline-primary" type="button" data-add-sub-action>
+            <i class="bi bi-plus-lg"></i>
+            <span>Alt Aksiyon Ekle</span>
+          </button>
+        </div>
+      </div>
+
+      <template data-sub-action-template>
+        <article class="sub-action-builder-item" data-sub-action-item data-sub-action-index="__INDEX__">
+          <div class="sub-action-builder-head">
+            <strong>Alt Aksiyon <span data-sub-action-number>__NUMBER__</span></strong>
+            <button class="btn btn-sm btn-outline-danger" type="button" data-remove-sub-action>
+              <i class="bi bi-trash"></i>
+              <span>Sil</span>
+            </button>
+          </div>
+          <div class="app-form-grid">
+            <div>
+              <label class="form-label">Alt Aksiyon Başlığı</label>
+              <input class="form-control" name="sub_action_title___INDEX__" maxlength="160">
+            </div>
+            <div>
+              <label class="form-label">Sorumlu</label>
+              <select class="form-select" name="sub_action_responsible_id___INDEX__">
+                <option value="">Seçiniz</option>
+                {% for user in users %}
+                  <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Termin</label>
+              <input class="form-control" name="sub_action_due_date___INDEX__" type="date">
+            </div>
+            <div>
+              <label class="form-label">Öncelik</label>
+              <select class="form-select" name="sub_action_priority___INDEX__">
+                {% for priority in sub_action_priorities %}
+                  <option value="{{ priority }}" {% if priority == "Orta" %}selected{% endif %}>{{ priority }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Durum</label>
+              <select class="form-select" name="sub_action_status___INDEX__">
+                {% for status in sub_action_statuses %}
+                  <option value="{{ status }}" {% if status == "Beklemede" %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label d-block">Kanıt zorunlu mu?</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" name="sub_action_evidence_required___INDEX__" id="sub_action_evidence_required___INDEX__">
+                <label class="form-check-label" for="sub_action_evidence_required___INDEX__">Evet</label>
+              </div>
+            </div>
+            <div class="app-form-full">
+              <label class="form-label">Açıklama</label>
+              <textarea class="form-control" name="sub_action_description___INDEX__" rows="3" maxlength="2000"></textarea>
+            </div>
+          </div>
+        </article>
+      </template>
+    {% endif %}
+
     <div class="app-form-actions">
       <button class="btn btn-primary" type="submit">
         <i class="bi bi-check-lg"></i>
@@ -105,4 +183,50 @@
       <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Vazgeç</a>
     </div>
   </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (() => {
+      const list = document.querySelector("[data-sub-action-list]");
+      const template = document.querySelector("[data-sub-action-template]");
+      const indexesField = document.querySelector("[data-sub-action-indexes]");
+      const addButton = document.querySelector("[data-add-sub-action]");
+      if (!list || !template || !indexesField || !addButton) return;
+
+      let nextIndex = 1;
+
+      function items() {
+        return Array.from(document.querySelectorAll("[data-sub-action-item]"));
+      }
+
+      function refresh() {
+        const activeItems = items();
+        activeItems.forEach((item, index) => {
+          const number = item.querySelector("[data-sub-action-number]");
+          if (number) number.textContent = index + 1;
+        });
+        indexesField.value = activeItems.map((item) => item.dataset.subActionIndex).join(",");
+      }
+
+      addButton.addEventListener("click", () => {
+        const html = template.innerHTML
+          .replaceAll("__INDEX__", String(nextIndex))
+          .replaceAll("__NUMBER__", String(items().length + 1));
+        list.insertAdjacentHTML("beforeend", html);
+        nextIndex += 1;
+        refresh();
+      });
+
+      list.addEventListener("click", (event) => {
+        const removeButton = event.target.closest("[data-remove-sub-action]");
+        if (!removeButton) return;
+        removeButton.closest("[data-sub-action-item]")?.remove();
+        refresh();
+      });
+
+      refresh();
+    })();
+  </script>
 {% endblock %}
