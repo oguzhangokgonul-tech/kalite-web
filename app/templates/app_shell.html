@@ -17,7 +17,7 @@
         <strong>Aksiyon Takip Sistemi</strong>
       </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.assigned_tasks', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
         </a>

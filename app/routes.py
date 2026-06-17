@@ -921,7 +921,14 @@ def reserve_internal_audit_number(today=None):
 
 
 def can_view_internal_audit(audit):
-    return is_oguzhan_admin()
+    return (
+        is_oguzhan_admin()
+        or (
+            g.current_user is not None
+            and audit is not None
+            and g.current_user.id in {audit.auditor_id, audit.audited_user_id}
+        )
+    )
 
 
 def can_create_internal_audit():
@@ -3009,6 +3016,483 @@ def dof_dashboard_context():
     }
 
 
+def assigned_filters():
+    return {
+        "scope": request.args.get("scope", "assigned").strip() or "assigned",
+        "tab": request.args.get("tab", "all").strip() or "all",
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "module": request.args.get("module", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "due_start": request.args.get("due_start", "").strip(),
+        "due_end": request.args.get("due_end", "").strip(),
+    }
+
+
+def parse_query_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def action_reference(action):
+    year_source = action.termin_date or action.created_at or datetime.utcnow()
+    year = year_source.year
+    number = action.action_number or action.id
+    return f"AKS-{year}-{number:04d}"
+
+
+def compact_dof_status(status):
+    if status == "Onay Akışı Bekleniyor":
+        return "Onay Bekliyor"
+    return status
+
+
+def status_tone(status, status_key=None):
+    if status_key in {"completed", "success"} or status == "Tamamlandı":
+        return "success"
+    if status_key in {"delayed", "rejected", "revision", "cancelled"}:
+        return "danger" if status_key != "cancelled" else "muted"
+    if status_key in {"pending", "draft"}:
+        return "warning"
+    if status in {"Devam Ediyor", "Planlandı"}:
+        return "info"
+    return "muted"
+
+
+def priority_tone(priority):
+    normalized = normalize_for_role(priority)
+    if "kritik" in normalized or "yuksek" in normalized:
+        return "danger"
+    if "orta" in normalized:
+        return "warning"
+    if "dusuk" in normalized:
+        return "info"
+    return "muted"
+
+
+def due_meta(due_date, is_completed=False):
+    if not due_date:
+        return {"text": "-", "tone": "muted"}
+    if is_completed:
+        return {"text": "Tamamlandı", "tone": "success"}
+
+    remaining = (due_date - date.today()).days
+    if remaining > 0:
+        return {
+            "text": f"{remaining} gün kaldı",
+            "tone": "warning" if remaining <= 7 else "muted",
+        }
+    if remaining == 0:
+        return {"text": "Bugün", "tone": "warning"}
+    return {"text": f"{abs(remaining)} gün gecikti", "tone": "danger"}
+
+
+def action_task_status(action):
+    if action.is_completed:
+        return "Tamamlandı", "completed"
+    if action.closure_approval_requested:
+        return "Kapanma Onayı Beklemede", "pending"
+    if action.closure_rejection_reason:
+        return "Kapanma Onayı Reddedildi", "rejected"
+    if action.delay_days > 0:
+        return "Gecikti", "delayed"
+    return "Açık", "open"
+
+
+def action_task_priority(action):
+    if action.is_completed:
+        return "Düşük"
+    if action.delay_days > 0:
+        return "Yüksek"
+    if action.termin_date and (action.termin_date - date.today()).days <= 7:
+        return "Yüksek"
+    return "Orta"
+
+
+def sub_action_task_status(sub_action):
+    if sub_action.status == "Tamamlandı":
+        return sub_action.status, "completed"
+    if sub_action.status == "İptal Edildi":
+        return sub_action.status, "cancelled"
+    return sub_action.status, "open"
+
+
+def dof_task_status(dof):
+    display_status = compact_dof_status(dof_display_status(dof))
+    if display_status == "Tamamlandı":
+        return display_status, "completed"
+    if display_status == "Taslak":
+        return display_status, "draft"
+    if display_status == "Revizyon Bekleniyor":
+        return display_status, "revision"
+    if dof_delay_days(dof) > 0 and display_status != "Tamamlandı":
+        return "Gecikti", "delayed"
+    if display_status == "Onay Bekliyor":
+        return display_status, "pending"
+    return display_status, "open"
+
+
+def audit_task_status(audit):
+    if not audit.questions:
+        return "Soru Listesi Yok", "rejected"
+    if audit.status == "Tamamlandı":
+        return audit.status, "completed"
+    return audit.status or "Devam Ediyor", "open"
+
+
+def internal_audit_detail_url(audit):
+    question = internal_audit_open_question(audit)
+    if question:
+        return url_for(
+            "main.internal_audit_question",
+            audit_id=audit.id,
+            question_id=question.id,
+        )
+    return url_for("main.internal_audit")
+
+
+def assigned_task_row(
+    *,
+    module_key,
+    module_label,
+    module_icon,
+    module_tone,
+    title,
+    description,
+    reference_no,
+    department,
+    due_date,
+    status,
+    status_key,
+    priority,
+    detail_url,
+    created_at=None,
+    sort_id=0,
+):
+    due_state = due_meta(due_date, status_key == "completed")
+    return {
+        "module_key": module_key,
+        "module_label": module_label,
+        "module_icon": module_icon,
+        "module_tone": module_tone,
+        "title": title,
+        "description": short_text(description or "", 130),
+        "reference_no": reference_no,
+        "department": department or "-",
+        "due_date": due_date,
+        "due_label": format_date(due_date),
+        "due_text": due_state["text"],
+        "due_tone": due_state["tone"],
+        "status": status,
+        "status_key": status_key,
+        "status_tone": status_tone(status, status_key),
+        "priority": priority or "Orta",
+        "priority_tone": priority_tone(priority or "Orta"),
+        "detail_url": detail_url,
+        "created_at": created_at,
+        "sort_date": due_date or date.max,
+        "sort_id": sort_id,
+    }
+
+
+def assigned_action_tasks(scope):
+    user_id = g.current_user.id
+    if scope == "created":
+        created_action_ids = [
+            row.action_id
+            for row in ActionHistory.query.with_entities(ActionHistory.action_id)
+            .filter(
+                ActionHistory.actor_user_id == user_id,
+                ActionHistory.event_type == "created",
+            )
+            .distinct()
+            .all()
+        ]
+        actions = (
+            Action.query.filter(Action.id.in_(created_action_ids)).all()
+            if created_action_ids
+            else []
+        )
+        sub_actions = ActionSubTask.query.filter_by(created_by_user_id=user_id).all()
+    else:
+        actions = Action.query.filter_by(responsible_user_id=user_id).all()
+        sub_actions = ActionSubTask.query.filter_by(responsible_id=user_id).all()
+
+    rows = []
+    for action in actions:
+        action.refresh_delay()
+        status, status_key = action_task_status(action)
+        rows.append(
+            assigned_task_row(
+                module_key="action",
+                module_label="Aksiyon",
+                module_icon="check-circle",
+                module_tone="success",
+                title=f"{action.number_label} {action.title}",
+                description=action.description,
+                reference_no=action_reference(action),
+                department=action.department,
+                due_date=action.termin_date,
+                status=status,
+                status_key=status_key,
+                priority=action_task_priority(action),
+                detail_url=url_for("main.action_detail", action_id=action.id),
+                created_at=action.created_at,
+                sort_id=action.id,
+            )
+        )
+
+    for sub_action in sub_actions:
+        action = sub_action.parent_action
+        if action is None:
+            continue
+        status, status_key = sub_action_task_status(sub_action)
+        rows.append(
+            assigned_task_row(
+                module_key="action",
+                module_label="Aksiyon",
+                module_icon="check-circle",
+                module_tone="success",
+                title=sub_action.title,
+                description=sub_action.description
+                or f"{action.number_label} {action.title} aksiyonuna bağlı alt aksiyon.",
+                reference_no=f"{action_reference(action)} / ALT-{sub_action.id:04d}",
+                department=action.department,
+                due_date=sub_action.due_date,
+                status=status,
+                status_key=status_key,
+                priority=sub_action.priority,
+                detail_url=url_for("main.sub_action_detail", sub_action_id=sub_action.id),
+                created_at=sub_action.created_at,
+                sort_id=sub_action.id,
+            )
+        )
+
+    return rows
+
+
+def assigned_dof_tasks(scope):
+    user_id = g.current_user.id
+    if scope == "created":
+        dofs = Dof.query.filter_by(created_by_user_id=user_id).all()
+    else:
+        dofs = Dof.query.filter_by(responsible_id=user_id).all()
+
+    rows = []
+    for dof in attach_dof_view_state(dofs):
+        status, status_key = dof_task_status(dof)
+        rows.append(
+            assigned_task_row(
+                module_key="dof",
+                module_label="IF Kaydı",
+                module_icon="bookmark-check",
+                module_tone="purple",
+                title=dof.dof_no,
+                description=dof.nonconformity_description or dof.title,
+                reference_no=dof.dof_no,
+                department=dof.department,
+                due_date=dof.due_date,
+                status=status,
+                status_key=status_key,
+                priority=dof.priority or "Orta",
+                detail_url=url_for("main.dof_detail", dof_id=dof.id),
+                created_at=dof.created_at,
+                sort_id=dof.id,
+            )
+        )
+    return rows
+
+
+def assigned_internal_audit_tasks(scope):
+    user_id = g.current_user.id
+    if scope == "created":
+        audits = InternalAudit.query.filter_by(auditor_id=user_id).all()
+    else:
+        audits = InternalAudit.query.filter(
+            or_(
+                InternalAudit.auditor_id == user_id,
+                InternalAudit.audited_user_id == user_id,
+            )
+        ).all()
+
+    rows = []
+    for audit in audits:
+        status, status_key = audit_task_status(audit)
+        description_parts = [
+            audit.title,
+            audit.evaluated_department,
+            audit.audited_user.full_name if audit.audited_user else "",
+        ]
+        rows.append(
+            assigned_task_row(
+                module_key="internal_audit",
+                module_label="İç Denetim",
+                module_icon="clipboard-check",
+                module_tone="warning",
+                title=audit.title,
+                description=" | ".join(part for part in description_parts if part),
+                reference_no=audit.audit_no,
+                department=audit.evaluated_department,
+                due_date=audit.planned_date,
+                status=status,
+                status_key=status_key,
+                priority="Orta",
+                detail_url=internal_audit_detail_url(audit),
+                created_at=audit.created_at,
+                sort_id=audit.id,
+            )
+        )
+    return rows
+
+
+def assigned_all_tasks(scope):
+    return (
+        assigned_action_tasks(scope)
+        + assigned_internal_audit_tasks(scope)
+        + assigned_dof_tasks(scope)
+    )
+
+
+def assigned_module_filter_matches(task, module):
+    if not module:
+        return True
+    return task["module_key"] == module
+
+
+def assigned_tab_filter_matches(task, tab):
+    if tab == "actions":
+        return task["module_key"] == "action"
+    if tab == "audits":
+        return task["module_key"] == "internal_audit"
+    if tab == "dofs":
+        return task["module_key"] == "dof"
+    return True
+
+
+def assigned_status_filter_matches(task, status):
+    if not status:
+        return True
+    return task["status_key"] == status
+
+
+def filtered_assigned_tasks(tasks, filters):
+    search = filters["search"].lower()
+    due_start = parse_query_date(filters["due_start"])
+    due_end = parse_query_date(filters["due_end"])
+    filtered = []
+
+    for task in tasks:
+        if not assigned_tab_filter_matches(task, filters["tab"]):
+            continue
+        if not assigned_module_filter_matches(task, filters["module"]):
+            continue
+        if not assigned_status_filter_matches(task, filters["status"]):
+            continue
+        if filters["department"] and task["department"] != filters["department"]:
+            continue
+        if due_start and (not task["due_date"] or task["due_date"] < due_start):
+            continue
+        if due_end and (not task["due_date"] or task["due_date"] > due_end):
+            continue
+        if search and search not in " ".join(
+            [
+                task["module_label"],
+                task["title"],
+                task["description"],
+                task["reference_no"],
+                task["department"],
+                task["status"],
+                task["priority"],
+            ]
+        ).lower():
+            continue
+        filtered.append(task)
+
+    return filtered
+
+
+def assigned_url(filters, **overrides):
+    args = {
+        "scope": filters["scope"],
+        "tab": filters["tab"],
+        "search": filters["search"],
+        "department": filters["department"],
+        "module": filters["module"],
+        "status": filters["status"],
+        "due_start": filters["due_start"],
+        "due_end": filters["due_end"],
+    }
+    args.update(overrides)
+    args = {key: value for key, value in args.items() if value not in ("", None)}
+    return url_for("main.assigned_tasks", **args)
+
+
+def assigned_tasks_context():
+    filters = assigned_filters()
+    if filters["scope"] not in {"assigned", "created"}:
+        filters["scope"] = "assigned"
+    if filters["tab"] not in {"all", "actions", "audits", "dofs"}:
+        filters["tab"] = "all"
+
+    all_tasks = sorted(
+        assigned_all_tasks(filters["scope"]),
+        key=lambda task: (task["sort_date"], task["sort_id"]),
+    )
+    tasks = filtered_assigned_tasks(all_tasks, filters)
+    total_count = len(tasks)
+    page = request.args.get("page", 1, type=int) or 1
+    per_page = request.args.get("per_page", 10, type=int) or 10
+    per_page = max(5, min(per_page, 50))
+    total_pages = max((total_count + per_page - 1) // per_page, 1)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * per_page
+    paged_tasks = tasks[start : start + per_page]
+
+    encountered_departments = sorted(
+        {task["department"] for task in all_tasks if task["department"] not in {"", "-"}}
+    )
+    departments = list(dict.fromkeys([*DEPARTMENTS, *encountered_departments]))
+
+    return {
+        "tasks": paged_tasks,
+        "total_count": total_count,
+        "all_count": len(all_tasks),
+        "filters": filters,
+        "departments": departments,
+        "module_options": [
+            ("", "Tümü"),
+            ("action", "Aksiyon"),
+            ("internal_audit", "İç Denetim"),
+            ("dof", "IF Kaydı"),
+        ],
+        "status_options": [
+            ("", "Tümü"),
+            ("open", "Açık / Devam ediyor"),
+            ("pending", "Onay bekleyen"),
+            ("draft", "Taslak"),
+            ("revision", "Revizyon bekleyen"),
+            ("delayed", "Geciken"),
+            ("completed", "Tamamlanan"),
+            ("cancelled", "İptal edilen"),
+            ("rejected", "Reddedilen"),
+        ],
+        "tabs": [
+            ("all", "Tümü"),
+            ("actions", "Aksiyonlar"),
+            ("audits", "İç Denetimler"),
+            ("dofs", "IF Kayıtları"),
+        ],
+        "page": page,
+        "per_page": per_page,
+        "total_pages": total_pages,
+        "assigned_url": assigned_url,
+    }
+
+
 def internal_audit_question_context(audit, question):
     answer = internal_audit_answer_for_question(audit, question)
     selected_previous_dof_id = answer.previous_nonconformity_id if answer else None
@@ -3053,6 +3537,12 @@ def internal_audit_question_context(audit, question):
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.route("/uzerime-atananlar")
+@login_required
+def assigned_tasks():
+    return render_template("assigned_tasks.html", **assigned_tasks_context())
 
 
 @bp.route("/dashboard-liste")
