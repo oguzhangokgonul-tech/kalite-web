@@ -140,6 +140,24 @@
               </select>
             </div>
             <div>
+              <label class="form-label">İlgili 1 (Opsiyonel)</label>
+              <select class="form-select" name="sub_action_related_user_1_id___INDEX__">
+                <option value="">Seçiniz</option>
+                {% for user in users %}
+                  <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="form-label">İlgili 2 (Opsiyonel)</label>
+              <select class="form-select" name="sub_action_related_user_2_id___INDEX__">
+                <option value="">Seçiniz</option>
+                {% for user in users %}
+                  <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
               <label class="form-label">Termin</label>
               <input class="form-control" name="sub_action_due_date___INDEX__" type="date">
             </div>

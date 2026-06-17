@@ -653,7 +653,10 @@ def can_view_action(action):
         is_oguzhan_admin()
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
-        or any(item.responsible_id == g.current_user.id for item in action.sub_actions)
+        or any(
+            g.current_user.id in item.participant_user_ids()
+            for item in action.sub_actions
+        )
     )
 
 
@@ -678,14 +681,18 @@ def can_create_sub_action(action):
     )
 
 
-def can_edit_sub_action(sub_action):
-    action = sub_action.parent_action
-    if g.current_user is None or action.is_completed:
-        return False
-    return can_create_sub_action(action) or sub_action.responsible_id == g.current_user.id
+def is_sub_action_responsible(sub_action):
+    return g.current_user is not None and sub_action.responsible_id == g.current_user.id
 
 
-def can_delete_sub_action(sub_action):
+def is_sub_action_related(sub_action):
+    return g.current_user is not None and g.current_user.id in {
+        sub_action.related_user_1_id,
+        sub_action.related_user_2_id,
+    }
+
+
+def can_full_edit_sub_action(sub_action):
     action = sub_action.parent_action
     if g.current_user is None or action.is_completed:
         return False
@@ -693,13 +700,45 @@ def can_delete_sub_action(sub_action):
         is_oguzhan_admin()
         or g.current_user.can_edit_actions
         or sub_action.created_by_user_id == g.current_user.id
+        or is_assigned_to_current_user(action)
+        or is_related_to_current_user(action)
     )
+
+
+def can_reassign_sub_action(sub_action):
+    action = sub_action.parent_action
+    if g.current_user is None or action.is_completed:
+        return False
+    return can_full_edit_sub_action(sub_action) or (
+        g.current_user.can_close_assigned_actions and is_sub_action_responsible(sub_action)
+    )
+
+
+def can_revise_sub_action_termin(sub_action):
+    action = sub_action.parent_action
+    if g.current_user is None or action.is_completed:
+        return False
+    return (
+        can_full_edit_sub_action(sub_action)
+        or is_sub_action_responsible(sub_action)
+        or is_sub_action_related(sub_action)
+    )
+
+
+def can_edit_sub_action(sub_action):
+    return can_full_edit_sub_action(sub_action) or can_reassign_sub_action(
+        sub_action
+    ) or can_revise_sub_action_termin(sub_action)
+
+
+def can_delete_sub_action(sub_action):
+    return can_full_edit_sub_action(sub_action)
 
 
 def can_complete_sub_action(sub_action):
     if sub_action.status in {"Tamamlandı", "İptal Edildi"}:
         return False
-    return can_edit_sub_action(sub_action)
+    return can_full_edit_sub_action(sub_action) or is_sub_action_responsible(sub_action)
 
 
 def visible_actions_query():
@@ -711,7 +750,13 @@ def visible_actions_query():
             Action.responsible_user_id == g.current_user.id,
             Action.related_user_1_id == g.current_user.id,
             Action.related_user_2_id == g.current_user.id,
-            Action.sub_actions.any(ActionSubTask.responsible_id == g.current_user.id),
+            Action.sub_actions.any(
+                or_(
+                    ActionSubTask.responsible_id == g.current_user.id,
+                    ActionSubTask.related_user_1_id == g.current_user.id,
+                    ActionSubTask.related_user_2_id == g.current_user.id,
+                )
+            ),
         )
     )
 
@@ -1528,6 +1573,64 @@ def describe_action_changes(before, action):
     return changes
 
 
+def sub_action_snapshot(sub_action):
+    return {
+        "title": sub_action.title,
+        "responsible_id": sub_action.responsible_id,
+        "related_user_1_id": sub_action.related_user_1_id,
+        "related_user_2_id": sub_action.related_user_2_id,
+        "due_date": sub_action.due_date,
+        "priority": sub_action.priority,
+        "status": sub_action.status,
+        "description": sub_action.description or "",
+        "evidence_required": sub_action.evidence_required,
+        "evidence_original_name": sub_action.evidence_original_name,
+        "closing_note": sub_action.closing_note or "",
+    }
+
+
+def describe_sub_action_changes(before, sub_action):
+    changes = []
+    if before["title"] != sub_action.title:
+        changes.append(f"başlığı \"{before['title']}\" -> \"{sub_action.title}\"")
+    if before["responsible_id"] != sub_action.responsible_id:
+        changes.append(
+            "sorumlusu "
+            f"{user_name(before['responsible_id'])} -> {user_name(sub_action.responsible_id)}"
+        )
+    if before["related_user_1_id"] != sub_action.related_user_1_id:
+        changes.append(
+            "İlgili 1 "
+            f"{user_name(before['related_user_1_id'])} -> {user_name(sub_action.related_user_1_id)}"
+        )
+    if before["related_user_2_id"] != sub_action.related_user_2_id:
+        changes.append(
+            "İlgili 2 "
+            f"{user_name(before['related_user_2_id'])} -> {user_name(sub_action.related_user_2_id)}"
+        )
+    if before["due_date"] != sub_action.due_date:
+        changes.append(
+            f"termini {format_date(before['due_date'])} -> {format_date(sub_action.due_date)}"
+        )
+    if before["priority"] != sub_action.priority:
+        changes.append(f"önceliği {before['priority']} -> {sub_action.priority}")
+    if before["status"] != sub_action.status:
+        changes.append(f"durumu {before['status']} -> {sub_action.status}")
+    if before["description"] != (sub_action.description or ""):
+        changes.append("açıklaması güncellendi")
+    if before["evidence_required"] != sub_action.evidence_required:
+        changes.append(
+            "kanıt zorunluluğu "
+            f"{'Evet' if before['evidence_required'] else 'Hayır'} -> "
+            f"{'Evet' if sub_action.evidence_required else 'Hayır'}"
+        )
+    if before["evidence_original_name"] != sub_action.evidence_original_name:
+        changes.append("kanıt dosyası güncellendi")
+    if before["closing_note"] != (sub_action.closing_note or ""):
+        changes.append("kapanış açıklaması güncellendi")
+    return changes
+
+
 def add_action_history(action, event_type, message, actor=None):
     history = ActionHistory(
         action=action,
@@ -1569,6 +1672,24 @@ def notify_action_participants(action, message, exclude_user_id=None, extra_user
     if extra_user_ids:
         user_ids.update(extra_user_ids)
     notify_users(user_ids, action, message, exclude_user_id=exclude_user_id)
+
+
+def notify_sub_action_participants(
+    sub_action,
+    message,
+    exclude_user_id=None,
+    extra_user_ids=None,
+):
+    user_ids = set(sub_action.participant_user_ids())
+    user_ids.add(sub_action.parent_action.responsible_user_id)
+    if extra_user_ids:
+        user_ids.update(extra_user_ids)
+    notify_users(
+        user_ids,
+        sub_action.parent_action,
+        message,
+        exclude_user_id=exclude_user_id,
+    )
 
 
 def unique_users(users):
@@ -2095,6 +2216,8 @@ def parse_sub_action_form(sub_action=None):
     sub_action = sub_action or ActionSubTask()
     title = request.form.get("title", "").strip()
     responsible = parse_optional_user("responsible_id")
+    related_user_1 = parse_optional_user("related_user_1_id")
+    related_user_2 = parse_optional_user("related_user_2_id")
     due_date = parse_optional_date("due_date")
     priority = request.form.get("priority", "Orta").strip() or "Orta"
     status = request.form.get("status", "Beklemede").strip() or "Beklemede"
@@ -2113,6 +2236,8 @@ def parse_sub_action_form(sub_action=None):
 
     sub_action.title = title
     sub_action.responsible_id = responsible.id if responsible else None
+    sub_action.related_user_1_id = related_user_1.id if related_user_1 else None
+    sub_action.related_user_2_id = related_user_2.id if related_user_2 else None
     sub_action.due_date = due_date
     sub_action.priority = priority
     sub_action.status = status
@@ -2134,16 +2259,46 @@ def parse_sub_action_form(sub_action=None):
     return sub_action
 
 
+def parse_sub_action_limited_revision(sub_action):
+    responsible_value = request.form.get("responsible_id", "").strip()
+    responsible = None
+    if responsible_value:
+        try:
+            responsible_id = int(responsible_value)
+        except ValueError:
+            raise ValueError("invalid_user") from None
+
+        responsible = User.query.filter_by(id=responsible_id, is_active=True).first()
+        if responsible is None:
+            raise ValueError("invalid_user")
+
+    related_user_1 = parse_optional_user("related_user_1_id")
+    related_user_2 = parse_optional_user("related_user_2_id")
+    due_date = parse_optional_date("due_date")
+    if due_date is None:
+        raise ValueError("invalid_date")
+
+    sub_action.responsible_id = responsible.id if responsible else None
+    sub_action.related_user_1_id = related_user_1.id if related_user_1 else None
+    sub_action.related_user_2_id = related_user_2.id if related_user_2 else None
+    sub_action.due_date = due_date
+    return sub_action
+
+
 def parse_sub_action_inline(index):
     title = request.form.get(f"sub_action_title_{index}", "").strip()
     description = request.form.get(f"sub_action_description_{index}", "").strip()
     responsible = parse_optional_user(f"sub_action_responsible_id_{index}")
+    related_user_1 = parse_optional_user(f"sub_action_related_user_1_id_{index}")
+    related_user_2 = parse_optional_user(f"sub_action_related_user_2_id_{index}")
     due_date = parse_optional_date(f"sub_action_due_date_{index}")
     priority = request.form.get(f"sub_action_priority_{index}", "Orta").strip() or "Orta"
     status = request.form.get(f"sub_action_status_{index}", "Beklemede").strip() or "Beklemede"
     evidence_required = request.form.get(f"sub_action_evidence_required_{index}") == "on"
 
-    has_any_value = any([title, description, responsible, due_date])
+    has_any_value = any(
+        [title, description, responsible, related_user_1, related_user_2, due_date]
+    )
     if not has_any_value:
         return None
     if not title:
@@ -2161,6 +2316,8 @@ def parse_sub_action_inline(index):
         "title": title,
         "description": description or None,
         "responsible_id": responsible.id if responsible else None,
+        "related_user_1_id": related_user_1.id if related_user_1 else None,
+        "related_user_2_id": related_user_2.id if related_user_2 else None,
         "due_date": due_date,
         "priority": priority,
         "status": status,
@@ -3827,16 +3984,14 @@ def create_action():
                 exclude_user_id=g.current_user.id,
             )
             for sub_action in created_sub_actions:
-                if sub_action.responsible_id:
-                    notify_users(
-                        {sub_action.responsible_id},
-                        action,
-                        (
-                            f"{action.number_label} {action.title} aksiyonu altında "
-                            f"'{sub_action.title}' alt aksiyonu size atandı."
-                        ),
-                        exclude_user_id=g.current_user.id,
-                    )
+                notify_sub_action_participants(
+                    sub_action,
+                    (
+                        f"{action.number_label} {action.title} aksiyonu altında "
+                        f"'{sub_action.title}' alt aksiyonunda sorumlu/ilgili olarak atandınız."
+                    ),
+                    exclude_user_id=g.current_user.id,
+                )
             db.session.commit()
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
             return redirect(url_for("main.dashboard"))
@@ -3890,6 +4045,7 @@ def action_detail(action_id):
         can_revise_termin=can_revise_termin(action),
         can_create_sub_action=can_create_sub_action(action),
         can_edit_sub_action=can_edit_sub_action,
+        can_full_edit_sub_action=can_full_edit_sub_action,
         can_delete_sub_action=can_delete_sub_action,
         can_complete_sub_action=can_complete_sub_action,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
@@ -4115,16 +4271,14 @@ def create_sub_action(action_id):
             f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu ekledi.",
             actor=g.current_user,
         )
-        if sub_action.responsible_id:
-            notify_users(
-                {sub_action.responsible_id},
-                action,
-                (
-                    f"{action.number_label} {action.title} aksiyonu altında "
-                    f"'{sub_action.title}' alt aksiyonu size atandı."
-                ),
-                exclude_user_id=g.current_user.id,
-            )
+        notify_sub_action_participants(
+            sub_action,
+            (
+                f"{action.number_label} {action.title} aksiyonu altında "
+                f"'{sub_action.title}' alt aksiyonunda sorumlu/ilgili olarak atandınız."
+            ),
+            exclude_user_id=g.current_user.id,
+        )
         db.session.commit()
         flash("Alt aksiyon eklendi.", "success")
     except ValueError as error:
@@ -4166,36 +4320,53 @@ def edit_sub_action(sub_action_id):
         abort(403)
 
     if request.method == "POST":
-        old_responsible_id = sub_action.responsible_id
+        before = sub_action_snapshot(sub_action)
+        can_full_edit = can_full_edit_sub_action(sub_action)
         old_status = sub_action.status
         try:
-            parse_sub_action_form(sub_action)
+            if can_full_edit:
+                parse_sub_action_form(sub_action)
+            else:
+                parse_sub_action_limited_revision(sub_action)
+
+            changes = describe_sub_action_changes(before, sub_action)
+            if not changes:
+                flash("Alt aksiyonda değişiklik yapılmadı.", "warning")
+                return redirect(url_for("main.edit_sub_action", sub_action_id=sub_action.id))
+
             add_action_history(
                 action,
                 "sub_action_updated",
-                f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu düzenledi.",
+                (
+                    f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu "
+                    f"güncelledi: {'; '.join(changes)}"
+                ),
                 actor=g.current_user,
             )
-            if old_responsible_id != sub_action.responsible_id and sub_action.responsible_id:
-                notify_users(
-                    {sub_action.responsible_id},
-                    action,
-                    (
-                        f"{action.number_label} {action.title} aksiyonu altında "
-                        f"'{sub_action.title}' alt aksiyonu size atandı."
-                    ),
-                    exclude_user_id=g.current_user.id,
-                )
+            notify_sub_action_participants(
+                sub_action,
+                (
+                    f"{action.number_label} {action.title} aksiyonu altında "
+                    f"'{sub_action.title}' alt aksiyonu güncellendi."
+                ),
+                exclude_user_id=g.current_user.id,
+                extra_user_ids={
+                    before["responsible_id"],
+                    before["related_user_1_id"],
+                    before["related_user_2_id"],
+                },
+            )
             if old_status != "Tamamlandı" and sub_action.status == "Tamamlandı":
-                notify_users(
-                    {action.responsible_user_id},
-                    action,
+                notify_sub_action_participants(
+                    sub_action,
                     f"'{sub_action.title}' alt aksiyonu tamamlandı.",
                     exclude_user_id=g.current_user.id,
                 )
             db.session.commit()
             flash("Alt aksiyon güncellendi.", "success")
-            return redirect(url_for("main.action_detail", action_id=action.id))
+            if can_view_action(action):
+                return redirect(url_for("main.action_detail", action_id=action.id))
+            return redirect(url_for("main.dashboard"))
         except ValueError as error:
             db.session.rollback()
             error_key = str(error)
@@ -4213,6 +4384,9 @@ def edit_sub_action(sub_action_id):
         sub_action=sub_action,
         action=action,
         users=active_users(),
+        can_full_edit=can_full_edit_sub_action(sub_action),
+        can_reassign=can_reassign_sub_action(sub_action),
+        can_revise_termin=can_revise_sub_action_termin(sub_action),
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
@@ -4251,9 +4425,8 @@ def complete_sub_action(sub_action_id):
         f"{g.current_user.full_name} '{sub_action.title}' alt aksiyonunu tamamladı.",
         actor=g.current_user,
     )
-    notify_users(
-        {action.responsible_user_id},
-        action,
+    notify_sub_action_participants(
+        sub_action,
         f"'{sub_action.title}' alt aksiyonu tamamlandı.",
         exclude_user_id=g.current_user.id,
     )

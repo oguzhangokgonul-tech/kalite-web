@@ -21,74 +21,130 @@
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-list-task"></i></span>
       <div>
-        <h3>Alt Aksiyon Bilgileri</h3>
-        <p>Başlık, sorumlu, termin, durum ve kanıt bilgilerini güncelleyin.</p>
+        {% if can_full_edit %}
+          <h3>Alt Aksiyon Bilgileri</h3>
+          <p>Başlık, sorumlu, ilgililer, termin, durum ve kanıt bilgilerini güncelleyin.</p>
+        {% else %}
+          <h3>Alt Aksiyon Revizyonu</h3>
+          <p>Bu ekranda sadece sorumlu, ilgili kişiler ve termin bilgisini güncelleyebilirsiniz.</p>
+        {% endif %}
       </div>
     </div>
 
     <div class="app-form-grid">
-      <div>
-        <label class="form-label" for="title">Alt Aksiyon Başlığı</label>
-        <input class="form-control" id="title" name="title" value="{{ sub_action.title }}" maxlength="160" required>
-      </div>
-      <div>
-        <label class="form-label" for="responsible_id">Sorumlu</label>
-        <select class="form-select" id="responsible_id" name="responsible_id">
-          <option value="">Seçiniz</option>
-          {% for user in users %}
-            <option value="{{ user.id }}" {% if sub_action.responsible_id == user.id %}selected{% endif %}>
-              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
-            </option>
-          {% endfor %}
-        </select>
-      </div>
+      {% if can_full_edit %}
+        <div>
+          <label class="form-label" for="title">Alt Aksiyon Başlığı</label>
+          <input class="form-control" id="title" name="title" value="{{ sub_action.title }}" maxlength="160" required>
+        </div>
+      {% else %}
+        <div class="app-form-full">
+          <label class="form-label">Alt Aksiyon Başlığı</label>
+          <input class="form-control" value="{{ sub_action.title }}" disabled>
+        </div>
+      {% endif %}
+
+      {% if can_reassign %}
+        <div>
+          <label class="form-label" for="responsible_id">Sorumlu</label>
+          <select class="form-select" id="responsible_id" name="responsible_id" required>
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if sub_action.responsible_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="related_user_1_id">İlgili 1 (Opsiyonel)</label>
+          <select class="form-select" id="related_user_1_id" name="related_user_1_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if sub_action.related_user_1_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="related_user_2_id">İlgili 2 (Opsiyonel)</label>
+          <select class="form-select" id="related_user_2_id" name="related_user_2_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if sub_action.related_user_2_id == user.id %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% else %}
+        <input type="hidden" name="responsible_id" value="{{ sub_action.responsible_id or '' }}">
+        <input type="hidden" name="related_user_1_id" value="{{ sub_action.related_user_1_id or '' }}">
+        <input type="hidden" name="related_user_2_id" value="{{ sub_action.related_user_2_id or '' }}">
+        <div>
+          <label class="form-label">Sorumlu</label>
+          <input class="form-control" value="{{ sub_action.responsible.full_name if sub_action.responsible else '-' }}" disabled>
+        </div>
+        <div>
+          <label class="form-label">İlgili 1</label>
+          <input class="form-control" value="{{ sub_action.related_user_1.full_name if sub_action.related_user_1 else '-' }}" disabled>
+        </div>
+        <div>
+          <label class="form-label">İlgili 2</label>
+          <input class="form-control" value="{{ sub_action.related_user_2.full_name if sub_action.related_user_2 else '-' }}" disabled>
+        </div>
+      {% endif %}
       <div>
         <label class="form-label" for="due_date">Termin</label>
-        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ sub_action.due_date.isoformat() if sub_action.due_date else '' }}">
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ sub_action.due_date.isoformat() if sub_action.due_date else '' }}" {% if not can_full_edit %}required{% endif %}>
       </div>
-      <div>
-        <label class="form-label" for="priority">Öncelik</label>
-        <select class="form-select" id="priority" name="priority">
-          {% for priority in sub_action_priorities %}
-            <option value="{{ priority }}" {% if sub_action.priority == priority %}selected{% endif %}>{{ priority }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          {% for status in sub_action_statuses %}
-            <option value="{{ status }}" {% if sub_action.status == status %}selected{% endif %}>{{ status }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label d-block" for="evidence_required">Kanıt zorunlu mu?</label>
-        <div class="form-check form-switch mt-2">
-          <input class="form-check-input" id="evidence_required" name="evidence_required" type="checkbox" {% if sub_action.evidence_required %}checked{% endif %}>
-          <label class="form-check-label" for="evidence_required">Evet</label>
+
+      {% if can_full_edit %}
+        <div>
+          <label class="form-label" for="priority">Öncelik</label>
+          <select class="form-select" id="priority" name="priority">
+            {% for priority in sub_action_priorities %}
+              <option value="{{ priority }}" {% if sub_action.priority == priority %}selected{% endif %}>{{ priority }}</option>
+            {% endfor %}
+          </select>
         </div>
-      </div>
-      <div class="app-form-full">
-        <label class="form-label" for="description">Açıklama</label>
-        <textarea class="form-control" id="description" name="description" rows="4" maxlength="2000">{{ sub_action.description or '' }}</textarea>
-      </div>
-      <div class="app-form-full" id="complete-sub-action">
-        <label class="form-label" for="closing_note">Kapanış Açıklaması</label>
-        <textarea class="form-control" id="closing_note" name="closing_note" rows="4" maxlength="2000">{{ sub_action.closing_note or '' }}</textarea>
-        <div class="form-text">Kanıt zorunluysa alt aksiyon tamamlanırken kapanış açıklaması da zorunludur.</div>
-      </div>
-      <div class="app-form-full">
-        <label class="form-label" for="evidence_file">Kanıt Dosyası</label>
-        <input class="form-control" id="evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx">
-        <div class="form-text">PDF, JPG, PNG, DOCX veya XLSX dosyası yükleyebilirsiniz.</div>
-        {% if sub_action.evidence_stored_name %}
-          <div class="mt-2">
-            Mevcut kanıt:
-            <a href="{{ url_for('main.download_sub_action_evidence', sub_action_id=sub_action.id) }}">{{ sub_action.evidence_original_name }}</a>
+        <div>
+          <label class="form-label" for="status">Durum</label>
+          <select class="form-select" id="status" name="status">
+            {% for status in sub_action_statuses %}
+              <option value="{{ status }}" {% if sub_action.status == status %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label d-block" for="evidence_required">Kanıt zorunlu mu?</label>
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" id="evidence_required" name="evidence_required" type="checkbox" {% if sub_action.evidence_required %}checked{% endif %}>
+            <label class="form-check-label" for="evidence_required">Evet</label>
           </div>
-        {% endif %}
-      </div>
+        </div>
+        <div class="app-form-full">
+          <label class="form-label" for="description">Açıklama</label>
+          <textarea class="form-control" id="description" name="description" rows="4" maxlength="2000">{{ sub_action.description or '' }}</textarea>
+        </div>
+        <div class="app-form-full">
+          <label class="form-label" for="closing_note">Kapanış Açıklaması</label>
+          <textarea class="form-control" id="closing_note" name="closing_note" rows="4" maxlength="2000">{{ sub_action.closing_note or '' }}</textarea>
+          <div class="form-text">Kanıt zorunluysa alt aksiyon tamamlanırken kapanış açıklaması da zorunludur.</div>
+        </div>
+        <div class="app-form-full">
+          <label class="form-label" for="evidence_file">Kanıt Dosyası</label>
+          <input class="form-control" id="evidence_file" name="evidence_file" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx">
+          <div class="form-text">PDF, JPG, PNG, DOCX veya XLSX dosyası yükleyebilirsiniz.</div>
+          {% if sub_action.evidence_stored_name %}
+            <div class="mt-2">
+              Mevcut kanıt:
+              <a href="{{ url_for('main.download_sub_action_evidence', sub_action_id=sub_action.id) }}">{{ sub_action.evidence_original_name }}</a>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
 
     <div class="app-form-actions">

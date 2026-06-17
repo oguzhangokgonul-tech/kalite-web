@@ -472,6 +472,8 @@ class ActionSubTask(db.Model):
     title = db.Column(db.String(160), nullable=False)
     description = db.Column(db.Text, nullable=True)
     responsible_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    related_user_1_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    related_user_2_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     due_date = db.Column(db.Date, nullable=True)
     priority = db.Column(db.String(40), nullable=False, default="Orta")
     status = db.Column(db.String(40), nullable=False, default="Beklemede")
@@ -493,8 +495,21 @@ class ActionSubTask(db.Model):
 
     parent_action = db.relationship("Action", back_populates="sub_actions")
     responsible = db.relationship("User", foreign_keys=[responsible_id])
+    related_user_1 = db.relationship("User", foreign_keys=[related_user_1_id])
+    related_user_2 = db.relationship("User", foreign_keys=[related_user_2_id])
     completed_by = db.relationship("User", foreign_keys=[completed_by_user_id])
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    def participant_user_ids(self):
+        return {
+            user_id
+            for user_id in (
+                self.responsible_id,
+                self.related_user_1_id,
+                self.related_user_2_id,
+            )
+            if user_id
+        }
 
     @property
     def evidence_uploaded(self):

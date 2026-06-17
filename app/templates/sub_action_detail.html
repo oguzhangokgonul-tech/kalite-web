@@ -41,6 +41,14 @@
       <strong>{{ sub_action.responsible.full_name if sub_action.responsible else "-" }}</strong>
     </div>
     <div class="detail-metric-card">
+      <span>İlgili 1</span>
+      <strong>{{ sub_action.related_user_1.full_name if sub_action.related_user_1 else "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
+      <span>İlgili 2</span>
+      <strong>{{ sub_action.related_user_2.full_name if sub_action.related_user_2 else "-" }}</strong>
+    </div>
+    <div class="detail-metric-card">
       <span>Termin</span>
       <strong>{{ sub_action.due_date.strftime("%d.%m.%Y") if sub_action.due_date else "-" }}</strong>
     </div>
@@ -94,7 +102,7 @@
   </div>
 
   {% if can_complete %}
-    <div class="app-card">
+    <div class="app-card" id="complete-sub-action">
       <div class="app-card-header">
         <span class="app-card-icon"><i class="bi bi-check-circle"></i></span>
         <div>

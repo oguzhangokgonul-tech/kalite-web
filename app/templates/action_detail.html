@@ -159,7 +159,17 @@
                     <div class="text-secondary small">{{ sub_action.description }}</div>
                   {% endif %}
                 </td>
-                <td>{{ sub_action.responsible.full_name if sub_action.responsible else "-" }}</td>
+                <td>
+                  <div>{{ sub_action.responsible.full_name if sub_action.responsible else "-" }}</div>
+                  {% if sub_action.related_user_1 or sub_action.related_user_2 %}
+                    <div class="text-secondary small">
+                      İlgili:
+                      {% if sub_action.related_user_1 %}{{ sub_action.related_user_1.full_name }}{% endif %}
+                      {% if sub_action.related_user_1 and sub_action.related_user_2 %}, {% endif %}
+                      {% if sub_action.related_user_2 %}{{ sub_action.related_user_2.full_name }}{% endif %}
+                    </div>
+                  {% endif %}
+                </td>
                 <td>{{ sub_action.due_date.strftime("%d.%m.%Y") if sub_action.due_date else "-" }}</td>
                 <td>{{ sub_action.priority }}</td>
                 <td>{{ sub_action_status_badge(sub_action.status) }}</td>
@@ -189,7 +199,7 @@
                     {% endif %}
                     {% if can_complete_sub_action(sub_action) %}
                       {% if sub_action.evidence_required %}
-                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.edit_sub_action', sub_action_id=sub_action.id) }}#complete-sub-action">
+                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.sub_action_detail', sub_action_id=sub_action.id) }}#complete-sub-action">
                           <i class="bi bi-check-circle"></i>
                           <span>Tamamla</span>
                         </a>
@@ -231,6 +241,24 @@
         <div>
           <label class="form-label" for="sub_responsible_id">Sorumlu</label>
           <select class="form-select" id="sub_responsible_id" name="responsible_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="sub_related_user_1_id">İlgili 1 (Opsiyonel)</label>
+          <select class="form-select" id="sub_related_user_1_id" name="related_user_1_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="sub_related_user_2_id">İlgili 2 (Opsiyonel)</label>
+          <select class="form-select" id="sub_related_user_2_id" name="related_user_2_id">
             <option value="">Seçiniz</option>
             {% for user in users %}
               <option value="{{ user.id }}">{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
