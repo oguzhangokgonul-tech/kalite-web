@@ -78,7 +78,7 @@
             <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
             {% if g.latest_notifications %}
               {% for notification in g.latest_notifications %}
-                <a class="dropdown-item notification-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+                <a class="dropdown-item notification-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
                   <span class="notification-message">{{ notification.message }}</span>
                   <span class="notification-time">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
                 </a>

@@ -27,7 +27,7 @@
                   <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
                   {% if g.latest_notifications %}
                     {% for notification in g.latest_notifications %}
-                      <a class="dropdown-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+                      <a class="dropdown-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
                         <span class="d-block small">{{ notification.message }}</span>
                         <span class="text-secondary small">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
                       </a>
@@ -77,6 +77,7 @@
           let unreadCount = Number("{{ g.unread_notification_count }}") || 0;
           let blinkTimer = null;
           let blinkOn = false;
+          let blinkCount = unreadCount;
 
           function updateBadge(count) {
             if (!badge) return;
@@ -91,6 +92,7 @@
             }
             document.title = baseTitle;
             blinkOn = false;
+            blinkCount = 0;
           }
 
           function startBlinking(count) {
@@ -98,10 +100,11 @@
               stopBlinking();
               return;
             }
+            blinkCount = count;
             if (blinkTimer) return;
             blinkTimer = setInterval(() => {
               blinkOn = !blinkOn;
-              document.title = blinkOn ? `${count} yeni bildirim` : baseTitle;
+              document.title = blinkOn ? `${blinkCount} yeni bildirim` : baseTitle;
             }, 1000);
           }
 
@@ -125,6 +128,39 @@
               // Bildirim kontrolü başarısız olursa sayfanın çalışmasını etkileme.
             }
           }
+
+          async function markNotificationRead(item) {
+            if (!item || item.dataset.notificationRead === "1") return;
+            const notificationId = item.dataset.notificationId;
+            if (!notificationId) return;
+            item.dataset.notificationRead = "1";
+            item.classList.remove("fw-semibold");
+            try {
+              const response = await fetch(`/notifications/${notificationId}/read`, {
+                method: "POST",
+                headers: { "Accept": "application/json" },
+                cache: "no-store",
+              });
+              if (!response.ok) return;
+              const data = await response.json();
+              const nextCount = Number(data.count) || 0;
+              unreadCount = nextCount;
+              updateBadge(nextCount);
+              if (nextCount === 0) {
+                stopBlinking();
+              } else {
+                startBlinking(nextCount);
+              }
+            } catch (error) {
+              // Bildirim okundu işareti başarısız olursa tıklama akışını bozma.
+            }
+          }
+
+          document.querySelectorAll("[data-notification-item]").forEach((item) => {
+            item.addEventListener("mouseenter", () => markNotificationRead(item), {
+              once: true,
+            });
+          });
 
           updateBadge(unreadCount);
           startBlinking(unreadCount);

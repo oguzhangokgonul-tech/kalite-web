@@ -2782,6 +2782,21 @@ def notification_count():
     return jsonify({"count": unread_count})
 
 
+@bp.post("/notifications/<int:notification_id>/read")
+@login_required
+def mark_notification_read(notification_id):
+    notification = Notification.query.filter_by(
+        id=notification_id, user_id=g.current_user.id
+    ).first_or_404()
+    if not notification.is_read:
+        notification.is_read = True
+        db.session.commit()
+    unread_count = Notification.query.filter_by(
+        user_id=g.current_user.id, is_read=False
+    ).count()
+    return jsonify({"ok": True, "count": unread_count})
+
+
 @bp.get("/notifications/<int:notification_id>/open")
 @login_required
 def open_notification(notification_id):

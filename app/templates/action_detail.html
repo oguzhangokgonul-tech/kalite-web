@@ -198,19 +198,10 @@
                       </a>
                     {% endif %}
                     {% if can_complete_sub_action(sub_action) %}
-                      {% if sub_action.evidence_required %}
-                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.sub_action_detail', sub_action_id=sub_action.id) }}#complete-sub-action">
-                          <i class="bi bi-check-circle"></i>
-                          <span>Tamamla</span>
-                        </a>
-                      {% else %}
-                        <form method="post" action="{{ url_for('main.complete_sub_action', sub_action_id=sub_action.id) }}">
-                          <button class="btn btn-sm btn-outline-success" type="submit">
-                            <i class="bi bi-check-circle"></i>
-                            <span>Tamamlandı</span>
-                          </button>
-                        </form>
-                      {% endif %}
+                      <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.sub_action_detail', sub_action_id=sub_action.id) }}#complete-sub-action">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Tamamlandı</span>
+                      </a>
                     {% endif %}
                     {% if can_delete_sub_action(sub_action) %}
                       <form method="post" action="{{ url_for('main.delete_sub_action', sub_action_id=sub_action.id) }}" onsubmit="return confirm('Alt aksiyon silinsin mi?');">
