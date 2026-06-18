@@ -1054,9 +1054,8 @@ body {
 .assigned-page-shell {
     width: 100%;
     min-width: 0;
-    max-width: 1480px;
-    margin-right: auto;
-    margin-left: auto;
+    max-width: none;
+    margin: 0;
     box-sizing: border-box;
 }
 
@@ -1181,7 +1180,7 @@ body {
 
 .assigned-table {
     width: 100%;
-    min-width: 1100px;
+    min-width: 1180px;
     table-layout: fixed;
 }
 
@@ -1190,15 +1189,15 @@ body {
 }
 
 .assigned-page-col-task {
-    width: auto;
+    width: 40%;
 }
 
 .assigned-page-col-department {
-    width: 140px;
+    width: 160px;
 }
 
 .assigned-page-col-date {
-    width: 130px;
+    width: 140px;
 }
 
 .assigned-page-col-status {
@@ -1206,7 +1205,7 @@ body {
 }
 
 .assigned-page-col-priority {
-    width: 110px;
+    width: 100px;
 }
 
 .assigned-page-col-actions {
@@ -1220,6 +1219,7 @@ body {
 
 .assigned-table tbody td {
     padding: 16px;
+    overflow: hidden;
 }
 
 .assigned-table thead th:last-child,
@@ -1357,10 +1357,16 @@ body {
 
 .assigned-task-cell {
     min-width: 0;
+    white-space: normal;
 }
 
 .assigned-task-cell a {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
     font-size: 0.96rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .assigned-task-cell span {
@@ -1380,6 +1386,7 @@ body {
 .assigned-due-date {
     color: #334155;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .assigned-due-meta {
