@@ -40,6 +40,11 @@
         </a>
       </nav>
       <div class="dashboard-sidebar-bottom">
+        <a class="sidebar-quick-link notification-sidebar-link {% if request.endpoint == 'main.notifications' %}active{% endif %}" href="{{ url_for('main.notifications') }}">
+          <i class="bi bi-bell"></i>
+          <span>Bildirimler</span>
+          <span class="sidebar-count-badge {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span>
+        </a>
         <a class="sidebar-quick-link assigned-sidebar-link {% if request.endpoint == 'main.assigned_tasks' %}active{% endif %}" href="{{ url_for('main.assigned_tasks') }}">
           <i class="bi bi-person-check"></i>
           <span>Görevlerim</span>
@@ -60,47 +65,11 @@
     </div>
   </aside>
 
-  <div class="dashboard-main">
-    <header class="dashboard-topbar {% block topbar_extra_class %}{% endblock %}">
-      <div class="d-flex align-items-center gap-3">
-        <button class="btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
-          <i class="bi bi-list"></i>
-        </button>
-        {% block topbar_heading %}
-          <h1 class="dashboard-topbar-title">{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}</h1>
-        {% endblock %}
-      </div>
-      {% block topbar_actions %}
-      <div class="dashboard-topbar-actions">
-        <div class="dropdown">
-          <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="bi bi-bell"></i>
-            <span>Bildirimler</span>
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>
-              {{ g.unread_notification_count }}
-            </span>
-          </button>
-          <div class="dropdown-menu dropdown-menu-end notification-menu p-0">
-            <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
-            {% if g.latest_notifications %}
-              {% for notification in g.latest_notifications %}
-                <a class="dropdown-item notification-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
-                  <span class="notification-message">{{ notification.message }}</span>
-                  <span class="notification-time">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
-                </a>
-              {% endfor %}
-            {% else %}
-              <div class="px-3 py-3 text-secondary small">Henüz bildirim yok.</div>
-            {% endif %}
-            <div class="border-top">
-              <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endblock %}
-    </header>
+  <button class="dashboard-mobile-menu-button btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
+    <i class="bi bi-list"></i>
+  </button>
 
+  <div class="dashboard-main">
     <section class="dashboard-content {% block content_extra_class %}{% endblock %}">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

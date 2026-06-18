@@ -493,14 +493,16 @@ body {
     color: #0d6efd;
 }
 
-.assigned-sidebar-link span:not(.assigned-count-badge) {
+.assigned-sidebar-link span:not(.assigned-count-badge),
+.notification-sidebar-link span:not(.sidebar-count-badge) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.assigned-count-badge {
+.assigned-count-badge,
+.sidebar-count-badge {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -563,57 +565,7 @@ body {
 
 .dashboard-main {
     min-width: 0;
-}
-
-.dashboard-topbar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    min-height: 80px;
-    padding: 0 32px;
-    background: rgba(255, 255, 255, 0.96);
-    border-bottom: 1px solid #e1e8f2;
-    backdrop-filter: blur(14px);
-}
-
-.dashboard-topbar-title {
-    margin: 0;
-    color: #111827;
-    font-size: 1.35rem;
-    font-weight: 800;
-}
-
-.dashboard-topbar-mobile-only {
-    justify-content: flex-start;
-    min-height: 64px;
-}
-
-.dashboard-topbar-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 12px;
-}
-
-.dashboard-topbar-actions .btn,
-.dashboard-profile-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 0 14px;
-    border-radius: 8px;
-    white-space: nowrap;
-}
-
-.dashboard-profile-button {
-    color: #172033;
-    background: transparent;
-    border: 0;
+    min-height: 100vh;
 }
 
 .btn-icon {
@@ -629,8 +581,16 @@ body {
     border-radius: 8px;
 }
 
+.dashboard-mobile-menu-button {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1040;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
 .dashboard-content {
-    padding: 24px 32px 34px;
+    padding: 34px 36px 34px;
 }
 
 .dashboard-content-flush {
@@ -3773,10 +3733,6 @@ body {
         top: 0;
         height: 100vh;
     }
-
-    .dashboard-topbar-mobile-only {
-        display: none;
-    }
 }
 
 .timeline-item {
@@ -4240,12 +4196,8 @@ body {
         min-height: auto;
     }
 
-    .dashboard-topbar {
-        padding: 0 18px;
-    }
-
     .dashboard-content {
-        padding: 20px 18px 28px;
+        padding: 74px 18px 28px;
     }
 
     .dashboard-content-flush {
@@ -4260,15 +4212,6 @@ body {
     .dashboard-content-flush .app-org-panel .org-shell {
         height: auto;
         min-height: auto;
-    }
-
-    .dashboard-topbar-actions {
-        gap: 8px;
-    }
-
-    .dashboard-topbar-actions .btn span:not(.badge),
-    .dashboard-profile-button span.d-none {
-        display: none !important;
     }
 
     .dashboard-metrics {
@@ -4539,22 +4482,6 @@ body {
     .login-card-brand {
         align-items: flex-start;
         flex-direction: column;
-    }
-
-    .dashboard-topbar {
-        min-height: 66px;
-        padding: 0 12px;
-    }
-
-    .dashboard-topbar-title {
-        font-size: 1.05rem;
-    }
-
-    .dashboard-topbar-actions .btn,
-    .dashboard-profile-button {
-        min-width: 40px;
-        min-height: 40px;
-        padding-inline: 10px;
     }
 
     .dashboard-page-heading {

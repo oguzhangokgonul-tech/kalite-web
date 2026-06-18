@@ -1,21 +1,27 @@
-{% extends "base.html" %}
+{% extends "app_shell.html" %}
 
 {% block title %}Bildirimler | {{ config.SITE_NAME }}{% endblock %}
+{% block topbar_title %}Bildirimler{% endblock %}
 
-{% block content %}
-  <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+{% block app_content %}
+  <div class="dashboard-page-heading">
     <div>
-      <h1 class="h3 mb-1">Bildirimler</h1>
-      <p class="text-secondary mb-0">Size atanan aksiyon ve İF kayıtlarındaki son hareketler.</p>
+      <h2>Bildirimler</h2>
+      <p>Size atanan aksiyon ve İF kayıtlarındaki son hareketler.</p>
     </div>
-    <a class="btn btn-outline-secondary align-self-lg-start" href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+        <i class="bi bi-house-door"></i>
+        <span>Ana Sayfa</span>
+      </a>
+    </div>
   </div>
 
-  <div class="bg-white border rounded">
+  <div class="dashboard-table-card">
     {% if notifications %}
       <div class="list-group list-group-flush">
         {% for notification in notifications %}
-          <a class="list-group-item list-group-item-action py-3" href="{{ url_for('main.open_notification', notification_id=notification.id) }}">
+          <a class="list-group-item list-group-item-action py-3 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
             <div class="d-flex flex-column flex-sm-row justify-content-between gap-1">
               <strong>{{ notification.message }}</strong>
               <small class="text-secondary">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
