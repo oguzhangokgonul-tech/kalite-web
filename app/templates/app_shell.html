@@ -13,8 +13,7 @@
     </div>
     <div class="offcanvas-body">
       <div class="dashboard-sidebar-brand">
-        <span class="dashboard-brand-icon"><i class="bi bi-shield-check"></i></span>
-        <strong>Aksiyon Takip Sistemi</strong>
+        <img class="dashboard-brand-logo" src="{{ url_for('static', filename='brand/tokenkalite-logo-horizontal.png') }}" alt="TokenKalite">
       </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
@@ -68,7 +67,7 @@
           <i class="bi bi-list"></i>
         </button>
         {% block topbar_heading %}
-          <h1 class="dashboard-topbar-title">{% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}</h1>
+          <h1 class="dashboard-topbar-title">{% block topbar_title %}TokenKalite{% endblock %}</h1>
         {% endblock %}
       </div>
       {% block topbar_actions %}

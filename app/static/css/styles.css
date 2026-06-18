@@ -7,6 +7,14 @@ body {
     color: #172033;
 }
 
+.navbar-brand-logo {
+    display: block;
+    width: auto;
+    height: 34px;
+    max-width: 180px;
+    object-fit: contain;
+}
+
 .navbar .container {
     gap: 0.75rem;
     flex-wrap: wrap;
@@ -263,10 +271,18 @@ body {
 .login-card-brand {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 14px;
     margin-bottom: 26px;
     padding-bottom: 20px;
     border-bottom: 1px solid #e7edf5;
+}
+
+.login-brand-logo {
+    display: block;
+    width: min(100%, 260px);
+    max-height: 72px;
+    object-fit: contain;
 }
 
 .login-card-brand strong,
@@ -363,6 +379,13 @@ body {
     margin-bottom: 30px;
     color: #111827;
     font-size: 1.03rem;
+}
+
+.dashboard-brand-logo {
+    display: block;
+    width: min(100%, 210px);
+    max-height: 56px;
+    object-fit: contain;
 }
 
 .dashboard-brand-icon,
