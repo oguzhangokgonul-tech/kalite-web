@@ -1,6 +1,6 @@
 {% extends "app_shell.html" %}
 
-{% block title %}Üzerime Atanan İşler - Aksiyon Takip Sistemi{% endblock %}
+{% block title %}Görevlerim - Aksiyon Takip Sistemi{% endblock %}
 {% block topbar_title %}Aksiyon Takip Sistemi{% endblock %}
 
 {% macro task_status_badge(task) %}
@@ -65,18 +65,18 @@
   <div class="assigned-page-shell">
   <div class="dashboard-page-heading assigned-page-heading">
     <div>
-      <h2>Üzerime Atanan İşler</h2>
-      <p>Sorumlusu olduğunuz aksiyonları ve görevlerinizi görüntüleyin.</p>
+      <h2>Görevlerim</h2>
+      <p>Bekleyen İşlerim</p>
     </div>
     <div class="dropdown assigned-scope-dropdown">
       <button class="btn btn-outline-primary btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-person-check"></i>
-        <span>{{ "Benim Oluşturduklarım" if filters.scope == "created" else "Üzerime Atanan İşler" }}</span>
+        <span>{{ "Benim Oluşturduklarım" if filters.scope == "created" else "Görevlerim" }}</span>
       </button>
       <div class="dropdown-menu dropdown-menu-end">
         <a class="dropdown-item {% if filters.scope == 'assigned' %}active{% endif %}" href="{{ assigned_url(filters, scope='assigned', page=1) }}">
           <i class="bi bi-person-check"></i>
-          <span>Üzerime Atanan İşler</span>
+          <span>Görevlerim</span>
         </a>
         <a class="dropdown-item {% if filters.scope == 'created' %}active{% endif %}" href="{{ assigned_url(filters, scope='created', page=1) }}">
           <i class="bi bi-bookmark-plus"></i>

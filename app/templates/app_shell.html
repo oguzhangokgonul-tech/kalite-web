@@ -43,7 +43,7 @@
       <div class="dashboard-sidebar-bottom">
         <a class="sidebar-quick-link assigned-sidebar-link {% if request.endpoint == 'main.assigned_tasks' %}active{% endif %}" href="{{ url_for('main.assigned_tasks') }}">
           <i class="bi bi-person-check"></i>
-          <span>Üzerime Atanan İşler</span>
+          <span>Görevlerim</span>
           <span class="assigned-count-badge">{{ g.assigned_tasks_count }}</span>
         </a>
         <div class="dashboard-sidebar-user">
