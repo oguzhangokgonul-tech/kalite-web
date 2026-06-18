@@ -17,7 +17,7 @@
         <strong>Aksiyon Takip Sistemi</strong>
       </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.assigned_tasks', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
         </a>
@@ -40,17 +40,24 @@
           <span>İç Denetim Yönetimi</span>
         </a>
       </nav>
-      <div class="dashboard-sidebar-user">
-        <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
-        <div>
-          <strong>{{ g.current_user.full_name }}</strong>
-          <span>{{ g.current_user.title or "Kullanıcı" }}</span>
+      <div class="dashboard-sidebar-bottom">
+        <a class="sidebar-quick-link assigned-sidebar-link {% if request.endpoint == 'main.assigned_tasks' %}active{% endif %}" href="{{ url_for('main.assigned_tasks') }}">
+          <i class="bi bi-person-check"></i>
+          <span>Üzerime Atanan İşler</span>
+          <span class="assigned-count-badge">{{ g.assigned_tasks_count }}</span>
+        </a>
+        <div class="dashboard-sidebar-user">
+          <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
+          <div>
+            <strong>{{ g.current_user.full_name }}</strong>
+            <span>{{ g.current_user.title or "Kullanıcı" }}</span>
+          </div>
         </div>
+        <a class="dashboard-logout" href="{{ url_for('main.logout') }}">
+          <i class="bi bi-box-arrow-left"></i>
+          <span>Çıkış</span>
+        </a>
       </div>
-      <a class="dashboard-logout" href="{{ url_for('main.logout') }}">
-        <i class="bi bi-box-arrow-left"></i>
-        <span>Çıkış</span>
-      </a>
     </div>
   </aside>
 

@@ -97,6 +97,24 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def assigned_tasks_badge_count():
+    if g.current_user is None:
+        return 0
+
+    user_id = g.current_user.id
+    return (
+        Action.query.filter_by(responsible_user_id=user_id).count()
+        + ActionSubTask.query.filter_by(responsible_id=user_id).count()
+        + Dof.query.filter_by(responsible_id=user_id).count()
+        + InternalAudit.query.filter(
+            or_(
+                InternalAudit.auditor_id == user_id,
+                InternalAudit.audited_user_id == user_id,
+            )
+        ).count()
+    )
+
+
 @bp.before_app_request
 def load_logged_in_user():
     user_id = session.get("user_id")
@@ -104,6 +122,7 @@ def load_logged_in_user():
     g.current_user_initials = ""
     g.unread_notification_count = 0
     g.latest_notifications = []
+    g.assigned_tasks_count = 0
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
         ensure_notification_dof_column()
@@ -121,6 +140,7 @@ def load_logged_in_user():
                 .limit(5)
                 .all()
             )
+            g.assigned_tasks_count = assigned_tasks_badge_count()
         except OperationalError:
             db.session.rollback()
             current_app.logger.exception("Bildirimler yüklenemedi.")
