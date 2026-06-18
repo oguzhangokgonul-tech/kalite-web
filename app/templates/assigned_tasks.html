@@ -62,6 +62,7 @@
 {% endmacro %}
 
 {% block app_content %}
+  <div class="assigned-page-shell">
   <div class="dashboard-page-heading assigned-page-heading">
     <div>
       <h2>Üzerime Atanan İşler</h2>
@@ -151,7 +152,7 @@
   </div>
 
   <div class="dashboard-table-card assigned-table-card">
-    <div class="table-responsive">
+    <div class="table-responsive assigned-table-wrapper">
       <table class="table dashboard-table assigned-table align-middle mb-0">
         <colgroup>
           <col class="assigned-page-col-module">
@@ -240,5 +241,6 @@
         </a>
       </div>
     </div>
+  </div>
   </div>
 {% endblock %}
