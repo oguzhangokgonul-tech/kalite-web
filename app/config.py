@@ -9,6 +9,7 @@ UPLOAD_FOLDER = DATA_DIR / "uploads"
 
 
 class Config:
+    SITE_NAME = os.environ.get("SITE_NAME", "TOKEN")
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
     DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(
@@ -49,5 +50,5 @@ class Config:
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", MAIL_USERNAME)
     MAIL_REPLY_TO = os.environ.get("MAIL_REPLY_TO", "")
-    MAIL_SUBJECT_PREFIX = os.environ.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
+    MAIL_SUBJECT_PREFIX = os.environ.get("MAIL_SUBJECT_PREFIX", f"[{SITE_NAME}]")
     MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "10"))

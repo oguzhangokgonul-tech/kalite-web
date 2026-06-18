@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Giriş - TokenKalite{% endblock %}
+{% block title %}Giriş | {{ config.SITE_NAME }}{% endblock %}
 {% block body_class %}dashboard-body login-body{% endblock %}
 {% block navbar %}{% endblock %}
 {% block main_class %}login-shell{% endblock %}
@@ -10,7 +10,7 @@
   <section class="login-form-panel" aria-label="Giriş">
     <form class="login-card" method="post">
       <div class="login-card-brand">
-        <img class="login-brand-logo" src="{{ url_for('static', filename='brand/tokenkalite-logo-horizontal.png') }}" alt="TokenKalite">
+        <img class="login-brand-logo" src="{{ url_for('static', filename='images/brand/token-logo-horizontal.png') }}" alt="{{ config.SITE_NAME }}">
       </div>
 
       <div class="app-card-header">

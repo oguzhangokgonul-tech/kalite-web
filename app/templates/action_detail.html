@@ -1,6 +1,6 @@
 {% extends "app_shell.html" %}
 
-{% block title %}{{ action.title }} - TokenKalite{% endblock %}
+{% block title %}{{ action.title }} | {{ config.SITE_NAME }}{% endblock %}
 {% block topbar_title %}Aksiyon Detayı{% endblock %}
 
 {% macro detail_status_badge(action) %}

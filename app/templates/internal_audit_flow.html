@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
-{% block title %}İç Denetim Akıllı Soru Akışı - TokenKalite{% endblock %}
-{% block topbar_title %}TokenKalite{% endblock %}
+{% block title %}İç Denetim Akıllı Soru Akışı | {{ config.SITE_NAME }}{% endblock %}
+{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}
 
 {% set current_result = current_result if current_result is defined else (answer.result if answer else "") %}
 {% set current_department = evaluated_department if evaluated_department is defined else (answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department) %}

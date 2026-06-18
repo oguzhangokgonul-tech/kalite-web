@@ -56,9 +56,13 @@ def _format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
 
+def _site_name():
+    return current_app.config.get("SITE_NAME", "TOKEN")
+
+
 def build_action_email(action, message):
     action_url = _action_url(action)
-    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {action.number_label} {action.title}"
     if action.is_completed:
         status = "Tamamlandı"
@@ -90,7 +94,7 @@ def build_action_email(action, message):
 
 def build_dof_email(dof, message):
     dof_url = _dof_url(dof)
-    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {dof.dof_no}"
 
     lines = [
@@ -207,7 +211,8 @@ def send_dof_notification_email(users, dof, message):
 
 def send_test_email(to_address):
     settings = _mail_settings()
-    subject = current_app.config.get("MAIL_SUBJECT_PREFIX", "[Aksiyon Takip]")
+    site_name = _site_name()
+    subject = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{site_name}]")
     subject = f"{subject} Test e-postası"
-    body = "Bu e-posta Aksiyon Takip Sistemi SMTP ayarlarını test etmek için gönderildi."
+    body = f"Bu e-posta {site_name} SMTP ayarlarını test etmek için gönderildi."
     return send_mail_now(settings, [to_address], subject, body)

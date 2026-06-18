@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
-{% block title %}TokenKalite{% endblock %}
-{% block topbar_title %}TokenKalite{% endblock %}
+{% block title %}Ana Sayfa | {{ config.SITE_NAME }}{% endblock %}
+{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}
 
 {% macro status_badge(action) %}
   {% if action.is_completed %}
