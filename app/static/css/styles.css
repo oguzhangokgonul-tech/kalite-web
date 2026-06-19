@@ -375,16 +375,16 @@ body {
     align-items: center;
     justify-content: center;
     gap: 14px;
-    min-height: 54px;
-    margin-bottom: 30px;
+    min-height: 78px;
+    margin-bottom: 24px;
     color: #111827;
     font-size: 1.03rem;
 }
 
 .dashboard-brand-logo {
     display: block;
-    width: 44px;
-    height: 44px;
+    width: 68px;
+    height: 68px;
     object-fit: contain;
 }
 
