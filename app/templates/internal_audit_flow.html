@@ -6,12 +6,13 @@
 {% set current_result = current_result if current_result is defined else (answer.result if answer else "") %}
 {% set current_department = evaluated_department if evaluated_department is defined else (answer.evaluated_department if answer and answer.evaluated_department else question.evaluated_department) %}
 {% set current_evaluator_department = answer.evaluator_department if answer and answer.evaluator_department else evaluator_department %}
+{% set audit_read_only = not can_answer_internal_audit %}
 
 {% block app_content %}
   <div class="dashboard-page-heading audit-flow-heading">
     <div>
       <h2>İç Denetim Akıllı Soru Akışı</h2>
-      <p>Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.</p>
+      <p>{% if audit_read_only %}Bu iç denetimi gözlemci olarak görüntülüyorsunuz.{% else %}Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.{% endif %}</p>
     </div>
     <div class="app-heading-actions">
       {% if can_create_internal_audit %}
@@ -71,6 +72,13 @@
     </div>
   </section>
 
+  {% if audit_read_only %}
+    <div class="alert alert-info audit-observer-alert" role="alert">
+      <i class="bi bi-eye"></i>
+      <span>Gözlemci modu aktiftir. Oğuzhan dışındaki kullanıcılar iç denetimi görüntüleyebilir, ancak cevap, teknik bulgu, IF açma veya denetimi tamamlama işlemi yapamaz.</span>
+    </div>
+  {% endif %}
+
   <div class="audit-flow-layout">
     <div class="audit-flow-main">
       <form class="audit-question-card" id="auditQuestionForm" method="post" action="{{ url_for('main.save_internal_audit_answer', audit_id=audit.id) }}">
@@ -126,7 +134,7 @@
               <span class="audit-answer-label">Cevap Seçenekleri</span>
               {% for value, label, tone in result_choices %}
                 <label class="audit-answer-option audit-tone-{{ tone }} {% if current_result == value %}is-selected{% endif %}">
-                  <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if tone in ['warning', 'danger'] %}true{% else %}false{% endif %}">
+                  <input type="radio" name="result" value="{{ value }}" {% if current_result == value %}checked{% endif %} {% if audit_read_only %}disabled{% endif %} data-audit-result-radio data-result-label="{{ label }}" data-audit-requires-finding="{% if tone in ['warning', 'danger'] %}true{% else %}false{% endif %}">
                   <span></span>
                   <strong>{{ value }}</strong>
                 </label>
@@ -154,13 +162,13 @@
 
           <div class="audit-textarea-field">
             <label class="form-label" for="technical_findings">Teknik Bulgular</label>
-            <textarea class="form-control" id="technical_findings" name="technical_findings" rows="4" maxlength="1000" data-audit-count placeholder="Gözlemler, kanıtlar ve teknik bulguları giriniz...">{{ answer.technical_findings if answer else "" }}</textarea>
+            <textarea class="form-control" id="technical_findings" name="technical_findings" rows="4" maxlength="1000" data-audit-count placeholder="Gözlemler, kanıtlar ve teknik bulguları giriniz..." {% if audit_read_only %}readonly{% endif %}>{{ answer.technical_findings if answer else "" }}</textarea>
             <div class="audit-counter"><span data-audit-counter>0 / 1000</span></div>
           </div>
 
           <div>
             <label class="form-label" for="previous_nonconformity_id">Daha Önce Açılan Uygunsuzluk</label>
-            <select class="form-select" id="previous_nonconformity_id" name="previous_nonconformity_id">
+            <select class="form-select" id="previous_nonconformity_id" name="previous_nonconformity_id" {% if audit_read_only %}disabled{% endif %}>
               <option value="">İlgili uygunsuzluk seçiniz (opsiyonel)...</option>
               {% for dof in previous_nonconformities %}
                 <option value="{{ dof.id }}" {% if answer and answer.previous_nonconformity_id == dof.id %}selected{% endif %}>
@@ -215,31 +223,45 @@
       <i class="bi bi-arrow-left"></i>
       <span>Önceki Soru</span>
     </a>
-    <button class="btn btn-outline-primary btn-lg" type="submit" name="submit_action" value="draft" form="auditQuestionForm">
-      <i class="bi bi-file-earmark-text"></i>
-      <span>Taslak Kaydet</span>
-    </button>
-    {% if answer and answer.dof_id %}
-      <a class="btn btn-outline-warning btn-lg" href="{{ url_for('main.dof_detail', dof_id=answer.dof_id) }}">
-        <i class="bi bi-exclamation-triangle"></i>
-        <span>Mevcut İF</span>
-      </a>
+    {% if audit_read_only %}
+      {% if next_question %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('main.internal_audit_question', audit_id=audit.id, question_id=next_question.id) }}">
+          <span>Sonraki Soru</span>
+          <i class="bi bi-arrow-right"></i>
+        </a>
+      {% else %}
+        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.assigned_tasks') }}">
+          <i class="bi bi-list-task"></i>
+          <span>Görevlerime Dön</span>
+        </a>
+      {% endif %}
     {% else %}
-      <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% else %}is-hidden{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}" {% if not current_result_requires_finding %}disabled{% endif %}>
-        <i class="bi bi-exclamation-triangle"></i>
-        <span>İF Aç</span>
+      <button class="btn btn-outline-primary btn-lg" type="submit" name="submit_action" value="draft" form="auditQuestionForm">
+        <i class="bi bi-file-earmark-text"></i>
+        <span>Taslak Kaydet</span>
       </button>
-    {% endif %}
-    {% if is_complete %}
-      <button class="btn btn-success btn-lg" type="submit" form="completeAuditForm">
-        <i class="bi bi-check2-circle"></i>
-        <span>Denetimi Bitir</span>
-      </button>
-    {% else %}
-      <button class="btn btn-primary btn-lg" type="submit" name="submit_action" value="next" form="auditQuestionForm">
-        <span>Kaydet ve Sonraki Soru</span>
-        <i class="bi bi-arrow-right"></i>
-      </button>
+      {% if answer and answer.dof_id %}
+        <a class="btn btn-outline-warning btn-lg" href="{{ url_for('main.dof_detail', dof_id=answer.dof_id) }}">
+          <i class="bi bi-exclamation-triangle"></i>
+          <span>Mevcut İF</span>
+        </a>
+      {% else %}
+        <button class="btn btn-outline-warning btn-lg audit-nonconformity-button {% if current_result_requires_finding %}is-urgent{% else %}is-hidden{% endif %}" type="submit" form="auditQuestionForm" formaction="{{ url_for('main.open_internal_audit_nonconformity', audit_id=audit.id) }}" {% if not current_result_requires_finding %}disabled{% endif %}>
+          <i class="bi bi-exclamation-triangle"></i>
+          <span>İF Aç</span>
+        </button>
+      {% endif %}
+      {% if is_complete %}
+        <button class="btn btn-success btn-lg" type="submit" form="completeAuditForm">
+          <i class="bi bi-check2-circle"></i>
+          <span>Denetimi Bitir</span>
+        </button>
+      {% else %}
+        <button class="btn btn-primary btn-lg" type="submit" name="submit_action" value="next" form="auditQuestionForm">
+          <span>Kaydet ve Sonraki Soru</span>
+          <i class="bi bi-arrow-right"></i>
+        </button>
+      {% endif %}
     {% endif %}
   </div>
 

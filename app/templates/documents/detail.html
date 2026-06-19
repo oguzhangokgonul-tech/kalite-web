@@ -21,10 +21,12 @@
         <i class="bi bi-arrow-left"></i>
         <span>Kategoriye Dön</span>
       </a>
-      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">
-        <i class="bi bi-eye"></i>
-        <span>Önizle</span>
-      </a>
+      {% if can_preview %}
+        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">
+          <i class="bi bi-eye"></i>
+          <span>Önizle</span>
+        </a>
+      {% endif %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
         <i class="bi bi-download"></i>
         <span>İndir</span>
@@ -70,28 +72,20 @@
     </div>
   </div>
 
-  <div class="documents-detail-layout">
-    <section class="documents-preview-card">
-      <div class="documents-card-header">
-        <h3>Doküman Önizleme</h3>
-        <span>{{ document.original_file_name }}</span>
-      </div>
-      {% if document.file_type == "pdf" %}
-        <iframe class="documents-preview-frame" src="{{ url_for('main.preview_document', document_id=document.id) }}" title="{{ document.title }}"></iframe>
-      {% elif document.file_type in ["png", "jpg", "jpeg"] %}
-        <img class="documents-preview-image" src="{{ url_for('main.preview_document', document_id=document.id) }}" alt="{{ document.title }}">
-      {% else %}
-        <div class="documents-preview-placeholder">
-          <i class="bi bi-{{ file_meta.icon }}"></i>
-          <strong>{{ document.original_file_name }}</strong>
-          <span>Bu dosya türü tarayıcıda önizlenemeyebilir. İndirerek görüntüleyebilirsiniz.</span>
-          <a class="btn btn-primary" href="{{ url_for('main.download_document', document_id=document.id) }}">
-            <i class="bi bi-download"></i>
-            <span>Dosyayı İndir</span>
-          </a>
+  <div class="documents-detail-layout{% if not can_preview %} documents-detail-layout-no-preview{% endif %}">
+    {% if can_preview %}
+      <section class="documents-preview-card">
+        <div class="documents-card-header">
+          <h3>Doküman Önizleme</h3>
+          <span>{{ document.original_file_name }}</span>
         </div>
-      {% endif %}
-    </section>
+        {% if document.file_type == "pdf" %}
+          <iframe class="documents-preview-frame" src="{{ url_for('main.preview_document', document_id=document.id) }}" title="{{ document.title }}"></iframe>
+        {% elif document.file_type in ["png", "jpg", "jpeg"] %}
+          <img class="documents-preview-image" src="{{ url_for('main.preview_document', document_id=document.id) }}" alt="{{ document.title }}">
+        {% endif %}
+      </section>
+    {% endif %}
 
     <aside class="documents-side-panel">
       <div class="documents-side-card">

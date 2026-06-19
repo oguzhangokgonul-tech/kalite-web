@@ -575,6 +575,14 @@ body {
     align-items: start;
 }
 
+.documents-detail-layout-no-preview {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.documents-detail-layout-no-preview .documents-side-panel {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 .documents-preview-card {
     overflow: hidden;
 }
@@ -3747,6 +3755,14 @@ body {
     gap: 10px;
     margin-bottom: 20px;
     padding: 18px 22px;
+}
+
+.audit-observer-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-radius: 8px;
 }
 
 .audit-progress-meta {

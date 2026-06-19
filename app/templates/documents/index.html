@@ -116,7 +116,11 @@
               <td data-label="Tip">{{ document_file_badge(document) }}</td>
               <td data-label="Doküman Kodu">{{ document.document_code }}</td>
               <td data-label="Doküman Adı" class="documents-title-cell">
-                <a href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">{{ document.title }}</a>
+                {% if document_can_preview(document) %}
+                  <a href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">{{ document.title }}</a>
+                {% else %}
+                  <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.title }}</a>
+                {% endif %}
               </td>
               <td data-label="Kategori">{{ document.category.display_name }}</td>
               <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
@@ -126,9 +130,11 @@
               <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener" aria-label="Önizle">
-                    <i class="bi bi-eye"></i>
-                  </a>
+                  {% if document_can_preview(document) %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener" aria-label="Önizle">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                  {% endif %}
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Detay">
                     <i class="bi bi-info-circle"></i>
                   </a>

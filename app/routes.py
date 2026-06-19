@@ -1101,6 +1101,10 @@ def can_edit_internal_audit(audit=None):
     return is_oguzhan_admin()
 
 
+def can_answer_internal_audit(audit=None):
+    return is_oguzhan_admin()
+
+
 def visible_internal_audits():
     query = InternalAudit.query
     if not is_oguzhan_admin():
@@ -1769,20 +1773,11 @@ def format_file_size(size):
 
 
 def can_manage_documents():
-    return g.current_user is not None and (
-        is_oguzhan_admin()
-        or g.current_user.can_manage_users
-        or g.current_user.can_create_actions
-        or g.current_user.can_edit_actions
-    )
+    return is_oguzhan_admin()
 
 
 def can_delete_document(document=None):
-    return g.current_user is not None and (
-        is_oguzhan_admin()
-        or g.current_user.can_manage_users
-        or g.current_user.can_delete_actions
-    )
+    return is_oguzhan_admin()
 
 
 def document_status_tone(status):
@@ -1806,6 +1801,10 @@ def document_file_meta(document):
     if extension in {"png", "jpg", "jpeg"}:
         return {"label": "Görsel", "tone": "image", "icon": "file-earmark-image"}
     return {"label": "Dosya", "tone": "file", "icon": "file-earmark"}
+
+
+def document_can_preview(document):
+    return (document.file_type or "").lower() in {"pdf", "png", "jpg", "jpeg"}
 
 
 def document_allowed_file(uploaded_file):
@@ -1988,6 +1987,7 @@ def documents_dashboard_context():
         "approval_count": status_counts.get("Onay Bekleyen", 0),
         "archive_count": status_counts.get("Arşiv", 0),
         "document_file_meta": document_file_meta,
+        "document_can_preview": document_can_preview,
         "document_status_tone": document_status_tone,
         "format_date": format_date,
         "format_file_size": format_file_size,
@@ -2012,6 +2012,7 @@ def documents_category_context(category):
         "statuses": DOCUMENT_STATUSES,
         "departments": DOCUMENT_DEPARTMENTS,
         "document_file_meta": document_file_meta,
+        "document_can_preview": document_can_preview,
         "document_status_tone": document_status_tone,
         "format_date": format_date,
         "format_file_size": format_file_size,
@@ -3957,6 +3958,7 @@ def internal_audit_question_context(audit, question):
         "available_audits": visible_internal_audits(),
         "can_delete_internal_audit": can_delete_internal_audit(),
         "can_edit_internal_audit": can_edit_internal_audit(audit),
+        "can_answer_internal_audit": can_answer_internal_audit(audit),
         "previous_nonconformities": internal_audit_previous_nonconformities(
             question,
             selected_previous_dof_id,
@@ -4097,6 +4099,7 @@ def document_detail(document_id):
         "documents/detail.html",
         document=document,
         file_meta=document_file_meta(document),
+        can_preview=document_can_preview(document),
         status_tone=document_status_tone(document.status),
         format_date=format_date,
         format_file_size=format_file_size,
@@ -4190,12 +4193,18 @@ def download_document(document_id):
 @login_required
 def preview_document(document_id):
     document = Document.query.get_or_404(document_id)
-    return send_from_directory(
+    if not document_can_preview(document):
+        flash("Bu dosya türü tarayıcıda önizlenemiyor. İndirerek görüntüleyebilirsiniz.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+
+    response = send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
         document.file_path,
         as_attachment=False,
         download_name=document.original_file_name,
     )
+    response.headers["Content-Disposition"] = f'inline; filename="{document.original_file_name}"'
+    return response
 
 
 @bp.post("/documents/<int:document_id>/archive")
@@ -4595,6 +4604,8 @@ def save_internal_audit_answer(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
     if not can_view_internal_audit(audit):
         abort(403)
+    if not can_answer_internal_audit(audit):
+        abort(403)
 
     question_id = request.form.get("question_id", type=int)
     question = InternalAuditQuestion.query.filter_by(
@@ -4676,6 +4687,8 @@ def open_internal_audit_nonconformity(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
     if not can_view_internal_audit(audit):
         abort(403)
+    if not can_answer_internal_audit(audit):
+        abort(403)
 
     question_id = request.form.get("question_id", type=int)
     question = InternalAuditQuestion.query.filter_by(
@@ -4728,6 +4741,8 @@ def open_internal_audit_nonconformity(audit_id):
 def complete_internal_audit(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
     if not can_view_internal_audit(audit):
+        abort(403)
+    if not can_answer_internal_audit(audit):
         abort(403)
     if not internal_audit_is_complete(audit):
         flash("Tüm zorunlu sorular tamamlanmadan denetim bitirilemez.", "danger")
