@@ -47,6 +47,81 @@ DOF_APPROVAL_STEPS = (
     "completed",
 )
 
+DOCUMENT_STATUSES = (
+    "Yayında",
+    "Revizyon Bekleyen",
+    "Onay Bekleyen",
+    "Arşiv",
+    "İptal",
+)
+
+DOCUMENT_CATEGORY_DEFAULTS = (
+    {
+        "code": "01",
+        "name": "Kalite El Kitabı",
+        "slug": "kalite-el-kitabi",
+        "sort_order": 1,
+        "color": "blue",
+        "icon": "folder",
+    },
+    {
+        "code": "02",
+        "name": "Prosesler",
+        "slug": "prosesler",
+        "sort_order": 2,
+        "color": "green",
+        "icon": "folder",
+    },
+    {
+        "code": "03",
+        "name": "Prosedürler",
+        "slug": "prosedurler",
+        "sort_order": 3,
+        "color": "orange",
+        "icon": "folder",
+    },
+    {
+        "code": "04",
+        "name": "Talimatlar",
+        "slug": "talimatlar",
+        "sort_order": 4,
+        "color": "red",
+        "icon": "folder",
+    },
+    {
+        "code": "05",
+        "name": "Formlar",
+        "slug": "formlar",
+        "sort_order": 5,
+        "color": "purple",
+        "icon": "file-earmark-text",
+    },
+    {
+        "code": "06",
+        "name": "Listeler",
+        "slug": "listeler",
+        "sort_order": 6,
+        "color": "cyan",
+        "icon": "file-earmark-spreadsheet",
+    },
+    {
+        "code": "07",
+        "name": "Planlar",
+        "slug": "planlar",
+        "sort_order": 7,
+        "color": "lime",
+        "icon": "calendar-check",
+    },
+    {
+        "code": "08",
+        "name": "Görev Tanımları",
+        "slug": "gorev-tanimlari",
+        "sort_order": 8,
+        "color": "amber",
+        "icon": "people",
+    },
+)
+
 
 class User(db.Model):
     __tablename__ = "users"
@@ -351,6 +426,72 @@ class DofComment(db.Model):
 
     dof = db.relationship("Dof", back_populates="comments")
     user = db.relationship("User")
+
+
+class DocumentCategory(db.Model):
+    __tablename__ = "document_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(10), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(160), nullable=False, unique=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    color = db.Column(db.String(40), nullable=True)
+    icon = db.Column(db.String(80), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    documents = db.relationship(
+        "Document",
+        back_populates="category",
+        cascade="all, delete-orphan",
+        order_by="Document.created_at.desc()",
+    )
+
+    @property
+    def display_name(self):
+        return f"{self.code}-) {self.name}"
+
+
+class Document(db.Model):
+    __tablename__ = "documents"
+
+    id = db.Column(db.Integer, primary_key=True)
+    category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("document_categories.id"),
+        nullable=False,
+    )
+    document_code = db.Column(db.String(80), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    revision_no = db.Column(db.String(40), nullable=True)
+    publish_date = db.Column(db.Date, nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Yayında")
+    file_name = db.Column(db.String(255), nullable=False)
+    original_file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(20), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+    archived_at = db.Column(db.DateTime, nullable=True)
+
+    category = db.relationship("DocumentCategory", back_populates="documents")
+    uploader = db.relationship("User", foreign_keys=[uploaded_by])
 
 
 class InternalAudit(db.Model):

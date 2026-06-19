@@ -36,9 +36,13 @@ from .models import (
     ACTION_SUB_TASK_STATUSES,
     AppSetting,
     DEPARTMENTS,
+    DOCUMENT_CATEGORY_DEFAULTS,
+    DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
     DOF_PRIORITIES,
     DOF_SOURCES,
+    Document,
+    DocumentCategory,
     Dof,
     DofComment,
     DofFile,
@@ -69,6 +73,8 @@ DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
 DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 SUB_ACTION_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "docx", "xlsx"}
+DOCUMENT_ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg"}
+DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
 INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
@@ -130,6 +136,7 @@ def load_logged_in_user():
         ensure_dof_files_schema()
         ensure_internal_audit_schema()
         ensure_action_sub_task_schema()
+        ensure_document_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -477,6 +484,134 @@ def ensure_action_sub_task_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("Alt aksiyon şeması kontrol edilemedi.")
+
+
+def ensure_document_schema():
+    if current_app.extensions.get("document_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "document_categories" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE document_categories (
+                            id INTEGER PRIMARY KEY,
+                            code VARCHAR(10) NOT NULL,
+                            name VARCHAR(120) NOT NULL,
+                            slug VARCHAR(160) NOT NULL UNIQUE,
+                            sort_order INTEGER NOT NULL DEFAULT 0,
+                            color VARCHAR(40),
+                            icon VARCHAR(80),
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                tables.add("document_categories")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("document_categories")
+                }
+                category_columns = {
+                    "code": "ALTER TABLE document_categories ADD COLUMN code VARCHAR(10) NOT NULL DEFAULT ''",
+                    "name": "ALTER TABLE document_categories ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT ''",
+                    "slug": "ALTER TABLE document_categories ADD COLUMN slug VARCHAR(160)",
+                    "sort_order": "ALTER TABLE document_categories ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+                    "color": "ALTER TABLE document_categories ADD COLUMN color VARCHAR(40)",
+                    "icon": "ALTER TABLE document_categories ADD COLUMN icon VARCHAR(80)",
+                    "is_active": "ALTER TABLE document_categories ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+                    "created_at": "ALTER TABLE document_categories ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE document_categories ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in category_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "documents" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE documents (
+                            id INTEGER PRIMARY KEY,
+                            category_id INTEGER NOT NULL,
+                            document_code VARCHAR(80) NOT NULL,
+                            title VARCHAR(200) NOT NULL,
+                            revision_no VARCHAR(40),
+                            publish_date DATE,
+                            department VARCHAR(80),
+                            description TEXT,
+                            status VARCHAR(40) NOT NULL DEFAULT 'Yayında',
+                            file_name VARCHAR(255) NOT NULL,
+                            original_file_name VARCHAR(255) NOT NULL,
+                            file_path VARCHAR(500) NOT NULL,
+                            file_type VARCHAR(20),
+                            file_size INTEGER,
+                            uploaded_by INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            archived_at DATETIME
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {column["name"] for column in inspector.get_columns("documents")}
+                document_columns = {
+                    "category_id": "ALTER TABLE documents ADD COLUMN category_id INTEGER",
+                    "document_code": "ALTER TABLE documents ADD COLUMN document_code VARCHAR(80) NOT NULL DEFAULT ''",
+                    "title": "ALTER TABLE documents ADD COLUMN title VARCHAR(200) NOT NULL DEFAULT ''",
+                    "revision_no": "ALTER TABLE documents ADD COLUMN revision_no VARCHAR(40)",
+                    "publish_date": "ALTER TABLE documents ADD COLUMN publish_date DATE",
+                    "department": "ALTER TABLE documents ADD COLUMN department VARCHAR(80)",
+                    "description": "ALTER TABLE documents ADD COLUMN description TEXT",
+                    "status": "ALTER TABLE documents ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Yayında'",
+                    "file_name": "ALTER TABLE documents ADD COLUMN file_name VARCHAR(255) NOT NULL DEFAULT ''",
+                    "original_file_name": "ALTER TABLE documents ADD COLUMN original_file_name VARCHAR(255) NOT NULL DEFAULT ''",
+                    "file_path": "ALTER TABLE documents ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
+                    "file_type": "ALTER TABLE documents ADD COLUMN file_type VARCHAR(20)",
+                    "file_size": "ALTER TABLE documents ADD COLUMN file_size INTEGER",
+                    "uploaded_by": "ALTER TABLE documents ADD COLUMN uploaded_by INTEGER",
+                    "created_at": "ALTER TABLE documents ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE documents ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "archived_at": "ALTER TABLE documents ADD COLUMN archived_at DATETIME",
+                }
+                for column_name, statement in document_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+        current_app.extensions["document_schema_checked"] = True
+        ensure_document_categories()
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Doküman yönetimi şeması kontrol edilemedi.")
+
+
+def ensure_document_categories():
+    changed = False
+    for category_data in DOCUMENT_CATEGORY_DEFAULTS:
+        category = DocumentCategory.query.filter_by(slug=category_data["slug"]).first()
+        if category is None:
+            category = DocumentCategory(**category_data)
+            db.session.add(category)
+            changed = True
+            continue
+
+        for key, value in category_data.items():
+            if getattr(category, key) != value:
+                setattr(category, key, value)
+                changed = True
+        if category.is_active is False:
+            category.is_active = True
+            changed = True
+
+    if changed:
+        db.session.commit()
 
 
 def login_required(view):
@@ -1616,6 +1751,290 @@ def user_name(user_id):
 
 def format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
+
+
+def format_file_size(size):
+    if not size:
+        return "-"
+    units = ["B", "KB", "MB", "GB"]
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def can_manage_documents():
+    return g.current_user is not None and (
+        is_oguzhan_admin()
+        or g.current_user.can_manage_users
+        or g.current_user.can_create_actions
+        or g.current_user.can_edit_actions
+    )
+
+
+def can_delete_document(document=None):
+    return g.current_user is not None and (
+        is_oguzhan_admin()
+        or g.current_user.can_manage_users
+        or g.current_user.can_delete_actions
+    )
+
+
+def document_status_tone(status):
+    return {
+        "Yayında": "success",
+        "Revizyon Bekleyen": "warning",
+        "Onay Bekleyen": "purple",
+        "Arşiv": "muted",
+        "İptal": "danger",
+    }.get(status, "muted")
+
+
+def document_file_meta(document):
+    extension = (document.file_type or "").lower()
+    if extension == "pdf":
+        return {"label": "PDF", "tone": "pdf", "icon": "file-earmark-pdf"}
+    if extension in {"doc", "docx"}:
+        return {"label": "Word", "tone": "word", "icon": "file-earmark-word"}
+    if extension in {"xls", "xlsx"}:
+        return {"label": "Excel", "tone": "excel", "icon": "file-earmark-excel"}
+    if extension in {"png", "jpg", "jpeg"}:
+        return {"label": "Görsel", "tone": "image", "icon": "file-earmark-image"}
+    return {"label": "Dosya", "tone": "file", "icon": "file-earmark"}
+
+
+def document_allowed_file(uploaded_file):
+    return (
+        uploaded_file
+        and uploaded_file.filename
+        and "." in uploaded_file.filename
+        and uploaded_file.filename.rsplit(".", 1)[1].lower()
+        in DOCUMENT_ALLOWED_EXTENSIONS
+    )
+
+
+def document_uploads():
+    uploaded_files = request.files.getlist("document_files")
+    if not uploaded_files:
+        uploaded_file = request.files.get("document_file")
+        uploaded_files = [uploaded_file] if uploaded_file else []
+    return [uploaded_file for uploaded_file in uploaded_files if uploaded_file and uploaded_file.filename]
+
+
+def parse_document_form():
+    title = request.form.get("title", "").strip()
+    document_code = request.form.get("document_code", "").strip()
+    revision_no = request.form.get("revision_no", "").strip()
+    department = request.form.get("department", "").strip()
+    description = request.form.get("description", "").strip()
+    status = request.form.get("status", "Yayında").strip()
+
+    try:
+        category_id = int(request.form.get("category_id", ""))
+    except ValueError:
+        raise ValueError("invalid_category") from None
+
+    category = DocumentCategory.query.filter_by(
+        id=category_id,
+        is_active=True,
+    ).first()
+    if category is None:
+        raise ValueError("invalid_category")
+    if not title or not document_code:
+        raise ValueError("required_fields")
+    if department and department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if status not in DOCUMENT_STATUSES:
+        raise ValueError("invalid_status")
+    if len(description) > 2000:
+        raise ValueError("text_too_long")
+
+    return {
+        "category": category,
+        "document_code": document_code[:80],
+        "title": title[:200],
+        "revision_no": revision_no[:40] or None,
+        "publish_date": parse_optional_date("publish_date"),
+        "department": department or None,
+        "description": description or None,
+        "status": status,
+    }
+
+
+def save_document_upload(uploaded_file, category):
+    if not document_allowed_file(uploaded_file):
+        raise ValueError("invalid_document_file_type")
+
+    original_name = secure_filename(uploaded_file.filename)
+    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    if not original_name:
+        original_name = f"dokuman.{extension}"
+    stored_name = f"document-{uuid4().hex}.{extension}"
+    relative_path = Path("documents") / category.slug / stored_name
+    upload_dir = Path(current_app.config["UPLOAD_FOLDER"]) / "documents" / category.slug
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    upload_path = upload_dir / stored_name
+    uploaded_file.save(upload_path)
+
+    if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("document_file_too_large")
+
+    return {
+        "file_name": stored_name,
+        "original_file_name": original_name,
+        "file_path": str(relative_path).replace("\\", "/"),
+        "file_type": extension,
+        "file_size": upload_path.stat().st_size,
+    }
+
+
+def delete_document_file(document):
+    if not document.file_path:
+        return
+    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / document.file_path
+    if file_path.exists():
+        file_path.unlink()
+
+
+def document_query():
+    return Document.query.join(DocumentCategory)
+
+
+def document_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "department": request.args.get("department", "").strip(),
+    }
+
+
+def filtered_document_query(category=None, filters=None):
+    filters = filters or document_filters()
+    query = document_query()
+    if category is not None:
+        query = query.filter(Document.category_id == category.id)
+    if filters["status"]:
+        query = query.filter(Document.status == filters["status"])
+    if filters["department"]:
+        query = query.filter(Document.department == filters["department"])
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                Document.document_code.ilike(search_value),
+                Document.title.ilike(search_value),
+                Document.description.ilike(search_value),
+                DocumentCategory.name.ilike(search_value),
+            )
+        )
+    return query.order_by(Document.created_at.desc(), Document.id.desc())
+
+
+def ordered_document_categories():
+    ensure_document_categories()
+    return (
+        DocumentCategory.query.filter_by(is_active=True)
+        .order_by(DocumentCategory.sort_order.asc(), DocumentCategory.id.asc())
+        .all()
+    )
+
+
+def document_category_cards(categories, documents):
+    documents_by_category = {category.id: [] for category in categories}
+    for document in documents:
+        documents_by_category.setdefault(document.category_id, []).append(document)
+
+    cards = []
+    for category in categories:
+        category_documents = documents_by_category.get(category.id, [])
+        latest_document = max(
+            category_documents,
+            key=lambda item: item.updated_at or item.created_at,
+            default=None,
+        )
+        cards.append(
+            {
+                "category": category,
+                "count": len(category_documents),
+                "last_update": latest_document.updated_at or latest_document.created_at
+                if latest_document
+                else None,
+            }
+        )
+    return cards
+
+
+def documents_dashboard_context():
+    categories = ordered_document_categories()
+    documents = document_query().order_by(Document.created_at.desc(), Document.id.desc()).all()
+    status_counts = {
+        status: sum(1 for document in documents if document.status == status)
+        for status in DOCUMENT_STATUSES
+    }
+    return {
+        "categories": categories,
+        "category_cards": document_category_cards(categories, documents),
+        "recent_documents": documents[:5],
+        "total_count": len(documents),
+        "published_count": status_counts.get("Yayında", 0),
+        "revision_count": status_counts.get("Revizyon Bekleyen", 0),
+        "approval_count": status_counts.get("Onay Bekleyen", 0),
+        "archive_count": status_counts.get("Arşiv", 0),
+        "document_file_meta": document_file_meta,
+        "document_status_tone": document_status_tone,
+        "format_date": format_date,
+        "format_file_size": format_file_size,
+        "can_manage_documents": can_manage_documents(),
+        "can_delete_document": can_delete_document,
+    }
+
+
+def documents_category_context(category):
+    filters = document_filters()
+    documents = filtered_document_query(category, filters).all()
+    return {
+        "category": category,
+        "page_title": category.display_name if category else "Tüm Dokümanlar",
+        "page_description": (
+            "Bu kategoriye ait kalite dokümanlarını görüntüleyin."
+            if category
+            else "Sistemde kayıtlı tüm kalite dokümanlarını görüntüleyin."
+        ),
+        "documents": documents,
+        "filters": filters,
+        "statuses": DOCUMENT_STATUSES,
+        "departments": DEPARTMENTS,
+        "document_file_meta": document_file_meta,
+        "document_status_tone": document_status_tone,
+        "format_date": format_date,
+        "format_file_size": format_file_size,
+        "can_manage_documents": can_manage_documents(),
+        "can_delete_document": can_delete_document,
+    }
+
+
+def document_form_context(document=None, category_slug=None):
+    selected_category = None
+    if document is not None:
+        selected_category = document.category
+    elif category_slug:
+        selected_category = DocumentCategory.query.filter_by(
+            slug=category_slug,
+            is_active=True,
+        ).first()
+
+    form_data = request.form if request.method == "POST" else {}
+    return {
+        "document": document,
+        "categories": ordered_document_categories(),
+        "selected_category": selected_category,
+        "statuses": DOCUMENT_STATUSES,
+        "departments": DEPARTMENTS,
+        "form_data": form_data,
+    }
 
 
 def action_snapshot(action):
@@ -3563,6 +3982,243 @@ def dashboard():
 @login_required
 def assigned_tasks():
     return render_template("assigned_tasks.html", **assigned_tasks_context())
+
+
+@bp.route("/documents")
+@login_required
+def documents_dashboard():
+    return render_template("documents/index.html", **documents_dashboard_context())
+
+
+@bp.route("/documents/list")
+@login_required
+def documents_list():
+    return render_template(
+        "documents/category.html",
+        **documents_category_context(None),
+    )
+
+
+@bp.route("/documents/category/<slug>")
+@login_required
+def documents_category(slug):
+    category = DocumentCategory.query.filter_by(slug=slug, is_active=True).first_or_404()
+    return render_template(
+        "documents/category.html",
+        **documents_category_context(category),
+    )
+
+
+@bp.route("/documents/upload", methods=["GET", "POST"])
+@login_required
+def upload_document():
+    if not can_manage_documents():
+        abort(403)
+
+    if request.method == "POST":
+        saved_documents = []
+        try:
+            form_values = parse_document_form()
+            uploaded_files = document_uploads()
+            if not uploaded_files:
+                raise ValueError("document_file_required")
+
+            for uploaded_file in uploaded_files:
+                file_values = save_document_upload(uploaded_file, form_values["category"])
+                document = Document(
+                    category_id=form_values["category"].id,
+                    document_code=form_values["document_code"],
+                    title=form_values["title"],
+                    revision_no=form_values["revision_no"],
+                    publish_date=form_values["publish_date"],
+                    department=form_values["department"],
+                    description=form_values["description"],
+                    status=form_values["status"],
+                    uploaded_by=g.current_user.id,
+                    **file_values,
+                )
+                db.session.add(document)
+                saved_documents.append(document)
+
+            db.session.commit()
+            flash(
+                f"{len(saved_documents)} doküman başarıyla yüklendi.",
+                "success",
+            )
+            if len(saved_documents) == 1:
+                return redirect(
+                    url_for("main.document_detail", document_id=saved_documents[0].id)
+                )
+            return redirect(
+                url_for("main.documents_category", slug=form_values["category"].slug)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            for document in saved_documents:
+                delete_document_file(document)
+            error_key = str(error)
+            if error_key == "document_file_required":
+                flash("Doküman yüklemek için en az bir dosya seçin.", "danger")
+            elif error_key == "invalid_document_file_type":
+                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
+            elif error_key == "document_file_too_large":
+                flash("Doküman dosyası en fazla 25 MB olabilir.", "danger")
+            elif error_key == "required_fields":
+                flash("Doküman adı ve doküman kodu zorunludur.", "danger")
+            elif error_key == "invalid_category":
+                flash("Geçerli bir doküman kategorisi seçin.", "danger")
+            elif error_key == "invalid_department":
+                flash("Geçerli bir departman seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir doküman durumu seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Yayın tarihini geçerli biçimde girin.", "danger")
+            elif error_key == "text_too_long":
+                flash("Açıklama alanı en fazla 2000 karakter olabilir.", "danger")
+            else:
+                flash("Doküman formunu kontrol edin.", "danger")
+
+    return render_template(
+        "documents/upload.html",
+        **document_form_context(category_slug=request.args.get("category")),
+    )
+
+
+@bp.get("/documents/<int:document_id>")
+@login_required
+def document_detail(document_id):
+    document = Document.query.get_or_404(document_id)
+    return render_template(
+        "documents/detail.html",
+        document=document,
+        file_meta=document_file_meta(document),
+        status_tone=document_status_tone(document.status),
+        format_date=format_date,
+        format_file_size=format_file_size,
+        can_manage_documents=can_manage_documents(),
+        can_delete_document=can_delete_document(document),
+    )
+
+
+@bp.route("/documents/<int:document_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    if not can_manage_documents():
+        abort(403)
+
+    if request.method == "POST":
+        saved_file_values = None
+        try:
+            form_values = parse_document_form()
+            uploaded_files = document_uploads()
+            if uploaded_files:
+                saved_file_values = save_document_upload(
+                    uploaded_files[0],
+                    form_values["category"],
+                )
+
+            old_file_path = document.file_path
+            document.category_id = form_values["category"].id
+            document.document_code = form_values["document_code"]
+            document.title = form_values["title"]
+            document.revision_no = form_values["revision_no"]
+            document.publish_date = form_values["publish_date"]
+            document.department = form_values["department"]
+            document.description = form_values["description"]
+            document.status = form_values["status"]
+            document.archived_at = datetime.utcnow() if document.status == "Arşiv" else None
+            if saved_file_values is not None:
+                if old_file_path:
+                    old_path = Path(current_app.config["UPLOAD_FOLDER"]) / old_file_path
+                    if old_path.exists():
+                        old_path.unlink()
+                for key, value in saved_file_values.items():
+                    setattr(document, key, value)
+
+            db.session.commit()
+            flash("Doküman bilgileri güncellendi.", "success")
+            return redirect(url_for("main.document_detail", document_id=document.id))
+        except ValueError as error:
+            db.session.rollback()
+            if saved_file_values is not None:
+                temp_document = Document(file_path=saved_file_values["file_path"])
+                delete_document_file(temp_document)
+            error_key = str(error)
+            if error_key == "invalid_document_file_type":
+                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
+            elif error_key == "document_file_too_large":
+                flash("Doküman dosyası en fazla 25 MB olabilir.", "danger")
+            elif error_key == "required_fields":
+                flash("Doküman adı ve doküman kodu zorunludur.", "danger")
+            elif error_key == "invalid_category":
+                flash("Geçerli bir doküman kategorisi seçin.", "danger")
+            elif error_key == "invalid_department":
+                flash("Geçerli bir departman seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir doküman durumu seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Yayın tarihini geçerli biçimde girin.", "danger")
+            else:
+                flash("Doküman düzenleme formunu kontrol edin.", "danger")
+
+    return render_template(
+        "documents/edit.html",
+        **document_form_context(document=document),
+    )
+
+
+@bp.get("/documents/<int:document_id>/download")
+@login_required
+def download_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        document.file_path,
+        as_attachment=True,
+        download_name=document.original_file_name,
+    )
+
+
+@bp.get("/documents/<int:document_id>/preview")
+@login_required
+def preview_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    return send_from_directory(
+        current_app.config["UPLOAD_FOLDER"],
+        document.file_path,
+        as_attachment=False,
+        download_name=document.original_file_name,
+    )
+
+
+@bp.post("/documents/<int:document_id>/archive")
+@login_required
+def archive_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    if not can_delete_document(document):
+        abort(403)
+    document.status = "Arşiv"
+    document.archived_at = datetime.utcnow()
+    db.session.commit()
+    flash("Doküman arşive alındı.", "success")
+    return redirect(url_for("main.document_detail", document_id=document.id))
+
+
+@bp.post("/documents/<int:document_id>/delete")
+@login_required
+def delete_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    if not can_delete_document(document):
+        abort(403)
+    category_slug = document.category.slug if document.category else None
+    delete_document_file(document)
+    db.session.delete(document)
+    db.session.commit()
+    flash("Doküman silindi.", "success")
+    if category_slug:
+        return redirect(url_for("main.documents_category", slug=category_slug))
+    return redirect(url_for("main.documents_dashboard"))
 
 
 @bp.route("/dashboard-liste")

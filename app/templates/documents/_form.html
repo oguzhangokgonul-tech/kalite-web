@@ -1,0 +1,85 @@
+{% set title_value = form_data.get('title') if form_data else (document.title if document else '') %}
+{% set code_value = form_data.get('document_code') if form_data else (document.document_code if document else '') %}
+{% set revision_value = form_data.get('revision_no') if form_data else (document.revision_no if document else '') %}
+{% set publish_value = form_data.get('publish_date') if form_data else (document.publish_date.isoformat() if document and document.publish_date else '') %}
+{% set department_value = form_data.get('department') if form_data else (document.department if document else '') %}
+{% set status_value = form_data.get('status') if form_data else (document.status if document else 'Yayında') %}
+{% set description_value = form_data.get('description') if form_data else (document.description if document else '') %}
+{% set category_value = form_data.get('category_id') if form_data else ((selected_category.id|string) if selected_category else '') %}
+
+<form class="documents-form-card" method="post" enctype="multipart/form-data">
+  <div class="documents-form-grid">
+    <div>
+      <label class="form-label" for="document_code">Doküman Kodu *</label>
+      <input class="form-control" id="document_code" name="document_code" value="{{ code_value }}" placeholder="Örn. FRM.109" required>
+    </div>
+    <div>
+      <label class="form-label" for="title">Doküman Adı *</label>
+      <input class="form-control" id="title" name="title" value="{{ title_value }}" placeholder="Doküman adını yazın" required>
+    </div>
+    <div>
+      <label class="form-label" for="category_id">Kategori *</label>
+      <select class="form-select" id="category_id" name="category_id" required>
+        <option value="">Seçiniz</option>
+        {% for category in categories %}
+          <option value="{{ category.id }}" {% if category_value == category.id|string %}selected{% endif %}>{{ category.display_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="revision_no">Revizyon No</label>
+      <input class="form-control" id="revision_no" name="revision_no" value="{{ revision_value }}" placeholder="Örn. Rev.01">
+    </div>
+    <div>
+      <label class="form-label" for="publish_date">Yayın Tarihi</label>
+      <input class="form-control" id="publish_date" name="publish_date" type="date" value="{{ publish_value }}">
+    </div>
+    <div>
+      <label class="form-label" for="department">Departman</label>
+      <select class="form-select" id="department" name="department">
+        <option value="">Seçiniz</option>
+        {% for department in departments %}
+          <option value="{{ department }}" {% if department_value == department %}selected{% endif %}>{{ department }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="status">Durum</label>
+      <select class="form-select" id="status" name="status">
+        {% for status in statuses %}
+          <option value="{{ status }}" {% if status_value == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <label class="form-label" for="description">Açıklama</label>
+    <textarea class="form-control" id="description" name="description" rows="4" maxlength="2000" placeholder="Doküman hakkında kısa açıklama yazın">{{ description_value }}</textarea>
+  </div>
+
+  <div class="documents-upload-box mt-4">
+    <input id="document_files" name="document_files" type="file" {% if not document %}multiple required{% endif %} accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+    <label for="document_files">
+      <i class="bi bi-cloud-arrow-up"></i>
+      <strong>Dosya seçin veya buraya sürükleyin</strong>
+      <span>PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG desteklenir. Maks. 25 MB.</span>
+      {% if document %}
+        <small>Yeni dosya seçerseniz mevcut dosya güncellenir: {{ document.original_file_name }}</small>
+      {% else %}
+        <small>Birden fazla dosya seçebilirsiniz.</small>
+      {% endif %}
+    </label>
+  </div>
+
+  <div class="documents-form-actions">
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Vazgeç</span>
+    </a>
+    <button class="btn btn-primary" type="submit">
+      <i class="bi bi-save"></i>
+      <span>{{ submit_label }}</span>
+    </button>
+  </div>
+</form>

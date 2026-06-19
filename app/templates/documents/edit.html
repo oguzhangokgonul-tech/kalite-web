@@ -1,0 +1,21 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Doküman Düzenle | {{ config.SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading documents-page-heading">
+    <div>
+      <h2>Doküman Düzenle</h2>
+      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+        <i class="bi bi-chevron-right"></i>
+        <span>{{ document.document_code }}</span>
+      </nav>
+    </div>
+  </div>
+
+  {% set submit_label = "Değişiklikleri Kaydet" %}
+  {% include "documents/_form.html" %}
+{% endblock %}

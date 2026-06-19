@@ -1,0 +1,134 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ document.document_code }} | {{ config.SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading documents-page-heading">
+    <div>
+      <h2>{{ document.document_code }} {{ document.title }}</h2>
+      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_category', slug=document.category.slug) }}">{{ document.category.display_name }}</a>
+        <i class="bi bi-chevron-right"></i>
+        <span>{{ document.document_code }}</span>
+      </nav>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category', slug=document.category.slug) }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>Kategoriye Dön</span>
+      </a>
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
+        <i class="bi bi-download"></i>
+        <span>İndir</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="documents-detail-grid">
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-folder"></i></span>
+      <small>Kategori</small>
+      <strong>{{ document.category.display_name }}</strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-tag"></i></span>
+      <small>Revizyon</small>
+      <strong>{{ document.revision_no or "-" }}</strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-calendar3"></i></span>
+      <small>Yayın Tarihi</small>
+      <strong>{{ format_date(document.publish_date) }}</strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-building"></i></span>
+      <small>Departman</small>
+      <strong>{{ document.department or "-" }}</strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-check2-circle"></i></span>
+      <small>Durum</small>
+      <strong><span class="document-status document-status-{{ status_tone }}">{{ document.status }}</span></strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-person"></i></span>
+      <small>Yükleyen</small>
+      <strong>{{ document.uploader.full_name if document.uploader else "-" }}</strong>
+    </div>
+  </div>
+
+  <div class="documents-detail-layout">
+    <section class="documents-preview-card">
+      <div class="documents-card-header">
+        <h3>Doküman Önizleme</h3>
+        <span>{{ document.original_file_name }}</span>
+      </div>
+      {% if document.file_type == "pdf" %}
+        <iframe class="documents-preview-frame" src="{{ url_for('main.preview_document', document_id=document.id) }}" title="{{ document.title }}"></iframe>
+      {% elif document.file_type in ["png", "jpg", "jpeg"] %}
+        <img class="documents-preview-image" src="{{ url_for('main.preview_document', document_id=document.id) }}" alt="{{ document.title }}">
+      {% else %}
+        <div class="documents-preview-placeholder">
+          <i class="bi bi-{{ file_meta.icon }}"></i>
+          <strong>{{ document.original_file_name }}</strong>
+          <span>Bu dosya türü tarayıcıda önizlenemeyebilir. İndirerek görüntüleyebilirsiniz.</span>
+          <a class="btn btn-primary" href="{{ url_for('main.download_document', document_id=document.id) }}">
+            <i class="bi bi-download"></i>
+            <span>Dosyayı İndir</span>
+          </a>
+        </div>
+      {% endif %}
+    </section>
+
+    <aside class="documents-side-panel">
+      <div class="documents-side-card">
+        <h3>Dosya Bilgisi</h3>
+        <div class="documents-file-card">
+          <span class="document-file-type document-file-type-{{ file_meta.tone }}">
+            <i class="bi bi-{{ file_meta.icon }}"></i>
+            <span>{{ file_meta.label }}</span>
+          </span>
+          <strong>{{ document.original_file_name }}</strong>
+          <small>{{ format_file_size(document.file_size) }}</small>
+        </div>
+      </div>
+
+      <div class="documents-side-card">
+        <h3>Açıklama</h3>
+        <p>{{ document.description or "Bu doküman için açıklama girilmemiş." }}</p>
+      </div>
+
+      {% if can_manage_documents or can_delete_document %}
+        <div class="documents-side-card">
+          <h3>İşlemler</h3>
+          <div class="documents-side-actions">
+            {% if can_manage_documents %}
+              <a class="btn btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}">
+                <i class="bi bi-pencil"></i>
+                <span>Düzenle</span>
+              </a>
+            {% endif %}
+            {% if can_delete_document %}
+              <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                <button class="btn btn-outline-secondary" type="submit">
+                  <i class="bi bi-archive"></i>
+                  <span>Arşivle</span>
+                </button>
+              </form>
+              <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
+                <button class="btn btn-outline-danger" type="submit">
+                  <i class="bi bi-trash"></i>
+                  <span>Sil</span>
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

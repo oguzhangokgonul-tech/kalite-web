@@ -1,0 +1,157 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ page_title }} | {{ config.SITE_NAME }}{% endblock %}
+
+{% macro document_status_badge(status) %}
+  {% set tone = document_status_tone(status) %}
+  <span class="document-status document-status-{{ tone }}">{{ status }}</span>
+{% endmacro %}
+
+{% macro document_file_badge(document) %}
+  {% set meta = document_file_meta(document) %}
+  <span class="document-file-type document-file-type-{{ meta.tone }}">
+    <i class="bi bi-{{ meta.icon }}"></i>
+    <span>{{ meta.label }}</span>
+  </span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading documents-page-heading">
+    <div>
+      <h2>{{ page_title }}</h2>
+      <p>{{ page_description }}</p>
+      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+        <i class="bi bi-chevron-right"></i>
+        <span>{{ page_title }}</span>
+      </nav>
+    </div>
+    {% if can_manage_documents %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>{% if category %}Bu kategoriye doküman yükle{% else %}Yeni Doküman Yükle{% endif %}</span>
+      </a>
+    {% endif %}
+  </div>
+
+  <form class="dashboard-filter-card documents-filter-card" method="get">
+    <div class="documents-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Doküman adı, kodu veya açıklama">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_list') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="documents-table-card">
+    <div class="documents-card-header">
+      <h3>Doküman Listesi</h3>
+      <span>Toplam {{ documents|length }} kayıt</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table documents-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Tip</th>
+            <th>Doküman Kodu</th>
+            <th>Doküman Adı</th>
+            <th>Kategori</th>
+            <th>Revizyon</th>
+            <th>Yayın Tarihi</th>
+            <th>Durum</th>
+            <th>Departman</th>
+            <th>Yükleyen</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for document in documents %}
+            <tr>
+              <td data-label="Tip">{{ document_file_badge(document) }}</td>
+              <td data-label="Doküman Kodu">{{ document.document_code }}</td>
+              <td data-label="Doküman Adı" class="documents-title-cell">
+                <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.title }}</a>
+                {% if document.description %}
+                  <span>{{ document.description }}</span>
+                {% endif %}
+              </td>
+              <td data-label="Kategori">{{ document.category.display_name }}</td>
+              <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
+              <td data-label="Yayın Tarihi">{{ format_date(document.publish_date) }}</td>
+              <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
+              <td data-label="Departman">{{ document.department or "-" }}</td>
+              <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
+              <td data-label="İşlemler">
+                <div class="documents-row-actions">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Görüntüle">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
+                    <i class="bi bi-download"></i>
+                  </a>
+                  {% if can_manage_documents %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}" aria-label="Düzenle">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_document(document) %}
+                    <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                      <button class="btn btn-sm btn-outline-secondary" type="submit" aria-label="Arşivle">
+                        <i class="bi bi-archive"></i>
+                      </button>
+                    </form>
+                    <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Sil">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="documents-empty-row" colspan="10">
+                <strong>Bu filtrelerle eşleşen doküman bulunamadı.</strong>
+                <span>Doküman yüklendiğinde bu listede görünecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

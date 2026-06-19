@@ -1,0 +1,168 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Doküman Yönetimi | {{ config.SITE_NAME }}{% endblock %}
+
+{% macro document_status_badge(status) %}
+  {% set tone = document_status_tone(status) %}
+  <span class="document-status document-status-{{ tone }}">{{ status }}</span>
+{% endmacro %}
+
+{% macro document_file_badge(document) %}
+  {% set meta = document_file_meta(document) %}
+  <span class="document-file-type document-file-type-{{ meta.tone }}">
+    <i class="bi bi-{{ meta.icon }}"></i>
+    <span>{{ meta.label }}</span>
+  </span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading documents-page-heading">
+    <div>
+      <h2>Doküman Yönetimi</h2>
+      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+        <i class="bi bi-chevron-right"></i>
+        <span>Doküman Yönetimi</span>
+      </nav>
+    </div>
+    {% if can_manage_documents %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.upload_document') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Doküman Yükle</span>
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="documents-summary-grid">
+    <div class="documents-summary-card document-summary-blue">
+      <span class="documents-summary-icon"><i class="bi bi-folder"></i></span>
+      <span class="documents-summary-label">Toplam Doküman</span>
+      <strong>{{ total_count }}</strong>
+      <small>Tüm kategoriler</small>
+    </div>
+    <div class="documents-summary-card document-summary-green">
+      <span class="documents-summary-icon"><i class="bi bi-check-circle"></i></span>
+      <span class="documents-summary-label">Yayında</span>
+      <strong>{{ published_count }}</strong>
+      <small>Aktif dokümanlar</small>
+    </div>
+    <div class="documents-summary-card document-summary-orange">
+      <span class="documents-summary-icon"><i class="bi bi-clock"></i></span>
+      <span class="documents-summary-label">Revizyon Bekleyen</span>
+      <strong>{{ revision_count }}</strong>
+      <small>Revize edilecekler</small>
+    </div>
+    <div class="documents-summary-card document-summary-purple">
+      <span class="documents-summary-icon"><i class="bi bi-upload"></i></span>
+      <span class="documents-summary-label">Onay Bekleyen</span>
+      <strong>{{ approval_count }}</strong>
+      <small>Yayın onayı bekleyen</small>
+    </div>
+    <div class="documents-summary-card document-summary-slate">
+      <span class="documents-summary-icon"><i class="bi bi-archive"></i></span>
+      <span class="documents-summary-label">Arşiv</span>
+      <strong>{{ archive_count }}</strong>
+      <small>Arşivlenmiş dokümanlar</small>
+    </div>
+  </div>
+
+  <section class="documents-section">
+    <h3>Doküman Kategorileri</h3>
+    <div class="documents-category-grid">
+      {% for card in category_cards %}
+        <a class="documents-category-card documents-category-{{ card.category.color or 'blue' }}" href="{{ url_for('main.documents_category', slug=card.category.slug) }}">
+          <span class="documents-category-icon">
+            <i class="bi bi-{{ card.category.icon or 'folder' }}"></i>
+          </span>
+          <span class="documents-category-title">{{ card.category.display_name }}</span>
+          <span class="documents-category-count">
+            <strong>{{ card.count }}</strong>
+            <span>doküman</span>
+          </span>
+          <span class="documents-category-date">Son güncelleme: {{ format_date(card.last_update) }}</span>
+          <span class="documents-category-arrow"><i class="bi bi-chevron-right"></i></span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="documents-table-card">
+    <div class="documents-card-header">
+      <h3>Son Eklenen Dokümanlar</h3>
+      <a href="{{ url_for('main.documents_list') }}">
+        Tümünü Görüntüle
+        <i class="bi bi-arrow-right"></i>
+      </a>
+    </div>
+    <div class="table-responsive">
+      <table class="table documents-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Tip</th>
+            <th>Doküman Kodu</th>
+            <th>Doküman Adı</th>
+            <th>Kategori</th>
+            <th>Revizyon</th>
+            <th>Yayın Tarihi</th>
+            <th>Durum</th>
+            <th>Yükleyen</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for document in recent_documents %}
+            <tr>
+              <td data-label="Tip">{{ document_file_badge(document) }}</td>
+              <td data-label="Doküman Kodu">{{ document.document_code }}</td>
+              <td data-label="Doküman Adı" class="documents-title-cell">
+                <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.title }}</a>
+              </td>
+              <td data-label="Kategori">{{ document.category.display_name }}</td>
+              <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
+              <td data-label="Yayın Tarihi">{{ format_date(document.publish_date) }}</td>
+              <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
+              <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
+              <td data-label="İşlemler">
+                <div class="documents-row-actions">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Görüntüle">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
+                    <i class="bi bi-download"></i>
+                  </a>
+                  {% if can_manage_documents or can_delete_document(document) %}
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Diğer işlemler">
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <div class="dropdown-menu dropdown-menu-end">
+                        {% if can_manage_documents %}
+                          <a class="dropdown-item" href="{{ url_for('main.edit_document', document_id=document.id) }}">Düzenle</a>
+                        {% endif %}
+                        {% if can_delete_document(document) %}
+                          <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                            <button class="dropdown-item" type="submit">Arşivle</button>
+                          </form>
+                          <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
+                            <button class="dropdown-item text-danger" type="submit">Sil</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    </div>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="documents-empty-row" colspan="9">
+                <strong>Henüz doküman yüklenmedi.</strong>
+                <span>Yeni doküman yüklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Yeni Doküman Yükle | {{ config.SITE_NAME }}{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading documents-page-heading">
+    <div>
+      <h2>Yeni Doküman Yükle</h2>
+      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+        <i class="bi bi-chevron-right"></i>
+        <span>Yeni Doküman Yükle</span>
+      </nav>
+    </div>
+  </div>
+
+  {% set submit_label = "Dokümanı Kaydet" %}
+  {% include "documents/_form.html" %}
+{% endblock %}
