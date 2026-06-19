@@ -21,6 +21,10 @@
         <i class="bi bi-arrow-left"></i>
         <span>Kategoriye Dön</span>
       </a>
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">
+        <i class="bi bi-eye"></i>
+        <span>Önizle</span>
+      </a>
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
         <i class="bi bi-download"></i>
         <span>İndir</span>
@@ -43,6 +47,11 @@
       <span class="documents-detail-icon"><i class="bi bi-calendar3"></i></span>
       <small>Yayın Tarihi</small>
       <strong>{{ format_date(document.publish_date) }}</strong>
+    </div>
+    <div class="documents-detail-card">
+      <span class="documents-detail-icon"><i class="bi bi-calendar-check"></i></span>
+      <small>Son Revizyon Tarihi</small>
+      <strong>{{ format_date(document.revision_date) }}</strong>
     </div>
     <div class="documents-detail-card">
       <span class="documents-detail-icon"><i class="bi bi-building"></i></span>

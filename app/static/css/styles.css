@@ -290,7 +290,7 @@ body {
 
 .documents-table {
     width: 100%;
-    min-width: 1040px;
+    min-width: 1180px;
     table-layout: fixed;
 }
 
@@ -346,9 +346,14 @@ body {
     width: 120px;
 }
 
+.documents-table th:nth-child(7),
+.documents-table td:nth-child(7) {
+    width: 136px;
+}
+
 .documents-table th:nth-last-child(1),
 .documents-table td:nth-last-child(1) {
-    width: 138px;
+    width: 174px;
 }
 
 .documents-title-cell a {
@@ -529,7 +534,7 @@ body {
 
 .documents-detail-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 16px;
     margin-bottom: 22px;
 }

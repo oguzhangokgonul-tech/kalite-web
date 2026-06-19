@@ -75,6 +75,7 @@ DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 SUB_ACTION_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "docx", "xlsx"}
 DOCUMENT_ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg"}
 DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
+DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
@@ -545,6 +546,7 @@ def ensure_document_schema():
                             title VARCHAR(200) NOT NULL,
                             revision_no VARCHAR(40),
                             publish_date DATE,
+                            revision_date DATE,
                             department VARCHAR(80),
                             description TEXT,
                             status VARCHAR(40) NOT NULL DEFAULT 'Yayında',
@@ -569,6 +571,7 @@ def ensure_document_schema():
                     "title": "ALTER TABLE documents ADD COLUMN title VARCHAR(200) NOT NULL DEFAULT ''",
                     "revision_no": "ALTER TABLE documents ADD COLUMN revision_no VARCHAR(40)",
                     "publish_date": "ALTER TABLE documents ADD COLUMN publish_date DATE",
+                    "revision_date": "ALTER TABLE documents ADD COLUMN revision_date DATE",
                     "department": "ALTER TABLE documents ADD COLUMN department VARCHAR(80)",
                     "description": "ALTER TABLE documents ADD COLUMN description TEXT",
                     "status": "ALTER TABLE documents ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Yayında'",
@@ -1844,7 +1847,7 @@ def parse_document_form():
         raise ValueError("invalid_category")
     if not title or not document_code:
         raise ValueError("required_fields")
-    if department and department not in DEPARTMENTS:
+    if department and department not in DOCUMENT_DEPARTMENTS:
         raise ValueError("invalid_department")
     if status not in DOCUMENT_STATUSES:
         raise ValueError("invalid_status")
@@ -1857,6 +1860,7 @@ def parse_document_form():
         "title": title[:200],
         "revision_no": revision_no[:40] or None,
         "publish_date": parse_optional_date("publish_date"),
+        "revision_date": parse_optional_date("revision_date"),
         "department": department or None,
         "description": description or None,
         "status": status,
@@ -2006,7 +2010,7 @@ def documents_category_context(category):
         "documents": documents,
         "filters": filters,
         "statuses": DOCUMENT_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": DOCUMENT_DEPARTMENTS,
         "document_file_meta": document_file_meta,
         "document_status_tone": document_status_tone,
         "format_date": format_date,
@@ -2032,7 +2036,7 @@ def document_form_context(document=None, category_slug=None):
         "categories": ordered_document_categories(),
         "selected_category": selected_category,
         "statuses": DOCUMENT_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": DOCUMENT_DEPARTMENTS,
         "form_data": form_data,
     }
 
@@ -4031,6 +4035,7 @@ def upload_document():
                     title=form_values["title"],
                     revision_no=form_values["revision_no"],
                     publish_date=form_values["publish_date"],
+                    revision_date=form_values["revision_date"],
                     department=form_values["department"],
                     description=form_values["description"],
                     status=form_values["status"],
@@ -4124,6 +4129,7 @@ def edit_document(document_id):
             document.title = form_values["title"]
             document.revision_no = form_values["revision_no"]
             document.publish_date = form_values["publish_date"]
+            document.revision_date = form_values["revision_date"]
             document.department = form_values["department"]
             document.description = form_values["description"]
             document.status = form_values["status"]

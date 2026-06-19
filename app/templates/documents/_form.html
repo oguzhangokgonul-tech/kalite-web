@@ -2,6 +2,7 @@
 {% set code_value = form_data.get('document_code') if form_data else (document.document_code if document else '') %}
 {% set revision_value = form_data.get('revision_no') if form_data else (document.revision_no if document else '') %}
 {% set publish_value = form_data.get('publish_date') if form_data else (document.publish_date.isoformat() if document and document.publish_date else '') %}
+{% set revision_date_value = form_data.get('revision_date') if form_data else (document.revision_date.isoformat() if document and document.revision_date else '') %}
 {% set department_value = form_data.get('department') if form_data else (document.department if document else '') %}
 {% set status_value = form_data.get('status') if form_data else (document.status if document else 'Yayında') %}
 {% set description_value = form_data.get('description') if form_data else (document.description if document else '') %}
@@ -33,6 +34,10 @@
     <div>
       <label class="form-label" for="publish_date">Yayın Tarihi</label>
       <input class="form-control" id="publish_date" name="publish_date" type="date" value="{{ publish_value }}">
+    </div>
+    <div>
+      <label class="form-label" for="revision_date">Son Revizyon Tarihi</label>
+      <input class="form-control" id="revision_date" name="revision_date" type="date" value="{{ revision_date_value }}">
     </div>
     <div>
       <label class="form-label" for="department">Departman</label>

@@ -472,6 +472,7 @@ class Document(db.Model):
     title = db.Column(db.String(200), nullable=False)
     revision_no = db.Column(db.String(40), nullable=True)
     publish_date = db.Column(db.Date, nullable=True)
+    revision_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(80), nullable=True)
     description = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Yayında")

@@ -104,6 +104,7 @@
             <th>Kategori</th>
             <th>Revizyon</th>
             <th>Yayın Tarihi</th>
+            <th>Son Revizyon</th>
             <th>Durum</th>
             <th>Yükleyen</th>
             <th class="text-end">İşlemler</th>
@@ -115,17 +116,21 @@
               <td data-label="Tip">{{ document_file_badge(document) }}</td>
               <td data-label="Doküman Kodu">{{ document.document_code }}</td>
               <td data-label="Doküman Adı" class="documents-title-cell">
-                <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.title }}</a>
+                <a href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener">{{ document.title }}</a>
               </td>
               <td data-label="Kategori">{{ document.category.display_name }}</td>
               <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
               <td data-label="Yayın Tarihi">{{ format_date(document.publish_date) }}</td>
+              <td data-label="Son Revizyon">{{ format_date(document.revision_date) }}</td>
               <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
               <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Görüntüle">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener" aria-label="Önizle">
                     <i class="bi bi-eye"></i>
+                  </a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Detay">
+                    <i class="bi bi-info-circle"></i>
                   </a>
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
                     <i class="bi bi-download"></i>
@@ -155,7 +160,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="documents-empty-row" colspan="9">
+              <td class="documents-empty-row" colspan="10">
                 <strong>Henüz doküman yüklenmedi.</strong>
                 <span>Yeni doküman yüklendiğinde burada listelenecek.</span>
               </td>
