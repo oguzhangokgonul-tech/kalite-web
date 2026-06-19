@@ -76,7 +76,7 @@
     {% if g.current_user %}
       <script>
         (() => {
-          const baseTitle = {{ config.SITE_NAME|tojson }};
+          const baseTitle = document.title;
           const badge = document.querySelector("[data-notification-badge]");
           if (!badge) return;
           let unreadCount = Number("{{ g.unread_notification_count }}") || 0;
