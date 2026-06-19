@@ -64,11 +64,11 @@
   </div>
 
   <div class="documents-upload-box mt-4">
-    <input id="document_files" name="document_files" type="file" {% if not document %}multiple required{% endif %} accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+    <input id="document_files" name="document_files" type="file" {% if not document %}multiple required{% endif %} accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
     <label for="document_files">
       <i class="bi bi-cloud-arrow-up"></i>
       <strong>Dosya seçin veya buraya sürükleyin</strong>
-      <span>PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG desteklenir. Maks. 25 MB.</span>
+      <span>PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG, JPEG desteklenir. Maks. 25 MB.</span>
       {% if document %}
         <small>Yeni dosya seçerseniz mevcut dosya güncellenir: {{ document.original_file_name }}</small>
       {% else %}

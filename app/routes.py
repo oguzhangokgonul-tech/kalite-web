@@ -3,6 +3,8 @@ from functools import wraps
 import json
 from pathlib import Path
 import re
+import shutil
+import subprocess
 from uuid import uuid4
 
 from flask import (
@@ -73,7 +75,21 @@ DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
 DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 SUB_ACTION_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "docx", "xlsx"}
-DOCUMENT_ALLOWED_EXTENSIONS = {"pdf", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg"}
+DOCUMENT_ALLOWED_EXTENSIONS = {
+    "pdf",
+    "doc",
+    "docx",
+    "xls",
+    "xlsx",
+    "ppt",
+    "pptx",
+    "png",
+    "jpg",
+    "jpeg",
+}
+DOCUMENT_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
+DOCUMENT_OFFICE_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "ppt", "pptx"}
+DOCUMENT_PREVIEW_STATUSES = {"pending", "ready", "failed", "not_supported"}
 DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 INTERNAL_AUDIT_RESULT_MAP = {
@@ -555,6 +571,11 @@ def ensure_document_schema():
                             file_path VARCHAR(500) NOT NULL,
                             file_type VARCHAR(20),
                             file_size INTEGER,
+                            preview_file_name VARCHAR(255),
+                            preview_file_path VARCHAR(500),
+                            preview_status VARCHAR(40),
+                            preview_error TEXT,
+                            preview_generated_at DATETIME,
                             uploaded_by INTEGER,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -580,6 +601,11 @@ def ensure_document_schema():
                     "file_path": "ALTER TABLE documents ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
                     "file_type": "ALTER TABLE documents ADD COLUMN file_type VARCHAR(20)",
                     "file_size": "ALTER TABLE documents ADD COLUMN file_size INTEGER",
+                    "preview_file_name": "ALTER TABLE documents ADD COLUMN preview_file_name VARCHAR(255)",
+                    "preview_file_path": "ALTER TABLE documents ADD COLUMN preview_file_path VARCHAR(500)",
+                    "preview_status": "ALTER TABLE documents ADD COLUMN preview_status VARCHAR(40)",
+                    "preview_error": "ALTER TABLE documents ADD COLUMN preview_error TEXT",
+                    "preview_generated_at": "ALTER TABLE documents ADD COLUMN preview_generated_at DATETIME",
                     "uploaded_by": "ALTER TABLE documents ADD COLUMN uploaded_by INTEGER",
                     "created_at": "ALTER TABLE documents ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
                     "updated_at": "ALTER TABLE documents ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -1798,13 +1824,170 @@ def document_file_meta(document):
         return {"label": "Word", "tone": "word", "icon": "file-earmark-word"}
     if extension in {"xls", "xlsx"}:
         return {"label": "Excel", "tone": "excel", "icon": "file-earmark-excel"}
+    if extension in {"ppt", "pptx"}:
+        return {"label": "PowerPoint", "tone": "ppt", "icon": "file-earmark-slides"}
     if extension in {"png", "jpg", "jpeg"}:
         return {"label": "Görsel", "tone": "image", "icon": "file-earmark-image"}
     return {"label": "Dosya", "tone": "file", "icon": "file-earmark"}
 
 
 def document_can_preview(document):
-    return (document.file_type or "").lower() in {"pdf", "png", "jpg", "jpeg"}
+    return (
+        document.preview_status == "ready"
+        and bool(document.preview_file_path)
+        and (Path(current_app.config["UPLOAD_FOLDER"]) / document.preview_file_path).exists()
+    )
+
+
+def document_preview_status(document):
+    status = (document.preview_status or "").strip()
+    return status if status in DOCUMENT_PREVIEW_STATUSES else "pending"
+
+
+def document_preview_message(document):
+    status = document_preview_status(document)
+    if status == "ready":
+        if not document_can_preview(document):
+            return "PDF önizleme dosyası bulunamadı. Orijinal dosyayı indirebilirsiniz."
+        return "PDF önizleme hazır."
+    if status == "pending":
+        return "PDF önizleme hazırlanıyor."
+    if status == "not_supported":
+        return "Bu dosya türü için PDF önizleme desteklenmiyor."
+    return "PDF önizleme oluşturulamadı. Orijinal dosyayı indirerek görüntüleyebilirsiniz."
+
+
+def libreoffice_binary():
+    return (
+        shutil.which("libreoffice")
+        or shutil.which("soffice")
+        or shutil.which("soffice.exe")
+    )
+
+
+def document_source_path(document):
+    return Path(current_app.config["UPLOAD_FOLDER"]) / document.file_path
+
+
+def document_preview_storage(document):
+    category_slug = document.category.slug if document.category else "genel"
+    preview_dir = (
+        Path(current_app.config["UPLOAD_FOLDER"])
+        / "documents"
+        / "previews"
+        / category_slug
+    )
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    source_stem = Path(document.file_name or "document").stem
+    preview_key = f"{source_stem}-{document.id or uuid4().hex}"
+    preview_name = f"{preview_key}_preview.pdf"
+    preview_path = preview_dir / preview_name
+    preview_relative = Path("documents") / "previews" / category_slug / preview_name
+    return preview_name, preview_path, str(preview_relative).replace("\\", "/")
+
+
+def delete_document_preview(document):
+    if not document.preview_file_path:
+        return
+    preview_path = Path(current_app.config["UPLOAD_FOLDER"]) / document.preview_file_path
+    if preview_path.exists():
+        preview_path.unlink()
+
+
+def fail_document_preview(document, status, message):
+    document.preview_file_name = None
+    document.preview_file_path = None
+    document.preview_status = status
+    document.preview_error = message[:1000] if message else None
+    document.preview_generated_at = datetime.utcnow()
+    return False
+
+
+def image_to_pdf_preview(source_path, preview_path):
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        raise RuntimeError("Pillow yüklü olmadığı için görsel PDF'e dönüştürülemedi.") from None
+
+    with Image.open(source_path) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode in {"RGBA", "LA"}:
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])
+            image = background
+        else:
+            image = image.convert("RGB")
+        image.save(preview_path, "PDF", resolution=100.0)
+
+
+def office_to_pdf_preview(source_path, preview_dir, preview_path):
+    binary = libreoffice_binary()
+    if binary is None:
+        raise RuntimeError("LibreOffice bulunamadı. Office dosyası PDF'e dönüştürülemedi.")
+
+    result = subprocess.run(
+        [
+            binary,
+            "--headless",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(preview_dir),
+            str(source_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=90,
+        check=False,
+    )
+    converted_path = preview_dir / f"{source_path.stem}.pdf"
+    if result.returncode != 0 or not converted_path.exists():
+        error_text = (result.stderr or result.stdout or "LibreOffice PDF üretmedi.").strip()
+        raise RuntimeError(error_text)
+    if converted_path != preview_path:
+        if preview_path.exists():
+            preview_path.unlink()
+        converted_path.replace(preview_path)
+
+
+def generate_document_preview(document):
+    extension = (document.file_type or "").lower()
+    source_path = document_source_path(document)
+    delete_document_preview(document)
+    document.preview_file_name = None
+    document.preview_file_path = None
+    document.preview_status = "pending"
+    document.preview_error = None
+    document.preview_generated_at = None
+
+    if not source_path.exists():
+        return fail_document_preview(document, "failed", "Orijinal dosya bulunamadı.")
+
+    preview_name, preview_path, preview_relative = document_preview_storage(document)
+    try:
+        if extension == "pdf":
+            shutil.copyfile(source_path, preview_path)
+        elif extension in DOCUMENT_IMAGE_EXTENSIONS:
+            image_to_pdf_preview(source_path, preview_path)
+        elif extension in DOCUMENT_OFFICE_EXTENSIONS:
+            office_to_pdf_preview(source_path, preview_path.parent, preview_path)
+        else:
+            return fail_document_preview(
+                document,
+                "not_supported",
+                "Bu dosya türü için PDF önizleme desteklenmiyor.",
+            )
+    except Exception as error:
+        if preview_path.exists():
+            preview_path.unlink()
+        return fail_document_preview(document, "failed", str(error))
+
+    document.preview_file_name = preview_name
+    document.preview_file_path = preview_relative
+    document.preview_status = "ready"
+    document.preview_error = None
+    document.preview_generated_at = datetime.utcnow()
+    return True
 
 
 def document_allowed_file(uploaded_file):
@@ -1875,8 +2058,13 @@ def save_document_upload(uploaded_file, category):
     if not original_name:
         original_name = f"dokuman.{extension}"
     stored_name = f"document-{uuid4().hex}.{extension}"
-    relative_path = Path("documents") / category.slug / stored_name
-    upload_dir = Path(current_app.config["UPLOAD_FOLDER"]) / "documents" / category.slug
+    relative_path = Path("documents") / "originals" / category.slug / stored_name
+    upload_dir = (
+        Path(current_app.config["UPLOAD_FOLDER"])
+        / "documents"
+        / "originals"
+        / category.slug
+    )
     upload_dir.mkdir(parents=True, exist_ok=True)
     upload_path = upload_dir / stored_name
     uploaded_file.save(upload_path)
@@ -1900,6 +2088,11 @@ def delete_document_file(document):
     file_path = Path(current_app.config["UPLOAD_FOLDER"]) / document.file_path
     if file_path.exists():
         file_path.unlink()
+
+
+def delete_document_files(document):
+    delete_document_file(document)
+    delete_document_preview(document)
 
 
 def document_query():
@@ -4033,6 +4226,7 @@ def upload_document():
                 file_values = save_document_upload(uploaded_file, form_values["category"])
                 document = Document(
                     category_id=form_values["category"].id,
+                    category=form_values["category"],
                     document_code=form_values["document_code"],
                     title=form_values["title"],
                     revision_no=form_values["revision_no"],
@@ -4047,6 +4241,9 @@ def upload_document():
                 db.session.add(document)
                 saved_documents.append(document)
 
+            db.session.flush()
+            for document in saved_documents:
+                generate_document_preview(document)
             db.session.commit()
             flash(
                 f"{len(saved_documents)} doküman başarıyla yüklendi.",
@@ -4062,12 +4259,12 @@ def upload_document():
         except ValueError as error:
             db.session.rollback()
             for document in saved_documents:
-                delete_document_file(document)
+                delete_document_files(document)
             error_key = str(error)
             if error_key == "document_file_required":
                 flash("Doküman yüklemek için en az bir dosya seçin.", "danger")
             elif error_key == "invalid_document_file_type":
-                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
+                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
             elif error_key == "document_file_too_large":
                 flash("Doküman dosyası en fazla 25 MB olabilir.", "danger")
             elif error_key == "required_fields":
@@ -4095,11 +4292,16 @@ def upload_document():
 @login_required
 def document_detail(document_id):
     document = Document.query.get_or_404(document_id)
+    if not document.preview_status:
+        generate_document_preview(document)
+        db.session.commit()
     return render_template(
         "documents/detail.html",
         document=document,
         file_meta=document_file_meta(document),
         can_preview=document_can_preview(document),
+        preview_status=document_preview_status(document),
+        preview_message=document_preview_message(document),
         status_tone=document_status_tone(document.status),
         format_date=format_date,
         format_file_size=format_file_size,
@@ -4128,6 +4330,7 @@ def edit_document(document_id):
 
             old_file_path = document.file_path
             document.category_id = form_values["category"].id
+            document.category = form_values["category"]
             document.document_code = form_values["document_code"]
             document.title = form_values["title"]
             document.revision_no = form_values["revision_no"]
@@ -4142,8 +4345,10 @@ def edit_document(document_id):
                     old_path = Path(current_app.config["UPLOAD_FOLDER"]) / old_file_path
                     if old_path.exists():
                         old_path.unlink()
+                delete_document_preview(document)
                 for key, value in saved_file_values.items():
                     setattr(document, key, value)
+                generate_document_preview(document)
 
             db.session.commit()
             flash("Doküman bilgileri güncellendi.", "success")
@@ -4152,10 +4357,10 @@ def edit_document(document_id):
             db.session.rollback()
             if saved_file_values is not None:
                 temp_document = Document(file_path=saved_file_values["file_path"])
-                delete_document_file(temp_document)
+                delete_document_files(temp_document)
             error_key = str(error)
             if error_key == "invalid_document_file_type":
-                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
+                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
             elif error_key == "document_file_too_large":
                 flash("Doküman dosyası en fazla 25 MB olabilir.", "danger")
             elif error_key == "required_fields":
@@ -4194,17 +4399,33 @@ def download_document(document_id):
 def preview_document(document_id):
     document = Document.query.get_or_404(document_id)
     if not document_can_preview(document):
-        flash("Bu dosya türü tarayıcıda önizlenemiyor. İndirerek görüntüleyebilirsiniz.", "warning")
+        flash(document_preview_message(document), "warning")
         return redirect(url_for("main.document_detail", document_id=document.id))
 
     response = send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
-        document.file_path,
+        document.preview_file_path,
+        mimetype="application/pdf",
         as_attachment=False,
-        download_name=document.original_file_name,
+        download_name=document.preview_file_name or f"{document.document_code}_preview.pdf",
     )
-    response.headers["Content-Disposition"] = f'inline; filename="{document.original_file_name}"'
+    preview_name = document.preview_file_name or f"{document.document_code}_preview.pdf"
+    response.headers["Content-Disposition"] = f'inline; filename="{preview_name}"'
     return response
+
+
+@bp.post("/documents/<int:document_id>/generate-preview")
+@login_required
+def generate_document_preview_route(document_id):
+    document = Document.query.get_or_404(document_id)
+    if not can_manage_documents():
+        abort(403)
+    if generate_document_preview(document):
+        flash("PDF önizleme yeniden oluşturuldu.", "success")
+    else:
+        flash(document_preview_message(document), "warning")
+    db.session.commit()
+    return redirect(url_for("main.document_detail", document_id=document.id))
 
 
 @bp.post("/documents/<int:document_id>/archive")
@@ -4227,7 +4448,7 @@ def delete_document(document_id):
     if not can_delete_document(document):
         abort(403)
     category_slug = document.category.slug if document.category else None
-    delete_document_file(document)
+    delete_document_files(document)
     db.session.delete(document)
     db.session.commit()
     flash("Doküman silindi.", "success")

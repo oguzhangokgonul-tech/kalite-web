@@ -38,7 +38,7 @@
           <i class="bi bi-clipboard-check"></i>
           <span>İç Denetim Yönetimi</span>
         </a>
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.download_document', 'main.preview_document', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
           <i class="bi bi-file-earmark-text"></i>
           <span>Doküman Yönetimi</span>
         </a>

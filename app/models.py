@@ -481,6 +481,11 @@ class Document(db.Model):
     file_path = db.Column(db.String(500), nullable=False)
     file_type = db.Column(db.String(20), nullable=True)
     file_size = db.Column(db.Integer, nullable=True)
+    preview_file_name = db.Column(db.String(255), nullable=True)
+    preview_file_path = db.Column(db.String(500), nullable=True)
+    preview_status = db.Column(db.String(40), nullable=True)
+    preview_error = db.Column(db.Text, nullable=True)
+    preview_generated_at = db.Column(db.DateTime, nullable=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
