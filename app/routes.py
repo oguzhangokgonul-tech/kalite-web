@@ -836,6 +836,10 @@ def can_revise_rejected_dof(dof):
     )
 
 
+def can_request_dof_approval(dof):
+    return can_edit_dof_draft(dof) or can_revise_rejected_dof(dof)
+
+
 def can_manage_orientation():
     return g.current_user is not None and (
         is_oguzhan_admin() or g.current_user.can_manage_users
@@ -3650,6 +3654,8 @@ def dof_dashboard_context():
         "can_delete_dof": can_delete_dof,
         "can_edit_dof_draft": can_edit_dof_draft,
         "can_edit_dof": can_edit_dof,
+        "can_revise_rejected_dof": can_revise_rejected_dof,
+        "can_request_dof_approval": can_request_dof_approval,
     }
 
 
@@ -5171,7 +5177,12 @@ def edit_dof_draft(dof_id):
             else f"{dof.dof_no} numaralı İF kaydını onay akışını bozmadan güncelleyin."
         ),
         can_save_draft=is_draft_record,
-        submit_label="Kaydet" if is_draft_record else "Değişiklikleri Kaydet",
+        submit_label=(
+            "Kaydet ve Onay Talep Et"
+            if is_draft_record
+            else "Değişiklikleri Kaydet"
+        ),
+        submit_icon="bi-send-check" if is_draft_record else "bi-save",
         dof=dof,
     )
 

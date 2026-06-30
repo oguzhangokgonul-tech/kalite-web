@@ -176,14 +176,20 @@
               </td>
               <td data-label="İşlemler">
                 <div class="dashboard-row-actions">
-                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
-                    <i class="bi bi-eye"></i>
-                    <span>Detay</span>
-                  </a>
-                  {% if can_edit_dof(dof) %}
+                  {% if can_request_dof_approval(dof) %}
+                    <a class="btn btn-sm btn-success dof-approval-request-btn" href="{% if can_revise_rejected_dof(dof) %}{{ url_for('main.dof_detail', dof_id=dof.id) }}#dof-approval-request{% else %}{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}{% endif %}">
+                      <i class="bi bi-send-check"></i>
+                      <span>Düzenle ve Onay Talep Et</span>
+                    </a>
+                  {% elif can_edit_dof(dof) %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}">
                       <i class="bi bi-pencil-square"></i>
-                      <span>{% if can_edit_dof_draft(dof) %}Taslağı Düzenle{% else %}Düzenle{% endif %}</span>
+                      <span>Düzenle</span>
+                    </a>
+                  {% else %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
+                      <i class="bi bi-eye"></i>
+                      <span>Detay</span>
                     </a>
                   {% endif %}
                   {% if can_delete_dof(dof) %}
