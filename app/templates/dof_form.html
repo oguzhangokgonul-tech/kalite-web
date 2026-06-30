@@ -28,7 +28,7 @@
           <span>Taslak Kaydet</span>
         </button>
       {% endif %}
-      <button class="btn btn-primary btn-lg" type="submit" name="save_mode" value="open" form="dofForm">
+      <button class="btn {{ submit_button_class or 'btn-primary' }} btn-lg" type="submit" name="save_mode" value="open" form="dofForm">
         <i class="bi {{ submit_icon or 'bi-save' }}"></i>
         <span>{{ submit_label or "Kaydet" }}</span>
       </button>
@@ -39,6 +39,9 @@
     <form class="dof-form-card" id="dofForm" method="post" action="{{ form_action or url_for('main.create_dof') }}" enctype="multipart/form-data">
       {% if form_data.get("internal_audit_answer_id") %}
         <input type="hidden" name="internal_audit_answer_id" value="{{ form_data.get('internal_audit_answer_id') }}">
+      {% endif %}
+      {% if show_closing_actions %}
+        <input type="hidden" name="require_closing_actions" value="1">
       {% endif %}
       <div class="app-card-header">
         <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-pulse"></i></span>
@@ -131,6 +134,14 @@
           </div>
         </div>
       </div>
+
+      {% if show_closing_actions %}
+        <div class="dof-textarea-field mt-3">
+          <label class="form-label" for="closing_evidence">Uygunsuzluğu Kapatmak İçin Alınan Aksiyonlar <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="closing_evidence" name="closing_evidence" rows="3" maxlength="2000" data-dof-count="closing_evidence" placeholder="Uygunsuzluğu kapatmak için yapılan aksiyonları yazın...">{{ form_data.get("closing_evidence", "") }}</textarea>
+          <div class="dof-counter">{{ text_counter("closing_evidence") }}</div>
+        </div>
+      {% endif %}
 
       <label class="dof-upload-box" for="opening_files" data-dof-upload-box>
         <i class="bi bi-cloud-arrow-up"></i>

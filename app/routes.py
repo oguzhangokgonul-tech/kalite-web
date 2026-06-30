@@ -3116,6 +3116,7 @@ def parse_action_form(action=None):
 def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     dof = dof or Dof()
     is_draft = save_mode == "draft"
+    require_closing_actions = request.form.get("require_closing_actions") == "1"
     title = request.form.get("title", "").strip()
     department = request.form.get("department", "").strip()
     priority = request.form.get("priority", "").strip()
@@ -3129,12 +3130,14 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     root_cause_analysis = request.form.get("root_cause_analysis", "").strip()
     corrective_action = request.form.get("corrective_action", "").strip()
     preventive_action = request.form.get("preventive_action", "").strip()
+    closing_evidence = request.form.get("closing_evidence", "").strip()
 
     for text_value in (
         nonconformity_description,
         root_cause_analysis,
         corrective_action,
         preventive_action,
+        closing_evidence,
     ):
         if len(text_value) > 2000:
             raise ValueError("text_too_long")
@@ -3156,6 +3159,8 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
         or not nonconformity_description
     ):
         raise ValueError("required_fields")
+    if not is_draft and require_closing_actions and not closing_evidence:
+        raise ValueError("closing_actions_required")
 
     dof.title = title or None
     dof.department = department or None
@@ -3168,6 +3173,8 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     dof.root_cause_analysis = root_cause_analysis or None
     dof.corrective_action = corrective_action or None
     dof.preventive_action = preventive_action or None
+    if require_closing_actions:
+        dof.closing_evidence = closing_evidence or None
     if not update_workflow:
         return dof
 
@@ -3212,6 +3219,7 @@ def dof_form_data_from_record(dof):
         "root_cause_analysis": dof.root_cause_analysis or "",
         "corrective_action": dof.corrective_action or "",
         "preventive_action": dof.preventive_action or "",
+        "closing_evidence": dof.closing_evidence or "",
     }
 
 
@@ -5105,7 +5113,7 @@ def edit_dof_draft(dof_id):
             parse_dof_form(
                 dof,
                 save_mode=save_mode,
-                update_workflow=is_draft_record,
+                update_workflow=(save_mode == "open"),
             )
             save_dof_opening_files(dof)
             if is_draft_record and save_mode == "draft":
@@ -5124,17 +5132,17 @@ def edit_dof_draft(dof_id):
                 )
                 notify_dof_waiting_approvers(dof)
                 flash(f"{dof.dof_no} numaralı İF kaydı onay akışına alındı.", "success")
-            else:
+            elif not is_draft_record:
                 changes = describe_dof_revision_changes(before, dof)
                 add_dof_comment(
                     dof,
                     (
-                        f"{g.current_user.full_name} İF kaydını düzenledi: "
+                        f"{g.current_user.full_name} İF kaydını düzenledi ve onaya gönderdi: "
                         + ", ".join(changes)
                     )
                     if changes
-                    else f"{g.current_user.full_name} İF kaydını düzenledi.",
-                    comment_type="edit",
+                    else f"{g.current_user.full_name} İF kaydını onaya gönderdi.",
+                    comment_type="approval",
                     actor=g.current_user,
                 )
                 if old_responsible_id != dof.responsible_id:
@@ -5143,7 +5151,8 @@ def edit_dof_draft(dof_id):
                         dof,
                         f"{dof_label(dof)} sorumluluğu size atandı.",
                     )
-                flash(f"{dof.dof_no} numaralı İF kaydı güncellendi.", "success")
+                notify_dof_waiting_approvers(dof)
+                flash(f"{dof.dof_no} numaralı İF kaydı onaya gönderildi.", "success")
             db.session.commit()
             return redirect(url_for("main.dof_detail", dof_id=dof.id))
         except ValueError as error:
@@ -5155,6 +5164,8 @@ def edit_dof_draft(dof_id):
                 flash("Uygunsuzluk görsellerinin her biri en fazla 10 MB olabilir.", "danger")
             elif error_key == "required_fields":
                 flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
+            elif error_key == "closing_actions_required":
+                flash("Onaya göndermek için Uygunsuzluğu Kapatmak İçin Alınan Aksiyonlar alanını doldurun.", "danger")
             elif error_key == "text_too_long":
                 flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
             else:
@@ -5174,15 +5185,13 @@ def edit_dof_draft(dof_id):
         page_description=(
             f"{dof.dof_no} numaralı taslağı güncelleyin veya onay akışına gönderin."
             if is_draft_record
-            else f"{dof.dof_no} numaralı İF kaydını onay akışını bozmadan güncelleyin."
+            else f"{dof.dof_no} numaralı İF kaydındaki kapanış aksiyonlarını yazıp onaya gönderin."
         ),
         can_save_draft=is_draft_record,
-        submit_label=(
-            "Kaydet ve Onay Talep Et"
-            if is_draft_record
-            else "Değişiklikleri Kaydet"
-        ),
-        submit_icon="bi-send-check" if is_draft_record else "bi-save",
+        submit_label="Onaya Gönder",
+        submit_icon="bi-send-check",
+        submit_button_class="btn-success",
+        show_closing_actions=True,
         dof=dof,
     )
 
