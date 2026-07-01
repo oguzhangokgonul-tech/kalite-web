@@ -153,7 +153,7 @@
               <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
               </td>
-              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması">{{ dof.nonconformity_description or "-" }}</td>
+              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">{{ dof.title or "-" }}</td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
               <td class="dof-responsible-cell" data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof_responsible_name(dof.responsible) }}</td>
               <td data-label="Öncelik" title="{{ dof.priority or '-' }}">{{ dof.priority or "-" }}</td>
