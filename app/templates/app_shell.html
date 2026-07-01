@@ -12,9 +12,6 @@
       <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
     </div>
     <div class="offcanvas-body">
-      <div class="dashboard-sidebar-brand">
-        <img class="dashboard-brand-logo" src="{{ url_for('static', filename='images/brand/token-sidebar-logo.png') }}" alt="{{ config.SITE_NAME }}">
-      </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>

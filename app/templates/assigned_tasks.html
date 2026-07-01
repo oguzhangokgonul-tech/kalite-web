@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
-{% block title %}Görevlerim | {{ config.SITE_NAME }}{% endblock %}
-{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}
+{% block title %}Görevlerim{% endblock %}
+{% block topbar_title %}Görevlerim{% endblock %}
 
 {% macro task_status_badge(task) %}
   {% if task.status_key == "completed" %}

@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
-{% block title %}{{ page_title or "Yeni İF Kaydı" }} | {{ config.SITE_NAME }}{% endblock %}
-{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}
+{% block title %}{{ page_title or "Yeni İF Kaydı" }}{% endblock %}
+{% block topbar_title %}{{ page_title or "Yeni İF Kaydı" }}{% endblock %}
 
 {% macro field_value(name, fallback="") %}
   {{ form_data.get(name, fallback) }}

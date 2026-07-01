@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Giriş | {{ config.SITE_NAME }}{% endblock %}
+{% block title %}Giriş{% endblock %}
 {% block body_class %}dashboard-body login-body{% endblock %}
 {% block navbar %}{% endblock %}
 {% block main_class %}login-shell{% endblock %}
@@ -9,10 +9,6 @@
 {% block content %}
   <section class="login-form-panel" aria-label="Giriş">
     <form class="login-card" method="post">
-      <div class="login-card-brand">
-        <img class="login-brand-logo" src="{{ url_for('static', filename='images/brand/token-logo-symbol.png') }}" alt="{{ config.SITE_NAME }}">
-      </div>
-
       <div class="app-card-header">
         <span class="app-card-icon"><i class="bi bi-box-arrow-in-right"></i></span>
         <div>

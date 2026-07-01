@@ -1,7 +1,7 @@
 {% extends "app_shell.html" %}
 
-{% block title %}İç Denetim Yönetimi | {{ config.SITE_NAME }}{% endblock %}
-{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}
+{% block title %}İç Denetim Yönetimi{% endblock %}
+{% block topbar_title %}İç Denetim Yönetimi{% endblock %}
 
 {% macro audit_status_badge(audit) %}
   {% if audit.status == "Tamamlandı" %}
