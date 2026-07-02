@@ -40,4 +40,85 @@ def create_app(config_class=Config):
         else:
             print("Mail gönderilemedi. MAIL_ENABLED ve SMTP ayarlarını kontrol edin.")
 
+    @app.cli.command("reopen-completed-dofs")
+    @click.option(
+        "--apply",
+        "apply_changes",
+        is_flag=True,
+        help="Listedeki IF kayitlarini Yonetim Temsilcisi onayina geri al.",
+    )
+    @click.option(
+        "--dof-no",
+        "dof_numbers",
+        multiple=True,
+        help="Sadece belirtilen IF numarasini geri al. Birden fazla kez kullanilabilir.",
+    )
+    @click.option(
+        "--notify",
+        is_flag=True,
+        help="Geri alinan IF'ler icin bekleyen onay bildirimlerini tekrar gonder.",
+    )
+    @with_appcontext
+    def reopen_completed_dofs_command(apply_changes, dof_numbers, notify):
+        from sqlalchemy import or_
+
+        from .models import Dof, DofComment
+
+        query = Dof.query.filter(
+            or_(
+                Dof.status == "TamamlandÄ±",
+                Dof.approval_step == "completed",
+                Dof.completed_at.isnot(None),
+                Dof.deputy_approved_at.isnot(None),
+            )
+        )
+        if dof_numbers:
+            query = query.filter(Dof.dof_no.in_(dof_numbers))
+
+        dofs = query.order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        if not dofs:
+            print("Geri alinacak tamamlanmis IF kaydi bulunamadi.")
+            return
+
+        print(f"{len(dofs)} IF kaydi Yonetim Temsilcisi onayina geri alinacak:")
+        for dof in dofs:
+            print(
+                f"- {dof.dof_no} | {dof.title or '-'} | "
+                f"durum={dof.status} | adim={dof.approval_step}"
+            )
+
+        if not apply_changes:
+            print("Dry-run tamamlandi. Degisiklik yapmak icin --apply ekleyin.")
+            return
+
+        for dof in dofs:
+            dof.status = "Onay AkÄ±ÅŸÄ± Bekleniyor"
+            dof.approval_step = "management_representative"
+            dof.management_approved_by_user_id = None
+            dof.management_approved_at = None
+            dof.deputy_approved_by_user_id = None
+            dof.deputy_approved_at = None
+            dof.completed_at = None
+            dof.rejection_reason = None
+            dof.rejected_by_user_id = None
+            dof.rejected_at = None
+            dof.rejected_step = None
+            db.session.add(
+                DofComment(
+                    dof=dof,
+                    comment=(
+                        "Sistem duzeltmesi: tamamlanmis IF kaydi "
+                        "Yonetim Temsilcisi onayina geri alindi."
+                    ),
+                    comment_type="approval_reopen",
+                )
+            )
+            if notify:
+                from .routes import notify_dof_waiting_approvers
+
+                notify_dof_waiting_approvers(dof)
+
+        db.session.commit()
+        print(f"{len(dofs)} IF kaydi geri alindi.")
+
     return app
