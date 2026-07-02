@@ -60,13 +60,26 @@ def create_app(config_class=Config):
     )
     @with_appcontext
     def reopen_completed_dofs_command(apply_changes, dof_numbers, notify):
+        from flask import current_app
         from sqlalchemy import or_
 
         from .models import Dof, DofComment
 
+        print(f"Veritabani: {current_app.config['SQLALCHEMY_DATABASE_URI']}")
+        status_rows = (
+            db.session.query(Dof.status, Dof.approval_step, db.func.count(Dof.id))
+            .group_by(Dof.status, Dof.approval_step)
+            .order_by(Dof.status.asc(), Dof.approval_step.asc())
+            .all()
+        )
+        if status_rows:
+            print("Mevcut IF durum ozeti:")
+            for status, step, count in status_rows:
+                print(f"- durum={status or '-'} | adim={step or '-'} | adet={count}")
+
         query = Dof.query.filter(
             or_(
-                Dof.status == "TamamlandÄ±",
+                Dof.status.like("Tamamlan%"),
                 Dof.approval_step == "completed",
                 Dof.completed_at.isnot(None),
                 Dof.deputy_approved_at.isnot(None),
