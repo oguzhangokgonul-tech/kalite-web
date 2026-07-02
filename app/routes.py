@@ -3195,14 +3195,9 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
         dof.deputy_approved_by_user_id = None
         dof.deputy_approved_at = None
         dof.completed_at = None
-        if is_management_representative():
-            dof.approval_step = "general_manager_deputy"
-            dof.management_approved_by_user_id = g.current_user.id
-            dof.management_approved_at = datetime.utcnow()
-        else:
-            dof.approval_step = "management_representative"
-            dof.management_approved_by_user_id = None
-            dof.management_approved_at = None
+        dof.approval_step = "management_representative"
+        dof.management_approved_by_user_id = None
+        dof.management_approved_at = None
     return dof
 
 
