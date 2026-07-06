@@ -1796,6 +1796,78 @@ body {
     overflow-wrap: anywhere;
 }
 
+.if-status-badge {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    height: 34px;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.if-status-badge i {
+    flex: 0 0 auto;
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.if-status-badge span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.if-status-badge-personnel {
+    color: #92400e;
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.if-status-badge-management {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.if-status-badge-deputy {
+    color: #6d28d9;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.if-status-badge-completed {
+    color: #047857;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.if-status-badge-draft,
+.if-status-badge-neutral {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+}
+
+.if-status-badge-revision,
+.if-status-badge-delayed {
+    color: #b4232f;
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+
+.if-status-badge-pending {
+    color: #9a6700;
+    background: #fff8e1;
+    border-color: #f5d76e;
+}
+
 .dof-dashboard-table .dashboard-row-actions {
     min-width: 0;
     justify-content: flex-end;

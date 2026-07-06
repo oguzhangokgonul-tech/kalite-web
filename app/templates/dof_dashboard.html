@@ -3,28 +3,38 @@
 {% block title %}İF Yönetimi{% endblock %}
 {% block topbar_title %}İF Yönetimi{% endblock %}
 
+{% macro if_status_badge(text, icon, theme) %}
+  <span class="if-status-badge if-status-badge-{{ theme }}" title="{{ text }}">
+    <i class="bi {{ icon }}"></i>
+    <span>{{ text }}</span>
+  </span>
+{% endmacro %}
+
 {% macro dof_status_badge(dof) %}
-  {% if dof.display_status == "Gecikti" %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
-  {% elif dof.display_status == "Taslak" %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-file-earmark-text-fill"></i> Taslak</span>
-  {% elif dof.display_status == "Tamamlandı" %}
-    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
-  {% elif dof.display_status == "Onay Akışı Bekleniyor" %}
+  {% set status = namespace(text=dof.display_status) %}
+  {% if dof.display_status == "Onay Akışı Bekleniyor" %}
     {% if dof.approval_step == "general_manager_deputy" %}
-      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Genel Müdür Yardımcısı Onayı Bekleniyor</span>
+      {% set status.text = "Genel Müdür Yardımcısı Onayı Bekleniyor" %}
     {% elif dof.approval_step == "management_representative" and dof.closing_evidence %}
-      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Yönetim Temsilcisi Onayı Bekleniyor</span>
+      {% set status.text = "Yönetim Temsilcisi Onayı Bekleniyor" %}
     {% elif dof.approval_step == "management_representative" %}
-      <span class="status-pill status-pill-warning"><i class="bi bi-person-check-fill"></i> Personel Kapatması Bekleniyor</span>
+      {% set status.text = "Personel Kapatması Bekleniyor" %}
     {% else %}
-      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Bekliyor</span>
+      {% set status.text = "Onay Bekliyor" %}
     {% endif %}
-  {% elif dof.display_status == "Revizyon Bekleniyor" %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Revizyon Bekleniyor</span>
-  {% else %}
-    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> {{ dof.display_status }}</span>
   {% endif %}
+  {% set status_badges = {
+    "Personel Kapatması Bekleniyor": ["bi-person-fill", "personnel"],
+    "Yönetim Temsilcisi Onayı Bekleniyor": ["bi-patch-check-fill", "management"],
+    "Genel Müdür Yardımcısı Onayı Bekleniyor": ["bi-shield-check", "deputy"],
+    "Tamamlandı": ["bi-check-circle-fill", "completed"],
+    "Taslak": ["bi-file-earmark-text-fill", "draft"],
+    "Revizyon Bekleniyor": ["bi-x-circle-fill", "revision"],
+    "Gecikti": ["bi-exclamation-triangle-fill", "delayed"],
+    "Onay Bekliyor": ["bi-clock-fill", "pending"],
+  } %}
+  {% set badge = status_badges.get(status.text, ["bi-circle-fill", "neutral"]) %}
+  {{ if_status_badge(status.text, badge[0], badge[1]) }}
 {% endmacro %}
 
 {% macro dof_responsible_name(user) %}
