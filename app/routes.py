@@ -2494,6 +2494,15 @@ def notify_dof_waiting_approvers(dof):
         )
 
 
+def dof_change_notification_users(dof):
+    users = dof_primary_users(dof)
+    if dof.approval_step == "management_representative":
+        users.extend(dof_management_approver_users())
+    elif dof.approval_step == "general_manager_deputy":
+        users.extend(dof_deputy_approver_users())
+    return unique_users(users)
+
+
 def orientation_nodes_payload():
     nodes = (
         OrientationNode.query.order_by(
@@ -3116,7 +3125,10 @@ def parse_action_form(action=None):
 def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     dof = dof or Dof()
     is_draft = save_mode == "draft"
-    require_closing_actions = request.form.get("require_closing_actions") == "1"
+    is_approval_request = save_mode == "open"
+    require_closing_actions = (
+        request.form.get("require_closing_actions") == "1" and is_approval_request
+    )
     title = request.form.get("title", "").strip()
     department = request.form.get("department", "").strip()
     priority = request.form.get("priority", "").strip()
@@ -3173,7 +3185,7 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     dof.root_cause_analysis = root_cause_analysis or None
     dof.corrective_action = corrective_action or None
     dof.preventive_action = preventive_action or None
-    if require_closing_actions:
+    if require_closing_actions or "closing_evidence" in request.form:
         dof.closing_evidence = closing_evidence or None
     if not update_workflow:
         return dof
@@ -5098,12 +5110,15 @@ def edit_dof_draft(dof_id):
     is_draft_record = can_edit_dof_draft(dof)
     if request.method == "POST":
         save_mode = request.form.get("save_mode", "open")
-        if save_mode not in {"draft", "open"}:
+        if save_mode not in {"draft", "open", "save_changes"}:
             save_mode = "open"
+        if is_draft_record and save_mode == "save_changes":
+            save_mode = "draft"
         if not is_draft_record:
-            save_mode = "open"
+            save_mode = "save_changes" if save_mode == "save_changes" else "open"
         before = dof_revision_snapshot(dof)
         old_responsible_id = dof.responsible_id
+        uploaded_opening_file_count = len(dof_opening_file_uploads())
         try:
             parse_dof_form(
                 dof,
@@ -5113,6 +5128,42 @@ def edit_dof_draft(dof_id):
             save_dof_opening_files(dof)
             if is_draft_record and save_mode == "draft":
                 flash(f"{dof.dof_no} numaralı İF taslağı güncellendi.", "success")
+            elif save_mode == "save_changes":
+                changes = describe_dof_revision_changes(before, dof)
+                if uploaded_opening_file_count:
+                    changes.append(
+                        f"{uploaded_opening_file_count} uygunsuzluk görseli eklendi"
+                    )
+                if changes:
+                    add_dof_comment(
+                        dof,
+                        (
+                            f"{g.current_user.full_name} İF kaydında düzenleme yaptı: "
+                            + ", ".join(changes)
+                        ),
+                        comment_type="revision",
+                        actor=g.current_user,
+                    )
+                    notification_users = dof_change_notification_users(dof)
+                    old_responsible = (
+                        User.query.get(old_responsible_id)
+                        if old_responsible_id and old_responsible_id != dof.responsible_id
+                        else None
+                    )
+                    if old_responsible:
+                        notification_users.append(old_responsible)
+                    notify_dof_users(
+                        notification_users,
+                        dof,
+                        (
+                            f"{dof_label(dof)} kaydında düzenleme yapıldı: "
+                            f"{short_text(', '.join(changes), 180)}"
+                        ),
+                        exclude_user_id=g.current_user.id,
+                    )
+                    flash("İF düzenlemeleri kaydedildi ve ilgililere bildirim gönderildi.", "success")
+                else:
+                    flash("Kaydedilecek yeni bir düzenleme bulunamadı.", "info")
             elif is_draft_record:
                 add_dof_comment(
                     dof,
@@ -5183,6 +5234,7 @@ def edit_dof_draft(dof_id):
             else f"{dof.dof_no} numaralı İF kaydındaki kapanış aksiyonlarını yazıp onaya gönderin."
         ),
         can_save_draft=is_draft_record,
+        can_save_changes=not is_draft_record,
         submit_label="Onaya Gönder",
         submit_icon="bi-send-check",
         submit_button_class="btn-success",

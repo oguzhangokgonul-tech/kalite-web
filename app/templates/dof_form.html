@@ -28,6 +28,12 @@
           <span>Taslak Kaydet</span>
         </button>
       {% endif %}
+      {% if can_save_changes %}
+        <button class="btn btn-outline-primary btn-lg" type="submit" name="save_mode" value="save_changes" form="dofForm">
+          <i class="bi bi-save"></i>
+          <span>Düzenlemeleri Kaydet</span>
+        </button>
+      {% endif %}
       <button class="btn {{ submit_button_class or 'btn-primary' }} btn-lg" type="submit" name="save_mode" value="open" form="dofForm">
         <i class="bi {{ submit_icon or 'bi-save' }}"></i>
         <span>{{ submit_label or "Kaydet" }}</span>
