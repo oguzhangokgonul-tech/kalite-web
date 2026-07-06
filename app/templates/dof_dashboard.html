@@ -11,7 +11,15 @@
   {% elif dof.display_status == "Tamamlandı" %}
     <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
   {% elif dof.display_status == "Onay Akışı Bekleniyor" %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Bekliyor</span>
+    {% if dof.approval_step == "general_manager_deputy" %}
+      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Genel Müdür Yardımcısı Onayı Bekleniyor</span>
+    {% elif dof.approval_step == "management_representative" and dof.closing_evidence %}
+      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Yönetim Temsilcisi Onayı Bekleniyor</span>
+    {% elif dof.approval_step == "management_representative" %}
+      <span class="status-pill status-pill-warning"><i class="bi bi-person-check-fill"></i> Personel Kapatması Bekleniyor</span>
+    {% else %}
+      <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Bekliyor</span>
+    {% endif %}
   {% elif dof.display_status == "Revizyon Bekleniyor" %}
     <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Revizyon Bekleniyor</span>
   {% else %}

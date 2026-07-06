@@ -1737,7 +1737,7 @@ body {
 
 .dof-dashboard-table th:nth-child(2),
 .dof-dashboard-table td:nth-child(2) {
-    width: 23%;
+    width: 21%;
 }
 
 .dof-dashboard-table th:nth-child(3),
@@ -1752,17 +1752,17 @@ body {
 
 .dof-dashboard-table th:nth-child(5),
 .dof-dashboard-table td:nth-child(5) {
-    width: 8%;
+    width: 7%;
 }
 
 .dof-dashboard-table th:nth-child(6),
 .dof-dashboard-table td:nth-child(6) {
-    width: 11%;
+    width: 15%;
 }
 
 .dof-dashboard-table th:nth-child(7),
 .dof-dashboard-table td:nth-child(7) {
-    width: 6%;
+    width: 5%;
 }
 
 .dof-dashboard-table th:nth-child(8),
@@ -1792,7 +1792,8 @@ body {
     padding: 5px 8px;
     line-height: 1.2;
     text-align: left;
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .dof-dashboard-table .dashboard-row-actions {
