@@ -1,7 +1,8 @@
 from sqlalchemy import inspect, text
 
 from .extensions import db
-from .models import User
+from .models import MaintenanceMachine, User
+from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 DEFAULT_USERS = (
@@ -415,3 +416,31 @@ def ensure_default_users(reset_passwords=True):
             user.set_password(item["password"])
 
     db.session.commit()
+
+
+def ensure_default_maintenance_machines():
+    from .routes import ensure_maintenance_schema
+
+    ensure_maintenance_schema()
+    changed = False
+    for item in MAINTENANCE_MACHINE_DEFAULTS:
+        code = item["code"]
+        machine = MaintenanceMachine.query.filter_by(code=code).first()
+        if machine is None:
+            machine = MaintenanceMachine(code=code)
+            db.session.add(machine)
+            changed = True
+
+        for key in ("machine_name", "brand_model", "serial_no", "status", "location"):
+            value = item.get(key) or None
+            if key == "status":
+                value = item.get(key) or "ÇALIŞIYOR"
+            if getattr(machine, key) != value:
+                setattr(machine, key, value)
+                changed = True
+        if not machine.is_active:
+            machine.is_active = True
+            changed = True
+
+    if changed:
+        db.session.commit()

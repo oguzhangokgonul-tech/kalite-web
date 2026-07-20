@@ -27,6 +27,10 @@
           <i class="bi bi-diagram-3"></i>
           <span>Organizasyon Şeması</span>
         </a>
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.maintenance_dashboard', 'main.create_maintenance_machine', 'main.edit_maintenance_machine', 'main.create_maintenance_fault', 'main.maintenance_fault_detail', 'main.edit_maintenance_fault'] %}active{% endif %}" href="{{ url_for('main.maintenance_dashboard') }}">
+          <i class="bi bi-wrench-adjustable"></i>
+          <span>Bakım</span>
+        </a>
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-clipboard2-pulse"></i>
           <span>İF Yönetimi</span>

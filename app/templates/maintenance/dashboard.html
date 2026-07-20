@@ -1,0 +1,303 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Bakım{% endblock %}
+
+{% macro maintenance_status_badge(status) %}
+  <span class="maintenance-badge maintenance-badge-{{ status_tone(status) }}">
+    {% if status == "Tamamlandı" or status == "ÇALIŞIYOR" %}
+      <i class="bi bi-check-circle-fill"></i>
+    {% elif status == "ARIZALI" or status == "Gecikti" %}
+      <i class="bi bi-exclamation-triangle-fill"></i>
+    {% elif status == "İşlemde" %}
+      <i class="bi bi-gear-fill"></i>
+    {% else %}
+      <i class="bi bi-circle-fill"></i>
+    {% endif %}
+    <span>{{ status or "-" }}</span>
+  </span>
+{% endmacro %}
+
+{% macro maintenance_priority_badge(priority) %}
+  <span class="maintenance-badge maintenance-badge-{{ priority_tone(priority) }}">
+    <i class="bi bi-flag-fill"></i>
+    <span>{{ priority or "-" }}</span>
+  </span>
+{% endmacro %}
+
+{% macro maintenance_due_badge(fault) %}
+  {% set meta = due_meta(fault) %}
+  <span class="maintenance-due maintenance-due-{{ meta.tone }}">
+    {% if fault.due_date %}
+      <strong>{{ format_date(fault.due_date) }}</strong>
+    {% else %}
+      <strong>-</strong>
+    {% endif %}
+    <span>{{ meta.text }}</span>
+  </span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Bakım Yönetimi</h2>
+      <p>Makine arızalarını, sorumluları ve kapanış işlemlerini takip edin.</p>
+    </div>
+    <div class="app-heading-actions">
+      {% if can_open_fault %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_maintenance_fault') }}">
+          <i class="bi bi-plus-lg"></i>
+          <span>Arıza Aç</span>
+        </a>
+      {% endif %}
+      {% if can_manage_inventory %}
+        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.create_maintenance_machine') }}">
+          <i class="bi bi-tools"></i>
+          <span>Makine Ekle</span>
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="dashboard-metrics maintenance-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-hdd-network"></i></span>
+      <span class="stat-label">Toplam Makine</span>
+      <strong>{{ total_machine_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Aktif Makine</span>
+      <strong>{{ active_machine_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-wrench-adjustable-circle"></i></span>
+      <span class="stat-label">Açık Arıza</span>
+      <strong>{{ open_fault_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-clipboard-check"></i></span>
+      <span class="stat-label">Tamamlanan</span>
+      <strong>{{ completed_fault_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+      <span class="stat-label">Geciken Arıza</span>
+      <strong>{{ delayed_fault_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="maintenance-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Makine, kod, seri no veya arıza ara">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="machine_status">Makine Durumu</label>
+        <select class="form-select" id="machine_status" name="machine_status">
+          <option value="">Tümü</option>
+          {% for status in machine_statuses %}
+            <option value="{{ status }}" {% if filters.machine_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="fault_status">Arıza Durumu</label>
+        <select class="form-select" id="fault_status" name="fault_status">
+          <option value="">Tümü</option>
+          {% for status in fault_statuses %}
+            <option value="{{ status }}" {% if filters.fault_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="priority">Öncelik</label>
+        <select class="form-select" id="priority" name="priority">
+          <option value="">Tümü</option>
+          {% for priority in priorities %}
+            <option value="{{ priority }}" {% if filters.priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.maintenance_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="dashboard-table-card maintenance-section-card">
+    <div class="maintenance-section-header">
+      <div>
+        <h3>Arıza Takibi</h3>
+        <p>Açılan arızalar, sorumlular ve termin durumları.</p>
+      </div>
+      {% if can_open_fault %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('main.create_maintenance_fault') }}">
+          <i class="bi bi-plus-lg"></i>
+          <span>Arıza Aç</span>
+        </a>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Arıza No</th>
+            <th>Makine</th>
+            <th>Arıza Başlığı</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th>Öncelik</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for fault in faults %}
+            <tr>
+              <td data-label="Arıza No">
+                <a class="maintenance-ref-link" href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">{{ fault.number_label }}</a>
+              </td>
+              <td data-label="Makine">
+                <strong>{{ fault.machine.code }}</strong>
+                <span class="maintenance-muted-line">{{ fault.machine.machine_name }}</span>
+              </td>
+              <td data-label="Arıza Başlığı" class="maintenance-title-cell">
+                <a href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">{{ fault.title }}</a>
+                <span>{{ fault.description or "Açıklama girilmemiş." }}</span>
+              </td>
+              <td data-label="Sorumlu">{{ fault.responsible_user.full_name if fault.responsible_user else "-" }}</td>
+              <td data-label="Termin">{{ maintenance_due_badge(fault) }}</td>
+              <td data-label="Durum">{{ maintenance_status_badge(fault.status) }}</td>
+              <td data-label="Öncelik">{{ maintenance_priority_badge(fault.priority) }}</td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  {% if can_edit_fault(fault) %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_maintenance_fault', fault_id=fault.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_complete_fault(fault) %}
+                    <a class="btn btn-sm btn-success" href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}#maintenance-complete">
+                      <i class="bi bi-check2-circle"></i>
+                      <span>Kapat</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_fault(fault) %}
+                    <form action="{{ url_for('main.delete_maintenance_fault', fault_id=fault.id) }}" method="post" onsubmit="return confirm('Arıza kaydını silmek istediğinize emin misiniz?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-trash"></i>
+                        <span>Sil</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="8">
+                <strong>Henüz arıza kaydı yok.</strong>
+                <span>Yeni arıza açıldığında burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ faults|length }} arıza kaydı</span>
+    </div>
+  </section>
+
+  <section class="dashboard-table-card maintenance-section-card">
+    <div class="maintenance-section-header">
+      <div>
+        <h3>Makine Envanteri</h3>
+        <p>PL.18 bakım planından aktarılan makine, marka model, seri no ve kod bilgileri.</p>
+      </div>
+      {% if can_manage_inventory %}
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_maintenance_machine') }}">
+          <i class="bi bi-tools"></i>
+          <span>Makine Ekle</span>
+        </a>
+      {% endif %}
+    </div>
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Kod</th>
+            <th>Makine Adı</th>
+            <th>Marka Model</th>
+            <th>Seri No</th>
+            <th>Durum</th>
+            <th>Kullanım Yeri</th>
+            <th>Açık Arıza</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for machine in machines %}
+            <tr class="{% if not machine.is_active %}maintenance-row-passive{% endif %}">
+              <td data-label="Kod"><strong>{{ machine.code }}</strong></td>
+              <td data-label="Makine Adı">{{ machine.machine_name }}</td>
+              <td data-label="Marka Model">{{ machine.brand_model or "-" }}</td>
+              <td data-label="Seri No">{{ machine.serial_no or "-" }}</td>
+              <td data-label="Durum">{{ maintenance_status_badge(machine.status) }}</td>
+              <td data-label="Kullanım Yeri">{{ machine.location or "-" }}</td>
+              <td data-label="Açık Arıza">{{ open_fault_count_for_machine(machine) }}</td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions">
+                  {% if can_open_fault and machine.is_active %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_maintenance_fault', machine_id=machine.id) }}">
+                      <i class="bi bi-plus-circle"></i>
+                      <span>Arıza Aç</span>
+                    </a>
+                  {% endif %}
+                  {% if can_manage_inventory %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.edit_maintenance_machine', machine_id=machine.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                    <form action="{{ url_for('main.delete_maintenance_machine', machine_id=machine.id) }}" method="post" onsubmit="return confirm('Makine kaydını silmek istediğinize emin misiniz?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-trash"></i>
+                        <span>Sil</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="8">
+                <strong>Makine envanteri boş.</strong>
+                <span>Makine ekleyin veya seed komutuyla Excel listesini içeri alın.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ machines|length }} makine</span>
+    </div>
+  </section>
+{% endblock %}

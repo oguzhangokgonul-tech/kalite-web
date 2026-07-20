@@ -51,6 +51,11 @@ from .models import (
     InternalAudit,
     InternalAuditAnswer,
     InternalAuditQuestion,
+    MAINTENANCE_FAULT_PRIORITIES,
+    MAINTENANCE_FAULT_STATUSES,
+    MAINTENANCE_MACHINE_STATUSES,
+    MaintenanceFault,
+    MaintenanceMachine,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -129,6 +134,7 @@ def assigned_tasks_badge_count():
         Action.query.filter_by(responsible_user_id=user_id).count()
         + ActionSubTask.query.filter_by(responsible_id=user_id).count()
         + Dof.query.filter_by(responsible_id=user_id).count()
+        + MaintenanceFault.query.filter_by(responsible_user_id=user_id).count()
         + InternalAudit.query.filter(
             or_(
                 InternalAudit.auditor_id == user_id,
@@ -154,6 +160,7 @@ def load_logged_in_user():
         ensure_internal_audit_schema()
         ensure_action_sub_task_schema()
         ensure_document_schema()
+        ensure_maintenance_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -643,6 +650,129 @@ def ensure_document_categories():
         db.session.commit()
 
 
+def ensure_maintenance_schema():
+    if current_app.extensions.get("maintenance_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "maintenance_machines" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE maintenance_machines (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            code VARCHAR(80) NOT NULL UNIQUE,
+                            machine_name VARCHAR(180) NOT NULL,
+                            brand_model VARCHAR(180),
+                            serial_no VARCHAR(120),
+                            status VARCHAR(40) NOT NULL DEFAULT 'ÇALIŞIYOR',
+                            location VARCHAR(160),
+                            notes TEXT,
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("maintenance_machines")
+                }
+                machine_columns = {
+                    "code": "ALTER TABLE maintenance_machines ADD COLUMN code VARCHAR(80) NOT NULL DEFAULT ''",
+                    "machine_name": "ALTER TABLE maintenance_machines ADD COLUMN machine_name VARCHAR(180) NOT NULL DEFAULT ''",
+                    "brand_model": "ALTER TABLE maintenance_machines ADD COLUMN brand_model VARCHAR(180)",
+                    "serial_no": "ALTER TABLE maintenance_machines ADD COLUMN serial_no VARCHAR(120)",
+                    "status": "ALTER TABLE maintenance_machines ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'ÇALIŞIYOR'",
+                    "location": "ALTER TABLE maintenance_machines ADD COLUMN location VARCHAR(160)",
+                    "notes": "ALTER TABLE maintenance_machines ADD COLUMN notes TEXT",
+                    "is_active": "ALTER TABLE maintenance_machines ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+                    "created_by_user_id": "ALTER TABLE maintenance_machines ADD COLUMN created_by_user_id INTEGER",
+                    "created_at": "ALTER TABLE maintenance_machines ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE maintenance_machines ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in machine_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "maintenance_faults" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE maintenance_faults (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            fault_number INTEGER UNIQUE,
+                            machine_id INTEGER NOT NULL,
+                            title VARCHAR(180) NOT NULL,
+                            description TEXT,
+                            status VARCHAR(40) NOT NULL DEFAULT 'Açık',
+                            priority VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                            reported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            due_date DATE,
+                            completed_at DATETIME,
+                            closing_note TEXT,
+                            reported_by_user_id INTEGER,
+                            responsible_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(machine_id) REFERENCES maintenance_machines (id),
+                            FOREIGN KEY(reported_by_user_id) REFERENCES users (id),
+                            FOREIGN KEY(responsible_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("maintenance_faults")
+                }
+                fault_columns = {
+                    "fault_number": "ALTER TABLE maintenance_faults ADD COLUMN fault_number INTEGER",
+                    "machine_id": "ALTER TABLE maintenance_faults ADD COLUMN machine_id INTEGER NOT NULL DEFAULT 0",
+                    "title": "ALTER TABLE maintenance_faults ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+                    "description": "ALTER TABLE maintenance_faults ADD COLUMN description TEXT",
+                    "status": "ALTER TABLE maintenance_faults ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Açık'",
+                    "priority": "ALTER TABLE maintenance_faults ADD COLUMN priority VARCHAR(40) NOT NULL DEFAULT 'Orta'",
+                    "reported_at": "ALTER TABLE maintenance_faults ADD COLUMN reported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "due_date": "ALTER TABLE maintenance_faults ADD COLUMN due_date DATE",
+                    "completed_at": "ALTER TABLE maintenance_faults ADD COLUMN completed_at DATETIME",
+                    "closing_note": "ALTER TABLE maintenance_faults ADD COLUMN closing_note TEXT",
+                    "reported_by_user_id": "ALTER TABLE maintenance_faults ADD COLUMN reported_by_user_id INTEGER",
+                    "responsible_user_id": "ALTER TABLE maintenance_faults ADD COLUMN responsible_user_id INTEGER",
+                    "created_at": "ALTER TABLE maintenance_faults ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE maintenance_faults ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in fault_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_maintenance_faults_machine_id "
+                    "ON maintenance_faults (machine_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_maintenance_faults_status "
+                    "ON maintenance_faults (status)"
+                )
+            )
+
+        current_app.extensions["maintenance_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Bakım yönetimi şeması kontrol edilemedi.")
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -1106,6 +1236,30 @@ def reserve_internal_audit_number(today=None):
 
     setting.value = str(next_number + 1)
     return f"{prefix}{next_number:04d}"
+
+
+def reserve_maintenance_fault_number():
+    max_number = (
+        db.session.query(
+            db.func.max(db.func.coalesce(MaintenanceFault.fault_number, MaintenanceFault.id))
+        )
+        .scalar()
+        or 0
+    )
+    setting = db.session.get(AppSetting, "next_maintenance_fault_number")
+    if setting is None:
+        setting = AppSetting(
+            key="next_maintenance_fault_number",
+            value=str(max_number + 1),
+        )
+        db.session.add(setting)
+
+    next_number = int(setting.value)
+    if next_number <= max_number:
+        next_number = max_number + 1
+
+    setting.value = str(next_number + 1)
+    return next_number
 
 
 def can_view_internal_audit(audit):
@@ -2236,6 +2390,254 @@ def document_form_context(document=None, category_slug=None):
         "statuses": DOCUMENT_STATUSES,
         "departments": DOCUMENT_DEPARTMENTS,
         "form_data": form_data,
+    }
+
+
+def can_manage_maintenance_inventory():
+    return is_oguzhan_admin() or (
+        g.current_user is not None and g.current_user.can_manage_users
+    )
+
+
+def can_open_maintenance_fault():
+    return g.current_user is not None
+
+
+def can_edit_maintenance_fault(fault):
+    return g.current_user is not None and fault.status != "Tamamlandı"
+
+
+def can_complete_maintenance_fault(fault):
+    return can_edit_maintenance_fault(fault)
+
+
+def can_delete_maintenance_fault(fault=None):
+    return can_manage_maintenance_inventory()
+
+
+def maintenance_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "machine_status": request.args.get("machine_status", "").strip(),
+        "fault_status": request.args.get("fault_status", "").strip(),
+        "priority": request.args.get("priority", "").strip(),
+    }
+
+
+def maintenance_status_tone(status):
+    normalized = normalize_for_role(status)
+    if "calisiyor" in normalized or status == "Tamamlandı":
+        return "success"
+    if "arizali" in normalized or "gecikti" in normalized:
+        return "danger"
+    if "islemde" in normalized:
+        return "info"
+    if "hurda" in normalized or "pasif" in normalized or "iptal" in normalized:
+        return "muted"
+    return "warning"
+
+
+def maintenance_priority_tone(priority):
+    return priority_tone(priority)
+
+
+def maintenance_due_meta(fault):
+    return due_meta(fault.due_date, fault.status == "Tamamlandı")
+
+
+def maintenance_open_fault_count(machine):
+    return sum(1 for fault in machine.faults if fault.status != "Tamamlandı")
+
+
+def refresh_machine_status_from_faults(machine):
+    if machine is None:
+        return
+    has_open_fault = (
+        MaintenanceFault.query.filter(
+            MaintenanceFault.machine_id == machine.id,
+            MaintenanceFault.status != "Tamamlandı",
+        ).first()
+        is not None
+    )
+    if has_open_fault:
+        machine.status = "ARIZALI"
+    elif machine.status == "ARIZALI":
+        machine.status = "ÇALIŞIYOR"
+
+
+def maintenance_machine_query():
+    return MaintenanceMachine.query.order_by(
+        MaintenanceMachine.code.asc(),
+        MaintenanceMachine.machine_name.asc(),
+    )
+
+
+def maintenance_fault_query():
+    return MaintenanceFault.query.join(MaintenanceMachine).order_by(
+        MaintenanceFault.created_at.desc(),
+        MaintenanceFault.id.desc(),
+    )
+
+
+def filtered_maintenance_machines(filters):
+    query = maintenance_machine_query()
+    if filters["machine_status"]:
+        query = query.filter(MaintenanceMachine.status == filters["machine_status"])
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                MaintenanceMachine.code.ilike(search_value),
+                MaintenanceMachine.machine_name.ilike(search_value),
+                MaintenanceMachine.brand_model.ilike(search_value),
+                MaintenanceMachine.serial_no.ilike(search_value),
+                MaintenanceMachine.location.ilike(search_value),
+            )
+        )
+    return query.all()
+
+
+def filtered_maintenance_faults(filters):
+    query = maintenance_fault_query()
+    if filters["fault_status"]:
+        query = query.filter(MaintenanceFault.status == filters["fault_status"])
+    if filters["priority"]:
+        query = query.filter(MaintenanceFault.priority == filters["priority"])
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                MaintenanceFault.title.ilike(search_value),
+                MaintenanceFault.description.ilike(search_value),
+                MaintenanceMachine.code.ilike(search_value),
+                MaintenanceMachine.machine_name.ilike(search_value),
+                MaintenanceMachine.brand_model.ilike(search_value),
+                MaintenanceMachine.serial_no.ilike(search_value),
+            )
+        )
+    return query.all()
+
+
+def parse_maintenance_machine_form():
+    code = request.form.get("code", "").strip()
+    machine_name = request.form.get("machine_name", "").strip()
+    brand_model = request.form.get("brand_model", "").strip()
+    serial_no = request.form.get("serial_no", "").strip()
+    status = request.form.get("status", "").strip() or "ÇALIŞIYOR"
+    location = request.form.get("location", "").strip()
+    notes = request.form.get("notes", "").strip()
+
+    if not code or not machine_name:
+        raise ValueError("required_fields")
+    if status not in MAINTENANCE_MACHINE_STATUSES:
+        raise ValueError("invalid_status")
+
+    return {
+        "code": code[:80],
+        "machine_name": machine_name[:180],
+        "brand_model": brand_model[:180] or None,
+        "serial_no": serial_no[:120] or None,
+        "status": status,
+        "location": location[:160] or None,
+        "notes": notes or None,
+    }
+
+
+def parse_maintenance_fault_form():
+    machine_id = request.form.get("machine_id", "").strip()
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    responsible_user = parse_optional_active_user("responsible_user_id")
+    due_date = parse_optional_date("due_date")
+    priority = request.form.get("priority", "").strip() or "Orta"
+    status = request.form.get("status", "").strip() or "Açık"
+
+    try:
+        machine_id = int(machine_id)
+    except ValueError:
+        raise ValueError("invalid_machine") from None
+
+    machine = MaintenanceMachine.query.filter_by(id=machine_id, is_active=True).first()
+    if machine is None:
+        raise ValueError("invalid_machine")
+    if not title:
+        raise ValueError("required_fields")
+    if priority not in MAINTENANCE_FAULT_PRIORITIES:
+        raise ValueError("invalid_priority")
+    if status not in MAINTENANCE_FAULT_STATUSES:
+        raise ValueError("invalid_status")
+
+    return {
+        "machine": machine,
+        "title": title[:180],
+        "description": description or None,
+        "responsible_user": responsible_user,
+        "due_date": due_date,
+        "priority": priority,
+        "status": status,
+    }
+
+
+def maintenance_dashboard_context():
+    filters = maintenance_filters()
+    machines = filtered_maintenance_machines(filters)
+    faults = filtered_maintenance_faults(filters)
+    all_machines = MaintenanceMachine.query.all()
+    all_faults = MaintenanceFault.query.all()
+    open_faults = [fault for fault in all_faults if fault.status != "Tamamlandı"]
+    delayed_faults = [
+        fault
+        for fault in open_faults
+        if fault.due_date is not None and fault.due_date < date.today()
+    ]
+
+    return {
+        "machines": machines,
+        "faults": faults,
+        "filters": filters,
+        "machine_statuses": MAINTENANCE_MACHINE_STATUSES,
+        "fault_statuses": MAINTENANCE_FAULT_STATUSES,
+        "priorities": MAINTENANCE_FAULT_PRIORITIES,
+        "users": active_users(),
+        "total_machine_count": len(all_machines),
+        "active_machine_count": sum(1 for machine in all_machines if machine.is_active),
+        "open_fault_count": len(open_faults),
+        "completed_fault_count": sum(
+            1 for fault in all_faults if fault.status == "Tamamlandı"
+        ),
+        "delayed_fault_count": len(delayed_faults),
+        "can_manage_inventory": can_manage_maintenance_inventory(),
+        "can_open_fault": can_open_maintenance_fault(),
+        "can_edit_fault": can_edit_maintenance_fault,
+        "can_complete_fault": can_complete_maintenance_fault,
+        "can_delete_fault": can_delete_maintenance_fault,
+        "open_fault_count_for_machine": maintenance_open_fault_count,
+        "status_tone": maintenance_status_tone,
+        "priority_tone": maintenance_priority_tone,
+        "due_meta": maintenance_due_meta,
+        "format_date": format_date,
+    }
+
+
+def maintenance_machine_form_context(machine=None):
+    return {
+        "machine": machine,
+        "statuses": MAINTENANCE_MACHINE_STATUSES,
+        "form_data": request.form if request.method == "POST" else {},
+    }
+
+
+def maintenance_fault_form_context(fault=None, machine=None):
+    return {
+        "fault": fault,
+        "selected_machine": machine or (fault.machine if fault else None),
+        "machines": MaintenanceMachine.query.filter_by(is_active=True)
+        .order_by(MaintenanceMachine.code.asc(), MaintenanceMachine.machine_name.asc())
+        .all(),
+        "users": active_users(),
+        "statuses": MAINTENANCE_FAULT_STATUSES,
+        "priorities": MAINTENANCE_FAULT_PRIORITIES,
+        "form_data": request.form if request.method == "POST" else {},
     }
 
 
@@ -4028,11 +4430,60 @@ def assigned_internal_audit_tasks(scope):
     return rows
 
 
+def maintenance_task_status(fault):
+    if fault.status == "Tamamlandı":
+        return "Tamamlandı", "completed"
+    if fault.status == "İptal Edildi":
+        return "İptal Edildi", "cancelled"
+    if fault.due_date and fault.due_date < date.today():
+        return "Gecikti", "delayed"
+    return fault.status, "open"
+
+
+def assigned_maintenance_tasks(scope):
+    user_id = g.current_user.id
+    if scope == "created":
+        faults = MaintenanceFault.query.filter_by(reported_by_user_id=user_id).all()
+    else:
+        faults = MaintenanceFault.query.filter_by(responsible_user_id=user_id).all()
+
+    rows = []
+    for fault in faults:
+        status, status_key = maintenance_task_status(fault)
+        machine = fault.machine
+        description_parts = [
+            machine.code if machine else "",
+            machine.machine_name if machine else "",
+            fault.description or "",
+        ]
+        rows.append(
+            assigned_task_row(
+                module_key="maintenance",
+                module_label="Bakım",
+                module_icon="wrench-adjustable",
+                module_tone="info",
+                title=fault.title,
+                description=" | ".join(part for part in description_parts if part),
+                reference_no=fault.number_label,
+                department="Bakım",
+                due_date=fault.due_date,
+                status=status,
+                status_key=status_key,
+                priority=fault.priority or "Orta",
+                detail_url=url_for("main.maintenance_fault_detail", fault_id=fault.id),
+                created_at=fault.created_at,
+                sort_id=fault.id,
+            )
+        )
+    return rows
+
+
 def assigned_all_tasks(scope):
     return (
         assigned_action_tasks(scope)
         + assigned_internal_audit_tasks(scope)
         + assigned_dof_tasks(scope)
+        + assigned_maintenance_tasks(scope)
     )
 
 
@@ -4049,6 +4500,8 @@ def assigned_tab_filter_matches(task, tab):
         return task["module_key"] == "internal_audit"
     if tab == "dofs":
         return task["module_key"] == "dof"
+    if tab == "maintenance":
+        return task["module_key"] == "maintenance"
     return True
 
 
@@ -4114,7 +4567,7 @@ def assigned_tasks_context():
     filters = assigned_filters()
     if filters["scope"] not in {"assigned", "created"}:
         filters["scope"] = "assigned"
-    if filters["tab"] not in {"all", "actions", "audits", "dofs"}:
+    if filters["tab"] not in {"all", "actions", "audits", "dofs", "maintenance"}:
         filters["tab"] = "all"
 
     all_tasks = sorted(
@@ -4147,6 +4600,7 @@ def assigned_tasks_context():
             ("action", "Aksiyon"),
             ("internal_audit", "İç Denetim"),
             ("dof", "IF Kaydı"),
+            ("maintenance", "Bakım"),
         ],
         "status_options": [
             ("", "Tümü"),
@@ -4164,6 +4618,7 @@ def assigned_tasks_context():
             ("actions", "Aksiyonlar"),
             ("audits", "İç Denetimler"),
             ("dofs", "IF Kayıtları"),
+            ("maintenance", "Bakım"),
         ],
         "page": page,
         "per_page": per_page,
@@ -4497,6 +4952,303 @@ def delete_document(document_id):
     if category_slug:
         return redirect(url_for("main.documents_category", slug=category_slug))
     return redirect(url_for("main.documents_dashboard"))
+
+
+@bp.route("/bakim")
+@login_required
+def maintenance_dashboard():
+    return render_template(
+        "maintenance/dashboard.html",
+        **maintenance_dashboard_context(),
+    )
+
+
+@bp.route("/bakim/makine/yeni", methods=["GET", "POST"])
+@login_required
+def create_maintenance_machine():
+    if not can_manage_maintenance_inventory():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_maintenance_machine_form()
+            if MaintenanceMachine.query.filter_by(code=values["code"]).first():
+                raise ValueError("duplicate_code")
+            machine = MaintenanceMachine(
+                **values,
+                created_by_user_id=g.current_user.id,
+                is_active=True,
+            )
+            db.session.add(machine)
+            db.session.commit()
+            flash("Makine envantere eklendi.", "success")
+            return redirect(url_for("main.maintenance_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Kod ve makine adı zorunludur.", "danger")
+            elif error_key == "duplicate_code":
+                flash("Bu makine kodu zaten kayıtlı.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir makine durumu seçin.", "danger")
+            else:
+                flash("Makine formunu kontrol edin.", "danger")
+
+    return render_template(
+        "maintenance/machine_form.html",
+        page_title="Makine Ekle",
+        page_description="Bakım envanterine yeni makine ekleyin.",
+        form_action=url_for("main.create_maintenance_machine"),
+        submit_label="Makineyi Kaydet",
+        **maintenance_machine_form_context(),
+    )
+
+
+@bp.route("/bakim/makine/<int:machine_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_maintenance_machine(machine_id):
+    if not can_manage_maintenance_inventory():
+        abort(403)
+
+    machine = MaintenanceMachine.query.get_or_404(machine_id)
+    if request.method == "POST":
+        try:
+            values = parse_maintenance_machine_form()
+            existing = MaintenanceMachine.query.filter_by(code=values["code"]).first()
+            if existing is not None and existing.id != machine.id:
+                raise ValueError("duplicate_code")
+            for key, value in values.items():
+                setattr(machine, key, value)
+            machine.is_active = request.form.get("is_active") == "on"
+            db.session.commit()
+            flash("Makine bilgileri güncellendi.", "success")
+            return redirect(url_for("main.maintenance_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Kod ve makine adı zorunludur.", "danger")
+            elif error_key == "duplicate_code":
+                flash("Bu makine kodu başka bir kayıtta kullanılıyor.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir makine durumu seçin.", "danger")
+            else:
+                flash("Makine formunu kontrol edin.", "danger")
+
+    return render_template(
+        "maintenance/machine_form.html",
+        page_title="Makine Düzenle",
+        page_description="Makine envanter bilgisini güncelleyin.",
+        form_action=url_for("main.edit_maintenance_machine", machine_id=machine.id),
+        submit_label="Değişiklikleri Kaydet",
+        **maintenance_machine_form_context(machine),
+    )
+
+
+@bp.post("/bakim/makine/<int:machine_id>/sil")
+@login_required
+def delete_maintenance_machine(machine_id):
+    if not can_manage_maintenance_inventory():
+        abort(403)
+
+    machine = MaintenanceMachine.query.get_or_404(machine_id)
+    if machine.faults:
+        machine.is_active = False
+        machine.status = "PASİF"
+        db.session.commit()
+        flash(
+            "Bu makineye bağlı arıza kayıtları olduğu için silinmedi, pasife alındı.",
+            "warning",
+        )
+    else:
+        db.session.delete(machine)
+        db.session.commit()
+        flash("Makine envanterden silindi.", "success")
+    return redirect(url_for("main.maintenance_dashboard"))
+
+
+@bp.route("/bakim/ariza/yeni", methods=["GET", "POST"])
+@login_required
+def create_maintenance_fault():
+    if not can_open_maintenance_fault():
+        abort(403)
+
+    selected_machine = None
+    machine_id = request.args.get("machine_id", type=int)
+    if machine_id:
+        selected_machine = MaintenanceMachine.query.filter_by(
+            id=machine_id,
+            is_active=True,
+        ).first()
+
+    if request.method == "POST":
+        try:
+            values = parse_maintenance_fault_form()
+            fault = MaintenanceFault(
+                machine=values["machine"],
+                fault_number=reserve_maintenance_fault_number(),
+                title=values["title"],
+                description=values["description"],
+                responsible_user_id=(
+                    values["responsible_user"].id
+                    if values["responsible_user"] is not None
+                    else None
+                ),
+                due_date=values["due_date"],
+                priority=values["priority"],
+                status=values["status"],
+                reported_by_user_id=g.current_user.id,
+            )
+            if fault.status == "Tamamlandı":
+                fault.completed_at = datetime.utcnow()
+            db.session.add(fault)
+            db.session.flush()
+            refresh_machine_status_from_faults(values["machine"])
+            db.session.commit()
+            flash("Arıza kaydı açıldı.", "success")
+            return redirect(url_for("main.maintenance_fault_detail", fault_id=fault.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Makine ve arıza başlığı zorunludur.", "danger")
+            elif error_key == "invalid_machine":
+                flash("Geçerli bir makine seçin.", "danger")
+            elif error_key == "invalid_user":
+                flash("Geçerli bir sorumlu kullanıcı seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Termin tarihini geçerli biçimde girin.", "danger")
+            elif error_key == "invalid_priority":
+                flash("Geçerli bir öncelik seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir arıza durumu seçin.", "danger")
+            else:
+                flash("Arıza formunu kontrol edin.", "danger")
+
+    return render_template(
+        "maintenance/fault_form.html",
+        page_title="Arıza Aç",
+        page_description="Makine arızası için takip kaydı oluşturun.",
+        form_action=url_for("main.create_maintenance_fault"),
+        submit_label="Arızayı Kaydet",
+        **maintenance_fault_form_context(machine=selected_machine),
+    )
+
+
+@bp.get("/bakim/ariza/<int:fault_id>")
+@login_required
+def maintenance_fault_detail(fault_id):
+    fault = MaintenanceFault.query.get_or_404(fault_id)
+    return render_template(
+        "maintenance/fault_detail.html",
+        fault=fault,
+        due_meta=maintenance_due_meta(fault),
+        status_tone=maintenance_status_tone,
+        priority_tone=maintenance_priority_tone,
+        format_date=format_date,
+        can_edit_fault=can_edit_maintenance_fault(fault),
+        can_complete_fault=can_complete_maintenance_fault(fault),
+        can_delete_fault=can_delete_maintenance_fault(fault),
+    )
+
+
+@bp.route("/bakim/ariza/<int:fault_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_maintenance_fault(fault_id):
+    fault = MaintenanceFault.query.get_or_404(fault_id)
+    if not can_edit_maintenance_fault(fault):
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_maintenance_fault_form()
+            previous_machine = fault.machine
+            fault.machine = values["machine"]
+            fault.title = values["title"]
+            fault.description = values["description"]
+            fault.responsible_user_id = (
+                values["responsible_user"].id
+                if values["responsible_user"] is not None
+                else None
+            )
+            fault.due_date = values["due_date"]
+            fault.priority = values["priority"]
+            fault.status = values["status"]
+            if fault.status == "Tamamlandı" and fault.completed_at is None:
+                fault.completed_at = datetime.utcnow()
+            elif fault.status != "Tamamlandı":
+                fault.completed_at = None
+                fault.closing_note = None
+            if previous_machine is not None and previous_machine.id != fault.machine.id:
+                refresh_machine_status_from_faults(previous_machine)
+            refresh_machine_status_from_faults(fault.machine)
+            db.session.commit()
+            flash("Arıza kaydı güncellendi.", "success")
+            return redirect(url_for("main.maintenance_fault_detail", fault_id=fault.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Makine ve arıza başlığı zorunludur.", "danger")
+            elif error_key == "invalid_machine":
+                flash("Geçerli bir makine seçin.", "danger")
+            elif error_key == "invalid_user":
+                flash("Geçerli bir sorumlu kullanıcı seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Termin tarihini geçerli biçimde girin.", "danger")
+            elif error_key == "invalid_priority":
+                flash("Geçerli bir öncelik seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir arıza durumu seçin.", "danger")
+            else:
+                flash("Arıza formunu kontrol edin.", "danger")
+
+    return render_template(
+        "maintenance/fault_form.html",
+        page_title="Arıza Düzenle",
+        page_description="Makine arıza kaydını güncelleyin.",
+        form_action=url_for("main.edit_maintenance_fault", fault_id=fault.id),
+        submit_label="Değişiklikleri Kaydet",
+        **maintenance_fault_form_context(fault=fault),
+    )
+
+
+@bp.post("/bakim/ariza/<int:fault_id>/kapat")
+@login_required
+def complete_maintenance_fault(fault_id):
+    fault = MaintenanceFault.query.get_or_404(fault_id)
+    if not can_complete_maintenance_fault(fault):
+        abort(403)
+
+    closing_note = request.form.get("closing_note", "").strip()
+    if not closing_note:
+        flash("Arızayı kapatmak için yapılan işlemi yazın.", "danger")
+        return redirect(url_for("main.maintenance_fault_detail", fault_id=fault.id))
+
+    fault.status = "Tamamlandı"
+    fault.closing_note = closing_note
+    fault.completed_at = datetime.utcnow()
+    refresh_machine_status_from_faults(fault.machine)
+    db.session.commit()
+    flash("Arıza kaydı kapatıldı.", "success")
+    return redirect(url_for("main.maintenance_fault_detail", fault_id=fault.id))
+
+
+@bp.post("/bakim/ariza/<int:fault_id>/sil")
+@login_required
+def delete_maintenance_fault(fault_id):
+    fault = MaintenanceFault.query.get_or_404(fault_id)
+    if not can_delete_maintenance_fault(fault):
+        abort(403)
+
+    machine = fault.machine
+    db.session.delete(fault)
+    db.session.flush()
+    refresh_machine_status_from_faults(machine)
+    db.session.commit()
+    flash("Arıza kaydı silindi.", "success")
+    return redirect(url_for("main.maintenance_dashboard"))
 
 
 @bp.route("/dashboard-liste")

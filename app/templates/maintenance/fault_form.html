@@ -1,0 +1,102 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% macro field_value(name, fallback="") %}
+  {% if form_data %}
+    {{ form_data.get(name, fallback) }}
+  {% elif fault %}
+    {{ (fault|attr(name)) or fallback }}
+  {% else %}
+    {{ fallback }}
+  {% endif %}
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>{{ page_title }}</h2>
+      <p>{{ page_description }}</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.maintenance_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Bakım Yönetimi</span>
+    </a>
+  </div>
+
+  <form class="maintenance-form-card" method="post" action="{{ form_action }}">
+    <div class="app-card-header">
+      <span class="app-card-icon maintenance-card-icon"><i class="bi bi-tools"></i></span>
+      <div>
+        <h3>Arıza Bilgileri</h3>
+        <p>Makine arızasını, sorumlusunu, önceliğini ve terminini belirleyin.</p>
+      </div>
+    </div>
+
+    <div class="maintenance-form-grid">
+      <div>
+        <label class="form-label" for="machine_id">Makine <span class="text-danger">*</span></label>
+        {% set current_machine_id = form_data.get('machine_id') if form_data else (selected_machine.id if selected_machine else '') %}
+        <select class="form-select" id="machine_id" name="machine_id">
+          <option value="">Makine seçin</option>
+          {% for machine in machines %}
+            <option value="{{ machine.id }}" {% if current_machine_id|string == machine.id|string %}selected{% endif %}>
+              {{ machine.code }} - {{ machine.machine_name }}{% if machine.brand_model %} / {{ machine.brand_model }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="title">Arıza Başlığı <span class="text-danger">*</span></label>
+        <input class="form-control" id="title" name="title" value="{{ field_value('title')|trim }}" maxlength="180" placeholder="Arıza başlığını yazın">
+      </div>
+      <div>
+        <label class="form-label" for="responsible_user_id">Sorumlu</label>
+        {% set current_user_id = form_data.get('responsible_user_id') if form_data else (fault.responsible_user_id if fault else '') %}
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Sorumlu seçilmedi</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if current_user_id|string == user.id|string %}selected{% endif %}>
+              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="due_date">Termin</label>
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ field_value('due_date')|trim }}">
+      </div>
+      <div>
+        <label class="form-label" for="priority">Öncelik</label>
+        {% set current_priority = field_value('priority', 'Orta')|trim %}
+        <select class="form-select" id="priority" name="priority">
+          {% for priority in priorities %}
+            <option value="{{ priority }}" {% if current_priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        {% set current_status = field_value('status', 'Açık')|trim %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses if status != "Tamamlandı" %}
+            <option value="{{ status }}" {% if current_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label" for="description">Arıza Açıklaması</label>
+      <textarea class="form-control" id="description" name="description" rows="5" placeholder="Arızanın ne olduğunu, nerede görüldüğünü ve yapılan ilk kontrolleri yazın">{{ field_value('description')|trim }}</textarea>
+    </div>
+
+    <div class="maintenance-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.maintenance_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

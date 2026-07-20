@@ -182,6 +182,9 @@
             {% elif task.module_key == "dof" %}
               {% set module_class = "if" %}
               {% set module_icon = "file-earmark-text" %}
+            {% elif task.module_key == "maintenance" %}
+              {% set module_class = "maintenance" %}
+              {% set module_icon = "wrench-adjustable" %}
             {% else %}
               {% set module_class = "action" %}
               {% set module_icon = "lightning-charge" %}

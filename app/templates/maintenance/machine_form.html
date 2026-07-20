@@ -1,0 +1,88 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% macro field_value(name, fallback="") %}
+  {% if form_data %}
+    {{ form_data.get(name, fallback) }}
+  {% elif machine %}
+    {{ (machine|attr(name)) or fallback }}
+  {% else %}
+    {{ fallback }}
+  {% endif %}
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>{{ page_title }}</h2>
+      <p>{{ page_description }}</p>
+    </div>
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.maintenance_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Bakım Yönetimi</span>
+    </a>
+  </div>
+
+  <form class="maintenance-form-card" method="post" action="{{ form_action }}">
+    <div class="app-card-header">
+      <span class="app-card-icon maintenance-card-icon"><i class="bi bi-wrench-adjustable"></i></span>
+      <div>
+        <h3>Makine Bilgileri</h3>
+        <p>Makine adı, marka model, seri no ve bakım kodunu güncelleyin.</p>
+      </div>
+    </div>
+
+    <div class="maintenance-form-grid">
+      <div>
+        <label class="form-label" for="code">Kod <span class="text-danger">*</span></label>
+        <input class="form-control" id="code" name="code" value="{{ field_value('code')|trim }}" maxlength="80" placeholder="KYS-001">
+      </div>
+      <div>
+        <label class="form-label" for="machine_name">Makine Adı <span class="text-danger">*</span></label>
+        <input class="form-control" id="machine_name" name="machine_name" value="{{ field_value('machine_name')|trim }}" maxlength="180" placeholder="Makine adını yazın">
+      </div>
+      <div>
+        <label class="form-label" for="brand_model">Marka Model</label>
+        <input class="form-control" id="brand_model" name="brand_model" value="{{ field_value('brand_model')|trim }}" maxlength="180" placeholder="Marka / model">
+      </div>
+      <div>
+        <label class="form-label" for="serial_no">Seri No</label>
+        <input class="form-control" id="serial_no" name="serial_no" value="{{ field_value('serial_no')|trim }}" maxlength="120" placeholder="Seri numarası">
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          {% set current_status = field_value('status', 'ÇALIŞIYOR')|trim %}
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if current_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="location">Kullanım Yeri / Stok Alanı</label>
+        <input class="form-control" id="location" name="location" value="{{ field_value('location')|trim }}" maxlength="160" placeholder="Atölye, panel, elektrik odası...">
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label" for="notes">Notlar</label>
+      <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Bakım veya kullanım notu yazın">{{ field_value('notes')|trim }}</textarea>
+    </div>
+
+    {% if machine %}
+      <div class="form-check form-switch mt-3">
+        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if machine.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Aktif makine olarak listede kalsın</label>
+      </div>
+    {% endif %}
+
+    <div class="maintenance-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.maintenance_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

@@ -9,7 +9,7 @@ load_dotenv()
 from .config import Config
 from .extensions import db, migrate
 from .routes import bp
-from .seed import ensure_default_users
+from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
 def create_app(config_class=Config):
@@ -28,6 +28,12 @@ def create_app(config_class=Config):
     def seed_users_command():
         ensure_default_users(reset_passwords=False)
         print("Varsayılan kullanıcılar oluşturuldu/güncellendi.")
+
+    @app.cli.command("seed-maintenance-machines")
+    @with_appcontext
+    def seed_maintenance_machines_command():
+        ensure_default_maintenance_machines()
+        print("Bakım makine envanteri oluşturuldu/güncellendi.")
 
     @app.cli.command("test-mail")
     @click.argument("to_address")

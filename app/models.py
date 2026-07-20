@@ -27,6 +27,10 @@ ORGANIZATION_NODE_TYPES = ("person", "department")
 ACTION_SUB_TASK_STATUSES = ("Beklemede", "Devam Ediyor", "Tamamlandı", "İptal Edildi")
 ACTION_SUB_TASK_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 
+MAINTENANCE_MACHINE_STATUSES = ("ÇALIŞIYOR", "ARIZALI", "HURDA", "PASİF")
+MAINTENANCE_FAULT_STATUSES = ("Açık", "İşlemde", "Tamamlandı", "İptal Edildi")
+MAINTENANCE_FAULT_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
+
 DOF_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 DOF_SOURCES = (
     "İç Denetim",
@@ -498,6 +502,78 @@ class Document(db.Model):
 
     category = db.relationship("DocumentCategory", back_populates="documents")
     uploader = db.relationship("User", foreign_keys=[uploaded_by])
+
+
+class MaintenanceMachine(db.Model):
+    __tablename__ = "maintenance_machines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(80), nullable=False, unique=True)
+    machine_name = db.Column(db.String(180), nullable=False)
+    brand_model = db.Column(db.String(180), nullable=True)
+    serial_no = db.Column(db.String(120), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="ÇALIŞIYOR")
+    location = db.Column(db.String(160), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    faults = db.relationship(
+        "MaintenanceFault",
+        back_populates="machine",
+        order_by="MaintenanceFault.created_at.desc()",
+    )
+
+
+class MaintenanceFault(db.Model):
+    __tablename__ = "maintenance_faults"
+
+    id = db.Column(db.Integer, primary_key=True)
+    fault_number = db.Column(db.Integer, nullable=True, unique=True)
+    machine_id = db.Column(
+        db.Integer,
+        db.ForeignKey("maintenance_machines.id"),
+        nullable=False,
+    )
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Açık")
+    priority = db.Column(db.String(40), nullable=False, default="Orta")
+    reported_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    due_date = db.Column(db.Date, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    closing_note = db.Column(db.Text, nullable=True)
+    reported_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    machine = db.relationship("MaintenanceMachine", back_populates="faults")
+    reported_by = db.relationship("User", foreign_keys=[reported_by_user_id])
+    responsible_user = db.relationship("User", foreign_keys=[responsible_user_id])
+
+    @property
+    def number_label(self):
+        source_date = self.reported_at or self.created_at
+        year = source_date.year if source_date else date.today().year
+        return f"BAK-{year}-{(self.fault_number or self.id):04d}"
+
+    @property
+    def is_completed(self):
+        return self.status == "Tamamlandı"
 
 
 class InternalAudit(db.Model):
