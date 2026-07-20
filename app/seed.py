@@ -427,20 +427,28 @@ def ensure_default_maintenance_machines():
         code = item["code"]
         machine = MaintenanceMachine.query.filter_by(code=code).first()
         if machine is None:
-            machine = MaintenanceMachine(code=code)
+            machine = MaintenanceMachine(
+                code=code,
+                machine_name=item["machine_name"],
+                brand_model=item.get("brand_model") or None,
+                serial_no=item.get("serial_no") or None,
+                status=item.get("status") or "ÇALIŞIYOR",
+                location=item.get("location") or None,
+                is_active=True,
+            )
             db.session.add(machine)
             changed = True
+            continue
 
         for key in ("machine_name", "brand_model", "serial_no", "status", "location"):
+            if getattr(machine, key):
+                continue
             value = item.get(key) or None
             if key == "status":
                 value = item.get(key) or "ÇALIŞIYOR"
-            if getattr(machine, key) != value:
+            if value:
                 setattr(machine, key, value)
                 changed = True
-        if not machine.is_active:
-            machine.is_active = True
-            changed = True
 
     if changed:
         db.session.commit()
