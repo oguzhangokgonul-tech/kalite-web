@@ -49,6 +49,20 @@
   {% endif %}
 {% endmacro %}
 
+{% macro dof_created_by_line(dof) %}
+  {% set creator_name = dof.created_by.full_name if dof.created_by else "-" %}
+  <span class="dof-meta-line" title="Açan: {{ creator_name }}">
+    <i class="bi bi-person-plus"></i>
+    <span>Açan: {{ creator_name }}</span>
+  </span>
+{% endmacro %}
+
+{% macro dof_due_badge(dof) %}
+  <span class="dof-due-status dof-due-status-{{ dof.due_status_tone }}" title="{% if dof.due_date %}Termin: {{ dof.due_date.strftime('%d.%m.%Y') }}{% else %}Termin yok{% endif %}">
+    {{ dof.due_status_text }}
+  </span>
+{% endmacro %}
+
 {%- macro dof_short_no(dof_no) -%}
   {% set parts = (dof_no or "").split("-") %}
   {% if parts|length >= 3 %}
@@ -160,7 +174,7 @@
             <th>Sorumlu</th>
             <th>Öncelik</th>
             <th>Durum</th>
-            <th>Gecikme günü</th>
+            <th>Termin</th>
             <th>Kanıt</th>
             <th class="text-end">İşlemler</th>
           </tr>
@@ -171,12 +185,15 @@
               <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
               </td>
-              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">{{ dof.title or "-" }}</td>
+              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">
+                <span class="dof-title-text">{{ dof.title or "-" }}</span>
+                {{ dof_created_by_line(dof) }}
+              </td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
               <td class="dof-responsible-cell" data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof_responsible_name(dof.responsible) }}</td>
               <td data-label="Öncelik" title="{{ dof.priority or '-' }}">{{ dof.priority or "-" }}</td>
               <td data-label="Durum" title="{{ dof.display_status }}">{{ dof_status_badge(dof) }}</td>
-              <td data-label="Gecikme günü">{{ dof.delay_days }}</td>
+              <td class="dof-due-cell" data-label="Termin">{{ dof_due_badge(dof) }}</td>
               <td data-label="Kanıt">
                 {% if dof.files %}
                   <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">

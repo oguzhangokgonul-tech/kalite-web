@@ -2663,6 +2663,24 @@ def dof_delay_days(dof, today=None):
     return max((today - dof.due_date).days, 0)
 
 
+def dof_due_status(dof, today=None):
+    today = today or date.today()
+    if not dof.due_date:
+        return {"text": "Termin yok", "tone": "muted"}
+    if dof.status == "Tamamlandı" or dof.approval_step == "completed":
+        return {"text": "Tamamlandı", "tone": "success"}
+
+    remaining_days = (dof.due_date - today).days
+    if remaining_days > 0:
+        return {
+            "text": f"{remaining_days} gün kaldı",
+            "tone": "warning" if remaining_days <= 7 else "muted",
+        }
+    if remaining_days == 0:
+        return {"text": "Bugün", "tone": "warning"}
+    return {"text": f"{abs(remaining_days)} gün gecikti", "tone": "danger"}
+
+
 def attach_dof_view_state(dofs):
     today = date.today()
     for dof in dofs:
@@ -2670,6 +2688,9 @@ def attach_dof_view_state(dofs):
             dof.approval_step = "draft" if dof.status == "Taslak" else "management_representative"
         dof.display_status = dof_display_status(dof, today=today)
         dof.delay_days = dof_delay_days(dof, today=today)
+        due_status = dof_due_status(dof, today=today)
+        dof.due_status_text = due_status["text"]
+        dof.due_status_tone = due_status["tone"]
     return dofs
 
 

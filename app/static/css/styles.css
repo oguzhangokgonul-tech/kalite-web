@@ -1717,6 +1717,35 @@ body {
     overflow-wrap: anywhere;
 }
 
+.dof-title-text {
+    display: block;
+}
+
+.dof-meta-line {
+    display: flex;
+    align-items: center;
+    max-width: 100%;
+    gap: 5px;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 0.74rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dof-meta-line i {
+    flex: 0 0 auto;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.dof-meta-line span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .dof-dashboard-table .dashboard-action-title-cell a {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1794,6 +1823,52 @@ body {
     text-align: left;
     white-space: normal;
     overflow-wrap: anywhere;
+}
+
+.dof-dashboard-table .dof-due-cell {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.dof-due-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    min-height: 26px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+}
+
+.dof-due-status-muted {
+    color: #475569;
+    background: #f1f5f9;
+    border-color: #d8e2ef;
+}
+
+.dof-due-status-warning {
+    color: #9a6700;
+    background: #fff8e1;
+    border-color: #f5d76e;
+}
+
+.dof-due-status-danger {
+    color: #b4232f;
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+
+.dof-due-status-success {
+    color: #047857;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
 }
 
 .if-status-badge {
