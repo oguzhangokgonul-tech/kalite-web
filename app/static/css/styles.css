@@ -5255,7 +5255,7 @@ body {
 
 .maintenance-filter-grid {
     display: grid;
-    grid-template-columns: minmax(260px, 1.4fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) minmax(130px, 0.7fr) auto;
+    grid-template-columns: minmax(260px, 1.5fr) minmax(150px, 0.8fr) minmax(190px, 0.9fr) auto;
     gap: 18px;
     align-items: end;
 }

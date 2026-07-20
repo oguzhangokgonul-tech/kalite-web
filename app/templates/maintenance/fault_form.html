@@ -12,6 +12,16 @@
   {% endif %}
 {% endmacro %}
 
+{% macro reported_date_value() %}
+  {% if form_data %}
+    {{ form_data.get("reported_date", today) }}
+  {% elif fault and fault.reported_at %}
+    {{ fault.reported_at.strftime("%Y-%m-%d") }}
+  {% else %}
+    {{ today }}
+  {% endif %}
+{% endmacro %}
+
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
@@ -29,7 +39,7 @@
       <span class="app-card-icon maintenance-card-icon"><i class="bi bi-tools"></i></span>
       <div>
         <h3>Arıza Bilgileri</h3>
-        <p>Makine arızasını, sorumlusunu, önceliğini ve terminini belirleyin.</p>
+        <p>Makine arızasını, bildiren departmanı ve sorumlusunu belirleyin.</p>
       </div>
     </div>
 
@@ -51,6 +61,20 @@
         <input class="form-control" id="title" name="title" value="{{ field_value('title')|trim }}" maxlength="180" placeholder="Arıza başlığını yazın">
       </div>
       <div>
+        <label class="form-label" for="reporting_department">Arızayı Bildiren Departman <span class="text-danger">*</span></label>
+        {% set current_department = form_data.get('reporting_department') if form_data else (fault.reporting_department if fault else '') %}
+        <select class="form-select" id="reporting_department" name="reporting_department">
+          <option value="">Departman seçin</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if current_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="reported_date">Arıza Açılma Tarihi</label>
+        <input class="form-control" id="reported_date" name="reported_date" type="date" value="{{ reported_date_value()|trim }}">
+      </div>
+      <div>
         <label class="form-label" for="responsible_user_id">Sorumlu</label>
         {% set current_user_id = form_data.get('responsible_user_id') if form_data else (fault.responsible_user_id if fault else '') %}
         <select class="form-select" id="responsible_user_id" name="responsible_user_id">
@@ -59,28 +83,6 @@
             <option value="{{ user.id }}" {% if current_user_id|string == user.id|string %}selected{% endif %}>
               {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
             </option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="due_date">Termin</label>
-        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ field_value('due_date')|trim }}">
-      </div>
-      <div>
-        <label class="form-label" for="priority">Öncelik</label>
-        {% set current_priority = field_value('priority', 'Orta')|trim %}
-        <select class="form-select" id="priority" name="priority">
-          {% for priority in priorities %}
-            <option value="{{ priority }}" {% if current_priority == priority %}selected{% endif %}>{{ priority }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="status">Durum</label>
-        {% set current_status = field_value('status', 'Açık')|trim %}
-        <select class="form-select" id="status" name="status">
-          {% for status in statuses if status != "Tamamlandı" %}
-            <option value="{{ status }}" {% if current_status == status %}selected{% endif %}>{{ status }}</option>
           {% endfor %}
         </select>
       </div>

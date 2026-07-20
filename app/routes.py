@@ -51,8 +51,6 @@ from .models import (
     InternalAudit,
     InternalAuditAnswer,
     InternalAuditQuestion,
-    MAINTENANCE_FAULT_PRIORITIES,
-    MAINTENANCE_FAULT_STATUSES,
     MAINTENANCE_MACHINE_STATUSES,
     MaintenanceFault,
     MaintenanceMachine,
@@ -718,6 +716,7 @@ def ensure_maintenance_schema():
                             due_date DATE,
                             completed_at DATETIME,
                             closing_note TEXT,
+                            reporting_department VARCHAR(80),
                             reported_by_user_id INTEGER,
                             responsible_user_id INTEGER,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -745,6 +744,7 @@ def ensure_maintenance_schema():
                     "due_date": "ALTER TABLE maintenance_faults ADD COLUMN due_date DATE",
                     "completed_at": "ALTER TABLE maintenance_faults ADD COLUMN completed_at DATETIME",
                     "closing_note": "ALTER TABLE maintenance_faults ADD COLUMN closing_note TEXT",
+                    "reporting_department": "ALTER TABLE maintenance_faults ADD COLUMN reporting_department VARCHAR(80)",
                     "reported_by_user_id": "ALTER TABLE maintenance_faults ADD COLUMN reported_by_user_id INTEGER",
                     "responsible_user_id": "ALTER TABLE maintenance_faults ADD COLUMN responsible_user_id INTEGER",
                     "created_at": "ALTER TABLE maintenance_faults ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -2419,8 +2419,7 @@ def maintenance_filters():
     return {
         "search": request.args.get("search", "").strip(),
         "machine_status": request.args.get("machine_status", "").strip(),
-        "fault_status": request.args.get("fault_status", "").strip(),
-        "priority": request.args.get("priority", "").strip(),
+        "reporting_department": request.args.get("reporting_department", "").strip(),
     }
 
 
@@ -2437,16 +2436,8 @@ def maintenance_status_tone(status):
     return "warning"
 
 
-def maintenance_priority_tone(priority):
-    return priority_tone(priority)
-
-
-def maintenance_due_meta(fault):
-    return due_meta(fault.due_date, fault.status == "Tamamlandı")
-
-
-def maintenance_open_fault_count(machine):
-    return sum(1 for fault in machine.faults if fault.status != "Tamamlandı")
+def maintenance_fault_count(machine):
+    return len(machine.faults)
 
 
 def refresh_machine_status_from_faults(machine):
@@ -2499,16 +2490,17 @@ def filtered_maintenance_machines(filters):
 
 def filtered_maintenance_faults(filters):
     query = maintenance_fault_query()
-    if filters["fault_status"]:
-        query = query.filter(MaintenanceFault.status == filters["fault_status"])
-    if filters["priority"]:
-        query = query.filter(MaintenanceFault.priority == filters["priority"])
+    if filters["reporting_department"]:
+        query = query.filter(
+            MaintenanceFault.reporting_department == filters["reporting_department"]
+        )
     if filters["search"]:
         search_value = f"%{filters['search']}%"
         query = query.filter(
             or_(
                 MaintenanceFault.title.ilike(search_value),
                 MaintenanceFault.description.ilike(search_value),
+                MaintenanceFault.reporting_department.ilike(search_value),
                 MaintenanceMachine.code.ilike(search_value),
                 MaintenanceMachine.machine_name.ilike(search_value),
                 MaintenanceMachine.brand_model.ilike(search_value),
@@ -2543,14 +2535,13 @@ def parse_maintenance_machine_form():
     }
 
 
-def parse_maintenance_fault_form():
+def parse_maintenance_fault_form(fault=None):
     machine_id = request.form.get("machine_id", "").strip()
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
     responsible_user = parse_optional_active_user("responsible_user_id")
-    due_date = parse_optional_date("due_date")
-    priority = request.form.get("priority", "").strip() or "Orta"
-    status = request.form.get("status", "").strip() or "Açık"
+    reporting_department = request.form.get("reporting_department", "").strip()
+    reported_date = parse_optional_date("reported_date")
 
     try:
         machine_id = int(machine_id)
@@ -2562,19 +2553,18 @@ def parse_maintenance_fault_form():
         raise ValueError("invalid_machine")
     if not title:
         raise ValueError("required_fields")
-    if priority not in MAINTENANCE_FAULT_PRIORITIES:
-        raise ValueError("invalid_priority")
-    if status not in MAINTENANCE_FAULT_STATUSES:
-        raise ValueError("invalid_status")
+    if not reporting_department or reporting_department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if reported_date is None:
+        reported_date = fault.reported_at.date() if fault and fault.reported_at else date.today()
 
     return {
         "machine": machine,
         "title": title[:180],
         "description": description or None,
         "responsible_user": responsible_user,
-        "due_date": due_date,
-        "priority": priority,
-        "status": status,
+        "reported_at": datetime.combine(reported_date, datetime.min.time()),
+        "reporting_department": reporting_department,
     }
 
 
@@ -2585,36 +2575,28 @@ def maintenance_dashboard_context():
     all_machines = MaintenanceMachine.query.all()
     all_faults = MaintenanceFault.query.all()
     open_faults = [fault for fault in all_faults if fault.status != "Tamamlandı"]
-    delayed_faults = [
-        fault
-        for fault in open_faults
-        if fault.due_date is not None and fault.due_date < date.today()
-    ]
 
     return {
         "machines": machines,
         "faults": faults,
         "filters": filters,
         "machine_statuses": MAINTENANCE_MACHINE_STATUSES,
-        "fault_statuses": MAINTENANCE_FAULT_STATUSES,
-        "priorities": MAINTENANCE_FAULT_PRIORITIES,
+        "departments": DEPARTMENTS,
         "users": active_users(),
         "total_machine_count": len(all_machines),
         "active_machine_count": sum(1 for machine in all_machines if machine.is_active),
+        "total_fault_count": len(all_faults),
         "open_fault_count": len(open_faults),
         "completed_fault_count": sum(
             1 for fault in all_faults if fault.status == "Tamamlandı"
         ),
-        "delayed_fault_count": len(delayed_faults),
         "can_manage_inventory": can_manage_maintenance_inventory(),
         "can_open_fault": can_open_maintenance_fault(),
         "can_edit_fault": can_edit_maintenance_fault,
         "can_complete_fault": can_complete_maintenance_fault,
         "can_delete_fault": can_delete_maintenance_fault,
-        "open_fault_count_for_machine": maintenance_open_fault_count,
+        "fault_count_for_machine": maintenance_fault_count,
         "status_tone": maintenance_status_tone,
-        "priority_tone": maintenance_priority_tone,
-        "due_meta": maintenance_due_meta,
         "format_date": format_date,
     }
 
@@ -2635,8 +2617,8 @@ def maintenance_fault_form_context(fault=None, machine=None):
         .order_by(MaintenanceMachine.code.asc(), MaintenanceMachine.machine_name.asc())
         .all(),
         "users": active_users(),
-        "statuses": MAINTENANCE_FAULT_STATUSES,
-        "priorities": MAINTENANCE_FAULT_PRIORITIES,
+        "departments": DEPARTMENTS,
+        "today": date.today().isoformat(),
         "form_data": request.form if request.method == "POST" else {},
     }
 
@@ -4435,9 +4417,7 @@ def maintenance_task_status(fault):
         return "Tamamlandı", "completed"
     if fault.status == "İptal Edildi":
         return "İptal Edildi", "cancelled"
-    if fault.due_date and fault.due_date < date.today():
-        return "Gecikti", "delayed"
-    return fault.status, "open"
+    return "Açık", "open"
 
 
 def assigned_maintenance_tasks(scope):
@@ -4454,6 +4434,7 @@ def assigned_maintenance_tasks(scope):
         description_parts = [
             machine.code if machine else "",
             machine.machine_name if machine else "",
+            fault.reporting_department or "",
             fault.description or "",
         ]
         rows.append(
@@ -4466,10 +4447,10 @@ def assigned_maintenance_tasks(scope):
                 description=" | ".join(part for part in description_parts if part),
                 reference_no=fault.number_label,
                 department="Bakım",
-                due_date=fault.due_date,
+                due_date=fault.reported_at.date() if fault.reported_at else None,
                 status=status,
                 status_key=status_key,
-                priority=fault.priority or "Orta",
+                priority="-",
                 detail_url=url_for("main.maintenance_fault_detail", fault_id=fault.id),
                 created_at=fault.created_at,
                 sort_id=fault.id,
@@ -5090,18 +5071,18 @@ def create_maintenance_fault():
                 fault_number=reserve_maintenance_fault_number(),
                 title=values["title"],
                 description=values["description"],
+                reported_at=values["reported_at"],
+                reporting_department=values["reporting_department"],
                 responsible_user_id=(
                     values["responsible_user"].id
                     if values["responsible_user"] is not None
                     else None
                 ),
-                due_date=values["due_date"],
-                priority=values["priority"],
-                status=values["status"],
+                due_date=None,
+                priority="Orta",
+                status="Açık",
                 reported_by_user_id=g.current_user.id,
             )
-            if fault.status == "Tamamlandı":
-                fault.completed_at = datetime.utcnow()
             db.session.add(fault)
             db.session.flush()
             refresh_machine_status_from_faults(values["machine"])
@@ -5118,11 +5099,9 @@ def create_maintenance_fault():
             elif error_key == "invalid_user":
                 flash("Geçerli bir sorumlu kullanıcı seçin.", "danger")
             elif error_key == "invalid_date":
-                flash("Termin tarihini geçerli biçimde girin.", "danger")
-            elif error_key == "invalid_priority":
-                flash("Geçerli bir öncelik seçin.", "danger")
-            elif error_key == "invalid_status":
-                flash("Geçerli bir arıza durumu seçin.", "danger")
+                flash("Arıza açılma tarihini geçerli biçimde girin.", "danger")
+            elif error_key == "invalid_department":
+                flash("Arızayı bildiren departmanı seçin.", "danger")
             else:
                 flash("Arıza formunu kontrol edin.", "danger")
 
@@ -5143,9 +5122,7 @@ def maintenance_fault_detail(fault_id):
     return render_template(
         "maintenance/fault_detail.html",
         fault=fault,
-        due_meta=maintenance_due_meta(fault),
         status_tone=maintenance_status_tone,
-        priority_tone=maintenance_priority_tone,
         format_date=format_date,
         can_edit_fault=can_edit_maintenance_fault(fault),
         can_complete_fault=can_complete_maintenance_fault(fault),
@@ -5162,24 +5139,19 @@ def edit_maintenance_fault(fault_id):
 
     if request.method == "POST":
         try:
-            values = parse_maintenance_fault_form()
+            values = parse_maintenance_fault_form(fault)
             previous_machine = fault.machine
             fault.machine = values["machine"]
             fault.title = values["title"]
             fault.description = values["description"]
+            fault.reported_at = values["reported_at"]
+            fault.reporting_department = values["reporting_department"]
             fault.responsible_user_id = (
                 values["responsible_user"].id
                 if values["responsible_user"] is not None
                 else None
             )
-            fault.due_date = values["due_date"]
-            fault.priority = values["priority"]
-            fault.status = values["status"]
-            if fault.status == "Tamamlandı" and fault.completed_at is None:
-                fault.completed_at = datetime.utcnow()
-            elif fault.status != "Tamamlandı":
-                fault.completed_at = None
-                fault.closing_note = None
+            fault.due_date = None
             if previous_machine is not None and previous_machine.id != fault.machine.id:
                 refresh_machine_status_from_faults(previous_machine)
             refresh_machine_status_from_faults(fault.machine)
@@ -5196,11 +5168,9 @@ def edit_maintenance_fault(fault_id):
             elif error_key == "invalid_user":
                 flash("Geçerli bir sorumlu kullanıcı seçin.", "danger")
             elif error_key == "invalid_date":
-                flash("Termin tarihini geçerli biçimde girin.", "danger")
-            elif error_key == "invalid_priority":
-                flash("Geçerli bir öncelik seçin.", "danger")
-            elif error_key == "invalid_status":
-                flash("Geçerli bir arıza durumu seçin.", "danger")
+                flash("Arıza açılma tarihini geçerli biçimde girin.", "danger")
+            elif error_key == "invalid_department":
+                flash("Arızayı bildiren departmanı seçin.", "danger")
             else:
                 flash("Arıza formunu kontrol edin.", "danger")
 

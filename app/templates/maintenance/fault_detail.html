@@ -2,28 +2,6 @@
 
 {% block title %}{{ fault.number_label }}{% endblock %}
 
-{% macro maintenance_status_badge(status) %}
-  <span class="maintenance-badge maintenance-badge-{{ status_tone(status) }}">
-    {% if status == "Tamamlandı" %}
-      <i class="bi bi-check-circle-fill"></i>
-    {% elif status == "Açık" %}
-      <i class="bi bi-exclamation-circle-fill"></i>
-    {% elif status == "İşlemde" %}
-      <i class="bi bi-gear-fill"></i>
-    {% else %}
-      <i class="bi bi-circle-fill"></i>
-    {% endif %}
-    <span>{{ status }}</span>
-  </span>
-{% endmacro %}
-
-{% macro maintenance_priority_badge(priority) %}
-  <span class="maintenance-badge maintenance-badge-{{ priority_tone(priority) }}">
-    <i class="bi bi-flag-fill"></i>
-    <span>{{ priority or "-" }}</span>
-  </span>
-{% endmacro %}
-
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
@@ -64,22 +42,22 @@
       <span>Açan: {{ fault.reported_by.full_name if fault.reported_by else "-" }}</span>
     </section>
     <section class="maintenance-info-card">
-      <span class="maintenance-info-icon"><i class="bi bi-activity"></i></span>
-      <small>Durum</small>
-      <strong>{{ maintenance_status_badge(fault.status) }}</strong>
-      <span>{{ maintenance_priority_badge(fault.priority) }}</span>
+      <span class="maintenance-info-icon"><i class="bi bi-building"></i></span>
+      <small>Arızayı Bildiren Departman</small>
+      <strong>{{ fault.reporting_department or "-" }}</strong>
+      <span>Departman kaydı</span>
     </section>
     <section class="maintenance-info-card">
       <span class="maintenance-info-icon"><i class="bi bi-calendar-event"></i></span>
-      <small>Açılış</small>
-      <strong>{{ fault.reported_at.strftime("%d.%m.%Y %H:%M") if fault.reported_at else "-" }}</strong>
-      <span>{{ fault.machine.location or "Konum girilmemiş" }}</span>
+      <small>Arıza Açılma Tarihi</small>
+      <strong>{{ fault.reported_at.strftime("%d.%m.%Y") if fault.reported_at else "-" }}</strong>
+      <span>Açan: {{ fault.reported_by.full_name if fault.reported_by else "-" }}</span>
     </section>
     <section class="maintenance-info-card">
-      <span class="maintenance-info-icon"><i class="bi bi-calendar-check"></i></span>
-      <small>Termin</small>
-      <strong>{{ format_date(fault.due_date) }}</strong>
-      <span class="maintenance-due maintenance-due-{{ due_meta.tone }}">{{ due_meta.text }}</span>
+      <span class="maintenance-info-icon"><i class="bi bi-geo-alt"></i></span>
+      <small>Kullanım Yeri</small>
+      <strong>{{ fault.machine.location or "-" }}</strong>
+      <span>Makine envanter bilgisi</span>
     </section>
   </div>
 

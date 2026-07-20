@@ -17,25 +17,6 @@
   </span>
 {% endmacro %}
 
-{% macro maintenance_priority_badge(priority) %}
-  <span class="maintenance-badge maintenance-badge-{{ priority_tone(priority) }}">
-    <i class="bi bi-flag-fill"></i>
-    <span>{{ priority or "-" }}</span>
-  </span>
-{% endmacro %}
-
-{% macro maintenance_due_badge(fault) %}
-  {% set meta = due_meta(fault) %}
-  <span class="maintenance-due maintenance-due-{{ meta.tone }}">
-    {% if fault.due_date %}
-      <strong>{{ format_date(fault.due_date) }}</strong>
-    {% else %}
-      <strong>-</strong>
-    {% endif %}
-    <span>{{ meta.text }}</span>
-  </span>
-{% endmacro %}
-
 {% block app_content %}
   <div class="dashboard-page-heading">
     <div>
@@ -71,6 +52,11 @@
     </div>
     <div class="dashboard-stat-card stat-warning">
       <span class="stat-icon"><i class="bi bi-wrench-adjustable-circle"></i></span>
+      <span class="stat-label">Açılan Arıza</span>
+      <strong>{{ total_fault_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
       <span class="stat-label">Açık Arıza</span>
       <strong>{{ open_fault_count }}</strong>
     </div>
@@ -78,11 +64,6 @@
       <span class="stat-icon"><i class="bi bi-clipboard-check"></i></span>
       <span class="stat-label">Tamamlanan</span>
       <strong>{{ completed_fault_count }}</strong>
-    </div>
-    <div class="dashboard-stat-card stat-danger">
-      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
-      <span class="stat-label">Geciken Arıza</span>
-      <strong>{{ delayed_fault_count }}</strong>
     </div>
   </div>
 
@@ -105,20 +86,11 @@
         </select>
       </div>
       <div>
-        <label class="form-label" for="fault_status">Arıza Durumu</label>
-        <select class="form-select" id="fault_status" name="fault_status">
+        <label class="form-label" for="reporting_department">Bildiren Departman</label>
+        <select class="form-select" id="reporting_department" name="reporting_department">
           <option value="">Tümü</option>
-          {% for status in fault_statuses %}
-            <option value="{{ status }}" {% if filters.fault_status == status %}selected{% endif %}>{{ status }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="priority">Öncelik</label>
-        <select class="form-select" id="priority" name="priority">
-          <option value="">Tümü</option>
-          {% for priority in priorities %}
-            <option value="{{ priority }}" {% if filters.priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.reporting_department == department %}selected{% endif %}>{{ department }}</option>
           {% endfor %}
         </select>
       </div>
@@ -139,7 +111,7 @@
     <div class="maintenance-section-header">
       <div>
         <h3>Arıza Takibi</h3>
-        <p>Açılan arızalar, sorumlular ve termin durumları.</p>
+        <p>Açılan arızalar, bildiren departmanlar ve sorumlular.</p>
       </div>
       {% if can_open_fault %}
         <a class="btn btn-sm btn-primary" href="{{ url_for('main.create_maintenance_fault') }}">
@@ -155,10 +127,9 @@
             <th>Arıza No</th>
             <th>Makine</th>
             <th>Arıza Başlığı</th>
+            <th>Bildiren Departman</th>
             <th>Sorumlu</th>
-            <th>Termin</th>
-            <th>Durum</th>
-            <th>Öncelik</th>
+            <th>Açılma Tarihi</th>
             <th class="text-end">İşlemler</th>
           </tr>
         </thead>
@@ -176,10 +147,9 @@
                 <a href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">{{ fault.title }}</a>
                 <span>{{ fault.description or "Açıklama girilmemiş." }}</span>
               </td>
+              <td data-label="Bildiren Departman">{{ fault.reporting_department or "-" }}</td>
               <td data-label="Sorumlu">{{ fault.responsible_user.full_name if fault.responsible_user else "-" }}</td>
-              <td data-label="Termin">{{ maintenance_due_badge(fault) }}</td>
-              <td data-label="Durum">{{ maintenance_status_badge(fault.status) }}</td>
-              <td data-label="Öncelik">{{ maintenance_priority_badge(fault.priority) }}</td>
+              <td data-label="Açılma Tarihi">{{ fault.reported_at.strftime("%d.%m.%Y") if fault.reported_at else "-" }}</td>
               <td data-label="İşlemler">
                 <div class="dashboard-row-actions">
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">
@@ -211,7 +181,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="8">
+              <td class="dashboard-empty-row" colspan="7">
                 <strong>Henüz arıza kaydı yok.</strong>
                 <span>Yeni arıza açıldığında burada listelenecek.</span>
               </td>
@@ -248,7 +218,7 @@
             <th>Seri No</th>
             <th>Durum</th>
             <th>Kullanım Yeri</th>
-            <th>Açık Arıza</th>
+            <th>Açılan Arızalar</th>
             <th class="text-end">İşlemler</th>
           </tr>
         </thead>
@@ -261,7 +231,7 @@
               <td data-label="Seri No">{{ machine.serial_no or "-" }}</td>
               <td data-label="Durum">{{ maintenance_status_badge(machine.status) }}</td>
               <td data-label="Kullanım Yeri">{{ machine.location or "-" }}</td>
-              <td data-label="Açık Arıza">{{ open_fault_count_for_machine(machine) }}</td>
+              <td data-label="Açılan Arızalar">{{ fault_count_for_machine(machine) }}</td>
               <td data-label="İşlemler">
                 <div class="dashboard-row-actions">
                   {% if can_open_fault and machine.is_active %}

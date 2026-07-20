@@ -551,6 +551,7 @@ class MaintenanceFault(db.Model):
     due_date = db.Column(db.Date, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
     closing_note = db.Column(db.Text, nullable=True)
+    reporting_department = db.Column(db.String(80), nullable=True)
     reported_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
