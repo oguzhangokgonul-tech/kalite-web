@@ -25,15 +25,27 @@
   <div class="maintenance-detail-grid">
     <section class="maintenance-info-card">
       <span class="maintenance-info-icon"><i class="bi bi-hdd-network"></i></span>
-      <small>Makine</small>
-      <strong>{{ fault.machine.machine_name }}</strong>
-      <span>{{ fault.machine.code }}</span>
+      {% if fault.machine.code == unplanned_maintenance_code %}
+        <small>Talep Türü</small>
+        <strong class="maintenance-unplanned-label">{{ unplanned_maintenance_label }}</strong>
+        <span>Makineye bağlı olmayan bakım talebi</span>
+      {% else %}
+        <small>Makine</small>
+        <strong>{{ fault.machine.machine_name }}</strong>
+        <span>{{ fault.machine.code }}</span>
+      {% endif %}
     </section>
     <section class="maintenance-info-card">
       <span class="maintenance-info-icon"><i class="bi bi-tag"></i></span>
-      <small>Marka Model</small>
-      <strong>{{ fault.machine.brand_model or "-" }}</strong>
-      <span>Seri No: {{ fault.machine.serial_no or "-" }}</span>
+      {% if fault.machine.code == unplanned_maintenance_code %}
+        <small>Kapsam</small>
+        <strong>Plansız bakım</strong>
+        <span>Envanter makinesi seçilmedi</span>
+      {% else %}
+        <small>Marka Model</small>
+        <strong>{{ fault.machine.brand_model or "-" }}</strong>
+        <span>Seri No: {{ fault.machine.serial_no or "-" }}</span>
+      {% endif %}
     </section>
     <section class="maintenance-info-card">
       <span class="maintenance-info-icon"><i class="bi bi-person"></i></span>

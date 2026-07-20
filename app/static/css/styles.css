@@ -5426,6 +5426,18 @@ body {
     margin-top: 22px;
 }
 
+.maintenance-unplanned-option {
+    color: #0e7490;
+    font-style: italic;
+    font-weight: 800;
+}
+
+.maintenance-unplanned-label {
+    color: #0e7490;
+    font-style: italic;
+    font-weight: 900;
+}
+
 .maintenance-form-actions {
     display: flex;
     justify-content: flex-end;

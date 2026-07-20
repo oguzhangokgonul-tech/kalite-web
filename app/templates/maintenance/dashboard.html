@@ -140,8 +140,13 @@
                 <a class="maintenance-ref-link" href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">{{ fault.number_label }}</a>
               </td>
               <td data-label="Makine">
-                <strong>{{ fault.machine.code }}</strong>
-                <span class="maintenance-muted-line">{{ fault.machine.machine_name }}</span>
+                {% if fault.machine.code == unplanned_maintenance_code %}
+                  <strong class="maintenance-unplanned-label">{{ unplanned_maintenance_label }}</strong>
+                  <span class="maintenance-muted-line">Makineye bağlı olmayan talep</span>
+                {% else %}
+                  <strong>{{ fault.machine.code }}</strong>
+                  <span class="maintenance-muted-line">{{ fault.machine.machine_name }}</span>
+                {% endif %}
               </td>
               <td data-label="Arıza Başlığı" class="maintenance-title-cell">
                 <a href="{{ url_for('main.maintenance_fault_detail', fault_id=fault.id) }}">{{ fault.title }}</a>

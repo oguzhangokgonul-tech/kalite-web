@@ -112,6 +112,9 @@ INTERNAL_AUDIT_STANDARD_CHOICES = (
     ),
     "TSE K 118:2018 - Ön Dökümlü Betonarme Yapı Elemanları Kalite Yönetim Sistemi",
 )
+UNPLANNED_MAINTENANCE_VALUE = "__unplanned__"
+UNPLANNED_MAINTENANCE_CODE = "PLANSIZ-BAKIM"
+UNPLANNED_MAINTENANCE_LABEL = "Plansız Bakım Talebi"
 
 
 @bp.app_errorhandler(403)
@@ -2440,8 +2443,38 @@ def maintenance_fault_count(machine):
     return len(machine.faults)
 
 
-def refresh_machine_status_from_faults(machine):
+def is_unplanned_maintenance_machine(machine):
+    return machine is not None and machine.code == UNPLANNED_MAINTENANCE_CODE
+
+
+def ensure_unplanned_maintenance_machine():
+    machine = MaintenanceMachine.query.filter_by(
+        code=UNPLANNED_MAINTENANCE_CODE
+    ).first()
     if machine is None:
+        machine = MaintenanceMachine(
+            code=UNPLANNED_MAINTENANCE_CODE,
+            machine_name=UNPLANNED_MAINTENANCE_LABEL,
+            status="ÇALIŞIYOR",
+            is_active=True,
+        )
+        db.session.add(machine)
+        db.session.flush()
+    else:
+        changed = False
+        if machine.machine_name != UNPLANNED_MAINTENANCE_LABEL:
+            machine.machine_name = UNPLANNED_MAINTENANCE_LABEL
+            changed = True
+        if not machine.is_active:
+            machine.is_active = True
+            changed = True
+        if changed:
+            db.session.add(machine)
+    return machine
+
+
+def refresh_machine_status_from_faults(machine):
+    if machine is None or is_unplanned_maintenance_machine(machine):
         return
     has_open_fault = (
         MaintenanceFault.query.filter(
@@ -2457,7 +2490,9 @@ def refresh_machine_status_from_faults(machine):
 
 
 def maintenance_machine_query():
-    return MaintenanceMachine.query.order_by(
+    return MaintenanceMachine.query.filter(
+        MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE
+    ).order_by(
         MaintenanceMachine.code.asc(),
         MaintenanceMachine.machine_name.asc(),
     )
@@ -2543,14 +2578,20 @@ def parse_maintenance_fault_form(fault=None):
     reporting_department = request.form.get("reporting_department", "").strip()
     reported_date = parse_optional_date("reported_date")
 
-    try:
-        machine_id = int(machine_id)
-    except ValueError:
-        raise ValueError("invalid_machine") from None
+    if machine_id == UNPLANNED_MAINTENANCE_VALUE:
+        machine = ensure_unplanned_maintenance_machine()
+    else:
+        try:
+            machine_id = int(machine_id)
+        except ValueError:
+            raise ValueError("invalid_machine") from None
 
-    machine = MaintenanceMachine.query.filter_by(id=machine_id, is_active=True).first()
-    if machine is None:
-        raise ValueError("invalid_machine")
+        machine = MaintenanceMachine.query.filter_by(
+            id=machine_id,
+            is_active=True,
+        ).first()
+        if machine is None or is_unplanned_maintenance_machine(machine):
+            raise ValueError("invalid_machine")
     if not title:
         raise ValueError("required_fields")
     if not reporting_department or reporting_department not in DEPARTMENTS:
@@ -2572,7 +2613,9 @@ def maintenance_dashboard_context():
     filters = maintenance_filters()
     machines = filtered_maintenance_machines(filters)
     faults = filtered_maintenance_faults(filters)
-    all_machines = MaintenanceMachine.query.all()
+    all_machines = MaintenanceMachine.query.filter(
+        MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE
+    ).all()
     all_faults = MaintenanceFault.query.all()
     open_faults = [fault for fault in all_faults if fault.status != "Tamamlandı"]
 
@@ -2597,6 +2640,8 @@ def maintenance_dashboard_context():
         "can_delete_fault": can_delete_maintenance_fault,
         "fault_count_for_machine": maintenance_fault_count,
         "status_tone": maintenance_status_tone,
+        "unplanned_maintenance_code": UNPLANNED_MAINTENANCE_CODE,
+        "unplanned_maintenance_label": UNPLANNED_MAINTENANCE_LABEL,
         "format_date": format_date,
     }
 
@@ -2610,14 +2655,19 @@ def maintenance_machine_form_context(machine=None):
 
 
 def maintenance_fault_form_context(fault=None, machine=None):
+    selected_machine = machine or (fault.machine if fault else None)
     return {
         "fault": fault,
-        "selected_machine": machine or (fault.machine if fault else None),
+        "selected_machine": selected_machine,
         "machines": MaintenanceMachine.query.filter_by(is_active=True)
+        .filter(MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE)
         .order_by(MaintenanceMachine.code.asc(), MaintenanceMachine.machine_name.asc())
         .all(),
         "users": active_users(),
         "departments": DEPARTMENTS,
+        "is_unplanned_selected": is_unplanned_maintenance_machine(selected_machine),
+        "unplanned_maintenance_value": UNPLANNED_MAINTENANCE_VALUE,
+        "unplanned_maintenance_label": UNPLANNED_MAINTENANCE_LABEL,
         "today": date.today().isoformat(),
         "form_data": request.form if request.method == "POST" else {},
     }
@@ -5123,6 +5173,8 @@ def maintenance_fault_detail(fault_id):
         "maintenance/fault_detail.html",
         fault=fault,
         status_tone=maintenance_status_tone,
+        unplanned_maintenance_code=UNPLANNED_MAINTENANCE_CODE,
+        unplanned_maintenance_label=UNPLANNED_MAINTENANCE_LABEL,
         format_date=format_date,
         can_edit_fault=can_edit_maintenance_fault(fault),
         can_complete_fault=can_complete_maintenance_fault(fault),

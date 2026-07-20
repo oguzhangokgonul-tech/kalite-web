@@ -47,8 +47,11 @@
       <div>
         <label class="form-label" for="machine_id">Makine <span class="text-danger">*</span></label>
         {% set current_machine_id = form_data.get('machine_id') if form_data else (selected_machine.id if selected_machine else '') %}
-        <select class="form-select" id="machine_id" name="machine_id">
+        <select class="form-select maintenance-machine-select" id="machine_id" name="machine_id">
           <option value="">Makine seçin</option>
+          <option class="maintenance-unplanned-option" value="{{ unplanned_maintenance_value }}" {% if current_machine_id == unplanned_maintenance_value or (not form_data and is_unplanned_selected) %}selected{% endif %}>
+            {{ unplanned_maintenance_label }}
+          </option>
           {% for machine in machines %}
             <option value="{{ machine.id }}" {% if current_machine_id|string == machine.id|string %}selected{% endif %}>
               {{ machine.code }} - {{ machine.machine_name }}{% if machine.brand_model %} / {{ machine.brand_model }}{% endif %}
