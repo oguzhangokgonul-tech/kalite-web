@@ -1,0 +1,22 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ quality_test.title }}{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>{{ quality_test.title }}</h2>
+      <p>Kalite deneyleri takip alanı</p>
+    </div>
+  </div>
+
+  <section class="quality-test-placeholder-card">
+    <div class="quality-test-placeholder-icon">
+      <i class="bi {{ quality_test.icon }}"></i>
+    </div>
+    <div>
+      <h3>{{ quality_test.title }}</h3>
+      <p>Bu deney modülünün içerikleri sonraki adımda doldurulacak.</p>
+    </div>
+  </section>
+{% endblock %}

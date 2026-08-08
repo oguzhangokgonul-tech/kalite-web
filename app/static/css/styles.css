@@ -1394,6 +1394,74 @@ body {
     color: #0d6efd;
 }
 
+.dashboard-nav-group {
+    display: grid;
+    gap: 4px;
+}
+
+.dashboard-nav-toggle {
+    width: 100%;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+}
+
+.dashboard-nav-chevron {
+    width: auto !important;
+    margin-left: auto;
+    font-size: 0.82rem !important;
+    transition: transform 0.2s ease;
+}
+
+.dashboard-nav-toggle[aria-expanded="true"] .dashboard-nav-chevron {
+    transform: rotate(180deg);
+}
+
+.dashboard-subnav {
+    gap: 4px;
+    padding: 4px 0 6px 38px;
+}
+
+.dashboard-subnav.collapse.show,
+.dashboard-subnav.collapsing {
+    display: grid;
+}
+
+.dashboard-subnav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 0 10px;
+    color: #52627a;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+
+.dashboard-subnav-item i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    color: #64748b;
+    font-size: 0.96rem;
+}
+
+.dashboard-subnav-item:hover,
+.dashboard-subnav-item.active {
+    color: #0d6efd;
+    background: #f4f8ff;
+    border-color: #dbeafe;
+}
+
+.dashboard-subnav-item:hover i,
+.dashboard-subnav-item.active i {
+    color: #0d6efd;
+}
+
 .dashboard-sidebar-bottom {
     display: grid;
     gap: 0;
@@ -1576,6 +1644,45 @@ body {
     font-size: 2rem;
     font-weight: 800;
     letter-spacing: 0;
+}
+
+.quality-test-placeholder-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    min-height: 180px;
+    padding: 28px;
+    background: #ffffff;
+    border: 1px solid #e1e8f2;
+    border-radius: 8px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.quality-test-placeholder-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    color: #0d6efd;
+    background: #eef5ff;
+    border: 1px solid #cfe1ff;
+    border-radius: 8px;
+    font-size: 1.8rem;
+}
+
+.quality-test-placeholder-card h3 {
+    margin: 0 0 8px;
+    color: #111827;
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.quality-test-placeholder-card p {
+    margin: 0;
+    color: #64748b;
 }
 
 .dashboard-page-heading p {

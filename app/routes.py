@@ -115,6 +115,13 @@ INTERNAL_AUDIT_STANDARD_CHOICES = (
 UNPLANNED_MAINTENANCE_VALUE = "__unplanned__"
 UNPLANNED_MAINTENANCE_CODE = "PLANSIZ-BAKIM"
 UNPLANNED_MAINTENANCE_LABEL = "Plansız Bakım Talebi"
+QUALITY_TESTS = (
+    {"slug": "beton-deneyi", "title": "Beton Deneyi", "icon": "bi-box-seam"},
+    {"slug": "metilen-deneyi", "title": "Metilen Deneyi", "icon": "bi-droplet"},
+    {"slug": "su-emme-deneyi", "title": "Su Emme Deneyi", "icon": "bi-moisture"},
+    {"slug": "elek-analizi-deneyi", "title": "Elek Analizi Deneyi", "icon": "bi-grid-3x3-gap"},
+    {"slug": "demir-cekme-deneyi", "title": "Demir Çekme Deneyi", "icon": "bi-bezier2"},
+)
 
 
 @bp.app_errorhandler(403)
@@ -4709,6 +4716,23 @@ def dashboard():
 @login_required
 def assigned_tasks():
     return render_template("assigned_tasks.html", **assigned_tasks_context())
+
+
+@bp.route("/kalite-deneyleri/<slug>")
+@login_required
+def quality_test_page(slug):
+    quality_test = next(
+        (test for test in QUALITY_TESTS if test["slug"] == slug),
+        None,
+    )
+    if quality_test is None:
+        abort(404)
+
+    return render_template(
+        "quality_test_placeholder.html",
+        quality_test=quality_test,
+        quality_tests=QUALITY_TESTS,
+    )
 
 
 @bp.route("/documents")

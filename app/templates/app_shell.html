@@ -6,6 +6,15 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
+  {% set quality_tests_active = request.endpoint == 'main.quality_test_page' %}
+  {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
+  {% set quality_test_menu = [
+    ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
+    ('metilen-deneyi', 'Metilen Deneyi', 'bi-droplet'),
+    ('su-emme-deneyi', 'Su Emme Deneyi', 'bi-moisture'),
+    ('elek-analizi-deneyi', 'Elek Analizi Deneyi', 'bi-grid-3x3-gap'),
+    ('demir-cekme-deneyi', 'Demir Çekme Deneyi', 'bi-bezier2')
+  ] %}
   <aside class="dashboard-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
     <div class="offcanvas-header d-lg-none">
       <h2 class="h6 mb-0" id="dashboardSidebarLabel">Menü</h2>
@@ -31,6 +40,21 @@
           <i class="bi bi-wrench-adjustable"></i>
           <span>Bakım</span>
         </a>
+        <div class="dashboard-nav-group {% if quality_tests_active %}active{% endif %}">
+          <button class="dashboard-nav-item dashboard-nav-toggle {% if quality_tests_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#qualityTestsNav" aria-expanded="{{ 'true' if quality_tests_active else 'false' }}" aria-controls="qualityTestsNav">
+            <i class="bi bi-flask"></i>
+            <span>Kalite Deneyleri</span>
+            <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
+          </button>
+          <div class="dashboard-subnav collapse {% if quality_tests_active %}show{% endif %}" id="qualityTestsNav">
+            {% for slug, title, icon in quality_test_menu %}
+              <a class="dashboard-subnav-item {% if active_quality_slug == slug %}active{% endif %}" href="{{ url_for('main.quality_test_page', slug=slug) }}">
+                <i class="bi {{ icon }}"></i>
+                <span>{{ title }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </div>
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-clipboard2-pulse"></i>
           <span>İF Yönetimi</span>
