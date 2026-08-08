@@ -28,7 +28,6 @@ from sqlalchemy.exc import OperationalError
 from .extensions import db
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import send_action_notification_email, send_dof_notification_email
-from .quality_tests import concrete_test_context
 from .models import (
     Action,
     ActionComment,
@@ -58,6 +57,8 @@ from .models import (
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
+    QUALITY_TEST_STATUSES,
+    QualityTestRecord,
     User,
 )
 
@@ -170,6 +171,7 @@ def load_logged_in_user():
         ensure_action_sub_task_schema()
         ensure_document_schema()
         ensure_maintenance_schema()
+        ensure_quality_test_schema()
         try:
             notification_query = Notification.query.filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
@@ -784,6 +786,79 @@ def ensure_maintenance_schema():
         current_app.logger.exception("Bakım yönetimi şeması kontrol edilemedi.")
 
 
+def ensure_quality_test_schema():
+    if current_app.extensions.get("quality_test_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "quality_test_records" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE quality_test_records (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            test_type VARCHAR(80) NOT NULL,
+                            record_number INTEGER,
+                            title VARCHAR(180) NOT NULL,
+                            record_date DATE,
+                            customer VARCHAR(180),
+                            sample_name VARCHAR(180),
+                            concrete_class VARCHAR(40),
+                            status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı',
+                            description TEXT,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("quality_test_records")
+                }
+                record_columns = {
+                    "test_type": "ALTER TABLE quality_test_records ADD COLUMN test_type VARCHAR(80) NOT NULL DEFAULT ''",
+                    "record_number": "ALTER TABLE quality_test_records ADD COLUMN record_number INTEGER",
+                    "title": "ALTER TABLE quality_test_records ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+                    "record_date": "ALTER TABLE quality_test_records ADD COLUMN record_date DATE",
+                    "customer": "ALTER TABLE quality_test_records ADD COLUMN customer VARCHAR(180)",
+                    "sample_name": "ALTER TABLE quality_test_records ADD COLUMN sample_name VARCHAR(180)",
+                    "concrete_class": "ALTER TABLE quality_test_records ADD COLUMN concrete_class VARCHAR(40)",
+                    "status": "ALTER TABLE quality_test_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı'",
+                    "description": "ALTER TABLE quality_test_records ADD COLUMN description TEXT",
+                    "created_by_user_id": "ALTER TABLE quality_test_records ADD COLUMN created_by_user_id INTEGER",
+                    "created_at": "ALTER TABLE quality_test_records ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE quality_test_records ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in record_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_quality_test_records_test_type "
+                    "ON quality_test_records (test_type)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_quality_test_records_status "
+                    "ON quality_test_records (status)"
+                )
+            )
+
+        current_app.extensions["quality_test_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Kalite deneyleri şeması kontrol edilemedi.")
+
+
 def login_required(view):
     @wraps(view)
     def wrapped_view(*args, **kwargs):
@@ -1271,6 +1346,115 @@ def reserve_maintenance_fault_number():
 
     setting.value = str(next_number + 1)
     return next_number
+
+
+def quality_test_by_slug(slug):
+    return next((test for test in QUALITY_TESTS if test["slug"] == slug), None)
+
+
+def reserve_quality_test_record_number(slug):
+    max_number = (
+        db.session.query(db.func.max(QualityTestRecord.record_number))
+        .filter(QualityTestRecord.test_type == slug)
+        .scalar()
+        or 0
+    )
+    return max_number + 1
+
+
+def quality_test_status_tone(status):
+    if status == "Tamamlandı":
+        return "success"
+    if status == "Devam Ediyor":
+        return "info"
+    if status == "İptal Edildi":
+        return "danger"
+    return "muted"
+
+
+def canonical_quality_test_status(value):
+    normalized_value = normalize_for_role(value)
+    for status in QUALITY_TEST_STATUSES:
+        if normalize_for_role(status) == normalized_value:
+            return status
+    return ""
+
+
+def quality_test_records_context(quality_test):
+    filters = {
+        "search": request.args.get("search", "").strip(),
+        "status": request.args.get("status", "").strip(),
+    }
+    query = QualityTestRecord.query.filter_by(test_type=quality_test["slug"])
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                QualityTestRecord.title.ilike(search_value),
+                QualityTestRecord.customer.ilike(search_value),
+                QualityTestRecord.sample_name.ilike(search_value),
+                QualityTestRecord.concrete_class.ilike(search_value),
+                QualityTestRecord.description.ilike(search_value),
+            )
+        )
+    if filters["status"]:
+        query = query.filter(QualityTestRecord.status == filters["status"])
+
+    records = query.order_by(
+        QualityTestRecord.record_number.asc(),
+        QualityTestRecord.id.asc(),
+    ).all()
+    total_count = QualityTestRecord.query.filter_by(test_type=quality_test["slug"]).count()
+
+    return {
+        "quality_test": quality_test,
+        "records": records,
+        "total_count": total_count,
+        "filtered_count": len(records),
+        "completed_count": sum(1 for record in records if record.status == "Tamamlandı"),
+        "active_count": sum(1 for record in records if record.status != "Tamamlandı"),
+        "filters": filters,
+        "status_options": QUALITY_TEST_STATUSES,
+        "status_tone": quality_test_status_tone,
+    }
+
+
+def parse_quality_test_record_form():
+    title = request.form.get("title", "").strip()
+    record_date = parse_optional_date("record_date")
+    customer = request.form.get("customer", "").strip()
+    sample_name = request.form.get("sample_name", "").strip()
+    concrete_class = request.form.get("concrete_class", "").strip()
+    status = canonical_quality_test_status(
+        request.form.get("status", "Kayıtlı").strip() or "Kayıtlı"
+    )
+    description = request.form.get("description", "").strip()
+
+    if not title:
+        raise ValueError("required_fields")
+    if not status:
+        raise ValueError("invalid_status")
+    if any(
+        len(value) > limit
+        for value, limit in (
+            (title, 180),
+            (customer, 180),
+            (sample_name, 180),
+            (concrete_class, 40),
+            (description, 2000),
+        )
+    ):
+        raise ValueError("text_too_long")
+
+    return {
+        "title": title,
+        "record_date": record_date,
+        "customer": customer or None,
+        "sample_name": sample_name or None,
+        "concrete_class": concrete_class or None,
+        "status": status,
+        "description": description or None,
+    }
 
 
 def can_view_internal_audit(audit):
@@ -4722,25 +4906,56 @@ def assigned_tasks():
 @bp.route("/kalite-deneyleri/<slug>")
 @login_required
 def quality_test_page(slug):
-    quality_test = next(
-        (test for test in QUALITY_TESTS if test["slug"] == slug),
-        None,
-    )
+    quality_test = quality_test_by_slug(slug)
     if quality_test is None:
         abort(404)
 
-    if slug == "beton-deneyi":
-        return render_template(
-            "quality_tests/concrete.html",
-            quality_test=quality_test,
-            quality_tests=QUALITY_TESTS,
-            **concrete_test_context(request.args),
-        )
+    return render_template(
+        "quality_tests/index.html",
+        **quality_test_records_context(quality_test),
+    )
+
+
+@bp.route("/kalite-deneyleri/<slug>/yeni", methods=["GET", "POST"])
+@login_required
+def create_quality_test_record(slug):
+    quality_test = quality_test_by_slug(slug)
+    if quality_test is None:
+        abort(404)
+
+    if request.method == "POST":
+        try:
+            values = parse_quality_test_record_form()
+            record = QualityTestRecord(
+                test_type=slug,
+                record_number=reserve_quality_test_record_number(slug),
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            db.session.add(record)
+            db.session.commit()
+            flash("Deney kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.quality_test_page", slug=slug))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Kayıt başlığı zorunludur.", "danger")
+            elif error_key == "invalid_date":
+                flash("Geçerli bir tarih girin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir durum seçin.", "danger")
+            elif error_key == "text_too_long":
+                flash("Formdaki metinlerden biri çok uzun.", "danger")
+            else:
+                flash("Deney kaydı oluşturulamadı.", "danger")
 
     return render_template(
-        "quality_test_placeholder.html",
+        "quality_tests/form.html",
         quality_test=quality_test,
-        quality_tests=QUALITY_TESTS,
+        status_options=QUALITY_TEST_STATUSES,
+        form_data=request.form,
+        form_action=url_for("main.create_quality_test_record", slug=slug),
     )
 
 

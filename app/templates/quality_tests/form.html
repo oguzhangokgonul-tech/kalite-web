@@ -1,0 +1,75 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Yeni Kayıt Oluştur{% endblock %}
+
+{% macro field_value(name, default="") -%}
+  {{ form_data.get(name, default) if form_data else default }}
+{%- endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Yeni Kayıt Oluştur</h2>
+      <p>{{ quality_test.title }}</p>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>{{ quality_test.title }}</span>
+      </a>
+    </div>
+  </div>
+
+  <form class="quality-test-form-card" method="post" action="{{ form_action }}">
+    <div class="quality-test-form-header">
+      <span class="app-card-icon"><i class="bi {{ quality_test.icon }}"></i></span>
+      <div>
+        <h3>{{ quality_test.title }} Kaydı</h3>
+        <p>Deney kaydının temel bilgilerini girin.</p>
+      </div>
+    </div>
+
+    <div class="app-form-grid">
+      <div class="app-form-full">
+        <label class="form-label" for="title">Kayıt Başlığı <span class="text-danger">*</span></label>
+        <input class="form-control" id="title" name="title" value="{{ field_value('title') }}" required placeholder="Örn. Günlük beton numunesi">
+      </div>
+      <div>
+        <label class="form-label" for="record_date">Deney Tarihi</label>
+        <input class="form-control" id="record_date" name="record_date" type="date" value="{{ field_value('record_date') }}">
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          {% for status in status_options %}
+            <option value="{{ status }}" {% if field_value('status', 'Kayıtlı')|trim == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="customer">Müşteri / Firma</label>
+        <input class="form-control" id="customer" name="customer" value="{{ field_value('customer') }}" placeholder="Firma adı">
+      </div>
+      <div>
+        <label class="form-label" for="sample_name">Numune / Yapı Elemanı</label>
+        <input class="form-control" id="sample_name" name="sample_name" value="{{ field_value('sample_name') }}" placeholder="Numune veya yapı elemanı">
+      </div>
+      <div>
+        <label class="form-label" for="concrete_class">Beton Sınıfı</label>
+        <input class="form-control" id="concrete_class" name="concrete_class" value="{{ field_value('concrete_class') }}" placeholder="Örn. C30">
+      </div>
+      <div class="app-form-full">
+        <label class="form-label" for="description">Açıklama</label>
+        <textarea class="form-control" id="description" name="description" rows="5" placeholder="Kısa açıklama yazın">{{ field_value('description') }}</textarea>
+      </div>
+    </div>
+
+    <div class="quality-test-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-check2-circle"></i>
+        <span>Kaydı Oluştur</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

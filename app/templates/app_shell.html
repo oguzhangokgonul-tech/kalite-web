@@ -6,7 +6,7 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
-  {% set quality_tests_active = request.endpoint == 'main.quality_test_page' %}
+  {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),

@@ -30,6 +30,14 @@ ACTION_SUB_TASK_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 MAINTENANCE_MACHINE_STATUSES = ("ÇALIŞIYOR", "ARIZALI", "HURDA", "PASİF")
 MAINTENANCE_FAULT_STATUSES = ("Açık", "İşlemde", "Tamamlandı", "İptal Edildi")
 MAINTENANCE_FAULT_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
+QUALITY_TEST_STATUSES = ("Kayıtlı", "Devam Ediyor", "Tamamlandı", "İptal Edildi")
+QUALITY_TEST_PREFIXES = {
+    "beton-deneyi": "BET",
+    "metilen-deneyi": "MET",
+    "su-emme-deneyi": "SUE",
+    "elek-analizi-deneyi": "ELE",
+    "demir-cekme-deneyi": "DEM",
+}
 
 DOF_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 DOF_SOURCES = (
@@ -575,6 +583,38 @@ class MaintenanceFault(db.Model):
     @property
     def is_completed(self):
         return self.status == "Tamamlandı"
+
+
+class QualityTestRecord(db.Model):
+    __tablename__ = "quality_test_records"
+
+    id = db.Column(db.Integer, primary_key=True)
+    test_type = db.Column(db.String(80), nullable=False)
+    record_number = db.Column(db.Integer, nullable=True)
+    title = db.Column(db.String(180), nullable=False)
+    record_date = db.Column(db.Date, nullable=True)
+    customer = db.Column(db.String(180), nullable=True)
+    sample_name = db.Column(db.String(180), nullable=True)
+    concrete_class = db.Column(db.String(40), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Kayıtlı")
+    description = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    @property
+    def number_label(self):
+        source_date = self.record_date or self.created_at
+        year = source_date.year if source_date else date.today().year
+        prefix = QUALITY_TEST_PREFIXES.get(self.test_type, "DEN")
+        return f"{prefix}-{year}-{(self.record_number or self.id):04d}"
 
 
 class InternalAudit(db.Model):

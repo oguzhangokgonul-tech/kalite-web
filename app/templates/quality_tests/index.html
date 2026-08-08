@@ -1,0 +1,146 @@
+{% extends "app_shell.html" %}
+
+{% block title %}{{ quality_test.title }}{% endblock %}
+
+{% macro test_status_badge(record) %}
+  {% set tone = status_tone(record.status) %}
+  <span class="status-pill status-pill-{{ tone }}">
+    {% if tone == "success" %}
+      <i class="bi bi-check-circle-fill"></i>
+    {% elif tone == "info" %}
+      <i class="bi bi-play-circle-fill"></i>
+    {% elif tone == "danger" %}
+      <i class="bi bi-x-circle-fill"></i>
+    {% else %}
+      <i class="bi bi-circle-fill"></i>
+    {% endif %}
+    <span>{{ record.status }}</span>
+  </span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>{{ quality_test.title }}</h2>
+      <p>Kalite deneyleri kayıt takip ekranı</p>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Kayıt Oluştur</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="dashboard-metrics quality-test-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi {{ quality_test.icon }}"></i></span>
+      <span class="stat-label">Toplam Kayıt</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Gösterilen</span>
+      <strong>{{ filtered_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Tamamlanan</span>
+      <strong>{{ completed_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">Açık Kayıt</span>
+      <strong>{{ active_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="quality-test-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Başlık, müşteri, numune veya açıklama ara">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in status_options %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="dashboard-table-card quality-test-table-card">
+    <div class="quality-test-section-header">
+      <div>
+        <h3>{{ quality_test.title }} Kayıtları</h3>
+        <p>Elle oluşturulan deney kayıtları burada takip edilir.</p>
+      </div>
+      <span class="quality-test-record-count">{{ filtered_count }} kayıt</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table dashboard-table quality-test-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Kayıt No</th>
+            <th>Kayıt Başlığı</th>
+            <th>Tarih</th>
+            <th>Müşteri / Numune</th>
+            <th>Beton Sınıfı</th>
+            <th>Durum</th>
+            <th>Oluşturan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+            <tr>
+              <td data-label="Kayıt No"><strong>{{ record.number_label }}</strong></td>
+              <td data-label="Kayıt Başlığı" class="dashboard-action-title-cell">
+                <strong class="quality-test-record-title">{{ record.title }}</strong>
+                <span>{{ record.description or "Açıklama girilmemiş." }}</span>
+              </td>
+              <td data-label="Tarih">{{ record.record_date.strftime("%d.%m.%Y") if record.record_date else "-" }}</td>
+              <td data-label="Müşteri / Numune">
+                <strong>{{ record.customer or "-" }}</strong>
+                <span class="quality-test-muted-line">{{ record.sample_name or "-" }}</span>
+              </td>
+              <td data-label="Beton Sınıfı">{{ record.concrete_class or "-" }}</td>
+              <td data-label="Durum">{{ test_status_badge(record) }}</td>
+              <td data-label="Oluşturan">{{ record.created_by.full_name if record.created_by else "-" }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="7">
+                <strong>Henüz kayıt yok.</strong>
+                <span>Yeni kayıt oluşturduğunuzda burada listelenecek.</span>
+                <a class="btn btn-primary btn-sm mt-3" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
+                  <i class="bi bi-plus-lg"></i>
+                  <span>Yeni Kayıt Oluştur</span>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ total_count }} kayıt</span>
+    </div>
+  </section>
+{% endblock %}
