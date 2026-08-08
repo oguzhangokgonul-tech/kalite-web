@@ -1,0 +1,221 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Beton Deneyi{% endblock %}
+
+{% macro concrete_status_badge(row) %}
+  <span class="status-pill status-pill-{{ row.status_tone }}">
+    {% if row.status_tone == "success" %}
+      <i class="bi bi-check-circle-fill"></i>
+    {% elif row.status_tone == "danger" %}
+      <i class="bi bi-exclamation-circle-fill"></i>
+    {% elif row.status_tone == "warning" %}
+      <i class="bi bi-clock-fill"></i>
+    {% else %}
+      <i class="bi bi-circle-fill"></i>
+    {% endif %}
+    <span>{{ row.status }}</span>
+  </span>
+{% endmacro %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Beton Deneyi</h2>
+      <p>Basınç dayanımı ve beton numune sonuç ekranı</p>
+    </div>
+  </div>
+
+  <div class="dashboard-metrics concrete-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-clipboard-data"></i></span>
+      <span class="stat-label">Toplam Kayıt</span>
+      <strong>{{ all_rows_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Uygun Sonuç</span>
+      <strong>{{ suitable_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-graph-up-arrow"></i></span>
+      <span class="stat-label">Ort. 28 Gün</span>
+      <strong>{{ average_28 }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">28 Gün Bekleyen</span>
+      <strong>{{ waiting_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Kontrol Gerekli</span>
+      <strong>{{ control_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="concrete-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Deney no, müşteri, eleman veya açıklama ara">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="customer">Müşteri</label>
+        <select class="form-select" id="customer" name="customer">
+          <option value="">Tümü</option>
+          {% for customer in customer_options %}
+            <option value="{{ customer }}" {% if filters.customer == customer %}selected{% endif %}>{{ customer }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="element">Yapı Elemanı</label>
+        <select class="form-select" id="element" name="element">
+          <option value="">Tümü</option>
+          {% for element in element_options %}
+            <option value="{{ element }}" {% if filters.element == element %}selected{% endif %}>{{ element }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="grade">Beton Sınıfı</label>
+        <select class="form-select" id="grade" name="grade">
+          <option value="">Tümü</option>
+          {% for grade in grade_options %}
+            <option value="{{ grade }}" {% if filters.grade == grade %}selected{% endif %}>{{ grade }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in status_options %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug='beton-deneyi') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="dashboard-table-card concrete-table-card">
+    <div class="concrete-section-header">
+      <div>
+        <h3>Genel Sonuç</h3>
+        <p>Excel dosyasından aktarılan beton numune kayıtları.</p>
+      </div>
+      <span class="concrete-record-count">{{ filtered_count }} kayıt gösteriliyor</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table dashboard-table concrete-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Deney</th>
+            <th>Numune</th>
+            <th>Müşteri / Eleman</th>
+            <th>Beton</th>
+            <th>Slamp / Sıcaklık</th>
+            <th>7 Gün</th>
+            <th>28 Gün</th>
+            <th>Durum</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td data-label="Deney">
+                <strong>#{{ row.test_no_display }}</strong>
+                <span class="concrete-muted-line">Kırım {{ row.break_no_display }}</span>
+              </td>
+              <td data-label="Numune">
+                <strong>{{ row.sample_date_display }}</strong>
+                <span class="concrete-muted-line">{{ row.strength_28_date_display }} / 28 gün</span>
+              </td>
+              <td data-label="Müşteri / Eleman" class="concrete-main-cell">
+                <strong>{{ row.customer or "-" }}</strong>
+                <span>{{ row.element or "-" }}</span>
+              </td>
+              <td data-label="Beton">
+                <span class="concrete-grade-badge">{{ row.grade or "-" }}</span>
+                <span class="concrete-muted-line">{{ row.description or "-" }}</span>
+              </td>
+              <td data-label="Slamp / Sıcaklık">
+                <strong>{{ row.slump_display or "-" }}</strong>
+                <span class="concrete-muted-line">{{ row.temperature_display or "-" }} °C</span>
+              </td>
+              <td data-label="7 Gün">
+                <strong>{{ row.average_strength_7_display }}</strong>
+                <span class="concrete-muted-line">Emn. {{ row.safe_strength_7_display }}</span>
+              </td>
+              <td data-label="28 Gün">
+                <strong>{{ row.average_strength_28_display }}</strong>
+                <span class="concrete-muted-line">Emn. {{ row.safe_strength_28_display }}</span>
+              </td>
+              <td data-label="Durum">{{ concrete_status_badge(row) }}</td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions concrete-row-actions">
+                  <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#concrete-detail-{{ row.index }}" aria-expanded="false" aria-controls="concrete-detail-{{ row.index }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr class="concrete-detail-row">
+              <td colspan="9">
+                <div class="collapse" id="concrete-detail-{{ row.index }}">
+                  <div class="concrete-detail-grid">
+                    <div>
+                      <span>Karışım</span>
+                      <strong>Çim {{ row.cement_kg_display }} kg · Su {{ row.water_display }} · W/C {{ row.water_cement_ratio_display }}</strong>
+                      <small>Dmax {{ row.dmax_display }} · TBHA {{ row.tbha_display }}</small>
+                    </div>
+                    <div>
+                      <span>Katkı</span>
+                      <strong>{{ row.additive_company or "-" }}</strong>
+                      <small>Hiper {{ row.hyper_percent_display }}% / {{ row.hyper_kg_display }} kg · Süper {{ row.super_percent_display }}% / {{ row.super_kg_display }} kg</small>
+                    </div>
+                    <div>
+                      <span>Basınç Kırımları</span>
+                      <strong>2g {{ row.strength_2_display }} · 7g {{ row.average_strength_7_display }} · 28g {{ row.average_strength_28_display }}</strong>
+                      <small>Ön germe ort. {{ row.average_prestress_display }}</small>
+                    </div>
+                    <div>
+                      <span>Tarihler</span>
+                      <strong>2g {{ row.strength_2_date_display }} · 7g {{ row.strength_7_date_display }}</strong>
+                      <small>28g {{ row.strength_28_date_display }}</small>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="9">
+                <strong>Kayıt bulunamadı.</strong>
+                <span>Filtreleri değiştirerek tekrar deneyin.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ all_rows_count }} beton deneyi kaydı</span>
+    </div>
+  </section>
+{% endblock %}

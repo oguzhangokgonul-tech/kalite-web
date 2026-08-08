@@ -28,6 +28,7 @@ from sqlalchemy.exc import OperationalError
 from .extensions import db
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import send_action_notification_email, send_dof_notification_email
+from .quality_tests import concrete_test_context
 from .models import (
     Action,
     ActionComment,
@@ -4727,6 +4728,14 @@ def quality_test_page(slug):
     )
     if quality_test is None:
         abort(404)
+
+    if slug == "beton-deneyi":
+        return render_template(
+            "quality_tests/concrete.html",
+            quality_test=quality_test,
+            quality_tests=QUALITY_TESTS,
+            **concrete_test_context(request.args),
+        )
 
     return render_template(
         "quality_test_placeholder.html",
