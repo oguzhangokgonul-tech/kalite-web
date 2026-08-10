@@ -131,14 +131,54 @@ QUALITY_TEST_ELEMENT_OPTIONS = (
     "Kiriş",
 )
 QUALITY_TEST_CONCRETE_CLASS_OPTIONS = ("C30", "C35", "C40", "C45", "C50", "C55")
-CONCRETE_STRENGTH_PARAMETER_FIELDS = ("green_min", "orange_min", "red_max")
+CONCRETE_STRENGTH_TONES = (
+    ("success", "Yeşil", "bi-check-circle-fill"),
+    ("warning", "Turuncu", "bi-exclamation-circle-fill"),
+    ("danger", "Kırmızı", "bi-x-circle-fill"),
+)
+CONCRETE_STRENGTH_OPERATOR_OPTIONS = (
+    ("gte", ">= Büyük eşit"),
+    ("gt", "> Büyük"),
+    ("lte", "<= Küçük eşit"),
+    ("lt", "< Küçük"),
+    ("between", "Arasında"),
+    ("plus_minus", "+/- Tolerans aralığı"),
+)
+CONCRETE_STRENGTH_OPERATOR_VALUES = {
+    value for value, _label in CONCRETE_STRENGTH_OPERATOR_OPTIONS
+}
+CONCRETE_STRENGTH_RULE_FIELDS = ("operator", "value", "value_to")
 DEFAULT_CONCRETE_STRENGTH_PARAMETERS = {
-    "C30": {"green_min": 30.0, "orange_min": 27.0, "red_max": 26.99},
-    "C35": {"green_min": 35.0, "orange_min": 31.5, "red_max": 31.49},
-    "C40": {"green_min": 40.0, "orange_min": 36.0, "red_max": 35.99},
-    "C45": {"green_min": 45.0, "orange_min": 40.5, "red_max": 40.49},
-    "C50": {"green_min": 50.0, "orange_min": 45.0, "red_max": 44.99},
-    "C55": {"green_min": 55.0, "orange_min": 49.5, "red_max": 49.49},
+    "C30": {
+        "success": {"operator": "gte", "value": 30.0, "value_to": None},
+        "warning": {"operator": "between", "value": 27.0, "value_to": 29.99},
+        "danger": {"operator": "lte", "value": 26.99, "value_to": None},
+    },
+    "C35": {
+        "success": {"operator": "gte", "value": 35.0, "value_to": None},
+        "warning": {"operator": "between", "value": 31.5, "value_to": 34.99},
+        "danger": {"operator": "lte", "value": 31.49, "value_to": None},
+    },
+    "C40": {
+        "success": {"operator": "gte", "value": 40.0, "value_to": None},
+        "warning": {"operator": "between", "value": 36.0, "value_to": 39.99},
+        "danger": {"operator": "lte", "value": 35.99, "value_to": None},
+    },
+    "C45": {
+        "success": {"operator": "gte", "value": 45.0, "value_to": None},
+        "warning": {"operator": "between", "value": 40.5, "value_to": 44.99},
+        "danger": {"operator": "lte", "value": 40.49, "value_to": None},
+    },
+    "C50": {
+        "success": {"operator": "gte", "value": 50.0, "value_to": None},
+        "warning": {"operator": "between", "value": 45.0, "value_to": 49.99},
+        "danger": {"operator": "lte", "value": 44.99, "value_to": None},
+    },
+    "C55": {
+        "success": {"operator": "gte", "value": 55.0, "value_to": None},
+        "warning": {"operator": "between", "value": 49.5, "value_to": 54.99},
+        "danger": {"operator": "lte", "value": 49.49, "value_to": None},
+    },
 }
 
 
@@ -1415,10 +1455,20 @@ def parse_quality_decimal(field_name):
         raise ValueError("invalid_strength") from None
 
 
-def parse_optional_quality_decimal(field_name):
+def parse_required_quality_decimal(field_name):
     value = request.form.get(field_name, "").strip()
     if not value:
         raise ValueError("required_parameter")
+    try:
+        return float(value.replace(",", "."))
+    except ValueError:
+        raise ValueError("invalid_parameter") from None
+
+
+def parse_optional_quality_decimal(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        return None
     try:
         return float(value.replace(",", "."))
     except ValueError:
@@ -1429,59 +1479,163 @@ def concrete_strength_setting_key(concrete_class, field_name):
     return f"concrete_strength_{concrete_class}_{field_name}"
 
 
+def concrete_strength_rule_setting_key(concrete_class, tone, field_name):
+    return f"concrete_strength_{concrete_class}_{tone}_{field_name}"
+
+
 def format_setting_decimal(value):
+    if value is None:
+        return ""
     formatted = f"{float(value):.2f}".rstrip("0").rstrip(".")
     return formatted or "0"
+
+
+def concrete_strength_default_parameters(concrete_class):
+    return {
+        tone: rule.copy()
+        for tone, rule in DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class].items()
+    }
+
+
+def read_concrete_strength_legacy_value(concrete_class, field_name):
+    setting = db.session.get(AppSetting, concrete_strength_setting_key(concrete_class, field_name))
+    default_lookup = {
+        "green_min": DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class]["success"]["value"],
+        "orange_min": DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class]["warning"]["value"],
+        "red_max": DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class]["danger"]["value"],
+    }
+    if setting is None:
+        return default_lookup[field_name]
+    try:
+        return float(setting.value)
+    except (TypeError, ValueError):
+        return default_lookup[field_name]
+
+
+def concrete_strength_legacy_parameters(concrete_class):
+    green_min = read_concrete_strength_legacy_value(concrete_class, "green_min")
+    orange_min = read_concrete_strength_legacy_value(concrete_class, "orange_min")
+    red_max = read_concrete_strength_legacy_value(concrete_class, "red_max")
+    warning_max = max(orange_min, green_min - 0.01)
+    return {
+        "success": {"operator": "gte", "value": green_min, "value_to": None},
+        "warning": {"operator": "between", "value": orange_min, "value_to": warning_max},
+        "danger": {"operator": "lte", "value": red_max, "value_to": None},
+    }
+
+
+def has_concrete_strength_rule_settings(concrete_class):
+    for tone, _label, _icon in CONCRETE_STRENGTH_TONES:
+        for field_name in CONCRETE_STRENGTH_RULE_FIELDS:
+            if db.session.get(
+                AppSetting,
+                concrete_strength_rule_setting_key(concrete_class, tone, field_name),
+            ):
+                return True
+    return False
 
 
 def concrete_strength_parameters():
     parameters = {}
     for concrete_class in QUALITY_TEST_CONCRETE_CLASS_OPTIONS:
-        defaults = DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class]
+        defaults = (
+            concrete_strength_default_parameters(concrete_class)
+            if has_concrete_strength_rule_settings(concrete_class)
+            else concrete_strength_legacy_parameters(concrete_class)
+        )
         class_parameters = {}
-        for field_name in CONCRETE_STRENGTH_PARAMETER_FIELDS:
-            setting = db.session.get(
-                AppSetting,
-                concrete_strength_setting_key(concrete_class, field_name),
-            )
-            if setting is None:
-                class_parameters[field_name] = defaults[field_name]
-                continue
-            try:
-                class_parameters[field_name] = float(setting.value)
-            except (TypeError, ValueError):
-                class_parameters[field_name] = defaults[field_name]
+        for tone, _label, _icon in CONCRETE_STRENGTH_TONES:
+            class_parameters[tone] = defaults[tone].copy()
+            for field_name in CONCRETE_STRENGTH_RULE_FIELDS:
+                setting = db.session.get(
+                    AppSetting,
+                    concrete_strength_rule_setting_key(concrete_class, tone, field_name),
+                )
+                if setting is None:
+                    continue
+                if field_name == "operator":
+                    if setting.value in CONCRETE_STRENGTH_OPERATOR_VALUES:
+                        class_parameters[tone][field_name] = setting.value
+                    continue
+                try:
+                    class_parameters[tone][field_name] = (
+                        float(setting.value) if setting.value else None
+                    )
+                except (TypeError, ValueError):
+                    continue
         parameters[concrete_class] = class_parameters
     return parameters
 
 
 def save_concrete_strength_parameters(parameters):
     for concrete_class, class_parameters in parameters.items():
-        for field_name, value in class_parameters.items():
-            key = concrete_strength_setting_key(concrete_class, field_name)
-            setting = db.session.get(AppSetting, key)
-            if setting is None:
-                setting = AppSetting(key=key, value=format_setting_decimal(value))
-                db.session.add(setting)
-            else:
-                setting.value = format_setting_decimal(value)
+        for tone, rule in class_parameters.items():
+            for field_name in CONCRETE_STRENGTH_RULE_FIELDS:
+                value = rule.get(field_name)
+                key = concrete_strength_rule_setting_key(concrete_class, tone, field_name)
+                setting = db.session.get(AppSetting, key)
+                if field_name == "operator":
+                    setting_value = value
+                else:
+                    setting_value = format_setting_decimal(value)
+                if setting is None:
+                    setting = AppSetting(key=key, value=setting_value)
+                    db.session.add(setting)
+                else:
+                    setting.value = setting_value
 
 
 def parse_concrete_strength_parameters_form():
     parameters = {}
     for concrete_class in QUALITY_TEST_CONCRETE_CLASS_OPTIONS:
-        class_parameters = {
-            field_name: parse_optional_quality_decimal(f"{concrete_class}_{field_name}")
-            for field_name in CONCRETE_STRENGTH_PARAMETER_FIELDS
-        }
-        if not (
-            class_parameters["red_max"]
-            < class_parameters["orange_min"]
-            < class_parameters["green_min"]
-        ):
-            raise ValueError("invalid_parameter_order")
+        class_parameters = {}
+        for tone, _label, _icon in CONCRETE_STRENGTH_TONES:
+            operator = request.form.get(f"{concrete_class}_{tone}_operator", "").strip()
+            if operator not in CONCRETE_STRENGTH_OPERATOR_VALUES:
+                raise ValueError("invalid_operator")
+
+            rule = {
+                "operator": operator,
+                "value": parse_required_quality_decimal(f"{concrete_class}_{tone}_value"),
+                "value_to": None,
+            }
+            if operator in {"between", "plus_minus"}:
+                rule["value_to"] = parse_required_quality_decimal(
+                    f"{concrete_class}_{tone}_value_to"
+                )
+            if operator == "between" and rule["value"] > rule["value_to"]:
+                raise ValueError("invalid_between_range")
+            if operator == "plus_minus" and rule["value_to"] < 0:
+                raise ValueError("invalid_tolerance")
+            class_parameters[tone] = rule
         parameters[concrete_class] = class_parameters
     return parameters
+
+
+def concrete_strength_rule_matches(value, rule):
+    operator = rule.get("operator")
+    target = rule.get("value")
+    second_value = rule.get("value_to")
+    if target is None:
+        return False
+    if operator == "gt":
+        return value > target
+    if operator == "gte":
+        return value >= target
+    if operator == "lt":
+        return value < target
+    if operator == "lte":
+        return value <= target
+    if operator == "between":
+        if second_value is None:
+            return False
+        return target <= value <= second_value
+    if operator == "plus_minus":
+        if second_value is None:
+            return False
+        tolerance = abs(second_value)
+        return (target - tolerance) <= value <= (target + tolerance)
+    return False
 
 
 def concrete_strength_tone(value, concrete_class, parameters):
@@ -1492,13 +1646,10 @@ def concrete_strength_tone(value, concrete_class, parameters):
         return "muted"
 
     value = float(value)
-    if value >= class_parameters["green_min"]:
-        return "success"
-    if value >= class_parameters["orange_min"]:
-        return "warning"
-    if value <= class_parameters["red_max"]:
-        return "danger"
-    return "danger"
+    for tone, _label, _icon in CONCRETE_STRENGTH_TONES:
+        if concrete_strength_rule_matches(value, class_parameters.get(tone, {})):
+            return tone
+    return "muted"
 
 
 def quality_test_records_context(quality_test):
@@ -5094,8 +5245,12 @@ def quality_test_parameters(slug):
                 flash("Tüm parametre değerlerini doldurun.", "danger")
             elif error_key == "invalid_parameter":
                 flash("Parametre değerleri sayısal olmalıdır.", "danger")
-            elif error_key == "invalid_parameter_order":
-                flash("Her beton sınıfında kırmızı eşik < turuncu eşik < yeşil eşik olmalıdır.", "danger")
+            elif error_key == "invalid_operator":
+                flash("Geçerli bir karşılaştırma tipi seçin.", "danger")
+            elif error_key == "invalid_between_range":
+                flash("Arasında koşulunda ilk değer ikinci değerden büyük olamaz.", "danger")
+            elif error_key == "invalid_tolerance":
+                flash("+/- tolerans değeri negatif olamaz.", "danger")
             else:
                 flash("Parametreler kaydedilemedi.", "danger")
 
@@ -5103,6 +5258,8 @@ def quality_test_parameters(slug):
         "quality_tests/parameters.html",
         quality_test=quality_test,
         concrete_class_options=QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
+        tone_options=CONCRETE_STRENGTH_TONES,
+        operator_options=CONCRETE_STRENGTH_OPERATOR_OPTIONS,
         parameters=concrete_strength_parameters(),
         format_decimal=format_quality_decimal,
     )

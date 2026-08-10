@@ -6,7 +6,7 @@
   <div class="dashboard-page-heading">
     <div>
       <h2>Beton Deneyi Parametreleri</h2>
-      <p>Basınç dayanımı sonuçlarının renk eşiklerini düzenleyin.</p>
+      <p>Basınç dayanımı sonuçlarının renk koşullarını düzenleyin.</p>
     </div>
     <div class="app-heading-actions">
       <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
@@ -21,7 +21,7 @@
       <span class="app-card-icon"><i class="bi bi-sliders"></i></span>
       <div>
         <h3>Renk Parametreleri</h3>
-        <p>Her beton sınıfı için girilen 2, 7 ve 28 günlük basınç dayanımı değerleri bu eşiklere göre renklendirilir.</p>
+        <p>Her beton sınıfı için yeşil, turuncu ve kırmızı koşullarını ayrı ayrı tanımlayabilirsiniz.</p>
       </div>
     </div>
 
@@ -33,49 +33,50 @@
             <span>{{ concrete_class }}</span>
             <small>Basınç dayanımı</small>
           </div>
-          <div class="quality-parameter-fields">
-            <label>
-              <span class="quality-parameter-label quality-parameter-label-success">
-                <i class="bi bi-check-circle-fill"></i>
-                Yeşil
-              </span>
-              <small>Bu değer ve üzeri</small>
-              <input
-                class="form-control"
-                name="{{ concrete_class }}_green_min"
-                inputmode="decimal"
-                required
-                value="{{ request.form.get(concrete_class ~ '_green_min', format_decimal(class_parameters.green_min)) }}"
-              >
-            </label>
-            <label>
-              <span class="quality-parameter-label quality-parameter-label-warning">
-                <i class="bi bi-exclamation-circle-fill"></i>
-                Turuncu
-              </span>
-              <small>Bu değer ve üzeri</small>
-              <input
-                class="form-control"
-                name="{{ concrete_class }}_orange_min"
-                inputmode="decimal"
-                required
-                value="{{ request.form.get(concrete_class ~ '_orange_min', format_decimal(class_parameters.orange_min)) }}"
-              >
-            </label>
-            <label>
-              <span class="quality-parameter-label quality-parameter-label-danger">
-                <i class="bi bi-x-circle-fill"></i>
-                Kırmızı
-              </span>
-              <small>Bu değer ve altı</small>
-              <input
-                class="form-control"
-                name="{{ concrete_class }}_red_max"
-                inputmode="decimal"
-                required
-                value="{{ request.form.get(concrete_class ~ '_red_max', format_decimal(class_parameters.red_max)) }}"
-              >
-            </label>
+          <div class="quality-parameter-rules">
+            {% for tone, tone_label, tone_icon in tone_options %}
+              {% set rule = class_parameters[tone] %}
+              {% set selected_operator = request.form.get(concrete_class ~ '_' ~ tone ~ '_operator', rule.operator) %}
+              <div class="quality-parameter-rule quality-parameter-rule-{{ tone }}" data-strength-rule>
+                <div class="quality-parameter-rule-heading">
+                  <span class="quality-parameter-label quality-parameter-label-{{ tone }}">
+                    <i class="bi {{ tone_icon }}"></i>
+                    {{ tone_label }}
+                  </span>
+                </div>
+                <div class="quality-parameter-rule-grid">
+                  <label>
+                    <span>Koşul</span>
+                    <select class="form-select" name="{{ concrete_class }}_{{ tone }}_operator" data-rule-operator>
+                      {% for operator_value, operator_label in operator_options %}
+                        <option value="{{ operator_value }}" {% if selected_operator == operator_value %}selected{% endif %}>{{ operator_label }}</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Değer 1</span>
+                    <input
+                      class="form-control"
+                      name="{{ concrete_class }}_{{ tone }}_value"
+                      inputmode="decimal"
+                      required
+                      value="{{ request.form.get(concrete_class ~ '_' ~ tone ~ '_value', format_decimal(rule.value)) }}"
+                    >
+                  </label>
+                  <label data-rule-second>
+                    <span data-rule-second-label>Değer 2</span>
+                    <input
+                      class="form-control"
+                      name="{{ concrete_class }}_{{ tone }}_value_to"
+                      inputmode="decimal"
+                      value="{{ request.form.get(concrete_class ~ '_' ~ tone ~ '_value_to', format_decimal(rule.value_to) if rule.value_to is not none else '') }}"
+                      data-rule-second-input
+                    >
+                  </label>
+                </div>
+                <small class="quality-parameter-help" data-rule-help></small>
+              </div>
+            {% endfor %}
           </div>
         </section>
       {% endfor %}
@@ -83,7 +84,7 @@
 
     <div class="quality-parameters-note">
       <i class="bi bi-info-circle"></i>
-      <span>Ölçüm değeri boş olan sonuçlar gri görünür. Kaydedilen değerler tüm beton deneyi kayıtlarında otomatik uygulanır.</span>
+      <span>Bir değer birden fazla koşula uyarsa öncelik sırası yeşil, turuncu, kırmızıdır. Hiçbir koşula uymayan sonuçlar gri görünür.</span>
     </div>
 
     <div class="quality-test-form-actions">
@@ -94,4 +95,42 @@
       </button>
     </div>
   </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (() => {
+      const helpText = {
+        gt: "Sonuç Değer 1 değerinden büyükse bu renk uygulanır.",
+        gte: "Sonuç Değer 1 değerine eşit veya daha büyükse bu renk uygulanır.",
+        lt: "Sonuç Değer 1 değerinden küçükse bu renk uygulanır.",
+        lte: "Sonuç Değer 1 değerine eşit veya daha küçükse bu renk uygulanır.",
+        between: "Sonuç Değer 1 ile Değer 2 arasındaysa bu renk uygulanır.",
+        plus_minus: "Sonuç Değer 1 etrafındaki +/- tolerans aralığındaysa bu renk uygulanır."
+      };
+
+      function refreshRule(rule) {
+        const operator = rule.querySelector("[data-rule-operator]");
+        const secondGroup = rule.querySelector("[data-rule-second]");
+        const secondInput = rule.querySelector("[data-rule-second-input]");
+        const secondLabel = rule.querySelector("[data-rule-second-label]");
+        const help = rule.querySelector("[data-rule-help]");
+        if (!operator || !secondGroup || !secondInput || !secondLabel || !help) return;
+
+        const needsSecondValue = operator.value === "between" || operator.value === "plus_minus";
+        secondGroup.hidden = !needsSecondValue;
+        secondInput.required = needsSecondValue;
+        secondLabel.textContent = operator.value === "plus_minus" ? "Tolerans" : "Değer 2";
+        secondInput.placeholder = operator.value === "plus_minus" ? "Örn. 1,5" : "Örn. 35";
+        help.textContent = helpText[operator.value] || "";
+      }
+
+      document.querySelectorAll("[data-strength-rule]").forEach((rule) => {
+        const operator = rule.querySelector("[data-rule-operator]");
+        refreshRule(rule);
+        operator?.addEventListener("change", () => refreshRule(rule));
+      });
+    })();
+  </script>
 {% endblock %}
