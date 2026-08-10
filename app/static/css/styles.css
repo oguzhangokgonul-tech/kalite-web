@@ -1738,7 +1738,7 @@ body {
 }
 
 .quality-test-table {
-    min-width: 980px;
+    min-width: 1180px;
 }
 
 .quality-test-table td strong,
@@ -1757,6 +1757,34 @@ body {
     color: #64748b;
     font-size: 0.84rem;
     line-height: 1.35;
+}
+
+.quality-strength-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.quality-strength-values span {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    min-height: 28px;
+    padding: 0 8px;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.quality-strength-values strong {
+    color: #172033;
+}
+
+.quality-test-row-actions {
+    min-width: 120px;
 }
 
 .quality-test-form-card {
@@ -1785,6 +1813,71 @@ body {
     min-height: 42px;
     border-radius: 8px;
     font-weight: 700;
+}
+
+.quality-measurement-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 20px;
+    align-items: start;
+}
+
+.quality-readonly-field {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 14px;
+    color: #475569;
+    background: #f8fafc;
+    border: 1px solid #d8e2ef;
+    border-radius: 8px;
+    font-weight: 800;
+}
+
+.quality-measurement-summary {
+    display: grid;
+    gap: 12px;
+}
+
+.quality-measurement-card,
+.quality-complete-panel {
+    background: #ffffff;
+    border: 1px solid #e2e9f3;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.quality-measurement-card {
+    display: grid;
+    gap: 6px;
+    padding: 16px;
+}
+
+.quality-measurement-card span {
+    color: #64748b;
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.quality-measurement-card strong {
+    color: #172033;
+    font-size: 1.08rem;
+}
+
+.quality-measurement-card small {
+    color: #64748b;
+}
+
+.quality-complete-panel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 58px;
+    padding: 14px 16px;
+    color: #087443;
+    background: #f0fdf6;
+    border-color: #bce8ce;
 }
 
 .concrete-metrics {
@@ -6545,6 +6638,12 @@ body {
 
     .concrete-detail-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 992px) {
+    .quality-measurement-layout {
+        grid-template-columns: 1fr;
     }
 }
 

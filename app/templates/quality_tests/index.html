@@ -23,19 +23,37 @@
       <strong>{{ total_count }}</strong>
     </div>
     <div class="dashboard-stat-card stat-info">
-      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
-      <span class="stat-label">Gösterilen</span>
-      <strong>{{ filtered_count }}</strong>
+      {% if is_concrete_test %}
+        <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+        <span class="stat-label">Ölçüm Bekleyen</span>
+        <strong>{{ measurement_waiting_count }}</strong>
+      {% else %}
+        <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+        <span class="stat-label">Gösterilen</span>
+        <strong>{{ filtered_count }}</strong>
+      {% endif %}
     </div>
     <div class="dashboard-stat-card stat-success">
-      <span class="stat-icon"><i class="bi bi-buildings"></i></span>
-      <span class="stat-label">Yapı Elemanı</span>
-      <strong>{{ element_count }}</strong>
+      {% if is_concrete_test %}
+        <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+        <span class="stat-label">Ölçümü Tamamlanan</span>
+        <strong>{{ measurement_completed_count }}</strong>
+      {% else %}
+        <span class="stat-icon"><i class="bi bi-buildings"></i></span>
+        <span class="stat-label">Yapı Elemanı</span>
+        <strong>{{ element_count }}</strong>
+      {% endif %}
     </div>
-    <div class="dashboard-stat-card stat-warning">
-      <span class="stat-icon"><i class="bi bi-layers"></i></span>
-      <span class="stat-label">Beton Sınıfı</span>
-      <strong>{{ class_count }}</strong>
+    <div class="dashboard-stat-card {% if is_concrete_test %}stat-danger{% else %}stat-warning{% endif %}">
+      {% if is_concrete_test %}
+        <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+        <span class="stat-label">Ölçümü Geciken</span>
+        <strong>{{ measurement_delayed_count }}</strong>
+      {% else %}
+        <span class="stat-icon"><i class="bi bi-layers"></i></span>
+        <span class="stat-label">Beton Sınıfı</span>
+        <strong>{{ class_count }}</strong>
+      {% endif %}
     </div>
   </div>
 
@@ -97,7 +115,13 @@
             <th>Dökülen Yapı Elemanı</th>
             <th>Beton Sınıfı</th>
             <th>Hava Sıcaklığı</th>
-            <th>Oluşturan</th>
+            {% if is_concrete_test %}
+              <th>Basınç Dayanımı</th>
+              <th>Ölçüm Termini</th>
+              <th class="text-end">İşlemler</th>
+            {% else %}
+              <th>Oluşturan</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
@@ -118,11 +142,47 @@
                   -
                 {% endif %}
               </td>
-              <td data-label="Oluşturan">{{ record.created_by.full_name if record.created_by else "-" }}</td>
+              {% if is_concrete_test %}
+                <td data-label="Basınç Dayanımı">
+                  <div class="quality-strength-values">
+                    <span>2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
+                    <span>7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
+                    <span>28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
+                  </div>
+                </td>
+                <td data-label="Ölçüm Termini">
+                  <span class="status-pill status-pill-{{ record.measurement_tone(today) }}">
+                    {% if record.current_measurement_day %}
+                      <i class="bi bi-clock-fill"></i>
+                      {{ record.current_measurement_label }}
+                    {% else %}
+                      <i class="bi bi-check-circle-fill"></i>
+                      Ölçümler Tamamlandı
+                    {% endif %}
+                  </span>
+                  <span class="quality-test-muted-line">
+                    {% if record.current_measurement_due_date %}
+                      {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}
+                    {% else %}
+                      {{ record.measurement_progress_label }}
+                    {% endif %}
+                  </span>
+                </td>
+                <td data-label="İşlemler">
+                  <div class="dashboard-row-actions quality-test-row-actions">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
+                      <i class="bi bi-speedometer2"></i>
+                      <span>Ölçüm Gir</span>
+                    </a>
+                  </div>
+                </td>
+              {% else %}
+                <td data-label="Oluşturan">{{ record.created_by.full_name if record.created_by else "-" }}</td>
+              {% endif %}
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="7">
+              <td class="dashboard-empty-row" colspan="{{ 9 if is_concrete_test else 7 }}">
                 <strong>Henüz kayıt yok.</strong>
                 <span>Yeni kayıt oluşturduğunuzda burada listelenecek.</span>
                 <a class="btn btn-primary btn-sm mt-3" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">

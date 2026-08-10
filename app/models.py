@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -597,6 +597,12 @@ class QualityTestRecord(db.Model):
     sample_name = db.Column(db.String(180), nullable=True)
     concrete_class = db.Column(db.String(40), nullable=True)
     air_temperature = db.Column(db.Float, nullable=True)
+    strength_2_day = db.Column(db.Float, nullable=True)
+    strength_2_recorded_at = db.Column(db.DateTime, nullable=True)
+    strength_7_day = db.Column(db.Float, nullable=True)
+    strength_7_recorded_at = db.Column(db.DateTime, nullable=True)
+    strength_28_day = db.Column(db.Float, nullable=True)
+    strength_28_recorded_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Kayıtlı")
     description = db.Column(db.Text, nullable=True)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -616,6 +622,68 @@ class QualityTestRecord(db.Model):
         year = source_date.year if source_date else date.today().year
         prefix = QUALITY_TEST_PREFIXES.get(self.test_type, "DEN")
         return f"{prefix}-{year}-{(self.record_number or self.id):04d}"
+
+    @property
+    def measurement_base_date(self):
+        if self.record_date:
+            return self.record_date
+        if self.created_at:
+            return self.created_at.date()
+        return date.today()
+
+    def measurement_due_date(self, day):
+        return self.measurement_base_date + timedelta(days=day)
+
+    @property
+    def current_measurement_day(self):
+        if self.strength_2_day is None:
+            return 2
+        if self.strength_7_day is None:
+            return 7
+        if self.strength_28_day is None:
+            return 28
+        return None
+
+    @property
+    def current_measurement_label(self):
+        day = self.current_measurement_day
+        return f"{day} Günlük Basınç Dayanımı" if day else "Ölçümler Tamamlandı"
+
+    @property
+    def current_measurement_due_date(self):
+        day = self.current_measurement_day
+        return self.measurement_due_date(day) if day else None
+
+    @property
+    def measurement_progress_label(self):
+        completed_count = sum(
+            value is not None
+            for value in (self.strength_2_day, self.strength_7_day, self.strength_28_day)
+        )
+        return f"{completed_count}/3 ölçüm"
+
+    def measurement_tone(self, today=None):
+        today = today or date.today()
+        due_date = self.current_measurement_due_date
+        if due_date is None:
+            return "success"
+        if due_date < today:
+            return "danger"
+        if due_date == today:
+            return "warning"
+        return "info"
+
+    def measurement_due_label(self, today=None):
+        today = today or date.today()
+        due_date = self.current_measurement_due_date
+        if due_date is None:
+            return "Tamamlandı"
+        delta = (due_date - today).days
+        if delta < 0:
+            return f"{abs(delta)} gün gecikti"
+        if delta == 0:
+            return "Bugün ölçülmeli"
+        return f"{delta} gün kaldı"
 
 
 class InternalAudit(db.Model):

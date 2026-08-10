@@ -1,0 +1,83 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Basınç Dayanımı Ölçümü{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Basınç Dayanımı Ölçümü</h2>
+      <p>{{ record.number_label }} · {{ record.title }}</p>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>{{ quality_test.title }}</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="quality-measurement-layout">
+    <form class="quality-test-form-card" method="post" action="{{ form_action }}">
+      <div class="quality-test-form-header">
+        <span class="app-card-icon"><i class="bi bi-speedometer2"></i></span>
+        <div>
+          <h3>{{ record.current_measurement_label }}</h3>
+          {% if record.current_measurement_due_date %}
+            <p>Termin: {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}</p>
+          {% else %}
+            <p>Bu kaydın 2, 7 ve 28 günlük ölçümleri tamamlandı.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if current_day %}
+        <div class="app-form-grid">
+          <div>
+            <label class="form-label" for="strength_value">{{ current_day }} Günlük Basınç Dayanımı</label>
+            <input class="form-control" id="strength_value" name="strength_value" inputmode="decimal" required placeholder="Örn. 38,5">
+          </div>
+          <div>
+            <label class="form-label">Birim</label>
+            <div class="quality-readonly-field">MPa</div>
+          </div>
+        </div>
+
+        <div class="quality-test-form-actions">
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">Vazgeç</a>
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-check2-circle"></i>
+            <span>Ölçümü Kaydet</span>
+          </button>
+        </div>
+      {% else %}
+        <div class="quality-complete-panel">
+          <i class="bi bi-check-circle-fill"></i>
+          <strong>Ölçüm takibi tamamlandı.</strong>
+        </div>
+      {% endif %}
+    </form>
+
+    <aside class="quality-measurement-summary">
+      <section class="quality-measurement-card">
+        <span>Numune Bilgisi</span>
+        <strong>{{ record.sample_name or "-" }}</strong>
+        <small>{{ record.concrete_class or "-" }} · {{ record.record_date.strftime("%d.%m.%Y") if record.record_date else "-" }}</small>
+      </section>
+      <section class="quality-measurement-card">
+        <span>2 Günlük</span>
+        <strong>{{ format_decimal(record.strength_2_day) }}</strong>
+        <small>{{ record.strength_2_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_2_recorded_at else "Bekliyor" }}</small>
+      </section>
+      <section class="quality-measurement-card">
+        <span>7 Günlük</span>
+        <strong>{{ format_decimal(record.strength_7_day) }}</strong>
+        <small>{{ record.strength_7_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_7_recorded_at else "Bekliyor" }}</small>
+      </section>
+      <section class="quality-measurement-card">
+        <span>28 Günlük</span>
+        <strong>{{ format_decimal(record.strength_28_day) }}</strong>
+        <small>{{ record.strength_28_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_28_recorded_at else "Bekliyor" }}</small>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

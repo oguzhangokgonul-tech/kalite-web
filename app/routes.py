@@ -57,7 +57,6 @@ from .models import (
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
-    QUALITY_TEST_STATUSES,
     QualityTestRecord,
     User,
 )
@@ -816,6 +815,12 @@ def ensure_quality_test_schema():
                             sample_name VARCHAR(180),
                             concrete_class VARCHAR(40),
                             air_temperature FLOAT,
+                            strength_2_day FLOAT,
+                            strength_2_recorded_at DATETIME,
+                            strength_7_day FLOAT,
+                            strength_7_recorded_at DATETIME,
+                            strength_28_day FLOAT,
+                            strength_28_recorded_at DATETIME,
                             status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı',
                             description TEXT,
                             created_by_user_id INTEGER,
@@ -840,6 +845,12 @@ def ensure_quality_test_schema():
                     "sample_name": "ALTER TABLE quality_test_records ADD COLUMN sample_name VARCHAR(180)",
                     "concrete_class": "ALTER TABLE quality_test_records ADD COLUMN concrete_class VARCHAR(40)",
                     "air_temperature": "ALTER TABLE quality_test_records ADD COLUMN air_temperature FLOAT",
+                    "strength_2_day": "ALTER TABLE quality_test_records ADD COLUMN strength_2_day FLOAT",
+                    "strength_2_recorded_at": "ALTER TABLE quality_test_records ADD COLUMN strength_2_recorded_at DATETIME",
+                    "strength_7_day": "ALTER TABLE quality_test_records ADD COLUMN strength_7_day FLOAT",
+                    "strength_7_recorded_at": "ALTER TABLE quality_test_records ADD COLUMN strength_7_recorded_at DATETIME",
+                    "strength_28_day": "ALTER TABLE quality_test_records ADD COLUMN strength_28_day FLOAT",
+                    "strength_28_recorded_at": "ALTER TABLE quality_test_records ADD COLUMN strength_28_recorded_at DATETIME",
                     "status": "ALTER TABLE quality_test_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı'",
                     "description": "ALTER TABLE quality_test_records ADD COLUMN description TEXT",
                     "created_by_user_id": "ALTER TABLE quality_test_records ADD COLUMN created_by_user_id INTEGER",
@@ -1372,22 +1383,27 @@ def reserve_quality_test_record_number(slug):
     return max_number + 1
 
 
-def quality_test_status_tone(status):
-    if status == "Tamamlandı":
-        return "success"
-    if status == "Devam Ediyor":
-        return "info"
-    if status == "İptal Edildi":
-        return "danger"
-    return "muted"
+def is_concrete_quality_test(slug):
+    return slug == "beton-deneyi"
 
 
-def canonical_quality_test_status(value):
-    normalized_value = normalize_for_role(value)
-    for status in QUALITY_TEST_STATUSES:
-        if normalize_for_role(status) == normalized_value:
-            return status
-    return ""
+def format_quality_decimal(value, digits=1):
+    if value is None:
+        return "-"
+    rounded = round(float(value), digits)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return f"{rounded:.{digits}f}".replace(".", ",")
+
+
+def parse_quality_decimal(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        raise ValueError("required_strength")
+    try:
+        return float(value.replace(",", "."))
+    except ValueError:
+        raise ValueError("invalid_strength") from None
 
 
 def quality_test_records_context(quality_test):
@@ -1418,17 +1434,37 @@ def quality_test_records_context(quality_test):
         QualityTestRecord.id.asc(),
     ).all()
     total_count = QualityTestRecord.query.filter_by(test_type=quality_test["slug"]).count()
+    today = date.today()
+    is_concrete = is_concrete_quality_test(quality_test["slug"])
 
     return {
         "quality_test": quality_test,
+        "is_concrete_test": is_concrete,
         "records": records,
         "total_count": total_count,
         "filtered_count": len(records),
         "element_count": len({record.sample_name for record in records if record.sample_name}),
         "class_count": len({record.concrete_class for record in records if record.concrete_class}),
+        "measurement_waiting_count": (
+            sum(1 for record in records if record.current_measurement_day is not None)
+            if is_concrete
+            else 0
+        ),
+        "measurement_completed_count": (
+            sum(1 for record in records if record.current_measurement_day is None)
+            if is_concrete
+            else 0
+        ),
+        "measurement_delayed_count": (
+            sum(1 for record in records if record.measurement_tone(today) == "danger")
+            if is_concrete
+            else 0
+        ),
+        "today": today,
         "filters": filters,
         "element_options": QUALITY_TEST_ELEMENT_OPTIONS,
         "concrete_class_options": QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
+        "format_decimal": format_quality_decimal,
     }
 
 
@@ -4946,6 +4982,8 @@ def create_quality_test_record(slug):
     if request.method == "POST":
         try:
             values = parse_quality_test_record_form()
+            if is_concrete_quality_test(slug):
+                values["status"] = "Devam Ediyor"
             record = QualityTestRecord(
                 test_type=slug,
                 record_number=reserve_quality_test_record_number(slug),
@@ -4954,7 +4992,10 @@ def create_quality_test_record(slug):
             )
             db.session.add(record)
             db.session.commit()
-            flash("Deney kaydı oluşturuldu.", "success")
+            if is_concrete_quality_test(slug):
+                flash("Deney kaydı oluşturuldu. 2 günlük basınç dayanımı ölçüm takibi başlatıldı.", "success")
+            else:
+                flash("Deney kaydı oluşturuldu.", "success")
             return redirect(url_for("main.quality_test_page", slug=slug))
         except ValueError as error:
             db.session.rollback()
@@ -4981,6 +5022,57 @@ def create_quality_test_record(slug):
         concrete_class_options=QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
         form_data=request.form,
         form_action=url_for("main.create_quality_test_record", slug=slug),
+    )
+
+
+@bp.route("/kalite-deneyleri/<slug>/<int:record_id>/olcum", methods=["GET", "POST"])
+@login_required
+def quality_test_measurement(slug, record_id):
+    quality_test = quality_test_by_slug(slug)
+    if quality_test is None or not is_concrete_quality_test(slug):
+        abort(404)
+
+    record = QualityTestRecord.query.filter_by(id=record_id, test_type=slug).first_or_404()
+    current_day = record.current_measurement_day
+
+    if request.method == "POST":
+        try:
+            if current_day is None:
+                raise ValueError("measurements_complete")
+            strength_value = parse_quality_decimal("strength_value")
+            setattr(record, f"strength_{current_day}_day", strength_value)
+            setattr(record, f"strength_{current_day}_recorded_at", datetime.utcnow())
+            record.status = "Tamamlandı" if record.current_measurement_day is None else "Devam Ediyor"
+            db.session.commit()
+            if record.current_measurement_day is None:
+                flash("28 günlük ölçüm girildi. Beton deneyi ölçüm takibi tamamlandı.", "success")
+            else:
+                flash(
+                    f"{current_day} günlük ölçüm kaydedildi. Sıradaki takip: {record.current_measurement_label}.",
+                    "success",
+                )
+            return redirect(url_for("main.quality_test_page", slug=slug))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_strength":
+                flash("Basınç dayanımı değeri zorunludur.", "danger")
+            elif error_key == "invalid_strength":
+                flash("Basınç dayanımı için sayısal bir değer girin.", "danger")
+            elif error_key == "measurements_complete":
+                flash("Bu kaydın tüm ölçümleri tamamlanmış.", "info")
+                return redirect(url_for("main.quality_test_page", slug=slug))
+            else:
+                flash("Ölçüm kaydedilemedi.", "danger")
+
+    return render_template(
+        "quality_tests/measurement_form.html",
+        quality_test=quality_test,
+        record=record,
+        current_day=current_day,
+        today=date.today(),
+        format_decimal=format_quality_decimal,
+        form_action=url_for("main.quality_test_measurement", slug=slug, record_id=record.id),
     )
 
 
