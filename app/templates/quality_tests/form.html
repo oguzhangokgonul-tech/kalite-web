@@ -31,32 +31,34 @@
 
     <div class="app-form-grid">
       <div class="app-form-full">
-        <label class="form-label" for="title">Kayıt Başlığı <span class="text-danger">*</span></label>
-        <input class="form-control" id="title" name="title" value="{{ field_value('title') }}" required placeholder="Örn. Günlük beton numunesi">
+        <label class="form-label" for="title">Müşteri Adı <span class="text-danger">*</span></label>
+        <input class="form-control" id="title" name="title" value="{{ field_value('title') }}" required placeholder="Müşteri adını yazın">
       </div>
       <div>
-        <label class="form-label" for="record_date">Deney Tarihi</label>
+        <label class="form-label" for="record_date">Numune Alım Tarihi</label>
         <input class="form-control" id="record_date" name="record_date" type="date" value="{{ field_value('record_date') }}">
       </div>
       <div>
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          {% for status in status_options %}
-            <option value="{{ status }}" {% if field_value('status', 'Kayıtlı')|trim == status %}selected{% endif %}>{{ status }}</option>
+        <label class="form-label" for="sample_name">Dökülen Yapı Elemanı</label>
+        <select class="form-select" id="sample_name" name="sample_name">
+          <option value="">Seçiniz</option>
+          {% for element in element_options %}
+            <option value="{{ element }}" {% if field_value('sample_name')|trim == element %}selected{% endif %}>{{ element }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
-        <label class="form-label" for="customer">Müşteri / Firma</label>
-        <input class="form-control" id="customer" name="customer" value="{{ field_value('customer') }}" placeholder="Firma adı">
-      </div>
-      <div>
-        <label class="form-label" for="sample_name">Numune / Yapı Elemanı</label>
-        <input class="form-control" id="sample_name" name="sample_name" value="{{ field_value('sample_name') }}" placeholder="Numune veya yapı elemanı">
-      </div>
-      <div>
         <label class="form-label" for="concrete_class">Beton Sınıfı</label>
-        <input class="form-control" id="concrete_class" name="concrete_class" value="{{ field_value('concrete_class') }}" placeholder="Örn. C30">
+        <select class="form-select" id="concrete_class" name="concrete_class">
+          <option value="">Seçiniz</option>
+          {% for concrete_class in concrete_class_options %}
+            <option value="{{ concrete_class }}" {% if field_value('concrete_class')|trim == concrete_class %}selected{% endif %}>{{ concrete_class }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="air_temperature">Hava Sıcaklığı</label>
+        <input class="form-control" id="air_temperature" name="air_temperature" inputmode="decimal" value="{{ field_value('air_temperature') }}" placeholder="Örn. 24,5">
       </div>
       <div class="app-form-full">
         <label class="form-label" for="description">Açıklama</label>

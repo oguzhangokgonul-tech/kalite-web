@@ -1691,7 +1691,7 @@ body {
 
 .quality-test-filter-grid {
     display: grid;
-    grid-template-columns: minmax(260px, 1fr) minmax(180px, 0.35fr) auto;
+    grid-template-columns: minmax(260px, 1fr) repeat(2, minmax(180px, 0.45fr)) auto;
     gap: 18px;
     align-items: end;
 }

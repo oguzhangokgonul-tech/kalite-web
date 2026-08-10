@@ -124,6 +124,14 @@ QUALITY_TESTS = (
     {"slug": "elek-analizi-deneyi", "title": "Elek Analizi Deneyi", "icon": "bi-grid-3x3-gap"},
     {"slug": "demir-cekme-deneyi", "title": "Demir Çekme Deneyi", "icon": "bi-bezier2"},
 )
+QUALITY_TEST_ELEMENT_OPTIONS = (
+    "Öngermeli Makas",
+    "Öngermeli Aşık",
+    "Öngermeli TT Plak",
+    "Kolon",
+    "Kiriş",
+)
+QUALITY_TEST_CONCRETE_CLASS_OPTIONS = ("C30", "C35", "C40", "C45", "C50", "C55")
 
 
 @bp.app_errorhandler(403)
@@ -807,6 +815,7 @@ def ensure_quality_test_schema():
                             customer VARCHAR(180),
                             sample_name VARCHAR(180),
                             concrete_class VARCHAR(40),
+                            air_temperature FLOAT,
                             status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı',
                             description TEXT,
                             created_by_user_id INTEGER,
@@ -830,6 +839,7 @@ def ensure_quality_test_schema():
                     "customer": "ALTER TABLE quality_test_records ADD COLUMN customer VARCHAR(180)",
                     "sample_name": "ALTER TABLE quality_test_records ADD COLUMN sample_name VARCHAR(180)",
                     "concrete_class": "ALTER TABLE quality_test_records ADD COLUMN concrete_class VARCHAR(40)",
+                    "air_temperature": "ALTER TABLE quality_test_records ADD COLUMN air_temperature FLOAT",
                     "status": "ALTER TABLE quality_test_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Kayıtlı'",
                     "description": "ALTER TABLE quality_test_records ADD COLUMN description TEXT",
                     "created_by_user_id": "ALTER TABLE quality_test_records ADD COLUMN created_by_user_id INTEGER",
@@ -1383,7 +1393,8 @@ def canonical_quality_test_status(value):
 def quality_test_records_context(quality_test):
     filters = {
         "search": request.args.get("search", "").strip(),
-        "status": request.args.get("status", "").strip(),
+        "sample_name": request.args.get("sample_name", "").strip(),
+        "concrete_class": request.args.get("concrete_class", "").strip(),
     }
     query = QualityTestRecord.query.filter_by(test_type=quality_test["slug"])
     if filters["search"]:
@@ -1397,8 +1408,10 @@ def quality_test_records_context(quality_test):
                 QualityTestRecord.description.ilike(search_value),
             )
         )
-    if filters["status"]:
-        query = query.filter(QualityTestRecord.status == filters["status"])
+    if filters["sample_name"]:
+        query = query.filter(QualityTestRecord.sample_name == filters["sample_name"])
+    if filters["concrete_class"]:
+        query = query.filter(QualityTestRecord.concrete_class == filters["concrete_class"])
 
     records = query.order_by(
         QualityTestRecord.record_number.asc(),
@@ -1411,34 +1424,40 @@ def quality_test_records_context(quality_test):
         "records": records,
         "total_count": total_count,
         "filtered_count": len(records),
-        "completed_count": sum(1 for record in records if record.status == "Tamamlandı"),
-        "active_count": sum(1 for record in records if record.status != "Tamamlandı"),
+        "element_count": len({record.sample_name for record in records if record.sample_name}),
+        "class_count": len({record.concrete_class for record in records if record.concrete_class}),
         "filters": filters,
-        "status_options": QUALITY_TEST_STATUSES,
-        "status_tone": quality_test_status_tone,
+        "element_options": QUALITY_TEST_ELEMENT_OPTIONS,
+        "concrete_class_options": QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
     }
 
 
 def parse_quality_test_record_form():
     title = request.form.get("title", "").strip()
     record_date = parse_optional_date("record_date")
-    customer = request.form.get("customer", "").strip()
     sample_name = request.form.get("sample_name", "").strip()
     concrete_class = request.form.get("concrete_class", "").strip()
-    status = canonical_quality_test_status(
-        request.form.get("status", "Kayıtlı").strip() or "Kayıtlı"
-    )
+    air_temperature = request.form.get("air_temperature", "").strip()
+    status = "Kayıtlı"
     description = request.form.get("description", "").strip()
 
     if not title:
         raise ValueError("required_fields")
-    if not status:
-        raise ValueError("invalid_status")
+    if sample_name and sample_name not in QUALITY_TEST_ELEMENT_OPTIONS:
+        raise ValueError("invalid_element")
+    if concrete_class and concrete_class not in QUALITY_TEST_CONCRETE_CLASS_OPTIONS:
+        raise ValueError("invalid_concrete_class")
+    if air_temperature:
+        try:
+            air_temperature = float(air_temperature.replace(",", "."))
+        except ValueError:
+            raise ValueError("invalid_temperature") from None
+    else:
+        air_temperature = None
     if any(
         len(value) > limit
         for value, limit in (
             (title, 180),
-            (customer, 180),
             (sample_name, 180),
             (concrete_class, 40),
             (description, 2000),
@@ -1449,9 +1468,10 @@ def parse_quality_test_record_form():
     return {
         "title": title,
         "record_date": record_date,
-        "customer": customer or None,
+        "customer": None,
         "sample_name": sample_name or None,
         "concrete_class": concrete_class or None,
+        "air_temperature": air_temperature,
         "status": status,
         "description": description or None,
     }
@@ -4940,11 +4960,15 @@ def create_quality_test_record(slug):
             db.session.rollback()
             error_key = str(error)
             if error_key == "required_fields":
-                flash("Kayıt başlığı zorunludur.", "danger")
+                flash("Müşteri adı zorunludur.", "danger")
             elif error_key == "invalid_date":
                 flash("Geçerli bir tarih girin.", "danger")
-            elif error_key == "invalid_status":
-                flash("Geçerli bir durum seçin.", "danger")
+            elif error_key == "invalid_element":
+                flash("Geçerli bir dökülen yapı elemanı seçin.", "danger")
+            elif error_key == "invalid_concrete_class":
+                flash("Geçerli bir beton sınıfı seçin.", "danger")
+            elif error_key == "invalid_temperature":
+                flash("Hava sıcaklığı için sayısal bir değer girin.", "danger")
             elif error_key == "text_too_long":
                 flash("Formdaki metinlerden biri çok uzun.", "danger")
             else:
@@ -4953,7 +4977,8 @@ def create_quality_test_record(slug):
     return render_template(
         "quality_tests/form.html",
         quality_test=quality_test,
-        status_options=QUALITY_TEST_STATUSES,
+        element_options=QUALITY_TEST_ELEMENT_OPTIONS,
+        concrete_class_options=QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
         form_data=request.form,
         form_action=url_for("main.create_quality_test_record", slug=slug),
     )

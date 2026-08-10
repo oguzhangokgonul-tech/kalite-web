@@ -596,6 +596,7 @@ class QualityTestRecord(db.Model):
     customer = db.Column(db.String(180), nullable=True)
     sample_name = db.Column(db.String(180), nullable=True)
     concrete_class = db.Column(db.String(40), nullable=True)
+    air_temperature = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Kayıtlı")
     description = db.Column(db.Text, nullable=True)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
