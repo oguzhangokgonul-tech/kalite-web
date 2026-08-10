@@ -9,6 +9,12 @@
       <p>Kalite deneyleri kayıt takip ekranı</p>
     </div>
     <div class="app-heading-actions">
+      {% if can_manage_quality_parameters %}
+        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.quality_test_parameters', slug=quality_test.slug) }}">
+          <i class="bi bi-sliders"></i>
+          <span>Parametreler</span>
+        </a>
+      {% endif %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
         <i class="bi bi-plus-lg"></i>
         <span>Yeni Kayıt Oluştur</span>
@@ -145,9 +151,9 @@
               {% if is_concrete_test %}
                 <td data-label="Basınç Dayanımı">
                   <div class="quality-strength-values">
-                    <span>2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
-                    <span>7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
-                    <span>28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
+                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_2_day, record.concrete_class, strength_parameters) }}">2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
+                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_7_day, record.concrete_class, strength_parameters) }}">7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
+                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_28_day, record.concrete_class, strength_parameters) }}">28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
                   </div>
                 </td>
                 <td data-label="Ölçüm Termini">

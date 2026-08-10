@@ -131,6 +131,15 @@ QUALITY_TEST_ELEMENT_OPTIONS = (
     "Kiriş",
 )
 QUALITY_TEST_CONCRETE_CLASS_OPTIONS = ("C30", "C35", "C40", "C45", "C50", "C55")
+CONCRETE_STRENGTH_PARAMETER_FIELDS = ("green_min", "orange_min", "red_max")
+DEFAULT_CONCRETE_STRENGTH_PARAMETERS = {
+    "C30": {"green_min": 30.0, "orange_min": 27.0, "red_max": 26.99},
+    "C35": {"green_min": 35.0, "orange_min": 31.5, "red_max": 31.49},
+    "C40": {"green_min": 40.0, "orange_min": 36.0, "red_max": 35.99},
+    "C45": {"green_min": 45.0, "orange_min": 40.5, "red_max": 40.49},
+    "C50": {"green_min": 50.0, "orange_min": 45.0, "red_max": 44.99},
+    "C55": {"green_min": 55.0, "orange_min": 49.5, "red_max": 49.49},
+}
 
 
 @bp.app_errorhandler(403)
@@ -1406,6 +1415,92 @@ def parse_quality_decimal(field_name):
         raise ValueError("invalid_strength") from None
 
 
+def parse_optional_quality_decimal(field_name):
+    value = request.form.get(field_name, "").strip()
+    if not value:
+        raise ValueError("required_parameter")
+    try:
+        return float(value.replace(",", "."))
+    except ValueError:
+        raise ValueError("invalid_parameter") from None
+
+
+def concrete_strength_setting_key(concrete_class, field_name):
+    return f"concrete_strength_{concrete_class}_{field_name}"
+
+
+def format_setting_decimal(value):
+    formatted = f"{float(value):.2f}".rstrip("0").rstrip(".")
+    return formatted or "0"
+
+
+def concrete_strength_parameters():
+    parameters = {}
+    for concrete_class in QUALITY_TEST_CONCRETE_CLASS_OPTIONS:
+        defaults = DEFAULT_CONCRETE_STRENGTH_PARAMETERS[concrete_class]
+        class_parameters = {}
+        for field_name in CONCRETE_STRENGTH_PARAMETER_FIELDS:
+            setting = db.session.get(
+                AppSetting,
+                concrete_strength_setting_key(concrete_class, field_name),
+            )
+            if setting is None:
+                class_parameters[field_name] = defaults[field_name]
+                continue
+            try:
+                class_parameters[field_name] = float(setting.value)
+            except (TypeError, ValueError):
+                class_parameters[field_name] = defaults[field_name]
+        parameters[concrete_class] = class_parameters
+    return parameters
+
+
+def save_concrete_strength_parameters(parameters):
+    for concrete_class, class_parameters in parameters.items():
+        for field_name, value in class_parameters.items():
+            key = concrete_strength_setting_key(concrete_class, field_name)
+            setting = db.session.get(AppSetting, key)
+            if setting is None:
+                setting = AppSetting(key=key, value=format_setting_decimal(value))
+                db.session.add(setting)
+            else:
+                setting.value = format_setting_decimal(value)
+
+
+def parse_concrete_strength_parameters_form():
+    parameters = {}
+    for concrete_class in QUALITY_TEST_CONCRETE_CLASS_OPTIONS:
+        class_parameters = {
+            field_name: parse_optional_quality_decimal(f"{concrete_class}_{field_name}")
+            for field_name in CONCRETE_STRENGTH_PARAMETER_FIELDS
+        }
+        if not (
+            class_parameters["red_max"]
+            < class_parameters["orange_min"]
+            < class_parameters["green_min"]
+        ):
+            raise ValueError("invalid_parameter_order")
+        parameters[concrete_class] = class_parameters
+    return parameters
+
+
+def concrete_strength_tone(value, concrete_class, parameters):
+    if value is None:
+        return "muted"
+    class_parameters = parameters.get(concrete_class)
+    if not class_parameters:
+        return "muted"
+
+    value = float(value)
+    if value >= class_parameters["green_min"]:
+        return "success"
+    if value >= class_parameters["orange_min"]:
+        return "warning"
+    if value <= class_parameters["red_max"]:
+        return "danger"
+    return "danger"
+
+
 def quality_test_records_context(quality_test):
     filters = {
         "search": request.args.get("search", "").strip(),
@@ -1436,6 +1531,7 @@ def quality_test_records_context(quality_test):
     total_count = QualityTestRecord.query.filter_by(test_type=quality_test["slug"]).count()
     today = date.today()
     is_concrete = is_concrete_quality_test(quality_test["slug"])
+    strength_parameters = concrete_strength_parameters() if is_concrete else {}
 
     return {
         "quality_test": quality_test,
@@ -1465,6 +1561,9 @@ def quality_test_records_context(quality_test):
         "element_options": QUALITY_TEST_ELEMENT_OPTIONS,
         "concrete_class_options": QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
         "format_decimal": format_quality_decimal,
+        "strength_parameters": strength_parameters,
+        "strength_tone": concrete_strength_tone,
+        "can_manage_quality_parameters": is_concrete and is_oguzhan_admin(),
     }
 
 
@@ -4969,6 +5068,43 @@ def quality_test_page(slug):
     return render_template(
         "quality_tests/index.html",
         **quality_test_records_context(quality_test),
+    )
+
+
+@bp.route("/kalite-deneyleri/<slug>/parametreler", methods=["GET", "POST"])
+@login_required
+def quality_test_parameters(slug):
+    quality_test = quality_test_by_slug(slug)
+    if quality_test is None or not is_concrete_quality_test(slug):
+        abort(404)
+    if not is_oguzhan_admin():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            parameters = parse_concrete_strength_parameters_form()
+            save_concrete_strength_parameters(parameters)
+            db.session.commit()
+            flash("Beton dayanım renk parametreleri güncellendi.", "success")
+            return redirect(url_for("main.quality_test_page", slug=slug))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_parameter":
+                flash("Tüm parametre değerlerini doldurun.", "danger")
+            elif error_key == "invalid_parameter":
+                flash("Parametre değerleri sayısal olmalıdır.", "danger")
+            elif error_key == "invalid_parameter_order":
+                flash("Her beton sınıfında kırmızı eşik < turuncu eşik < yeşil eşik olmalıdır.", "danger")
+            else:
+                flash("Parametreler kaydedilemedi.", "danger")
+
+    return render_template(
+        "quality_tests/parameters.html",
+        quality_test=quality_test,
+        concrete_class_options=QUALITY_TEST_CONCRETE_CLASS_OPTIONS,
+        parameters=concrete_strength_parameters(),
+        format_decimal=format_quality_decimal,
     )
 
 

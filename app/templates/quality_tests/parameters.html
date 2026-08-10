@@ -1,0 +1,97 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Beton Deneyi Parametreleri{% endblock %}
+
+{% block app_content %}
+  <div class="dashboard-page-heading">
+    <div>
+      <h2>Beton Deneyi Parametreleri</h2>
+      <p>Basınç dayanımı sonuçlarının renk eşiklerini düzenleyin.</p>
+    </div>
+    <div class="app-heading-actions">
+      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+        <i class="bi bi-arrow-left"></i>
+        <span>Beton Deneyi</span>
+      </a>
+    </div>
+  </div>
+
+  <form method="post" class="quality-parameters-card">
+    <div class="quality-parameters-intro">
+      <span class="app-card-icon"><i class="bi bi-sliders"></i></span>
+      <div>
+        <h3>Renk Parametreleri</h3>
+        <p>Her beton sınıfı için girilen 2, 7 ve 28 günlük basınç dayanımı değerleri bu eşiklere göre renklendirilir.</p>
+      </div>
+    </div>
+
+    <div class="quality-parameters-grid">
+      {% for concrete_class in concrete_class_options %}
+        {% set class_parameters = parameters[concrete_class] %}
+        <section class="quality-parameter-class-card">
+          <div class="quality-parameter-class-header">
+            <span>{{ concrete_class }}</span>
+            <small>Basınç dayanımı</small>
+          </div>
+          <div class="quality-parameter-fields">
+            <label>
+              <span class="quality-parameter-label quality-parameter-label-success">
+                <i class="bi bi-check-circle-fill"></i>
+                Yeşil
+              </span>
+              <small>Bu değer ve üzeri</small>
+              <input
+                class="form-control"
+                name="{{ concrete_class }}_green_min"
+                inputmode="decimal"
+                required
+                value="{{ request.form.get(concrete_class ~ '_green_min', format_decimal(class_parameters.green_min)) }}"
+              >
+            </label>
+            <label>
+              <span class="quality-parameter-label quality-parameter-label-warning">
+                <i class="bi bi-exclamation-circle-fill"></i>
+                Turuncu
+              </span>
+              <small>Bu değer ve üzeri</small>
+              <input
+                class="form-control"
+                name="{{ concrete_class }}_orange_min"
+                inputmode="decimal"
+                required
+                value="{{ request.form.get(concrete_class ~ '_orange_min', format_decimal(class_parameters.orange_min)) }}"
+              >
+            </label>
+            <label>
+              <span class="quality-parameter-label quality-parameter-label-danger">
+                <i class="bi bi-x-circle-fill"></i>
+                Kırmızı
+              </span>
+              <small>Bu değer ve altı</small>
+              <input
+                class="form-control"
+                name="{{ concrete_class }}_red_max"
+                inputmode="decimal"
+                required
+                value="{{ request.form.get(concrete_class ~ '_red_max', format_decimal(class_parameters.red_max)) }}"
+              >
+            </label>
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+
+    <div class="quality-parameters-note">
+      <i class="bi bi-info-circle"></i>
+      <span>Ölçüm değeri boş olan sonuçlar gri görünür. Kaydedilen değerler tüm beton deneyi kayıtlarında otomatik uygulanır.</span>
+    </div>
+
+    <div class="quality-test-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>Parametreleri Kaydet</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}
