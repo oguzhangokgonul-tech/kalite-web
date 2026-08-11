@@ -6,15 +6,15 @@
 
 {% macro status_badge(action) %}
   {% if action.is_completed %}
-    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+    {{ ui.status_badge("Tamamlandı") }}
   {% elif action.closure_approval_requested %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Kapanma Onayı Beklemede</span>
+    {{ ui.status_badge("Kapanma Onayı Beklemede") }}
   {% elif action.closure_rejection_reason %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Kapanma Onayı Reddedildi</span>
+    {{ ui.status_badge("Kapanma Onayı Reddedildi") }}
   {% elif action.delay_days > 0 %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
+    {{ ui.status_badge("Gecikti") }}
   {% else %}
-    <span class="status-pill status-pill-muted"><i class="bi bi-circle-fill"></i> Açık</span>
+    {{ ui.status_badge("Açık") }}
   {% endif %}
 {% endmacro %}
 

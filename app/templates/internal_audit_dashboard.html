@@ -6,11 +6,11 @@
 
 {% macro audit_status_badge(audit) %}
   {% if audit.status == "Tamamlandı" %}
-    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
+    {{ ui.status_badge("Tamamlandı") }}
   {% elif not audit.questions %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Soru Listesi Yok</span>
+    {{ ui.status_badge("Soru Listesi Yok") }}
   {% else %}
-    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> {{ audit.status }}</span>
+    {{ ui.status_badge(audit.status) }}
   {% endif %}
 {% endmacro %}
 

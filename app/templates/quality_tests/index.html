@@ -148,15 +148,11 @@
                   </div>
                 </td>
                 <td data-label="Ölçüm Termini">
-                  <span class="status-pill status-pill-{{ record.measurement_tone(today) }}">
-                    {% if record.current_measurement_day %}
-                      <i class="bi bi-clock-fill"></i>
-                      {{ record.current_measurement_label }}
-                    {% else %}
-                      <i class="bi bi-check-circle-fill"></i>
-                      Ölçümler Tamamlandı
-                    {% endif %}
-                  </span>
+                  {% if record.current_measurement_day %}
+                    {{ ui.status_badge(record.current_measurement_label, tone=record.measurement_tone(today), icon="bi-clock-fill") }}
+                  {% else %}
+                    {{ ui.status_badge("Ölçümler Tamamlandı") }}
+                  {% endif %}
                   <span class="quality-test-muted-line">
                     {% if record.current_measurement_due_date %}
                       {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}

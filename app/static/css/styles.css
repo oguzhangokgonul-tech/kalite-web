@@ -91,6 +91,88 @@ body {
     flex: 0 0 auto;
 }
 
+.vp-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 28px;
+    max-width: 100%;
+    padding: 5px 10px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.vp-status-badge i {
+    flex: 0 0 auto;
+    font-size: 0.86rem;
+    line-height: 1;
+}
+
+.vp-status-badge span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vp-status-badge.is-long {
+    max-width: 260px;
+}
+
+.vp-status-success {
+    color: #047857;
+    background: #ecfdf5;
+    border-color: #a7f3d0;
+}
+
+.vp-status-info,
+.vp-status-blue {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+.vp-status-amber {
+    color: #b45309;
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.vp-status-warning {
+    color: #c2410c;
+    background: #fff7ed;
+    border-color: #fed7aa;
+}
+
+.vp-status-purple {
+    color: #6d28d9;
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.vp-status-danger {
+    color: #dc2626;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.vp-status-muted {
+    color: #475569;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+@media (max-width: 576px) {
+    .vp-status-badge.is-long {
+        max-width: 180px;
+    }
+}
+
 .documents-page-heading {
     align-items: flex-start;
 }

@@ -35,9 +35,9 @@
               <td>{{ user.title or "-" }}</td>
               <td>
                 {% if user.is_active %}
-                  <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Aktif</span>
+                  {{ ui.status_badge("Aktif") }}
                 {% else %}
-                  <span class="status-pill status-pill-muted"><i class="bi bi-circle-fill"></i> Pasif</span>
+                  {{ ui.status_badge("Pasif") }}
                 {% endif %}
               </td>
               <td>

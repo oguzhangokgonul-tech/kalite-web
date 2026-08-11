@@ -5,15 +5,7 @@
 {% block topbar_title %}Alt Aksiyon Detayı{% endblock %}
 
 {% macro sub_action_status_badge(status) %}
-  {% if status == "Tamamlandı" %}
-    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
-  {% elif status == "Devam Ediyor" %}
-    <span class="status-pill status-pill-info"><i class="bi bi-play-circle-fill"></i> Devam Ediyor</span>
-  {% elif status == "İptal Edildi" %}
-    <span class="status-pill status-pill-muted"><i class="bi bi-dash-circle-fill"></i> İptal Edildi</span>
-  {% else %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Beklemede</span>
-  {% endif %}
+  {{ ui.status_badge(status or "Beklemede") }}
 {% endmacro %}
 
 {% block app_content %}

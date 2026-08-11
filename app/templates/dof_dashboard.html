@@ -4,13 +4,6 @@
 {% block title %}İF Yönetimi{% endblock %}
 {% block topbar_title %}İF Yönetimi{% endblock %}
 
-{% macro if_status_badge(text, icon, theme) %}
-  <span class="if-status-badge if-status-badge-{{ theme }}" title="{{ text }}">
-    <i class="bi {{ icon }}"></i>
-    <span>{{ text }}</span>
-  </span>
-{% endmacro %}
-
 {% macro dof_status_badge(dof) %}
   {% set status = namespace(text=dof.display_status) %}
   {% if dof.display_status == "Onay Akışı Bekleniyor" %}
@@ -24,18 +17,7 @@
       {% set status.text = "Onay Bekliyor" %}
     {% endif %}
   {% endif %}
-  {% set status_badges = {
-    "Personel Kapatması Bekleniyor": ["bi-person-fill", "personnel"],
-    "Yönetim Temsilcisi Onayı Bekleniyor": ["bi-patch-check-fill", "management"],
-    "Genel Müdür Yardımcısı Onayı Bekleniyor": ["bi-shield-check", "deputy"],
-    "Tamamlandı": ["bi-check-circle-fill", "completed"],
-    "Taslak": ["bi-file-earmark-text-fill", "draft"],
-    "Revizyon Bekleniyor": ["bi-x-circle-fill", "revision"],
-    "Gecikti": ["bi-exclamation-triangle-fill", "delayed"],
-    "Onay Bekliyor": ["bi-clock-fill", "pending"],
-  } %}
-  {% set badge = status_badges.get(status.text, ["bi-circle-fill", "neutral"]) %}
-  {{ if_status_badge(status.text, badge[0], badge[1]) }}
+  {{ ui.status_badge(status.text) }}
 {% endmacro %}
 
 {% macro dof_responsible_name(user) %}

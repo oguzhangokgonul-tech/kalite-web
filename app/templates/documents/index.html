@@ -4,8 +4,7 @@
 {% block title %}Doküman Yönetimi{% endblock %}
 
 {% macro document_status_badge(status) %}
-  {% set tone = document_status_tone(status) %}
-  <span class="document-status document-status-{{ tone }}">{{ status }}</span>
+  {{ ui.status_badge(status) }}
 {% endmacro %}
 
 {% macro document_file_badge(document) %}

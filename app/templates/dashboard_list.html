@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Aksiyonlar{% endblock %}
 
@@ -101,15 +102,15 @@
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
               <a class="action-title" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
               {% if action.is_completed %}
-                <span class="badge text-bg-success">Tamamlandı</span>
+                {{ ui.status_badge("Tamamlandı") }}
               {% elif action.closure_approval_requested %}
-                <span class="badge text-bg-warning">Kapanma Onayı Beklemede</span>
+                {{ ui.status_badge("Kapanma Onayı Beklemede") }}
               {% elif action.closure_rejection_reason %}
-                <span class="badge text-bg-danger">Kapanma Onayı Reddedildi</span>
+                {{ ui.status_badge("Kapanma Onayı Reddedildi") }}
               {% elif action.delay_days > 0 %}
-                <span class="badge text-bg-danger">Gecikti</span>
+                {{ ui.status_badge("Gecikti") }}
               {% else %}
-                <span class="badge text-bg-secondary">Açık</span>
+                {{ ui.status_badge("Açık") }}
               {% endif %}
             </div>
             {% if action.description %}

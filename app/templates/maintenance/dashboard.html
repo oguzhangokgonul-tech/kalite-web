@@ -4,18 +4,7 @@
 {% block title %}Bakım{% endblock %}
 
 {% macro maintenance_status_badge(status) %}
-  <span class="maintenance-badge maintenance-badge-{{ status_tone(status) }}">
-    {% if status == "Tamamlandı" or status == "ÇALIŞIYOR" %}
-      <i class="bi bi-check-circle-fill"></i>
-    {% elif status == "ARIZALI" or status == "Gecikti" %}
-      <i class="bi bi-exclamation-triangle-fill"></i>
-    {% elif status == "İşlemde" %}
-      <i class="bi bi-gear-fill"></i>
-    {% else %}
-      <i class="bi bi-circle-fill"></i>
-    {% endif %}
-    <span>{{ status or "-" }}</span>
-  </span>
+  {{ ui.status_badge(status) }}
 {% endmacro %}
 
 {% block app_content %}

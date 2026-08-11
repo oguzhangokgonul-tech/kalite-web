@@ -115,7 +115,7 @@
           </div>
           <div>
             <span><i class="bi bi-check2-circle"></i> Durum</span>
-            <strong><span class="document-status document-status-{{ status_tone }}">{{ document.status }}</span></strong>
+            <strong>{{ ui.status_badge(document.status) }}</strong>
           </div>
           <div>
             <span><i class="bi bi-person"></i> Yükleyen</span>

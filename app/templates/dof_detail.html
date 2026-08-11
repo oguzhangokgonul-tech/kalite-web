@@ -5,19 +5,7 @@
 {% block topbar_title %}İF Detayı{% endblock %}
 
 {% macro detail_status_badge(dof) %}
-  {% if dof.display_status == "Gecikti" %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-exclamation-circle-fill"></i> Gecikti</span>
-  {% elif dof.display_status == "Taslak" %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-file-earmark-text-fill"></i> Taslak</span>
-  {% elif dof.display_status == "Tamamlandı" %}
-    <span class="status-pill status-pill-success"><i class="bi bi-check-circle-fill"></i> Tamamlandı</span>
-  {% elif dof.display_status == "Onay Akışı Bekleniyor" %}
-    <span class="status-pill status-pill-warning"><i class="bi bi-clock-fill"></i> Onay Akışı Bekleniyor</span>
-  {% elif dof.display_status == "Revizyon Bekleniyor" %}
-    <span class="status-pill status-pill-danger"><i class="bi bi-x-circle-fill"></i> Revizyon Bekleniyor</span>
-  {% else %}
-    <span class="status-pill status-pill-info"><i class="bi bi-circle-fill"></i> {{ dof.display_status }}</span>
-  {% endif %}
+  {{ ui.status_badge(dof.display_status) }}
 {% endmacro %}
 
 {% macro info_card(icon, label, value, status=False) %}

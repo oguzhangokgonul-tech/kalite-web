@@ -48,3 +48,48 @@
     {% endif %}
   </div>
 {%- endmacro %}
+
+{% macro status_badge(label, tone=None, icon=None, class_name="", title=None) -%}
+  {% set status_label = label or "-" %}
+  {% set status_map = {
+    "Aktif": ["success", "bi-check-circle-fill"],
+    "Tamamlandı": ["success", "bi-check-circle-fill"],
+    "Yayında": ["success", "bi-check-circle-fill"],
+    "Ölçümler Tamamlandı": ["success", "bi-check-circle-fill"],
+    "ÇALIŞIYOR": ["success", "bi-check-circle-fill"],
+    "Devam Ediyor": ["info", "bi-play-circle-fill"],
+    "Açık": ["info", "bi-circle-fill"],
+    "İşlemde": ["info", "bi-gear-fill"],
+    "Planlandı": ["purple", "bi-calendar-check-fill"],
+    "Beklemede": ["amber", "bi-clock-fill"],
+    "Onay Bekliyor": ["amber", "bi-clock-fill"],
+    "Onay Bekleyen": ["purple", "bi-clock-fill"],
+    "Onay Akışı Bekleniyor": ["amber", "bi-clock-fill"],
+    "Kapanma Onayı Beklemede": ["amber", "bi-hourglass-split"],
+    "Personel Kapatması Bekleniyor": ["amber", "bi-person-fill"],
+    "Yönetim Temsilcisi Onayı Bekleniyor": ["blue", "bi-patch-check-fill"],
+    "Genel Müdür Yardımcısı Onayı Bekleniyor": ["purple", "bi-shield-check"],
+    "Taslak": ["muted", "bi-file-earmark-text-fill"],
+    "Revizyon Bekleyen": ["warning", "bi-arrow-clockwise"],
+    "Revizyon Bekleniyor": ["warning", "bi-arrow-clockwise"],
+    "Gecikti": ["danger", "bi-exclamation-circle-fill"],
+    "Soru Listesi Yok": ["danger", "bi-exclamation-circle-fill"],
+    "Kapanma Onayı Reddedildi": ["danger", "bi-x-circle-fill"],
+    "Reddedildi": ["danger", "bi-x-circle-fill"],
+    "ARIZALI": ["danger", "bi-exclamation-triangle-fill"],
+    "Arşiv": ["muted", "bi-archive"],
+    "İptal": ["muted", "bi-ban"],
+    "İptal Edildi": ["muted", "bi-ban"],
+    "Pasif": ["muted", "bi-circle-fill"],
+    "PASİF": ["muted", "bi-ban"],
+    "HURDA": ["muted", "bi-archive"],
+    "Kayıtlı": ["muted", "bi-circle-fill"]
+  } %}
+  {% set fallback = status_map.get(status_label, ["muted", "bi-circle-fill"]) %}
+  {% set resolved_tone = tone or fallback[0] %}
+  {% set resolved_icon = icon or fallback[1] %}
+  <span class="vp-status-badge vp-status-{{ resolved_tone }}{% if status_label|length > 24 %} is-long{% endif %}{% if class_name %} {{ class_name }}{% endif %}" title="{{ title or status_label }}">
+    <i class="bi {{ resolved_icon }}"></i>
+    <span>{{ status_label }}</span>
+  </span>
+{%- endmacro %}
