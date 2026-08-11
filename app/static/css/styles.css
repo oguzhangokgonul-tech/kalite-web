@@ -6914,12 +6914,11 @@ body {
 }
 
 .dashboard-sidebar {
-    color: #d8e5f7;
+    color: #0b1d36;
     background:
-        linear-gradient(180deg, rgba(30, 91, 255, 0.12), rgba(0, 187, 170, 0.06) 42%, rgba(11, 29, 54, 0) 76%),
-        var(--vp-navy);
-    border-right: 1px solid rgba(230, 232, 235, 0.08);
-    box-shadow: var(--vp-shadow-sidebar);
+        linear-gradient(180deg, #dbe8ff 0%, #e6f6f3 48%, #f8fbff 100%);
+    border-right: 1px solid #cfdae8;
+    box-shadow: 8px 0 28px rgba(11, 29, 54, 0.08);
 }
 
 .dashboard-sidebar .offcanvas-body {
@@ -6931,15 +6930,19 @@ body {
     min-height: 76px;
     margin: 0 0 20px;
     padding: 10px 10px 16px;
-    color: #ffffff;
+    color: #0b1d36;
     text-decoration: none;
-    border-bottom: 1px solid rgba(230, 232, 235, 0.12);
+    border-bottom: 1px solid #cfdbe9;
 }
 
 .dashboard-brand-logo {
-    width: 48px;
-    height: 48px;
-    filter: drop-shadow(0 12px 20px rgba(0, 187, 170, 0.18));
+    width: 62px;
+    height: 62px;
+    object-fit: cover;
+    object-position: center;
+    background: #050b14;
+    border-radius: 14px;
+    box-shadow: 0 12px 24px rgba(11, 29, 54, 0.16);
 }
 
 .dashboard-brand-copy {
@@ -6949,14 +6952,14 @@ body {
 }
 
 .dashboard-brand-copy strong {
-    color: #ffffff;
+    color: #0b1d36;
     font-size: 1.05rem;
     font-weight: 800;
     letter-spacing: 0;
 }
 
 .dashboard-brand-copy small {
-    color: rgba(230, 232, 235, 0.68);
+    color: #667085;
     font-size: 0.72rem;
     font-weight: 600;
     line-height: 1.25;
@@ -6966,7 +6969,7 @@ body {
 .dashboard-subnav-item,
 .sidebar-quick-link,
 .dashboard-logout {
-    color: rgba(230, 232, 235, 0.78);
+    color: #102a4a;
     border-radius: var(--vp-radius-md);
     transition: color var(--vp-transition), background var(--vp-transition), border-color var(--vp-transition), transform var(--vp-transition);
 }
@@ -6981,7 +6984,7 @@ body {
 .dashboard-subnav-item i,
 .sidebar-quick-link i,
 .dashboard-logout i {
-    color: rgba(230, 232, 235, 0.68);
+    color: #52627a;
 }
 
 .dashboard-nav-item:hover,
@@ -6990,9 +6993,9 @@ body {
 .dashboard-subnav-item.active,
 .sidebar-quick-link:hover,
 .sidebar-quick-link.active {
-    color: #ffffff;
-    background: rgba(30, 91, 255, 0.14);
-    border-color: rgba(102, 163, 255, 0.18);
+    color: #1e5bff;
+    background: rgba(30, 91, 255, 0.12);
+    border-color: rgba(30, 91, 255, 0.24);
 }
 
 .dashboard-nav-item.active::before {
@@ -7012,7 +7015,7 @@ body {
 .dashboard-subnav-item.active i,
 .sidebar-quick-link:hover i,
 .sidebar-quick-link.active i {
-    color: #ffffff;
+    color: #1e5bff;
 }
 
 .dashboard-subnav {
@@ -7020,23 +7023,23 @@ body {
 }
 
 .dashboard-subnav-item {
-    color: rgba(230, 232, 235, 0.68);
+    color: #334155;
 }
 
 .dashboard-sidebar-bottom {
-    border-top-color: rgba(230, 232, 235, 0.12);
+    border-top-color: #cfdbe9;
 }
 
 .dashboard-sidebar-user {
-    border-top-color: rgba(230, 232, 235, 0.12);
+    border-top-color: #cfdbe9;
 }
 
 .dashboard-sidebar-user strong {
-    color: #ffffff;
+    color: #111827;
 }
 
 .dashboard-sidebar-user span {
-    color: rgba(230, 232, 235, 0.68);
+    color: #667085;
 }
 
 .dashboard-avatar,
@@ -7052,12 +7055,12 @@ body {
 }
 
 .dashboard-logout {
-    border-top-color: rgba(230, 232, 235, 0.12);
+    border-top-color: #cfdbe9;
 }
 
 .dashboard-logout:hover {
-    color: #ffffff;
-    background: rgba(255, 255, 255, 0.06);
+    color: #1e5bff;
+    background: rgba(30, 91, 255, 0.08);
 }
 
 .dashboard-main {
@@ -7384,7 +7387,7 @@ textarea.form-control:focus {
     height: 420px;
     background-image:
         linear-gradient(135deg, rgba(30, 91, 255, 0.22), rgba(0, 187, 170, 0.16)),
-        url("../brand/volkaportal-icon-light.svg");
+        url("../brand/volkaportal-reference-icon.png");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -7395,8 +7398,11 @@ textarea.form-control:focus {
 .login-hero-logo {
     position: relative;
     z-index: 1;
-    width: 118px;
-    height: 118px;
+    width: 168px;
+    height: 168px;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 28px;
     filter: drop-shadow(0 22px 36px rgba(0, 187, 170, 0.18));
 }
 
@@ -7434,11 +7440,17 @@ textarea.form-control:focus {
 .login-card-brand {
     justify-content: flex-start;
     margin-bottom: 22px;
+    padding: 12px;
+    background: #03070d;
+    border: 1px solid rgba(30, 91, 255, 0.18);
+    border-radius: var(--vp-radius-card);
 }
 
 .login-brand-logo {
-    width: 210px;
+    width: 100%;
+    max-width: 330px;
     height: auto;
+    border-radius: 8px;
 }
 
 @media (max-width: 992px) {
@@ -7502,6 +7514,6 @@ textarea.form-control:focus {
     }
 
     .login-brand-logo {
-        width: 176px;
+        max-width: 260px;
     }
 }
