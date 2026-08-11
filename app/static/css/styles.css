@@ -6927,22 +6927,23 @@ body {
 
 .dashboard-sidebar-brand {
     justify-content: flex-start;
-    min-height: 76px;
+    min-height: 88px;
     margin: 0 0 20px;
-    padding: 10px 10px 16px;
+    padding: 8px 10px 18px;
     color: #0b1d36;
     text-decoration: none;
     border-bottom: 1px solid #cfdbe9;
 }
 
 .dashboard-brand-logo {
-    width: 62px;
-    height: 62px;
-    object-fit: cover;
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
     object-position: center;
-    background: #050b14;
-    border-radius: 14px;
-    box-shadow: 0 12px 24px rgba(11, 29, 54, 0.16);
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    filter: drop-shadow(0 10px 16px rgba(11, 29, 54, 0.18));
 }
 
 .dashboard-brand-copy {
