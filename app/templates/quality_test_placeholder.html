@@ -1,14 +1,10 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ quality_test.title }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ quality_test.title }}</h2>
-      <p>Kalite deneyleri takip alanı</p>
-    </div>
-  </div>
+  {{ ui.page_header(quality_test.title, "Kalite deneyleri takip alanı", icon=quality_test.icon) }}
 
   <section class="quality-test-placeholder-card">
     <div class="quality-test-placeholder-icon">

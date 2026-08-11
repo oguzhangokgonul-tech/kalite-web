@@ -1,35 +1,30 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ document.document_code }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading documents-page-heading documents-detail-heading">
-    <div>
-      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
-        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
-        <i class="bi bi-chevron-right"></i>
-        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
-        <i class="bi bi-chevron-right"></i>
-        <a href="{{ url_for('main.documents_category', slug=document.category.slug) }}">{{ document.category.display_name }}</a>
-        <i class="bi bi-chevron-right"></i>
-        <span>{{ document.document_code }}</span>
-      </nav>
-      <div class="documents-title-row">
-        <span class="documents-title-icon"><i class="bi bi-file-earmark-text"></i></span>
-        <h2>{{ document.document_code }} {{ document.title }}</h2>
-      </div>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category', slug=document.category.slug) }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>Kategoriye Dön</span>
-      </a>
-      <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
-        <i class="bi bi-download"></i>
-        <span>İndir</span>
-      </a>
-    </div>
-  </div>
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_category', slug=document.category.slug) }}">{{ document.category.display_name }}</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>{{ document.document_code }}</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header(document.document_code ~ " " ~ document.title, breadcrumb, class_name="documents-page-heading documents-detail-heading", icon="bi-file-earmark-text", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category', slug=document.category.slug) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Kategoriye Dön</span>
+    </a>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
+      <i class="bi bi-download"></i>
+      <span>İndir</span>
+    </a>
+  {% endcall %}
 
   <div class="documents-detail-layout">
     <section class="documents-main-card">

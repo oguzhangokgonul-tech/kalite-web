@@ -1,0 +1,50 @@
+{% macro page_header(title, subtitle=None, class_name="", icon=None, subtitle_is_html=False) -%}
+  <div class="dashboard-page-heading app-page-header{% if class_name %} {{ class_name }}{% endif %}">
+    <div class="app-page-title">
+      {% if icon %}
+        <span class="app-page-icon"><i class="bi {{ icon }}"></i></span>
+      {% endif %}
+      <div>
+        <h2>{{ title }}</h2>
+        {% if subtitle and subtitle_is_html %}
+          {{ subtitle|safe }}
+        {% elif subtitle %}
+          <p>{{ subtitle }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% if caller is defined %}
+      <div class="app-heading-actions app-page-actions">
+        {{ caller() }}
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro card_header(title, subtitle=None, icon="bi-info-circle", class_name="") -%}
+  <div class="app-card-header app-component-card-header{% if class_name %} {{ class_name }}{% endif %}">
+    <span class="app-card-icon"><i class="bi {{ icon }}"></i></span>
+    <div>
+      <h3>{{ title }}</h3>
+      {% if subtitle %}
+        <p>{{ subtitle }}</p>
+      {% endif %}
+    </div>
+  </div>
+{%- endmacro %}
+
+{% macro section_header(title, subtitle=None, class_name="") -%}
+  <div class="app-section-header{% if class_name %} {{ class_name }}{% endif %}">
+    <div>
+      <h3>{{ title }}</h3>
+      {% if subtitle %}
+        <p>{{ subtitle }}</p>
+      {% endif %}
+    </div>
+    {% if caller is defined %}
+      <div class="app-section-actions">
+        {{ caller() }}
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}

@@ -1,20 +1,19 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Doküman Düzenle{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading documents-page-heading">
-    <div>
-      <h2>Doküman Düzenle</h2>
-      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
-        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
-        <i class="bi bi-chevron-right"></i>
-        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
-        <i class="bi bi-chevron-right"></i>
-        <span>{{ document.document_code }}</span>
-      </nav>
-    </div>
-  </div>
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>{{ document.document_code }}</span>
+    </nav>
+  {% endset %}
+  {{ ui.page_header("Doküman Düzenle", breadcrumb, class_name="documents-page-heading", icon="bi-pencil-square", subtitle_is_html=True) }}
 
   {% set submit_label = "Değişiklikleri Kaydet" %}
   {% include "documents/_form.html" %}

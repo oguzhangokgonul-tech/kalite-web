@@ -1,25 +1,20 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ page_title or "İç Denetim Oluştur" }}{% endblock %}
 {% block topbar_title %}{{ page_title or "İç Denetim Oluştur" }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ page_title or "İç Denetim Oluştur" }}</h2>
-      <p>{{ page_description or "Soru listesini ve tetkik konularını hazırlayın." }}</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.internal_audit') }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>İç Denetim Yönetimi</span>
-      </a>
-      <button class="btn btn-primary btn-lg" type="submit" form="internalAuditBuilderForm">
-        <i class="bi bi-save"></i>
-        <span>{{ submit_label or "Denetimi Oluştur" }}</span>
-      </button>
-    </div>
-  </div>
+  {% call ui.page_header(page_title or "İç Denetim Oluştur", page_description or "Soru listesini ve tetkik konularını hazırlayın.", icon="bi-clipboard-check") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.internal_audit') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>İç Denetim Yönetimi</span>
+    </a>
+    <button class="btn btn-primary btn-lg" type="submit" form="internalAuditBuilderForm">
+      <i class="bi bi-save"></i>
+      <span>{{ submit_label or "Denetimi Oluştur" }}</span>
+    </button>
+  {% endcall %}
 
   <form class="audit-builder-form" id="internalAuditBuilderForm" method="post" data-audit-builder>
     <input type="hidden" name="question_indexes" value="" data-question-indexes>

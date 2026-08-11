@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
@@ -16,10 +17,8 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading documents-page-heading">
-    <div>
-      <h2>{{ page_title }}</h2>
-      <p>{{ page_description }}</p>
+  {% set breadcrumb %}
+    <p>{{ page_description }}</p>
       <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
         <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
         <i class="bi bi-chevron-right"></i>
@@ -27,14 +26,15 @@
         <i class="bi bi-chevron-right"></i>
         <span>{{ page_title }}</span>
       </nav>
-    </div>
+  {% endset %}
+  {% call ui.page_header(page_title, breadcrumb, class_name="documents-page-heading", icon="bi-folder", subtitle_is_html=True) %}
     {% if can_manage_documents %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
         <i class="bi bi-plus-lg"></i>
         <span>{% if category %}Bu kategoriye doküman yükle{% else %}Yeni Doküman Yükle{% endif %}</span>
       </a>
     {% endif %}
-  </div>
+  {% endcall %}
 
   <form class="dashboard-filter-card documents-filter-card" method="get">
     <div class="documents-filter-grid">
@@ -77,10 +77,9 @@
   </form>
 
   <section class="documents-table-card">
-    <div class="documents-card-header">
-      <h3>Doküman Listesi</h3>
+    {% call ui.section_header("Doküman Listesi", class_name="documents-card-header") %}
       <span>Toplam {{ documents|length }} kayıt</span>
-    </div>
+    {% endcall %}
     <div class="table-responsive">
       <table class="table documents-table align-middle mb-0">
         <thead>

@@ -1,20 +1,15 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Beton Deneyi Parametreleri{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Beton Deneyi Parametreleri</h2>
-      <p>Basınç dayanımı sonuçlarının renk koşullarını düzenleyin.</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>Beton Deneyi</span>
-      </a>
-    </div>
-  </div>
+  {% call ui.page_header("Beton Deneyi Parametreleri", "Basınç dayanımı sonuçlarının renk koşullarını düzenleyin.", icon="bi-sliders") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Beton Deneyi</span>
+    </a>
+  {% endcall %}
 
   <form method="post" class="quality-parameters-card">
     <div class="quality-parameters-intro">

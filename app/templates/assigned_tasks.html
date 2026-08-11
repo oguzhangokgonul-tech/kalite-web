@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Görevlerim{% endblock %}
 {% block topbar_title %}Görevlerim{% endblock %}
@@ -63,11 +64,7 @@
 
 {% block app_content %}
   <div class="assigned-page-shell">
-  <div class="dashboard-page-heading assigned-page-heading">
-    <div>
-      <h2>Görevlerim</h2>
-      <p>Bekleyen İşlerim</p>
-    </div>
+  {% call ui.page_header("Görevlerim", "Bekleyen İşlerim", class_name="assigned-page-heading", icon="bi-person-check") %}
     <div class="dropdown assigned-scope-dropdown">
       <button class="btn btn-outline-primary btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
         <i class="bi bi-person-check"></i>
@@ -84,7 +81,7 @@
         </a>
       </div>
     </div>
-  </div>
+  {% endcall %}
 
   <form class="dashboard-filter-card assigned-filter-card" method="get">
     <input type="hidden" name="scope" value="{{ filters.scope }}">

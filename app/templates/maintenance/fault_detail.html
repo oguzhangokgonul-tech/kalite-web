@@ -1,26 +1,21 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ fault.number_label }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ fault.number_label }} {{ fault.title }}</h2>
-      <p>{{ fault.machine.code }} - {{ fault.machine.machine_name }} arıza kaydı</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.maintenance_dashboard') }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>Bakım Yönetimi</span>
+  {% call ui.page_header(fault.number_label ~ " " ~ fault.title, fault.machine.code ~ " - " ~ fault.machine.machine_name ~ " arıza kaydı", icon="bi-wrench-adjustable") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.maintenance_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Bakım Yönetimi</span>
+    </a>
+    {% if can_edit_fault %}
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.edit_maintenance_fault', fault_id=fault.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>Düzenle</span>
       </a>
-      {% if can_edit_fault %}
-        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.edit_maintenance_fault', fault_id=fault.id) }}">
-          <i class="bi bi-pencil-square"></i>
-          <span>Düzenle</span>
-        </a>
-      {% endif %}
-    </div>
-  </div>
+    {% endif %}
+  {% endcall %}
 
   <div class="maintenance-detail-grid">
     <section class="maintenance-info-card">

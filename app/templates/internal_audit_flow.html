@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}İç Denetim Akıllı Soru Akışı{% endblock %}
 {% block topbar_title %}İç Denetim Akıllı Soru Akışı{% endblock %}
@@ -9,12 +10,7 @@
 {% set audit_read_only = not can_answer_internal_audit %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading audit-flow-heading">
-    <div>
-      <h2>İç Denetim Akıllı Soru Akışı</h2>
-      <p>{% if audit_read_only %}Bu iç denetimi gözlemci olarak görüntülüyorsunuz.{% else %}Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.{% endif %}</p>
-    </div>
-    <div class="app-heading-actions">
+  {% call ui.page_header("İç Denetim Akıllı Soru Akışı", "Bu iç denetimi gözlemci olarak görüntülüyorsunuz." if audit_read_only else "Bir soruyu cevaplayın ve bir sonraki soruya ilerleyin.", class_name="audit-flow-heading", icon="bi-clipboard-check") %}
       {% if can_create_internal_audit %}
         <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_internal_audit') }}">
           <i class="bi bi-plus-lg"></i>
@@ -59,8 +55,7 @@
           {% endfor %}
         </div>
       </div>
-    </div>
-  </div>
+  {% endcall %}
 
   <section class="audit-progress-card">
     <div class="audit-progress-meta">

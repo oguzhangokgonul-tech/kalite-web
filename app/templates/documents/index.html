@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Doküman Yönetimi{% endblock %}
 
@@ -16,22 +17,21 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading documents-page-heading">
-    <div>
-      <h2>Doküman Yönetimi</h2>
-      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
-        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
-        <i class="bi bi-chevron-right"></i>
-        <span>Doküman Yönetimi</span>
-      </nav>
-    </div>
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Doküman Yönetimi</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header("Doküman Yönetimi", breadcrumb, class_name="documents-page-heading", icon="bi-file-earmark-text", subtitle_is_html=True) %}
     {% if can_manage_documents %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.upload_document') }}">
         <i class="bi bi-plus-lg"></i>
         <span>Yeni Doküman Yükle</span>
       </a>
     {% endif %}
-  </div>
+  {% endcall %}
 
   <div class="documents-summary-grid">
     <div class="documents-summary-card document-summary-blue">
@@ -87,13 +87,12 @@
   </section>
 
   <section class="documents-table-card">
-    <div class="documents-card-header">
-      <h3>Son Eklenen Dokümanlar</h3>
+    {% call ui.section_header("Son Eklenen Dokümanlar", class_name="documents-card-header") %}
       <a href="{{ url_for('main.documents_list') }}">
         Tümünü Görüntüle
         <i class="bi bi-arrow-right"></i>
       </a>
-    </div>
+    {% endcall %}
     <div class="table-responsive">
       <table class="table documents-table align-middle mb-0">
         <thead>

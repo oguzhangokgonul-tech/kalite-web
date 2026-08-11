@@ -1,20 +1,17 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ title }}{% endblock %}
 {% block topbar_title %}{{ title }}{% endblock %}
 {% block topbar_actions %}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ title }}</h2>
-      <p>Kullanıcı bilgilerini ve aksiyon yetkilerini tanımlayın.</p>
-    </div>
+  {% call ui.page_header(title, "Kullanıcı bilgilerini ve aksiyon yetkilerini tanımlayın.", icon="bi-person-gear") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.users') }}">
       <i class="bi bi-arrow-left"></i>
       <span>Kullanıcılar</span>
     </a>
-  </div>
+  {% endcall %}
 
   <form class="app-form-card" method="post">
     <div class="app-card-header">

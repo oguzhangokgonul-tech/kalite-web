@@ -1,21 +1,16 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Bildirimler{% endblock %}
 {% block topbar_title %}Bildirimler{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Bildirimler</h2>
-      <p>Size atanan aksiyon ve İF kayıtlarındaki son hareketler.</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
-        <i class="bi bi-house-door"></i>
-        <span>Ana Sayfa</span>
-      </a>
-    </div>
-  </div>
+  {% call ui.page_header("Bildirimler", "Size atanan aksiyon ve İF kayıtlarındaki son hareketler.", icon="bi-bell") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+      <i class="bi bi-house-door"></i>
+      <span>Ana Sayfa</span>
+    </a>
+  {% endcall %}
 
   <div class="dashboard-table-card">
     {% if notifications %}

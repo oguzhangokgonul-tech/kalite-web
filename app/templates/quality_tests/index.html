@@ -1,26 +1,21 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ quality_test.title }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ quality_test.title }}</h2>
-      <p>Kalite deneyleri kayıt takip ekranı</p>
-    </div>
-    <div class="app-heading-actions">
-      {% if can_manage_quality_parameters %}
-        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.quality_test_parameters', slug=quality_test.slug) }}">
-          <i class="bi bi-sliders"></i>
-          <span>Parametreler</span>
-        </a>
-      {% endif %}
-      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
-        <i class="bi bi-plus-lg"></i>
-        <span>Yeni Kayıt Oluştur</span>
+  {% call ui.page_header(quality_test.title, "Kalite deneyleri kayıt takip ekranı", icon=quality_test.icon) %}
+    {% if can_manage_quality_parameters %}
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.quality_test_parameters', slug=quality_test.slug) }}">
+        <i class="bi bi-sliders"></i>
+        <span>Parametreler</span>
       </a>
-    </div>
-  </div>
+    {% endif %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
+      <i class="bi bi-plus-lg"></i>
+      <span>Yeni Kayıt Oluştur</span>
+    </a>
+  {% endcall %}
 
   <div class="dashboard-metrics quality-test-metrics">
     <div class="dashboard-stat-card stat-primary">
@@ -104,13 +99,9 @@
   </form>
 
   <section class="dashboard-table-card quality-test-table-card">
-    <div class="quality-test-section-header">
-      <div>
-        <h3>{{ quality_test.title }} Kayıtları</h3>
-        <p>Elle oluşturulan deney kayıtları burada takip edilir.</p>
-      </div>
+    {% call ui.section_header(quality_test.title ~ " Kayıtları", "Elle oluşturulan deney kayıtları burada takip edilir.", class_name="quality-test-section-header") %}
       <span class="quality-test-record-count">{{ filtered_count }} kayıt</span>
-    </div>
+    {% endcall %}
     <div class="table-responsive">
       <table class="table dashboard-table quality-test-table align-middle mb-0">
         <thead>

@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ sub_action.title }}{% endblock %}
 {% block topbar_title %}Alt Aksiyon Detayı{% endblock %}
@@ -16,24 +17,18 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ sub_action.title }}</h2>
-      <p>{{ action.number_label }} {{ action.title }} aksiyonuna bağlı alt aksiyon</p>
-    </div>
-    <div class="app-heading-actions">
-      {% if can_edit %}
-        <a class="btn btn-outline-primary" href="{{ url_for('main.edit_sub_action', sub_action_id=sub_action.id) }}">
-          <i class="bi bi-pencil"></i>
-          <span>Düzenle</span>
-        </a>
-      {% endif %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}#sub-actions">
-        <i class="bi bi-arrow-left"></i>
-        <span>Aksiyon Detayı</span>
+  {% call ui.page_header(sub_action.title, action.number_label ~ " " ~ action.title ~ " aksiyonuna bağlı alt aksiyon", icon="bi-list-task") %}
+    {% if can_edit %}
+      <a class="btn btn-outline-primary" href="{{ url_for('main.edit_sub_action', sub_action_id=sub_action.id) }}">
+        <i class="bi bi-pencil"></i>
+        <span>Düzenle</span>
       </a>
-    </div>
-  </div>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}#sub-actions">
+      <i class="bi bi-arrow-left"></i>
+      <span>Aksiyon Detayı</span>
+    </a>
+  {% endcall %}
 
   <div class="detail-metrics">
     <div class="detail-metric-card">

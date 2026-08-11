@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Yeni Kayıt Oluştur{% endblock %}
 
@@ -7,18 +8,12 @@
 {%- endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Yeni Kayıt Oluştur</h2>
-      <p>{{ quality_test.title }}</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>{{ quality_test.title }}</span>
-      </a>
-    </div>
-  </div>
+  {% call ui.page_header("Yeni Kayıt Oluştur", quality_test.title, icon=quality_test.icon) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>{{ quality_test.title }}</span>
+    </a>
+  {% endcall %}
 
   <form class="quality-test-form-card" method="post" action="{{ form_action }}">
     <div class="quality-test-form-header">

@@ -1,20 +1,15 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Basınç Dayanımı Ölçümü{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Basınç Dayanımı Ölçümü</h2>
-      <p>{{ record.number_label }} · {{ record.title }}</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>{{ quality_test.title }}</span>
-      </a>
-    </div>
-  </div>
+  {% call ui.page_header("Basınç Dayanımı Ölçümü", record.number_label ~ " · " ~ record.title, icon="bi-speedometer2") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>{{ quality_test.title }}</span>
+    </a>
+  {% endcall %}
 
   <div class="quality-measurement-layout">
     <form class="quality-test-form-card" method="post" action="{{ form_action }}">

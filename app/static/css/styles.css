@@ -9,6 +9,88 @@ body {
     font-family: Inter, Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* VolkaPortal shared component layer. Keep module-specific classes for behavior,
+   but route new/updated templates through these visual primitives. */
+.app-page-header,
+.app-section-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.app-page-title {
+    display: flex;
+    align-items: flex-start;
+    min-width: 0;
+    gap: 14px;
+}
+
+.app-page-title > div {
+    min-width: 0;
+}
+
+.app-page-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    color: var(--vp-blue);
+    background: color-mix(in srgb, var(--vp-blue) 10%, #ffffff);
+    border: 1px solid color-mix(in srgb, var(--vp-blue) 18%, var(--vp-border));
+    border-radius: var(--vp-radius-card);
+    font-size: 1.35rem;
+}
+
+.app-page-header h2,
+.app-section-header h3 {
+    margin: 0;
+    color: var(--vp-text-primary);
+    font-weight: 850;
+    letter-spacing: 0;
+}
+
+.app-page-header h2 {
+    font-size: clamp(1.55rem, 2vw, 2rem);
+    line-height: 1.15;
+}
+
+.app-section-header h3 {
+    font-size: 1rem;
+    line-height: 1.25;
+}
+
+.app-page-header p,
+.app-section-header p {
+    margin: 6px 0 0;
+    color: var(--vp-text-secondary);
+    font-weight: 600;
+}
+
+.app-page-actions,
+.app-section-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.app-section-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--vp-border);
+}
+
+.app-component-card-header {
+    align-items: flex-start;
+}
+
+.app-component-card-header .app-card-icon {
+    flex: 0 0 auto;
+}
+
 .documents-page-heading {
     align-items: flex-start;
 }
@@ -7457,6 +7539,24 @@ textarea.form-control:focus {
 @media (max-width: 992px) {
     .dashboard-app {
         display: block;
+    }
+
+    .app-page-header,
+    .app-section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .app-page-actions,
+    .app-section-actions {
+        justify-content: flex-start;
+    }
+
+    .app-page-actions .btn,
+    .app-page-actions form,
+    .app-section-actions .btn,
+    .app-section-actions form {
+        width: 100%;
     }
 
     .dashboard-topbar {

@@ -1,19 +1,16 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ title }}{% endblock %}
 {% block topbar_title %}{{ title }}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ title }}</h2>
-      <p>Aksiyon detaylarını, sorumlusunu ve termin tarihini girin.</p>
-    </div>
+  {% call ui.page_header(title, "Aksiyon detaylarını, sorumlusunu ve termin tarihini girin.", icon="bi-clipboard-plus") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.dashboard') }}">
       <i class="bi bi-arrow-left"></i>
       <span>Ana Sayfa</span>
     </a>
-  </div>
+  {% endcall %}
 
   <form class="app-form-card" method="post" enctype="multipart/form-data">
     <div class="app-card-header">

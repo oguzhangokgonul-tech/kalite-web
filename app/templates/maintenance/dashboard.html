@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Bakım{% endblock %}
 
@@ -18,26 +19,20 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Bakım Yönetimi</h2>
-      <p>Makine arızalarını, sorumluları ve kapanış işlemlerini takip edin.</p>
-    </div>
-    <div class="app-heading-actions">
-      {% if can_open_fault %}
-        <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_maintenance_fault') }}">
-          <i class="bi bi-plus-lg"></i>
-          <span>Arıza Aç</span>
-        </a>
-      {% endif %}
-      {% if can_manage_inventory %}
-        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.create_maintenance_machine') }}">
-          <i class="bi bi-tools"></i>
-          <span>Makine Ekle</span>
-        </a>
-      {% endif %}
-    </div>
-  </div>
+  {% call ui.page_header("Bakım Yönetimi", "Makine arızalarını, sorumluları ve kapanış işlemlerini takip edin.", icon="bi-wrench-adjustable") %}
+    {% if can_open_fault %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_maintenance_fault') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Arıza Aç</span>
+      </a>
+    {% endif %}
+    {% if can_manage_inventory %}
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.create_maintenance_machine') }}">
+        <i class="bi bi-tools"></i>
+        <span>Makine Ekle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
 
   <div class="dashboard-metrics maintenance-metrics">
     <div class="dashboard-stat-card stat-primary">
@@ -108,18 +103,14 @@
   </form>
 
   <section class="dashboard-table-card maintenance-section-card">
-    <div class="maintenance-section-header">
-      <div>
-        <h3>Arıza Takibi</h3>
-        <p>Açılan arızalar, bildiren departmanlar ve sorumlular.</p>
-      </div>
+    {% call ui.section_header("Arıza Takibi", "Açılan arızalar, bildiren departmanlar ve sorumlular.", class_name="maintenance-section-header") %}
       {% if can_open_fault %}
         <a class="btn btn-sm btn-primary" href="{{ url_for('main.create_maintenance_fault') }}">
           <i class="bi bi-plus-lg"></i>
           <span>Arıza Aç</span>
         </a>
       {% endif %}
-    </div>
+    {% endcall %}
     <div class="table-responsive">
       <table class="table dashboard-table maintenance-table align-middle mb-0">
         <thead>
@@ -201,18 +192,14 @@
   </section>
 
   <section class="dashboard-table-card maintenance-section-card">
-    <div class="maintenance-section-header">
-      <div>
-        <h3>Makine Envanteri</h3>
-        <p>PL.18 bakım planından aktarılan makine, marka model, seri no ve kod bilgileri.</p>
-      </div>
+    {% call ui.section_header("Makine Envanteri", "PL.18 bakım planından aktarılan makine, marka model, seri no ve kod bilgileri.", class_name="maintenance-section-header") %}
       {% if can_manage_inventory %}
         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_maintenance_machine') }}">
           <i class="bi bi-tools"></i>
           <span>Makine Ekle</span>
         </a>
       {% endif %}
-    </div>
+    {% endcall %}
     <div class="table-responsive">
       <table class="table dashboard-table maintenance-table align-middle mb-0">
         <thead>

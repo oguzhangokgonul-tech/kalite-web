@@ -1,21 +1,16 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Alt Aksiyon Düzenle{% endblock %}
 {% block topbar_title %}Alt Aksiyon Düzenle{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Alt Aksiyon Düzenle</h2>
-      <p>{{ action.number_label }} {{ action.title }} aksiyonuna bağlı alt aksiyon</p>
-    </div>
-    <div class="app-heading-actions">
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}#sub-actions">
-        <i class="bi bi-arrow-left"></i>
-        <span>Aksiyon Detayı</span>
-      </a>
-    </div>
-  </div>
+  {% call ui.page_header("Alt Aksiyon Düzenle", action.number_label ~ " " ~ action.title ~ " aksiyonuna bağlı alt aksiyon", icon="bi-list-task") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}#sub-actions">
+      <i class="bi bi-arrow-left"></i>
+      <span>Aksiyon Detayı</span>
+    </a>
+  {% endcall %}
 
   <form class="app-form-card" method="post" enctype="multipart/form-data">
     <div class="app-card-header">

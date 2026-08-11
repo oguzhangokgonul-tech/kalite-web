@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}İç Denetim Yönetimi{% endblock %}
 {% block topbar_title %}İç Denetim Yönetimi{% endblock %}
@@ -14,18 +15,14 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>İç Denetim Yönetimi</h2>
-      <p>Açılmış iç denetimleri görüntüleyin, devam edin veya silebilirsiniz.</p>
-    </div>
+  {% call ui.page_header("İç Denetim Yönetimi", "Açılmış iç denetimleri görüntüleyin, devam edin veya silebilirsiniz.", icon="bi-clipboard-check") %}
     {% if can_access_internal_audit %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_internal_audit') }}">
         <i class="bi bi-plus-lg"></i>
         <span>İç Denetim oluştur</span>
       </a>
     {% endif %}
-  </div>
+  {% endcall %}
 
   {% if not can_access_internal_audit %}
     <section class="audit-access-card">

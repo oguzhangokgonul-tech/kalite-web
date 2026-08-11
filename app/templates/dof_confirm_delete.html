@@ -1,19 +1,16 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}İF Kaydı Sil{% endblock %}
 {% block topbar_title %}İF Kaydı Sil{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>İF kaydı silinsin mi?</h2>
-      <p>Bu işlem geri alınamaz.</p>
-    </div>
+  {% call ui.page_header("İF kaydı silinsin mi?", "Bu işlem geri alınamaz.", icon="bi-trash") %}
     <a class="btn btn-outline-secondary" href="{{ url_for('main.dof_management') }}">
       <i class="bi bi-arrow-left"></i>
       <span>İF Yönetimi</span>
     </a>
-  </div>
+  {% endcall %}
 
   <div class="app-card">
     <div class="app-card-header">

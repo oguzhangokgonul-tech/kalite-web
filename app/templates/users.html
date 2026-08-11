@@ -1,20 +1,17 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Kullanıcılar{% endblock %}
 {% block topbar_title %}Kullanıcılar{% endblock %}
 {% block topbar_actions %}{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>Kullanıcılar</h2>
-      <p>Kullanıcı ve yetki tanımlarını yönetin.</p>
-    </div>
+  {% call ui.page_header("Kullanıcılar", "Kullanıcı ve yetki tanımlarını yönetin.", icon="bi-people") %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_user') }}">
       <i class="bi bi-person-plus"></i>
       <span>Yeni kullanıcı</span>
     </a>
-  </div>
+  {% endcall %}
 
   <div class="dashboard-table-card">
     <div class="table-responsive">

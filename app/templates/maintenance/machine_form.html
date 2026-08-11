@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
@@ -13,16 +14,12 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ page_title }}</h2>
-      <p>{{ page_description }}</p>
-    </div>
+  {% call ui.page_header(page_title, page_description, icon="bi-wrench-adjustable") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.maintenance_dashboard') }}">
       <i class="bi bi-arrow-left"></i>
       <span>Bakım Yönetimi</span>
     </a>
-  </div>
+  {% endcall %}
 
   <form class="maintenance-form-card" method="post" action="{{ form_action }}">
     <div class="app-card-header">

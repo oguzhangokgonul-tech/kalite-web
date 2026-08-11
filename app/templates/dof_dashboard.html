@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}İF Yönetimi{% endblock %}
 {% block topbar_title %}İF Yönetimi{% endblock %}
@@ -73,16 +74,12 @@
 {%- endmacro -%}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>İF Yönetimi</h2>
-      <p>Düzeltici ve önleyici faaliyet kayıtlarını takip edin</p>
-    </div>
+  {% call ui.page_header("İF Yönetimi", "Düzeltici ve önleyici faaliyet kayıtlarını takip edin", icon="bi-clipboard2-pulse") %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_dof') }}">
       <i class="bi bi-plus-lg"></i>
       <span>Yeni İF Kaydı</span>
     </a>
-  </div>
+  {% endcall %}
 
   <div class="dashboard-metrics dof-dashboard-metrics">
     <div class="dashboard-stat-card stat-primary">

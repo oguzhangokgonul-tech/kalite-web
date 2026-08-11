@@ -1,20 +1,19 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}Yeni Doküman Yükle{% endblock %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading documents-page-heading">
-    <div>
-      <h2>Yeni Doküman Yükle</h2>
-      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
-        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
-        <i class="bi bi-chevron-right"></i>
-        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
-        <i class="bi bi-chevron-right"></i>
-        <span>Yeni Doküman Yükle</span>
-      </nav>
-    </div>
-  </div>
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Yeni Doküman Yükle</span>
+    </nav>
+  {% endset %}
+  {{ ui.page_header("Yeni Doküman Yükle", breadcrumb, class_name="documents-page-heading", icon="bi-file-earmark-plus", subtitle_is_html=True) }}
 
   {% set submit_label = "Dokümanı Kaydet" %}
   {% include "documents/_form.html" %}

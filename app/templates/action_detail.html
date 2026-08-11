@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ action.title }}{% endblock %}
 {% block topbar_title %}Aksiyon Detayı{% endblock %}
@@ -30,39 +31,33 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading">
-    <div>
-      <h2>{{ action.number_label }} {{ action.title }}</h2>
-      <p>{{ action.responsible_owner }} için atanmış aksiyon</p>
-    </div>
-    <div class="app-heading-actions">
-      {% if can_approve_closure %}
-        <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
-          <button class="btn btn-success" type="submit">
-            <i class="bi bi-check-circle"></i>
-            <span>Kapatma Onayını Ver</span>
-          </button>
-        </form>
-      {% elif can_request_closure %}
-        <a class="btn btn-success" href="#closure-request">
-          <i class="bi bi-send"></i>
-          <span>Kapatma Onayı Gönder</span>
-        </a>
-      {% elif action.closure_approval_requested and not action.is_completed %}
-        <span class="btn btn-warning disabled">Kapanma Onayı Beklemede</span>
-      {% endif %}
-      {% if g.current_user.can_edit_actions %}
-        <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
-          <i class="bi bi-pencil"></i>
-          <span>Düzenle</span>
-        </a>
-      {% endif %}
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
-        <i class="bi bi-arrow-left"></i>
-        <span>Ana Sayfa</span>
+  {% call ui.page_header(action.number_label ~ " " ~ action.title, action.responsible_owner ~ " için atanmış aksiyon", icon="bi-clipboard-check") %}
+    {% if can_approve_closure %}
+      <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+        <button class="btn btn-success" type="submit">
+          <i class="bi bi-check-circle"></i>
+          <span>Kapatma Onayını Ver</span>
+        </button>
+      </form>
+    {% elif can_request_closure %}
+      <a class="btn btn-success" href="#closure-request">
+        <i class="bi bi-send"></i>
+        <span>Kapatma Onayı Gönder</span>
       </a>
-    </div>
-  </div>
+    {% elif action.closure_approval_requested and not action.is_completed %}
+      <span class="btn btn-warning disabled">Kapanma Onayı Beklemede</span>
+    {% endif %}
+    {% if g.current_user.can_edit_actions %}
+      <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
+        <i class="bi bi-pencil"></i>
+        <span>Düzenle</span>
+      </a>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Ana Sayfa</span>
+    </a>
+  {% endcall %}
 
   <div class="detail-metrics">
     <div class="detail-metric-card">

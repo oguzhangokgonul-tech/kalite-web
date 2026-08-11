@@ -1,4 +1,5 @@
 {% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
 
 {% block title %}{{ dof.dof_no }}{% endblock %}
 {% block topbar_title %}İF Detayı{% endblock %}
@@ -63,12 +64,7 @@
 {% endmacro %}
 
 {% block app_content %}
-  <div class="dashboard-page-heading dof-detail-heading">
-    <div>
-      <h2>{{ dof.dof_no }}</h2>
-      <p>Düzeltici ve önleyici faaliyet kayıt detayı</p>
-    </div>
-    <div class="app-heading-actions">
+  {% call ui.page_header(dof.dof_no, "Düzeltici ve önleyici faaliyet kayıt detayı", class_name="dof-detail-heading", icon="bi-clipboard2-pulse") %}
       {% if can_edit %}
         <a class="btn btn-primary" href="{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}">
           <i class="bi bi-pencil-square"></i>
@@ -101,8 +97,7 @@
           <span>Sil</span>
         </a>
       {% endif %}
-    </div>
-  </div>
+  {% endcall %}
 
   <div class="dof-detail-info-grid">
     {{ info_card("bi-diagram-3", "Departman", dof.department) }}
