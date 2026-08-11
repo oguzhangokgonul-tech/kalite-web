@@ -9,7 +9,7 @@ UPLOAD_FOLDER = DATA_DIR / "uploads"
 
 
 class Config:
-    SITE_NAME = os.environ.get("SITE_NAME", "TOKEN")
+    SITE_NAME = os.environ.get("SITE_NAME", "VolkaPortal")
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
     DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(

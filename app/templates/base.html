@@ -3,9 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Aksiyon Takip Sistemi{% endblock %}</title>
+    <title>{% block title %}Dashboard{% endblock %} | {{ config.SITE_NAME }}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='brand/volkaportal-icon.svg') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   </head>
   <body class="{% block body_class %}{% endblock %}">
@@ -71,17 +73,18 @@
       <script>
         (() => {
           const baseTitle = document.title;
-          const badge = document.querySelector("[data-notification-badge]");
-          if (!badge) return;
+          const badges = document.querySelectorAll("[data-notification-badge]");
+          if (!badges.length) return;
           let unreadCount = Number("{{ g.unread_notification_count }}") || 0;
           let blinkTimer = null;
           let blinkOn = false;
           let blinkCount = unreadCount;
 
           function updateBadge(count) {
-            if (!badge) return;
-            badge.textContent = count;
-            badge.classList.toggle("d-none", count === 0);
+            badges.forEach((badge) => {
+              badge.textContent = count;
+              badge.classList.toggle("d-none", count === 0);
+            });
           }
 
           function stopBlinking() {

@@ -57,7 +57,7 @@ def _format_date(value):
 
 
 def _site_name():
-    return current_app.config.get("SITE_NAME", "TOKEN")
+    return current_app.config.get("SITE_NAME", "VolkaPortal")
 
 
 def build_action_email(action, message):

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 112" role="img" aria-labelledby="title desc">
+  <title id="title">VolkaPortal</title>
+  <desc id="desc">VolkaPortal horizontal logo with deer technology symbol.</desc>
+  <defs>
+    <linearGradient id="vp-antler-horizontal" x1="12" x2="84" y1="16" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E5BFF"/>
+      <stop offset="1" stop-color="#00BBAA"/>
+    </linearGradient>
+    <linearGradient id="vp-wordmark" x1="118" x2="398" y1="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1D36"/>
+      <stop offset="0.52" stop-color="#1E5BFF"/>
+      <stop offset="1" stop-color="#00BBAA"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 10) scale(.72)">
+    <rect width="128" height="128" rx="28" fill="#0B1D36"/>
+    <path d="M64 30c13 9 25 25 27 44 2 18-6 33-27 43-21-10-29-25-27-43 2-19 14-35 27-44Z" fill="#102A4A"/>
+    <path d="M38 61 21 39m17 22-3-24m3 24-19 3m71-3 17-22M90 61l3-24m-3 24 19 3" fill="none" stroke="url(#vp-antler-horizontal)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M45 76c7-7 15-7 19 0m19 0c-7-7-15-7-19 0M51 61 64 76l13-15M64 76v30" fill="none" stroke="#E6E8EB" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M56 84h16l-8 8-8-8Z" fill="#E6E8EB"/>
+    <path d="M43 46 31 25m54 21 12-21M50 45 45 19m28 26 10-26" fill="none" stroke="url(#vp-antler-horizontal)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <text x="118" y="57" fill="url(#vp-wordmark)" font-family="Inter, Manrope, system-ui, sans-serif" font-size="38" font-weight="800" letter-spacing="0">
+    Volka<tspan font-weight="600">Portal</tspan>
+  </text>
+  <text x="120" y="82" fill="#667085" font-family="Inter, Manrope, system-ui, sans-serif" font-size="13" font-weight="600">
+    Kurumsal Süreç Yönetim Platformu
+  </text>
+</svg>

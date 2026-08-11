@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">VolkaPortal icon</title>
+  <desc id="desc">Stylized corporate deer head with blue and teal data antlers.</desc>
+  <defs>
+    <linearGradient id="vp-antler" x1="16" x2="112" y1="22" y2="22" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E5BFF"/>
+      <stop offset="1" stop-color="#00BBAA"/>
+    </linearGradient>
+    <linearGradient id="vp-face" x1="31" x2="97" y1="38" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#102A4A"/>
+      <stop offset="1" stop-color="#061527"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#0B1D36"/>
+  <path d="M64 30c13 9 25 25 27 44 2 18-6 33-27 43-21-10-29-25-27-43 2-19 14-35 27-44Z" fill="url(#vp-face)"/>
+  <path d="M38 61 21 39m17 22-3-24m3 24-19 3m71-3 17-22M90 61l3-24m-3 24 19 3" fill="none" stroke="url(#vp-antler)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M45 76c7-7 15-7 19 0m19 0c-7-7-15-7-19 0" fill="none" stroke="#E6E8EB" stroke-width="5" stroke-linecap="round"/>
+  <path d="M51 61 64 76l13-15M64 76v30m-13-7 13 7 13-7" fill="none" stroke="#E6E8EB" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M56 84h16l-8 8-8-8Z" fill="#E6E8EB"/>
+  <path d="M43 46 31 25m54 21 12-21M50 45 45 19m28 26 10-26" fill="none" stroke="url(#vp-antler)" stroke-width="3" stroke-linecap="round"/>
+  <g fill="#E6E8EB" stroke="url(#vp-antler)" stroke-width="3">
+    <circle cx="21" cy="39" r="5"/>
+    <circle cx="35" cy="37" r="4"/>
+    <circle cx="31" cy="25" r="4"/>
+    <circle cx="19" cy="64" r="4"/>
+    <circle cx="107" cy="39" r="5"/>
+    <circle cx="93" cy="37" r="4"/>
+    <circle cx="97" cy="25" r="4"/>
+    <circle cx="109" cy="64" r="4"/>
+  </g>
+  <circle cx="53" cy="78" r="3" fill="#1E5BFF"/>
+  <circle cx="75" cy="78" r="3" fill="#00BBAA"/>
+</svg>

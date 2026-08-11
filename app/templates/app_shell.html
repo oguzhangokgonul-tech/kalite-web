@@ -21,6 +21,13 @@
       <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
     </div>
     <div class="offcanvas-body">
+      <a class="dashboard-sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="{{ config.SITE_NAME }} ana sayfa">
+        <img class="dashboard-brand-logo" src="{{ url_for('static', filename='brand/volkaportal-icon-light.svg') }}" alt="" aria-hidden="true">
+        <span class="dashboard-brand-copy">
+          <strong>{{ config.SITE_NAME }}</strong>
+          <small>Kurumsal Süreç Yönetim Platformu</small>
+        </span>
+      </a>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
@@ -99,6 +106,26 @@
   </button>
 
   <div class="dashboard-main">
+    <header class="dashboard-topbar">
+      <div>
+        <strong>{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}</strong>
+        <span>Kurumsal Süreç Yönetim Platformu</span>
+      </div>
+      <div class="dashboard-topbar-actions">
+        <a class="dashboard-topbar-button" href="{{ url_for('main.notifications') }}">
+          <i class="bi bi-bell"></i>
+          <span>Bildirimler</span>
+          <span class="dashboard-topbar-badge {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span>
+        </a>
+        <span class="dashboard-topbar-user" aria-label="Oturum açan kullanıcı">
+          <span class="dashboard-avatar">{{ g.current_user_initials }}</span>
+          <span>
+            <strong>{{ g.current_user.full_name }}</strong>
+            <small>{{ g.current_user.title or "Kullanıcı" }}</small>
+          </span>
+        </span>
+      </div>
+    </header>
     <section class="dashboard-content {% block content_extra_class %}{% endblock %}">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
