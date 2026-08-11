@@ -106,26 +106,6 @@
   </button>
 
   <div class="dashboard-main">
-    <header class="dashboard-topbar">
-      <div>
-        <strong>{% block topbar_title %}{{ config.SITE_NAME }}{% endblock %}</strong>
-        <span>Kurumsal Süreç Yönetim Platformu</span>
-      </div>
-      <div class="dashboard-topbar-actions">
-        <a class="dashboard-topbar-button" href="{{ url_for('main.notifications') }}">
-          <i class="bi bi-bell"></i>
-          <span>Bildirimler</span>
-          <span class="dashboard-topbar-badge {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span>
-        </a>
-        <span class="dashboard-topbar-user" aria-label="Oturum açan kullanıcı">
-          <span class="dashboard-avatar">{{ g.current_user_initials }}</span>
-          <span>
-            <strong>{{ g.current_user.full_name }}</strong>
-            <small>{{ g.current_user.title or "Kullanıcı" }}</small>
-          </span>
-        </span>
-      </div>
-    </header>
     <section class="dashboard-content {% block content_extra_class %}{% endblock %}">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
