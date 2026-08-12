@@ -61,6 +61,7 @@ from .models import (
     Role,
     RolePermission,
     User,
+    UserPermission,
 )
 
 
@@ -1496,6 +1497,12 @@ def is_concrete_quality_test(slug):
     return slug == "beton-deneyi"
 
 
+def can_create_quality_test_record():
+    return current_user_can("quality.create") or current_user_can(
+        "quality.parameters_manage"
+    )
+
+
 def format_quality_decimal(value, digits=1):
     if value is None:
         return "-"
@@ -1774,6 +1781,7 @@ def quality_test_records_context(quality_test):
         "format_decimal": format_quality_decimal,
         "strength_parameters": strength_parameters,
         "strength_tone": concrete_strength_tone,
+        "can_create_quality_test": can_create_quality_test_record(),
         "can_manage_quality_parameters": is_concrete
         and current_user_can("quality.parameters_manage"),
     }
@@ -4415,6 +4423,10 @@ def sync_user_legacy_permissions(user):
         setattr(user, field, has_permission(user, permission_key))
 
 
+def user_extra_permission_keys(user):
+    return {permission.permission_key for permission in user.extra_permissions}
+
+
 def permission_catalog_grouped():
     from .seed import PERMISSION_CATALOG
 
@@ -5364,6 +5376,8 @@ def create_quality_test_record(slug):
     quality_test = quality_test_by_slug(slug)
     if quality_test is None:
         abort(404)
+    if not can_create_quality_test_record():
+        abort(403)
 
     if request.method == "POST":
         try:
@@ -5417,6 +5431,8 @@ def quality_test_measurement(slug, record_id):
     quality_test = quality_test_by_slug(slug)
     if quality_test is None or not is_concrete_quality_test(slug):
         abort(404)
+    if not can_create_quality_test_record():
+        abort(403)
 
     record = QualityTestRecord.query.filter_by(id=record_id, test_type=slug).first_or_404()
     current_day = record.current_measurement_day
@@ -7818,6 +7834,20 @@ def apply_role_form_to_user(user):
         if super_admin_role and super_admin_role not in roles:
             roles.append(super_admin_role)
     user.roles = roles
+    selected_extra_permissions = set(request.form.getlist("extra_permissions"))
+    allowed_extra_permissions = {"quality.create"}
+    selected_extra_permissions &= allowed_extra_permissions
+    existing_extra_permissions = {
+        permission.permission_key: permission for permission in user.extra_permissions
+    }
+    for permission_key in selected_extra_permissions:
+        if permission_key not in existing_extra_permissions:
+            user.extra_permissions.append(UserPermission(permission_key=permission_key))
+    for permission in list(user.extra_permissions):
+        if permission.permission_key in allowed_extra_permissions and (
+            permission.permission_key not in selected_extra_permissions
+        ):
+            user.extra_permissions.remove(permission)
     sync_user_legacy_permissions(user)
 
 
@@ -7845,6 +7875,7 @@ def create_user():
         title="Yeni Kullanıcı",
         roles=role_hierarchy(),
         can_manage_roles=is_super_admin(),
+        user_extra_permission_keys=user_extra_permission_keys,
     )
 
 
@@ -7873,6 +7904,7 @@ def edit_user(user_id):
         title="Kullanıcı Düzenle",
         roles=role_hierarchy(),
         can_manage_roles=is_super_admin(),
+        user_extra_permission_keys=user_extra_permission_keys,
     )
 
 
@@ -7908,6 +7940,7 @@ def roles():
         roles=role_hierarchy(),
         permission_groups=permission_catalog_grouped(),
         users=User.query.order_by(User.full_name.asc()).all(),
+        user_extra_permission_keys=user_extra_permission_keys,
     )
 
 
@@ -7915,7 +7948,20 @@ def roles():
 @login_required
 @super_admin_required
 def update_user_roles():
-    users = User.query.order_by(User.full_name.asc()).all()
+    managed_user_ids = {
+        int(user_id)
+        for user_id in request.form.getlist("managed_user_ids")
+        if user_id.isdigit()
+    }
+    if not managed_user_ids:
+        flash("Güncellenecek kullanıcı seçimi bulunamadı.", "warning")
+        return redirect(url_for("main.roles"))
+
+    users = (
+        User.query.filter(User.id.in_(managed_user_ids))
+        .order_by(User.full_name.asc())
+        .all()
+    )
     all_roles = role_hierarchy()
     role_by_id = {role.id: role for role in all_roles}
     for user in users:
@@ -7936,6 +7982,24 @@ def update_user_roles():
             for role_id in selected_role_ids
             if role_id in role_by_id
         ]
+        selected_extra_permissions = set(
+            request.form.getlist(f"user_{user.id}_extra_permissions")
+        )
+        allowed_extra_permissions = {"quality.create"}
+        selected_extra_permissions &= allowed_extra_permissions
+        existing_extra_permissions = {
+            permission.permission_key: permission for permission in user.extra_permissions
+        }
+        for permission_key in selected_extra_permissions:
+            if permission_key not in existing_extra_permissions:
+                user.extra_permissions.append(
+                    UserPermission(permission_key=permission_key)
+                )
+        for permission in list(user.extra_permissions):
+            if permission.permission_key in allowed_extra_permissions and (
+                permission.permission_key not in selected_extra_permissions
+            ):
+                user.extra_permissions.remove(permission)
         sync_user_legacy_permissions(user)
     db.session.commit()
     flash("Kullanıcı rol atamaları güncellendi.", "success")

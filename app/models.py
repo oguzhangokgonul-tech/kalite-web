@@ -12,6 +12,15 @@ user_roles = db.Table(
 )
 
 
+class UserPermission(db.Model):
+    __tablename__ = "user_permissions"
+
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
+    permission_key = db.Column(db.String(120), primary_key=True)
+
+    user = db.relationship("User", back_populates="extra_permissions")
+
+
 DEPARTMENTS = (
     "Üretim",
     "Kalite",
@@ -222,6 +231,12 @@ class User(db.Model):
         back_populates="users",
         lazy="selectin",
     )
+    extra_permissions = db.relationship(
+        "UserPermission",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -246,7 +261,12 @@ class User(db.Model):
     def has_permission(self, permission_key):
         if self.has_role("super_admin"):
             return True
-        return any(permission_key in role.permission_keys for role in self.roles)
+        if any(permission_key in role.permission_keys for role in self.roles):
+            return True
+        return any(
+            permission_key == permission.permission_key
+            for permission in self.extra_permissions
+        )
 
 
 class Action(db.Model):

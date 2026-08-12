@@ -116,6 +116,19 @@
             </label>
           {% endfor %}
         </div>
+        <div class="role-extra-permissions mt-3">
+          <label class="role-chip role-chip-extra" for="extra_quality_create">
+            <input
+              class="form-check-input"
+              id="extra_quality_create"
+              name="extra_permissions"
+              type="checkbox"
+              value="quality.create"
+              {% if user and 'quality.create' in user_extra_permission_keys(user) %}checked{% endif %}
+            >
+            <span>Kalite deneyi açabilme</span>
+          </label>
+        </div>
       </div>
     {% endif %}
 

@@ -8230,6 +8230,16 @@ textarea.form-control:focus {
     cursor: pointer;
 }
 
+.role-chip-extra {
+    color: #0f766e;
+    background: #ecfdf5;
+    border-color: #99f6e4;
+}
+
+.role-chip-extra span {
+    color: #0f766e;
+}
+
 .role-inline-list {
     display: flex;
     flex-wrap: wrap;

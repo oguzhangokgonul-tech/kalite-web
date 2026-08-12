@@ -11,10 +11,12 @@
         <span>Parametreler</span>
       </a>
     {% endif %}
-    <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
-      <i class="bi bi-plus-lg"></i>
-      <span>Yeni Kayıt Oluştur</span>
-    </a>
+    {% if can_create_quality_test %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Kayıt Oluştur</span>
+      </a>
+    {% endif %}
   {% endcall %}
 
   <div class="dashboard-metrics quality-test-metrics">
@@ -178,10 +180,12 @@
               <td class="dashboard-empty-row" colspan="{{ 9 if is_concrete_test else 7 }}">
                 <strong>Henüz kayıt yok.</strong>
                 <span>Yeni kayıt oluşturduğunuzda burada listelenecek.</span>
-                <a class="btn btn-primary btn-sm mt-3" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
-                  <i class="bi bi-plus-lg"></i>
-                  <span>Yeni Kayıt Oluştur</span>
-                </a>
+                {% if can_create_quality_test %}
+                  <a class="btn btn-primary btn-sm mt-3" href="{{ url_for('main.create_quality_test_record', slug=quality_test.slug) }}">
+                    <i class="bi bi-plus-lg"></i>
+                    <span>Yeni Kayıt Oluştur</span>
+                  </a>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}

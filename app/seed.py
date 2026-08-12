@@ -133,6 +133,12 @@ PERMISSION_CATALOG = (
         "description": "Bakım arızalarını açar, düzenler, kapatır ve takip eder.",
     },
     {
+        "key": "quality.create",
+        "label": "Kalite deneyi açabilme",
+        "group": "Kalite Deneyleri",
+        "description": "Kalite deneyleri ekranında yeni deney kaydı oluşturur.",
+    },
+    {
         "key": "quality.parameters_manage",
         "label": "Kalite deney parametreleri",
         "group": "Kalite Deneyleri",
@@ -205,6 +211,7 @@ ROLE_DEFINITIONS = (
             "actions.request_close_assigned",
             "maintenance.fault_manage",
             "documents.view",
+            "quality.create",
         ],
     },
     {
@@ -413,6 +420,21 @@ def ensure_runtime_schema():
                     PRIMARY KEY (user_id, role_id),
                     FOREIGN KEY(user_id) REFERENCES users (id),
                     FOREIGN KEY(role_id) REFERENCES roles (id)
+                )
+                """
+            )
+        )
+        changed = True
+
+    if "user_permissions" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE user_permissions (
+                    user_id INTEGER NOT NULL,
+                    permission_key VARCHAR(120) NOT NULL,
+                    PRIMARY KEY (user_id, permission_key),
+                    FOREIGN KEY(user_id) REFERENCES users (id)
                 )
                 """
             )

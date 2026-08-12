@@ -91,6 +91,7 @@
         <div class="role-user-list">
           {% for user in users %}
             <div class="role-user-row">
+              <input type="hidden" name="managed_user_ids" value="{{ user.id }}">
               <div class="role-user-summary">
                 <span class="role-user-avatar">{{ user.full_name[:1]|upper }}</span>
                 <div>
@@ -117,6 +118,17 @@
                     <span>{{ role.name }}</span>
                   </label>
                 {% endfor %}
+                <label class="role-chip role-chip-extra" for="user_{{ user.id }}_quality_create">
+                  <input
+                    class="form-check-input"
+                    id="user_{{ user.id }}_quality_create"
+                    name="user_{{ user.id }}_extra_permissions"
+                    type="checkbox"
+                    value="quality.create"
+                    {% if 'quality.create' in user_extra_permission_keys(user) %}checked{% endif %}
+                  >
+                  <span>Kalite deneyi açabilme</span>
+                </label>
               </div>
             </div>
           {% endfor %}
