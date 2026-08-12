@@ -29,7 +29,7 @@
       </div>
     </section>
 
-    <div class="org-shell">
+    <div class="org-shell" data-org-shell>
       <section class="org-map" data-org-map aria-label="Organizasyon haritası">
         <div class="org-canvas" data-org-canvas>
           <svg class="org-lines" data-org-lines aria-hidden="true"></svg>
@@ -42,49 +42,56 @@
         </div>
       </section>
 
-      <aside class="org-inspector">
-        <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
-          <div>
+      <aside class="org-inspector" data-org-inspector>
+        <div class="org-inspector-header">
+          <div class="org-inspector-title">
             <h2 class="h6 mb-1">Seçili Kayıt</h2>
             <p class="text-secondary small mb-0" data-selected-summary>Bir kişi veya departman seçin.</p>
           </div>
-          <span class="badge text-bg-light border" data-selected-type>Yok</span>
+          <div class="org-inspector-actions">
+            <span class="badge text-bg-light border" data-selected-type>Yok</span>
+            <button class="org-inspector-toggle" type="button" data-org-inspector-toggle aria-label="Seçili kayıt panelini kapat" aria-expanded="true">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
         </div>
 
-        <form data-org-form>
-          <div class="mb-3">
-            <label class="form-label" for="org-node-type">Kayıt tipi</label>
-            <select class="form-select" id="org-node-type" name="node_type" {% if not can_edit %}disabled{% endif %}>
-              <option value="person">Kişi</option>
-              <option value="department">Departman</option>
-            </select>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org-name" data-name-label>İsim Soyisim</label>
-            <input class="form-control" id="org-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org-title" data-title-label>Ünvan</label>
-            <input class="form-control" id="org-title" name="title" maxlength="160" {% if not can_edit %}disabled{% endif %}>
-          </div>
-          <div class="mb-3">
-            <label class="form-label" for="org-parent">Bağlı olduğu kayıt</label>
-            <select class="form-select" id="org-parent" name="parent_id" {% if not can_edit %}disabled{% endif %}>
-              <option value="">Kök kayıt</option>
-            </select>
-          </div>
-          <div class="mb-3" data-color-field>
-            <label class="form-label" for="org-color">Departman rengi</label>
-            <input class="form-control form-control-color" id="org-color" name="color" type="color" value="#198754" {% if not can_edit %}disabled{% endif %}>
-          </div>
-
-          {% if can_edit %}
-            <div class="d-grid gap-2">
-              <button class="btn btn-primary" type="submit" data-save-node disabled>Kaydet</button>
-              <button class="btn btn-outline-danger" type="button" data-delete-node disabled>Sil</button>
+        <div class="org-inspector-body" data-org-inspector-body>
+          <form data-org-form>
+            <div class="mb-3">
+              <label class="form-label" for="org-node-type">Kayıt tipi</label>
+              <select class="form-select" id="org-node-type" name="node_type" {% if not can_edit %}disabled{% endif %}>
+                <option value="person">Kişi</option>
+                <option value="department">Departman</option>
+              </select>
             </div>
-          {% endif %}
-        </form>
+            <div class="mb-3">
+              <label class="form-label" for="org-name" data-name-label>İsim Soyisim</label>
+              <input class="form-control" id="org-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="org-title" data-title-label>Ünvan</label>
+              <input class="form-control" id="org-title" name="title" maxlength="160" {% if not can_edit %}disabled{% endif %}>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="org-parent">Bağlı olduğu kayıt</label>
+              <select class="form-select" id="org-parent" name="parent_id" {% if not can_edit %}disabled{% endif %}>
+                <option value="">Kök kayıt</option>
+              </select>
+            </div>
+            <div class="mb-3" data-color-field>
+              <label class="form-label" for="org-color">Departman rengi</label>
+              <input class="form-control form-control-color" id="org-color" name="color" type="color" value="#198754" {% if not can_edit %}disabled{% endif %}>
+            </div>
+
+            {% if can_edit %}
+              <div class="d-grid gap-2">
+                <button class="btn btn-primary" type="submit" data-save-node disabled>Kaydet</button>
+                <button class="btn btn-outline-danger" type="button" data-delete-node disabled>Sil</button>
+              </div>
+            {% endif %}
+          </form>
+        </div>
       </aside>
     </div>
   </div>
@@ -107,6 +114,10 @@
       const verticalGuide = document.querySelector("[data-snap-guide-v]");
       const horizontalGuide = document.querySelector("[data-snap-guide-h]");
       const emptyState = document.querySelector("[data-org-empty]");
+      const shell = document.querySelector("[data-org-shell]");
+      const inspector = document.querySelector("[data-org-inspector]");
+      const inspectorToggle = document.querySelector("[data-org-inspector-toggle]");
+      const inspectorBody = document.querySelector("[data-org-inspector-body]");
       const form = document.querySelector("[data-org-form]");
       const typeInput = document.querySelector("#org-node-type");
       const nameInput = document.querySelector("#org-name");
@@ -202,6 +213,27 @@
         canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
         if (zoomRange) zoomRange.value = Math.round(zoom * 100);
         if (zoomValue) zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+      }
+
+      function setInspectorCollapsed(collapsed) {
+        if (!shell || !inspector || !inspectorToggle || !inspectorBody) return;
+        shell.classList.toggle("is-inspector-collapsed", collapsed);
+        inspector.classList.toggle("is-collapsed", collapsed);
+        inspectorBody.hidden = collapsed;
+        inspectorToggle.setAttribute("aria-expanded", String(!collapsed));
+        inspectorToggle.setAttribute(
+          "aria-label",
+          collapsed ? "Seçili kayıt panelini aç" : "Seçili kayıt panelini kapat"
+        );
+        const icon = inspectorToggle.querySelector("i");
+        if (icon) {
+          icon.classList.toggle("bi-chevron-left", collapsed);
+          icon.classList.toggle("bi-chevron-right", !collapsed);
+        }
+        window.setTimeout(() => {
+          updateCanvasSize();
+          applyTransform();
+        }, 180);
       }
 
       function captureView() {
@@ -653,6 +685,11 @@
       if (centerButton) centerButton.addEventListener("click", centerView);
       if (zoomMinusButton) zoomMinusButton.addEventListener("click", () => setZoom(zoom - 0.1));
       if (zoomPlusButton) zoomPlusButton.addEventListener("click", () => setZoom(zoom + 0.1));
+      if (inspectorToggle && inspector) {
+        inspectorToggle.addEventListener("click", () => {
+          setInspectorCollapsed(!inspector.classList.contains("is-collapsed"));
+        });
+      }
       if (zoomRange) {
         zoomRange.addEventListener("input", () => setZoom(Number(zoomRange.value) / 100));
       }
