@@ -5,6 +5,13 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
 
 
+user_roles = db.Table(
+    "user_roles",
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+    db.Column("role_id", db.Integer, db.ForeignKey("roles.id"), primary_key=True),
+)
+
+
 DEPARTMENTS = (
     "Üretim",
     "Kalite",
@@ -135,6 +142,51 @@ DOCUMENT_CATEGORY_DEFAULTS = (
 )
 
 
+class Role(db.Model):
+    __tablename__ = "roles"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(80), nullable=False, unique=True)
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    hierarchy_level = db.Column(db.Integer, nullable=False, default=100)
+    is_system = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    users = db.relationship(
+        "User",
+        secondary=user_roles,
+        back_populates="roles",
+        lazy="selectin",
+    )
+    permissions = db.relationship(
+        "RolePermission",
+        back_populates="role",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def permission_keys(self):
+        return {permission.permission_key for permission in self.permissions}
+
+
+class RolePermission(db.Model):
+    __tablename__ = "role_permissions"
+    __table_args__ = {"extend_existing": True}
+
+    role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), primary_key=True)
+    permission_key = db.Column(db.String(120), primary_key=True)
+
+    role = db.relationship("Role", back_populates="permissions")
+
+
 class User(db.Model):
     __tablename__ = "users"
 
@@ -164,12 +216,37 @@ class User(db.Model):
         back_populates="responsible_user",
         foreign_keys="Action.responsible_user_id",
     )
+    roles = db.relationship(
+        "Role",
+        secondary=user_roles,
+        back_populates="users",
+        lazy="selectin",
+    )
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def role_keys(self):
+        return {role.key for role in self.roles}
+
+    @property
+    def role_names(self):
+        return [
+            role.name
+            for role in sorted(self.roles, key=lambda item: item.hierarchy_level)
+        ]
+
+    def has_role(self, role_key):
+        return role_key in self.role_keys
+
+    def has_permission(self, permission_key):
+        if self.has_role("super_admin"):
+            return True
+        return any(permission_key in role.permission_keys for role in self.roles)
 
 
 class Action(db.Model):

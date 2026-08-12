@@ -1,17 +1,267 @@
 from sqlalchemy import inspect, text
 
 from .extensions import db
-from .models import MaintenanceMachine, User
+from .models import AppSetting, MaintenanceMachine, Role, RolePermission, User
 from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
+
+
+PERMISSION_CATALOG = (
+    {
+        "key": "roles.manage",
+        "label": "Rol ve yetki yönetimi",
+        "group": "Sistem",
+        "description": "Rol hiyerarşisini, rol izinlerini ve kullanıcı rol atamalarını yönetir.",
+    },
+    {
+        "key": "users.manage",
+        "label": "Kullanıcı yönetimi",
+        "group": "Sistem",
+        "description": "Kullanıcı hesaplarını oluşturur ve düzenler.",
+        "legacy_field": "can_manage_users",
+    },
+    {
+        "key": "actions.create",
+        "label": "Aksiyon açma",
+        "group": "Aksiyon",
+        "description": "Yeni aksiyon kaydı oluşturur.",
+        "legacy_field": "can_create_actions",
+    },
+    {
+        "key": "actions.edit",
+        "label": "Aksiyon düzenleme",
+        "group": "Aksiyon",
+        "description": "Yetkili olduğu aksiyon kayıtlarını düzenler.",
+        "legacy_field": "can_edit_actions",
+    },
+    {
+        "key": "actions.delete",
+        "label": "Aksiyon silme",
+        "group": "Aksiyon",
+        "description": "Aksiyon kayıtlarını silebilir.",
+        "legacy_field": "can_delete_actions",
+    },
+    {
+        "key": "actions.comment_assigned",
+        "label": "Atanan aksiyona yorum",
+        "group": "Aksiyon",
+        "description": "Kendisine atanan veya ilgili olduğu aksiyonlara yorum yapar.",
+        "legacy_field": "can_comment_assigned_actions",
+    },
+    {
+        "key": "actions.request_close_assigned",
+        "label": "Atanan aksiyonu kapanışa gönderme",
+        "group": "Aksiyon",
+        "description": "Kendisine atanan aksiyon için kapanış onayı ister.",
+        "legacy_field": "can_close_assigned_actions",
+    },
+    {
+        "key": "actions.approve_closure",
+        "label": "Aksiyon kapanış onayı",
+        "group": "Aksiyon",
+        "description": "Kapanış talebi gönderilen aksiyonu onaylar veya reddeder.",
+    },
+    {
+        "key": "actions.view_all",
+        "label": "Tüm aksiyonları görme",
+        "group": "Aksiyon",
+        "description": "Atama kısıtı olmadan tüm aksiyonları görebilir.",
+    },
+    {
+        "key": "if.view_all",
+        "label": "Tüm IF kayıtlarını görme",
+        "group": "IF Yönetimi",
+        "description": "Tüm IF kayıtlarını görüntüler.",
+    },
+    {
+        "key": "if.delete",
+        "label": "IF silme",
+        "group": "IF Yönetimi",
+        "description": "IF kayıtlarını silebilir.",
+    },
+    {
+        "key": "if.approve_management",
+        "label": "Yönetim Temsilcisi IF onayı",
+        "group": "IF Yönetimi",
+        "description": "IF yönetim temsilcisi onay adımını onaylar veya reddeder.",
+    },
+    {
+        "key": "if.approve_deputy",
+        "label": "Genel Müdür Yardımcısı IF onayı",
+        "group": "IF Yönetimi",
+        "description": "IF final onay adımını onaylar veya reddeder.",
+    },
+    {
+        "key": "if.reject",
+        "label": "IF reddetme",
+        "group": "IF Yönetimi",
+        "description": "Yetkili olduğu IF onay adımında ret sebebi girer.",
+    },
+    {
+        "key": "internal_audit.manage",
+        "label": "İç denetim yönetimi",
+        "group": "İç Denetim",
+        "description": "İç denetim oluşturur, düzenler, kopyalar, siler ve cevaplar.",
+    },
+    {
+        "key": "documents.manage",
+        "label": "Doküman yönetimi",
+        "group": "Doküman",
+        "description": "Doküman yükler, düzenler, arşivler ve önizleme üretir.",
+    },
+    {
+        "key": "documents.delete",
+        "label": "Doküman silme",
+        "group": "Doküman",
+        "description": "Doküman kayıtlarını silebilir.",
+    },
+    {
+        "key": "maintenance.inventory_manage",
+        "label": "Bakım envanteri yönetimi",
+        "group": "Bakım",
+        "description": "Makine envanterini oluşturur, düzenler ve arşivler.",
+    },
+    {
+        "key": "maintenance.fault_manage",
+        "label": "Bakım arıza yönetimi",
+        "group": "Bakım",
+        "description": "Bakım arızalarını açar, düzenler, kapatır ve takip eder.",
+    },
+    {
+        "key": "quality.parameters_manage",
+        "label": "Kalite deney parametreleri",
+        "group": "Kalite Deneyleri",
+        "description": "Beton deney parametrelerini ve kabul aralıklarını yönetir.",
+    },
+    {
+        "key": "organization.manage",
+        "label": "Organizasyon şeması yönetimi",
+        "group": "Organizasyon",
+        "description": "Organizasyon şeması kişi/departman kutularını yönetir.",
+    },
+)
+
+ROLE_DEFINITIONS = (
+    {
+        "key": "super_admin",
+        "name": "Süper Admin",
+        "hierarchy_level": 1,
+        "description": "Sistemin en yüksek rolüdür. Tüm izinlere sahiptir ve rol ataması yapabilir.",
+        "permissions": [item["key"] for item in PERMISSION_CATALOG],
+    },
+    {
+        "key": "management_representative",
+        "name": "Yönetim Temsilcisi",
+        "hierarchy_level": 10,
+        "description": "Kalite sistemi süreçlerini, aksiyon kapanışlarını, IF yönetim onaylarını ve denetimleri yönetir.",
+        "permissions": [
+            "users.manage",
+            "actions.create",
+            "actions.edit",
+            "actions.delete",
+            "actions.comment_assigned",
+            "actions.request_close_assigned",
+            "actions.approve_closure",
+            "actions.view_all",
+            "if.view_all",
+            "if.delete",
+            "if.approve_management",
+            "if.reject",
+            "internal_audit.manage",
+            "documents.manage",
+            "documents.delete",
+            "maintenance.inventory_manage",
+            "maintenance.fault_manage",
+            "quality.parameters_manage",
+            "organization.manage",
+        ],
+    },
+    {
+        "key": "executive_approver",
+        "name": "Üst Yönetim Onaycısı",
+        "hierarchy_level": 20,
+        "description": "Üst yönetim seviyesinde IF kayıtlarını ve raporları görüntüler, yetkili onayları verir.",
+        "permissions": [
+            "if.view_all",
+            "if.approve_deputy",
+            "if.reject",
+            "actions.view_all",
+        ],
+    },
+    {
+        "key": "department_manager",
+        "name": "Departman Yöneticisi",
+        "hierarchy_level": 30,
+        "description": "Kendi departmanı ve sorumluluğundaki işler için aksiyon ve görev takibi yapar.",
+        "permissions": [
+            "actions.create",
+            "actions.comment_assigned",
+            "actions.request_close_assigned",
+            "maintenance.fault_manage",
+        ],
+    },
+    {
+        "key": "module_responsible",
+        "name": "Modül Sorumlusu",
+        "hierarchy_level": 40,
+        "description": "Yetkilendirildiği modüllerde operasyonel kayıtları yönetir.",
+        "permissions": [
+            "actions.create",
+            "actions.comment_assigned",
+            "actions.request_close_assigned",
+            "maintenance.fault_manage",
+        ],
+    },
+    {
+        "key": "task_responsible",
+        "name": "Aksiyon / Görev Sorumlusu",
+        "hierarchy_level": 50,
+        "description": "Kendisine atanan aksiyon ve alt görevlerde yorum, kanıt ve kapanış talebi işlemleri yapar.",
+        "permissions": [
+            "actions.comment_assigned",
+            "actions.request_close_assigned",
+        ],
+    },
+    {
+        "key": "audited_viewer",
+        "name": "Denetlenen Personel / Gözlemci",
+        "hierarchy_level": 60,
+        "description": "Kendisiyle ilişkili kayıtları görüntüler, dokümanlara erişir.",
+        "permissions": [],
+    },
+    {
+        "key": "viewer",
+        "name": "Sadece Görüntüleyici",
+        "hierarchy_level": 70,
+        "description": "Yetkili olduğu sayfaları sadece görüntüler.",
+        "permissions": [],
+    },
+)
 
 
 DEFAULT_USERS = (
     {
+        "username": "superadmin",
+        "full_name": "Süper Admin",
+        "title": "Sistem Sahibi",
+        "email": "",
+        "password": "0408169635",
+        "roles": ("super_admin",),
+        "permissions": {
+            "can_create_actions": True,
+            "can_edit_actions": True,
+            "can_delete_actions": True,
+            "can_comment_assigned_actions": True,
+            "can_close_assigned_actions": True,
+            "can_manage_users": True,
+        },
+    },
+    {
         "username": "oguzhan",
         "full_name": "Oğuzhan Gökgönül",
-        "title": "Yönetici Asistanı",
+        "title": "Yönetim Temsilcisi",
         "email": "oguzhangokgonul@erprefabrik.com.tr",
         "password": "kysoguzhan",
+        "roles": ("management_representative",),
         "permissions": {
             "can_create_actions": True,
             "can_edit_actions": True,
@@ -27,6 +277,7 @@ DEFAULT_USERS = (
         "title": "Prefabrik Proje Müdürü",
         "email": "",
         "password": "kysufuk",
+        "roles": ("task_responsible",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -42,6 +293,7 @@ DEFAULT_USERS = (
         "title": "Proje Sorumlusu",
         "email": "seymainci@erprefabrik.com.tr",
         "password": "kysseyma",
+        "roles": ("task_responsible",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -57,6 +309,7 @@ DEFAULT_USERS = (
         "title": "Şantiye Peygamberi",
         "email": "turgutpekyilmaz@erprefabrik.com.tr",
         "password": "kysturgut",
+        "roles": ("task_responsible",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -68,7 +321,28 @@ DEFAULT_USERS = (
     },
 )
 
-ADMIN_USERNAMES = {"oguzhan"}
+ADMIN_USERNAMES = {"superadmin"}
+DEFAULT_ROLE_ASSIGNMENT_MARKER = "default_role_assignments_initialized"
+LEGACY_PERMISSION_FIELD_MAP = {
+    "can_create_actions": "actions.create",
+    "can_edit_actions": "actions.edit",
+    "can_delete_actions": "actions.delete",
+    "can_comment_assigned_actions": "actions.comment_assigned",
+    "can_close_assigned_actions": "actions.request_close_assigned",
+    "can_manage_users": "users.manage",
+}
+
+
+def sync_seed_legacy_permissions(user):
+    permission_keys = {
+        permission.permission_key
+        for role in user.roles
+        for permission in role.permissions
+    }
+    if any(role.key == "super_admin" for role in user.roles):
+        permission_keys.update(item["key"] for item in PERMISSION_CATALOG)
+    for field, permission_key in LEGACY_PERMISSION_FIELD_MAP.items():
+        setattr(user, field, permission_key in permission_keys)
 
 
 def ensure_runtime_schema():
@@ -81,6 +355,70 @@ def ensure_runtime_schema():
         if "email" not in columns:
             db.session.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
             changed = True
+
+    if "app_settings" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE app_settings (
+                    key VARCHAR(80) NOT NULL PRIMARY KEY,
+                    value VARCHAR(255) NOT NULL
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("app_settings")
+
+    if "roles" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE roles (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    key VARCHAR(80) NOT NULL UNIQUE,
+                    name VARCHAR(160) NOT NULL,
+                    description TEXT,
+                    hierarchy_level INTEGER NOT NULL DEFAULT 100,
+                    is_system BOOLEAN NOT NULL DEFAULT 1,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        changed = True
+
+    if "role_permissions" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE role_permissions (
+                    role_id INTEGER NOT NULL,
+                    permission_key VARCHAR(120) NOT NULL,
+                    PRIMARY KEY (role_id, permission_key),
+                    FOREIGN KEY(role_id) REFERENCES roles (id)
+                )
+                """
+            )
+        )
+        changed = True
+
+    if "user_roles" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE user_roles (
+                    user_id INTEGER NOT NULL,
+                    role_id INTEGER NOT NULL,
+                    PRIMARY KEY (user_id, role_id),
+                    FOREIGN KEY(user_id) REFERENCES users (id),
+                    FOREIGN KEY(role_id) REFERENCES roles (id)
+                )
+                """
+            )
+        )
+        changed = True
 
     if "actions" in tables:
         columns = {column["name"] for column in inspector.get_columns("actions")}
@@ -389,9 +727,14 @@ def ensure_runtime_schema():
 
 def ensure_default_users(reset_passwords=True):
     ensure_runtime_schema()
+    role_by_key = ensure_default_roles()
+    role_assignments_initialized = (
+        db.session.get(AppSetting, DEFAULT_ROLE_ASSIGNMENT_MARKER) is not None
+    )
 
     for item in DEFAULT_USERS:
         user = User.query.filter_by(username=item["username"]).first()
+        is_new_user = user is None
         if user is None:
             user = User(username=item["username"])
             db.session.add(user)
@@ -404,7 +747,8 @@ def ensure_default_users(reset_passwords=True):
                 setattr(user, permission, value)
 
             user.set_password(item["password"])
-            continue
+        elif user.username == "oguzhan":
+            user.title = item["title"]
 
         if user.username in ADMIN_USERNAMES:
             user.is_active = True
@@ -412,10 +756,54 @@ def ensure_default_users(reset_passwords=True):
                 if value:
                     setattr(user, permission, True)
 
+        item_roles = item.get("roles") or ()
+        should_apply_default_roles = (
+            is_new_user
+            or user.username in ADMIN_USERNAMES
+            or (not role_assignments_initialized and not user.roles)
+        )
+        if should_apply_default_roles:
+            for role_key in item_roles:
+                role = role_by_key.get(role_key)
+                if role and role not in user.roles:
+                    user.roles.append(role)
+            sync_seed_legacy_permissions(user)
+
         if reset_passwords and not user.password_hash:
             user.set_password(item["password"])
 
+    if not role_assignments_initialized:
+        db.session.add(AppSetting(key=DEFAULT_ROLE_ASSIGNMENT_MARKER, value="1"))
+
     db.session.commit()
+
+
+def ensure_default_roles():
+    role_by_key = {}
+    for definition in ROLE_DEFINITIONS:
+        role = Role.query.filter_by(key=definition["key"]).first()
+        is_new_role = role is None
+        if role is None:
+            role = Role(key=definition["key"])
+            db.session.add(role)
+        role.name = definition["name"]
+        role.description = definition.get("description")
+        role.hierarchy_level = definition["hierarchy_level"]
+        role.is_system = True
+
+        existing_permissions = {item.permission_key: item for item in role.permissions}
+        desired_permissions = set(definition.get("permissions") or ())
+        if is_new_role or role.key == "super_admin":
+            for permission_key in desired_permissions:
+                if permission_key not in existing_permissions:
+                    role.permissions.append(RolePermission(permission_key=permission_key))
+            for permission in list(role.permissions):
+                if permission.permission_key not in desired_permissions:
+                    role.permissions.remove(permission)
+        role_by_key[role.key] = role
+
+    db.session.flush()
+    return role_by_key
 
 
 def ensure_default_maintenance_machines():

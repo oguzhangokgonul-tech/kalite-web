@@ -58,6 +58,8 @@ from .models import (
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
     QualityTestRecord,
+    Role,
+    RolePermission,
     User,
 )
 
@@ -218,8 +220,10 @@ def load_logged_in_user():
     g.unread_notification_count = 0
     g.latest_notifications = []
     g.assigned_tasks_count = 0
+    g.current_user_is_super_admin = False
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
+        g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
@@ -945,13 +949,54 @@ def permission_required(permission):
         def wrapped_view(*args, **kwargs):
             if g.current_user is None:
                 return redirect(url_for("main.login", next=request.full_path))
-            if not getattr(g.current_user, permission, False):
+            if not has_permission(g.current_user, permission):
                 abort(403)
             return view(*args, **kwargs)
 
         return wrapped_view
 
     return decorator
+
+
+def super_admin_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if g.current_user is None:
+            return redirect(url_for("main.login", next=request.full_path))
+        if not is_super_admin():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
+LEGACY_PERMISSION_ALIASES = {
+    "can_create_actions": "actions.create",
+    "can_edit_actions": "actions.edit",
+    "can_delete_actions": "actions.delete",
+    "can_comment_assigned_actions": "actions.comment_assigned",
+    "can_close_assigned_actions": "actions.request_close_assigned",
+    "can_manage_users": "users.manage",
+}
+
+
+def has_role(user, role_key):
+    return bool(user and hasattr(user, "has_role") and user.has_role(role_key))
+
+
+def has_permission(user, permission):
+    if user is None:
+        return False
+    if has_role(user, "super_admin"):
+        return True
+    role_permission = LEGACY_PERMISSION_ALIASES.get(permission, permission)
+    if hasattr(user, "has_permission") and user.has_permission(role_permission):
+        return True
+    return bool(getattr(user, permission, False))
+
+
+def current_user_can(permission):
+    return has_permission(g.current_user, permission)
 
 
 def is_assigned_to_current_user(action):
@@ -971,7 +1016,14 @@ def is_related_to_current_user(action):
 
 
 def is_oguzhan_admin():
-    return g.current_user is not None and g.current_user.username == "oguzhan"
+    return current_user_can("roles.manage") or has_role(
+        g.current_user, "management_representative"
+    )
+
+
+def is_super_admin(user=None):
+    user = user or g.current_user
+    return has_role(user, "super_admin")
 
 
 def normalize_for_role(value):
@@ -1004,14 +1056,18 @@ def user_title_has(user, expected_title):
 def is_management_representative(user=None):
     user = user or g.current_user
     return user is not None and (
-        user.username == "oguzhan" or user_title_has(user, "Yönetim Temsilcisi")
+        has_role(user, "super_admin")
+        or has_role(user, "management_representative")
+        or user_title_has(user, "Yönetim Temsilcisi")
     )
 
 
 def is_deputy_general_manager(user=None):
     user = user or g.current_user
     return user is not None and (
-        user.username == "oguzhan" or user_title_has(user, "Genel Müdür Yardımcısı")
+        has_role(user, "super_admin")
+        or has_role(user, "executive_approver")
+        or user_title_has(user, "Genel Müdür Yardımcısı")
     )
 
 
@@ -1019,6 +1075,8 @@ def is_general_manager(user=None):
     user = user or g.current_user
     if user is None:
         return False
+    if has_role(user, "super_admin") or has_role(user, "executive_approver"):
+        return True
     normalized_title = normalize_for_role(getattr(user, "title", ""))
     return "genel mudur" in normalized_title and "yardimci" not in normalized_title
 
@@ -1128,7 +1186,7 @@ def can_request_dof_approval(dof):
 
 def can_manage_orientation():
     return g.current_user is not None and (
-        is_oguzhan_admin() or g.current_user.can_manage_users
+        current_user_can("organization.manage") or current_user_can("users.manage")
     )
 
 
@@ -1148,11 +1206,11 @@ def can_request_closure_action(action):
         return False
     return (
         (
-            g.current_user.can_close_assigned_actions
+            current_user_can("actions.request_close_assigned")
             and is_assigned_to_current_user(action)
         )
         or (
-            g.current_user.can_comment_assigned_actions
+            current_user_can("actions.comment_assigned")
             and is_related_to_current_user(action)
         )
     )
@@ -1170,7 +1228,7 @@ def can_comment_action(action):
     if g.current_user is None:
         return False
     return is_oguzhan_admin() or (
-        g.current_user.can_comment_assigned_actions
+        current_user_can("actions.comment_assigned")
         and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
     )
 
@@ -1179,7 +1237,8 @@ def can_reassign_action(action):
     if g.current_user is None:
         return False
     return is_oguzhan_admin() or (
-        g.current_user.can_close_assigned_actions and is_assigned_to_current_user(action)
+        current_user_can("actions.request_close_assigned")
+        and is_assigned_to_current_user(action)
     )
 
 
@@ -1212,7 +1271,7 @@ def can_create_sub_action(action):
         return False
     return (
         is_oguzhan_admin()
-        or g.current_user.can_edit_actions
+        or current_user_can("actions.edit")
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
     )
@@ -1235,7 +1294,7 @@ def can_full_edit_sub_action(sub_action):
         return False
     return (
         is_oguzhan_admin()
-        or g.current_user.can_edit_actions
+        or current_user_can("actions.edit")
         or sub_action.created_by_user_id == g.current_user.id
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
@@ -1247,7 +1306,8 @@ def can_reassign_sub_action(sub_action):
     if g.current_user is None or action.is_completed:
         return False
     return can_full_edit_sub_action(sub_action) or (
-        g.current_user.can_close_assigned_actions and is_sub_action_responsible(sub_action)
+        current_user_can("actions.request_close_assigned")
+        and is_sub_action_responsible(sub_action)
     )
 
 
@@ -1714,7 +1774,8 @@ def quality_test_records_context(quality_test):
         "format_decimal": format_quality_decimal,
         "strength_parameters": strength_parameters,
         "strength_tone": concrete_strength_tone,
-        "can_manage_quality_parameters": is_concrete and is_oguzhan_admin(),
+        "can_manage_quality_parameters": is_concrete
+        and current_user_can("quality.parameters_manage"),
     }
 
 
@@ -1765,7 +1826,7 @@ def parse_quality_test_record_form():
 
 def can_view_internal_audit(audit):
     return (
-        is_oguzhan_admin()
+        current_user_can("internal_audit.manage")
         or (
             g.current_user is not None
             and audit is not None
@@ -1775,24 +1836,24 @@ def can_view_internal_audit(audit):
 
 
 def can_create_internal_audit():
-    return is_oguzhan_admin()
+    return current_user_can("internal_audit.manage")
 
 
 def can_delete_internal_audit(audit=None):
-    return is_oguzhan_admin()
+    return current_user_can("internal_audit.manage")
 
 
 def can_edit_internal_audit(audit=None):
-    return is_oguzhan_admin()
+    return current_user_can("internal_audit.manage")
 
 
 def can_answer_internal_audit(audit=None):
-    return is_oguzhan_admin()
+    return current_user_can("internal_audit.manage")
 
 
 def visible_internal_audits():
     query = InternalAudit.query
-    if not is_oguzhan_admin():
+    if not current_user_can("internal_audit.manage"):
         query = query.filter(InternalAudit.id == 0)
     return query.order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc()).all()
 
@@ -2012,7 +2073,7 @@ def internal_audit_open_question(audit):
 
 
 def internal_audit_dashboard_context():
-    if not is_oguzhan_admin():
+    if not current_user_can("internal_audit.manage"):
         return {
             "can_access_internal_audit": False,
             "audits": [],
@@ -2458,11 +2519,11 @@ def format_file_size(size):
 
 
 def can_manage_documents():
-    return is_oguzhan_admin()
+    return current_user_can("documents.manage")
 
 
 def can_delete_document(document=None):
-    return is_oguzhan_admin()
+    return current_user_can("documents.delete")
 
 
 def document_status_tone(status):
@@ -2895,9 +2956,7 @@ def document_form_context(document=None, category_slug=None):
 
 
 def can_manage_maintenance_inventory():
-    return is_oguzhan_admin() or (
-        g.current_user is not None and g.current_user.can_manage_users
-    )
+    return current_user_can("maintenance.inventory_manage")
 
 
 def can_open_maintenance_fault():
@@ -2905,7 +2964,11 @@ def can_open_maintenance_fault():
 
 
 def can_edit_maintenance_fault(fault):
-    return g.current_user is not None and fault.status != "Tamamlandı"
+    return (
+        g.current_user is not None
+        and fault.status != "Tamamlandı"
+        and current_user_can("maintenance.fault_manage")
+    )
 
 
 def can_complete_maintenance_fault(fault):
@@ -4335,6 +4398,32 @@ def parse_user_form(user=None):
     return user
 
 
+def sync_user_legacy_permissions(user):
+    legacy_map = {
+        "can_create_actions": "actions.create",
+        "can_edit_actions": "actions.edit",
+        "can_delete_actions": "actions.delete",
+        "can_comment_assigned_actions": "actions.comment_assigned",
+        "can_close_assigned_actions": "actions.request_close_assigned",
+        "can_manage_users": "users.manage",
+    }
+    for field, permission_key in legacy_map.items():
+        setattr(user, field, has_permission(user, permission_key))
+
+
+def permission_catalog_grouped():
+    from .seed import PERMISSION_CATALOG
+
+    groups = {}
+    for item in PERMISSION_CATALOG:
+        groups.setdefault(item["group"], []).append(item)
+    return groups
+
+
+def role_hierarchy():
+    return Role.query.order_by(Role.hierarchy_level.asc(), Role.name.asc()).all()
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if g.current_user is not None:
@@ -4441,11 +4530,7 @@ def organization():
 @bp.get("/organization1")
 @login_required
 def organization_legacy():
-    return render_template(
-        "orientation.html",
-        nodes=orientation_nodes_payload(),
-        can_edit=can_manage_orientation(),
-    )
+    return redirect(url_for("main.organization"))
 
 
 @bp.get("/orientation")
@@ -5228,7 +5313,7 @@ def quality_test_parameters(slug):
     quality_test = quality_test_by_slug(slug)
     if quality_test is None or not is_concrete_quality_test(slug):
         abort(404)
-    if not is_oguzhan_admin():
+    if not current_user_can("quality.parameters_manage"):
         abort(403)
 
     if request.method == "POST":
@@ -5934,13 +6019,13 @@ def delete_maintenance_fault(fault_id):
 @bp.route("/dashboard-liste")
 @login_required
 def dashboard_list():
-    return render_template("dashboard_list.html", **dashboard_context())
+    return redirect(url_for("main.dashboard"))
 
 
 @bp.route("/dashboard-eski")
 @login_required
 def dashboard_legacy():
-    return render_template("dashboard_legacy.html", **dashboard_context())
+    return redirect(url_for("main.dashboard"))
 
 
 @bp.route("/dofs")
@@ -7698,6 +7783,24 @@ def users():
     return render_template("users.html", users=user_list)
 
 
+def apply_role_form_to_user(user):
+    if not is_super_admin() or request.form.get("role_form_present") != "1":
+        return
+
+    selected_role_ids = {
+        int(role_id)
+        for role_id in request.form.getlist("role_ids")
+        if role_id.isdigit()
+    }
+    roles = Role.query.filter(Role.id.in_(selected_role_ids)).all() if selected_role_ids else []
+    if user.username == "superadmin":
+        super_admin_role = Role.query.filter_by(key="super_admin").first()
+        if super_admin_role and super_admin_role not in roles:
+            roles.append(super_admin_role)
+    user.roles = roles
+    sync_user_legacy_permissions(user)
+
+
 @bp.route("/users/new", methods=["GET", "POST"])
 @login_required
 @permission_required("can_manage_users")
@@ -7705,6 +7808,7 @@ def create_user():
     if request.method == "POST":
         try:
             user = parse_user_form()
+            apply_role_form_to_user(user)
             db.session.add(user)
             db.session.commit()
             flash("Kullanıcı oluşturuldu.", "success")
@@ -7715,7 +7819,13 @@ def create_user():
             else:
                 flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
 
-    return render_template("user_form.html", user=None, title="Yeni Kullanıcı")
+    return render_template(
+        "user_form.html",
+        user=None,
+        title="Yeni Kullanıcı",
+        roles=role_hierarchy(),
+        can_manage_roles=is_super_admin(),
+    )
 
 
 @bp.route("/users/<int:user_id>/edit", methods=["GET", "POST"])
@@ -7727,6 +7837,7 @@ def edit_user(user_id):
     if request.method == "POST":
         try:
             parse_user_form(user)
+            apply_role_form_to_user(user)
             db.session.commit()
             flash("Kullanıcı güncellendi.", "success")
             return redirect(url_for("main.users"))
@@ -7736,4 +7847,76 @@ def edit_user(user_id):
             else:
                 flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
 
-    return render_template("user_form.html", user=user, title="Kullanıcı Düzenle")
+    return render_template(
+        "user_form.html",
+        user=user,
+        title="Kullanıcı Düzenle",
+        roles=role_hierarchy(),
+        can_manage_roles=is_super_admin(),
+    )
+
+
+@bp.route("/roles", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def roles():
+    if request.method == "POST":
+        role_id = request.form.get("role_id", type=int)
+        role = Role.query.get_or_404(role_id)
+        permission_keys = set(request.form.getlist("permission_keys"))
+        if role.key == "super_admin":
+            from .seed import PERMISSION_CATALOG
+
+            permission_keys = {item["key"] for item in PERMISSION_CATALOG}
+        existing = {item.permission_key: item for item in role.permissions}
+        for permission_key in permission_keys:
+            if permission_key not in existing:
+                role.permissions.append(RolePermission(permission_key=permission_key))
+        for permission in list(role.permissions):
+            if permission.permission_key not in permission_keys:
+                role.permissions.remove(permission)
+
+        for user in role.users:
+            sync_user_legacy_permissions(user)
+
+        db.session.commit()
+        flash(f"{role.name} rol yetkileri güncellendi.", "success")
+        return redirect(url_for("main.roles"))
+
+    return render_template(
+        "roles.html",
+        roles=role_hierarchy(),
+        permission_groups=permission_catalog_grouped(),
+        users=User.query.order_by(User.full_name.asc()).all(),
+    )
+
+
+@bp.post("/roles/user-assignments")
+@login_required
+@super_admin_required
+def update_user_roles():
+    users = User.query.order_by(User.full_name.asc()).all()
+    all_roles = role_hierarchy()
+    role_by_id = {role.id: role for role in all_roles}
+    for user in users:
+        selected_role_ids = {
+            int(role_id)
+            for role_id in request.form.getlist(f"user_{user.id}_roles")
+            if role_id.isdigit()
+        }
+        if user.username == "superadmin":
+            super_admin_role = next(
+                (role for role in all_roles if role.key == "super_admin"),
+                None,
+            )
+            if super_admin_role:
+                selected_role_ids.add(super_admin_role.id)
+        user.roles = [
+            role_by_id[role_id]
+            for role_id in selected_role_ids
+            if role_id in role_by_id
+        ]
+        sync_user_legacy_permissions(user)
+    db.session.commit()
+    flash("Kullanıcı rol atamaları güncellendi.", "success")
+    return redirect(url_for("main.roles"))

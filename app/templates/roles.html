@@ -1,0 +1,135 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Rol Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Rol ve Yetki Yönetimi", "Hiyerarşik rolleri, rol izinlerini ve kullanıcı atamalarını tek yerden yönetin.", icon="bi-shield-lock") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.users') }}">
+      <i class="bi bi-people"></i>
+      <span>Kullanıcılar</span>
+    </a>
+  {% endcall %}
+
+  <div class="alert alert-primary role-admin-alert" role="alert">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+      <strong>Bu alan sadece Süper Admin tarafından görülür.</strong>
+      <span>Oğuzhan kullanıcısı Er Prefabrik içinde Yönetim Temsilcisi olarak tutulur; rol atamaları buradan değiştirilebilir.</span>
+    </div>
+  </div>
+
+  <div class="role-admin-layout">
+    <section class="app-card role-admin-card">
+      {{ ui.card_header("Rol Hiyerarşisi", "Üstten alta doğru yetki kapsamı azalır. İzin kutularını işaretleyerek rol davranışını güncelleyebilirsiniz.", icon="bi-diagram-3") }}
+
+      <div class="role-stack">
+        {% for role in roles %}
+          <form class="role-admin-role-card" method="post" action="{{ url_for('main.roles') }}">
+            <input type="hidden" name="role_id" value="{{ role.id }}">
+            <div class="role-admin-role-head">
+              <span class="role-level-badge">Seviye {{ role.hierarchy_level }}</span>
+              <div>
+                <h3>{{ role.name }}</h3>
+                <p>{{ role.description or "Aciklama girilmemis." }}</p>
+              </div>
+            </div>
+
+            {% if role.key == "super_admin" %}
+              <div class="role-locked-note">
+                <i class="bi bi-lock-fill"></i>
+                <span>Süper Admin rolü sistem güvenliği için tüm izinlere sahip kalır.</span>
+              </div>
+            {% endif %}
+
+            <div class="role-permission-groups">
+              {% for group, permissions in permission_groups.items() %}
+                <div class="role-permission-group">
+                  <h4>{{ group }}</h4>
+                  <div class="role-permission-list">
+                    {% for permission in permissions %}
+                      {% set checkbox_id = "role_%s_%s"|format(role.id, permission.key|replace('.', '_')) %}
+                      <label class="role-permission-item" for="{{ checkbox_id }}">
+                        <input
+                          class="form-check-input"
+                          id="{{ checkbox_id }}"
+                          name="permission_keys"
+                          type="checkbox"
+                          value="{{ permission.key }}"
+                          {% if permission.key in role.permission_keys or role.key == 'super_admin' %}checked{% endif %}
+                          {% if role.key == 'super_admin' %}disabled{% endif %}
+                        >
+                        {% if role.key == 'super_admin' %}
+                          <input type="hidden" name="permission_keys" value="{{ permission.key }}">
+                        {% endif %}
+                        <span>
+                          <strong>{{ permission.label }}</strong>
+                          <small>{{ permission.description }}</small>
+                        </span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="role-card-footer">
+              <span>{{ role.users|length }} kullanıcı bu rolde</span>
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-check-lg"></i>
+                <span>Rol İzinlerini Kaydet</span>
+              </button>
+            </div>
+          </form>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="app-card role-admin-card">
+      <form method="post" action="{{ url_for('main.update_user_roles') }}">
+        {{ ui.card_header("Kullanıcı Rol Atamaları", "Kullanıcıları hiyerarşik rollere atayın. Bir kullanıcı birden fazla role sahip olabilir.", icon="bi-person-check") }}
+
+        <div class="role-user-list">
+          {% for user in users %}
+            <div class="role-user-row">
+              <div class="role-user-summary">
+                <span class="role-user-avatar">{{ user.full_name[:1]|upper }}</span>
+                <div>
+                  <strong>{{ user.full_name }}</strong>
+                  <small>@{{ user.username }}{% if user.title %} - {{ user.title }}{% endif %}</small>
+                </div>
+              </div>
+              <div class="role-user-roles">
+                {% for role in roles %}
+                  {% set input_id = "user_%s_role_%s"|format(user.id, role.id) %}
+                  <label class="role-chip" for="{{ input_id }}">
+                    <input
+                      class="form-check-input"
+                      id="{{ input_id }}"
+                      name="user_{{ user.id }}_roles"
+                      type="checkbox"
+                      value="{{ role.id }}"
+                      {% if role in user.roles %}checked{% endif %}
+                      {% if user.username == 'superadmin' and role.key == 'super_admin' %}disabled{% endif %}
+                    >
+                    {% if user.username == 'superadmin' and role.key == 'super_admin' %}
+                      <input type="hidden" name="user_{{ user.id }}_roles" value="{{ role.id }}">
+                    {% endif %}
+                    <span>{{ role.name }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="app-form-actions">
+          <button class="btn btn-success" type="submit">
+            <i class="bi bi-save2"></i>
+            <span>Kullanıcı Rollerini Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+{% endblock %}

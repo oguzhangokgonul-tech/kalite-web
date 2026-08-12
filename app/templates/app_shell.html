@@ -39,6 +39,12 @@
             <span>Kullanıcılar</span>
           </a>
         {% endif %}
+        {% if g.current_user_is_super_admin %}
+          <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
+            <i class="bi bi-shield-lock"></i>
+            <span>Rol Yönetimi</span>
+          </a>
+        {% endif %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.organization', 'main.organization_legacy', 'main.orientation'] %}active{% endif %}" href="{{ url_for('main.organization') }}">
           <i class="bi bi-diagram-3"></i>
           <span>Organizasyon Şeması</span>

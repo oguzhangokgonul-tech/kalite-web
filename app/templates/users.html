@@ -22,6 +22,7 @@
             <th>Kullanıcı Adı</th>
             <th>E-posta</th>
             <th>Görev</th>
+            <th>Roller</th>
             <th>Durum</th>
             <th class="text-end">İşlemler</th>
           </tr>
@@ -33,6 +34,15 @@
               <td>{{ user.username }}</td>
               <td>{{ user.email or "-" }}</td>
               <td>{{ user.title or "-" }}</td>
+              <td>
+                <div class="role-inline-list">
+                  {% for role_name in user.role_names %}
+                    <span class="role-inline-chip">{{ role_name }}</span>
+                  {% else %}
+                    <span class="text-muted">Rol atanmadı</span>
+                  {% endfor %}
+                </div>
+              </td>
               <td>
                 {% if user.is_active %}
                   {{ ui.status_badge("Aktif") }}
@@ -51,7 +61,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="6">
+              <td class="dashboard-empty-row" colspan="7">
                 <strong>Henüz kullanıcı yok.</strong>
                 <span>Yeni kullanıcı eklendiğinde burada listelenecek.</span>
               </td>

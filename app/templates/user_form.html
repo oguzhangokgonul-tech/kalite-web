@@ -86,6 +86,39 @@
       </div>
     </div>
 
+    {% if can_manage_roles %}
+      <div class="app-card-footer">
+        <input type="hidden" name="role_form_present" value="1">
+        <div class="app-card-header mb-3">
+          <span class="app-card-icon"><i class="bi bi-diagram-3"></i></span>
+          <div>
+            <h3>Hiyerarşik Roller</h3>
+            <p>Merkezi rol sistemi için kullanıcının dahil olduğu rolleri seçin.</p>
+          </div>
+        </div>
+        <div class="role-user-roles role-user-roles-form">
+          {% for role in roles %}
+            {% set input_id = "user_form_role_%s"|format(role.id) %}
+            <label class="role-chip" for="{{ input_id }}">
+              <input
+                class="form-check-input"
+                id="{{ input_id }}"
+                name="role_ids"
+                type="checkbox"
+                value="{{ role.id }}"
+                {% if user and role in user.roles %}checked{% endif %}
+                {% if user and user.username == 'superadmin' and role.key == 'super_admin' %}disabled{% endif %}
+              >
+              {% if user and user.username == 'superadmin' and role.key == 'super_admin' %}
+                <input type="hidden" name="role_ids" value="{{ role.id }}">
+              {% endif %}
+              <span>{{ role.name }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+
     <div class="app-form-actions">
       <button class="btn btn-primary" type="submit">
         <i class="bi bi-check-lg"></i>
