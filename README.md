@@ -37,6 +37,31 @@ Bu projede sanal ortam klasörünüz `venv` ise komutlar:
 .\venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+## Ortam ve Güvenlik Ayarları
+
+Production ortamında `SECRET_KEY` zorunludur. `.env.example` dosyasını `.env` olarak kopyalayın ve gerçek değerleri sadece `.env` veya sunucu environment ayarlarında tutun; `.env` dosyası Git'e eklenmez.
+
+Güçlü bir secret üretmek için:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+```
+
+Yerel geliştirme için:
+
+```text
+APP_ENV=development
+```
+
+Production / VPS ortamı için:
+
+```text
+APP_ENV=production
+SECRET_KEY=<urettiginiz-guclu-secret-key>
+```
+
+`APP_ENV=production` olduğunda session cookie ayarları `Secure`, `HttpOnly` ve `SameSite=Lax` olarak çalışır. Local HTTP geliştirme ortamında `Secure` kapalı kalır. `SECRET_KEY` değiştirildiğinde mevcut kullanıcı oturumları geçersiz olur ve kullanıcıların tekrar giriş yapması gerekir.
+
 ## Veritabanını Hazırlama
 
 ```bash

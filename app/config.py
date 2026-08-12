@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 import os
 
 
@@ -6,12 +7,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "instance"))
 DATABASE_PATH = (DATA_DIR / "actions.db").as_posix()
 UPLOAD_FOLDER = DATA_DIR / "uploads"
+APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "development")).lower()
+IS_PRODUCTION = APP_ENV == "production"
+SECRET_KEY = os.environ.get("SECRET_KEY")
+
+if IS_PRODUCTION and not SECRET_KEY:
+    raise RuntimeError(
+        "Production ortamında SECRET_KEY environment variable olarak tanımlanmalıdır."
+    )
 
 
 class Config:
+    APP_ENV = APP_ENV
     SITE_NAME = os.environ.get("SITE_NAME", "VolkaPortal")
-    # Production ortamında SECRET_KEY mutlaka environment değişkeninden verilmelidir.
-    SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+    SECRET_KEY = SECRET_KEY or "dev-only-change-me"
     DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{DATABASE_PATH}"
@@ -20,6 +29,11 @@ class Config:
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", str(UPLOAD_FOLDER))
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = IS_PRODUCTION
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    SESSION_REFRESH_EACH_REQUEST = True
 
     MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "false").lower() in {
         "1",
