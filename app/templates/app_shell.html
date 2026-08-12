@@ -99,10 +99,13 @@
             <span>{{ g.current_user.title or "Kullanıcı" }}</span>
           </div>
         </div>
-        <a class="dashboard-logout" href="{{ url_for('main.logout') }}">
+        <form class="dashboard-logout-form" method="post" action="{{ url_for('main.logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="dashboard-logout" type="submit">
           <i class="bi bi-box-arrow-left"></i>
           <span>Çıkış</span>
-        </a>
+          </button>
+        </form>
       </div>
     </div>
   </aside>

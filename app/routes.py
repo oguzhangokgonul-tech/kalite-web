@@ -4471,8 +4471,16 @@ def login():
     return render_template("login.html")
 
 
-@bp.get("/logout")
+@bp.route("/logout", methods=["GET", "POST"])
 def logout():
+    if request.method != "POST":
+        flash(
+            "Bu işlem güvenlik nedeniyle sadece çıkış butonu üzerinden yapılabilir.",
+            "warning",
+        )
+        if g.current_user is not None:
+            return redirect(url_for("main.dashboard"))
+        return redirect(url_for("main.login"))
     session.clear()
     flash("Çıkış yapıldı.", "success")
     return redirect(url_for("main.login"))
@@ -4487,15 +4495,14 @@ def notifications():
         .limit(100)
         .all()
     )
-    unread_notifications = Notification.query.filter_by(
+    unread_count = Notification.query.filter_by(
         user_id=g.current_user.id, is_read=False
-    ).all()
-    for notification in unread_notifications:
-        notification.is_read = True
-    if unread_notifications:
-        db.session.commit()
-        g.unread_notification_count = 0
-    return render_template("notifications.html", notifications=notification_list)
+    ).count()
+    return render_template(
+        "notifications.html",
+        notifications=notification_list,
+        unread_count=unread_count,
+    )
 
 
 @bp.get("/notifications/count")
@@ -4522,14 +4529,26 @@ def mark_notification_read(notification_id):
     return jsonify({"ok": True, "count": unread_count})
 
 
+@bp.post("/notifications/read-all")
+@login_required
+def mark_all_notifications_read():
+    unread_notifications = Notification.query.filter_by(
+        user_id=g.current_user.id, is_read=False
+    ).all()
+    for notification in unread_notifications:
+        notification.is_read = True
+    if unread_notifications:
+        db.session.commit()
+    flash("Tüm bildirimler okundu olarak işaretlendi.", "success")
+    return redirect(url_for("main.notifications"))
+
+
 @bp.get("/notifications/<int:notification_id>/open")
 @login_required
 def open_notification(notification_id):
     notification = Notification.query.filter_by(
         id=notification_id, user_id=g.current_user.id
     ).first_or_404()
-    notification.is_read = True
-    db.session.commit()
     if notification.action and can_view_action(notification.action):
         return redirect(url_for("main.action_detail", action_id=notification.action.id))
     if notification.dof and can_view_dof(notification.dof):

@@ -46,7 +46,10 @@
                 <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">Kullanıcılar</a>
               {% endif %}
               <span class="text-secondary small d-none d-md-inline">{{ g.current_user.full_name }}</span>
-              <a class="btn btn-outline-dark" href="{{ url_for('main.logout') }}">Çıkış</a>
+              <form class="d-inline-flex" method="post" action="{{ url_for('main.logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-dark" type="submit">Çıkış</button>
+              </form>
             {% endif %}
           </div>
         </div>
@@ -210,6 +213,14 @@
           document.querySelectorAll("[data-notification-item]").forEach((item) => {
             item.addEventListener("mouseenter", () => markNotificationRead(item), {
               once: true,
+            });
+            item.addEventListener("click", async (event) => {
+              if (item.dataset.notificationRead === "1") return;
+              const href = item.getAttribute("href");
+              if (!href) return;
+              event.preventDefault();
+              await markNotificationRead(item);
+              window.location.href = href;
             });
           });
 

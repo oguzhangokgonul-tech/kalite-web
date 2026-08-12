@@ -6,6 +6,15 @@
 
 {% block app_content %}
   {% call ui.page_header("Bildirimler", "Size atanan aksiyon ve İF kayıtlarındaki son hareketler.", icon="bi-bell") %}
+    {% if unread_count %}
+      <form method="post" action="{{ url_for('main.mark_all_notifications_read') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-primary" type="submit">
+          <i class="bi bi-check2-all"></i>
+          <span>Tümünü Okundu İşaretle</span>
+        </button>
+      </form>
+    {% endif %}
     <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
       <i class="bi bi-house-door"></i>
       <span>Ana Sayfa</span>
