@@ -7,3 +7,4 @@ instance/
 !.env.example
 .flaskenv
 *.log
+backups/

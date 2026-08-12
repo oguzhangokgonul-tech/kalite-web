@@ -1,7 +1,7 @@
 from sqlalchemy import inspect, text
 
 from .extensions import db
-from .models import AppSetting, MaintenanceMachine, Role, RolePermission, User
+from .models import AppSetting, Company, MaintenanceMachine, Role, RolePermission, User
 from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
@@ -149,6 +149,17 @@ PERMISSION_CATALOG = (
         "label": "Organizasyon şeması yönetimi",
         "group": "Organizasyon",
         "description": "Organizasyon şeması kişi/departman kutularını yönetir.",
+    },
+)
+
+DEFAULT_COMPANIES = (
+    {
+        "code": "000",
+        "name": "Deneme Hesabı",
+    },
+    {
+        "code": "001",
+        "name": "Er Prefabrik",
     },
 )
 
@@ -746,8 +757,20 @@ def ensure_runtime_schema():
             db.session.commit()
 
 
+def ensure_default_companies():
+    for item in DEFAULT_COMPANIES:
+        company = Company.query.filter_by(code=item["code"]).first()
+        if company is None:
+            company = Company(code=item["code"])
+            db.session.add(company)
+        company.name = item["name"]
+        company.is_active = True
+    db.session.flush()
+
+
 def ensure_default_users(reset_passwords=True):
     ensure_runtime_schema()
+    ensure_default_companies()
     role_by_key = ensure_default_roles()
     role_assignments_initialized = (
         db.session.get(AppSetting, DEFAULT_ROLE_ASSIGNMENT_MARKER) is not None

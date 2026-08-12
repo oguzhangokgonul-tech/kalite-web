@@ -21,6 +21,26 @@ class UserPermission(db.Model):
     user = db.relationship("User", back_populates="extra_permissions")
 
 
+class Company(db.Model):
+    __tablename__ = "companies"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(3), nullable=False, unique=True)
+    name = db.Column(db.String(160), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    @property
+    def label(self):
+        return f"{self.code} - {self.name}"
+
+
 DEPARTMENTS = (
     "Üretim",
     "Kalite",
