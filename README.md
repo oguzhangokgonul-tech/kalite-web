@@ -62,6 +62,17 @@ SECRET_KEY=<urettiginiz-guclu-secret-key>
 
 `APP_ENV=production` olduğunda session cookie ayarları `Secure`, `HttpOnly` ve `SameSite=Lax` olarak çalışır. Local HTTP geliştirme ortamında `Secure` kapalı kalır. `SECRET_KEY` değiştirildiğinde mevcut kullanıcı oturumları geçersiz olur ve kullanıcıların tekrar giriş yapması gerekir.
 
+Giriş güvenliği varsayılanları:
+
+```text
+LOGIN_MAX_FAILED_ATTEMPTS=5
+LOGIN_LOCKOUT_MINUTES=10
+LOGIN_IP_MAX_FAILED_ATTEMPTS=20
+PASSWORD_MIN_LENGTH=4
+```
+
+Bu ayarlarla aynı kullanıcı adı için 5 hatalı denemeden sonra 10 dakika geçici kilit uygulanır. Aynı IP adresinden kısa sürede çok fazla hatalı giriş yapılırsa IP bazlı geçici engel devreye girer. Yeni kullanıcı oluşturma ve parola güncelleme işlemlerinde sadece minimum 4 karakter kontrolü yapılır.
+
 ## Veritabanını Hazırlama
 
 ```bash

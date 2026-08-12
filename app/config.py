@@ -34,6 +34,12 @@ class Config:
     SESSION_COOKIE_SECURE = IS_PRODUCTION
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
     SESSION_REFRESH_EACH_REQUEST = True
+    LOGIN_MAX_FAILED_ATTEMPTS = int(os.environ.get("LOGIN_MAX_FAILED_ATTEMPTS", "5"))
+    LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "10"))
+    LOGIN_IP_MAX_FAILED_ATTEMPTS = int(
+        os.environ.get("LOGIN_IP_MAX_FAILED_ATTEMPTS", "20")
+    )
+    PASSWORD_MIN_LENGTH = int(os.environ.get("PASSWORD_MIN_LENGTH", "4"))
 
     MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "false").lower() in {
         "1",

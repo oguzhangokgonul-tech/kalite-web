@@ -46,6 +46,9 @@
         {% if user %}
           <div class="form-text">Şifreyi değiştirmek istemiyorsanız boş bırakın.</div>
         {% endif %}
+        {% if not user %}
+          <div class="form-text">Parola en az 4 karakter olmalıdır.</div>
+        {% endif %}
       </div>
     </div>
 

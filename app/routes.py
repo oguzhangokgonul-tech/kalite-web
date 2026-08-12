@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from functools import wraps
 import json
 from pathlib import Path
@@ -51,6 +51,7 @@ from .models import (
     InternalAudit,
     InternalAuditAnswer,
     InternalAuditQuestion,
+    LoginAttempt,
     MAINTENANCE_MACHINE_STATUSES,
     MaintenanceFault,
     MaintenanceMachine,
@@ -222,6 +223,7 @@ def load_logged_in_user():
     g.latest_notifications = []
     g.assigned_tasks_count = 0
     g.current_user_is_super_admin = False
+    ensure_login_attempt_schema()
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
         g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
@@ -271,6 +273,48 @@ def ensure_notification_dof_column():
             return
         db.session.rollback()
         current_app.logger.exception("İF bildirim kolonu kontrol edilemedi.")
+
+
+def ensure_login_attempt_schema():
+    if current_app.extensions.get("login_attempt_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "login_attempts" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE login_attempts (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            username VARCHAR(160),
+                            ip_address VARCHAR(45),
+                            user_agent VARCHAR(255),
+                            success BOOLEAN NOT NULL DEFAULT 0,
+                            reason VARCHAR(40) NOT NULL,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_attempts_username_created_at "
+                    "ON login_attempts (username, created_at)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_login_attempts_ip_created_at "
+                    "ON login_attempts (ip_address, created_at)"
+                )
+            )
+        current_app.extensions["login_attempt_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Login deneme semasi kontrol edilemedi.")
 
 
 def ensure_dof_rejection_schema():
@@ -4385,6 +4429,8 @@ def parse_user_form(user=None):
         raise ValueError("required_fields")
     if user.id is None and not password:
         raise ValueError("password_required")
+    if password:
+        validate_password_policy(password)
 
     existing_user = User.query.filter(User.username == username, User.id != user.id).first()
     if existing_user:
@@ -4444,14 +4490,112 @@ def role_hierarchy():
     )
 
 
+def normalize_login_identity(value):
+    return (value or "").strip().lower()[:160]
+
+
+def login_client_ip():
+    return (request.remote_addr or "unknown")[:45]
+
+
+def login_user_agent():
+    return (request.headers.get("User-Agent") or "")[:255]
+
+
+def login_lockout_window_start():
+    return datetime.utcnow() - timedelta(
+        minutes=current_app.config["LOGIN_LOCKOUT_MINUTES"]
+    )
+
+
+def login_counter_start(username=None, ip_address=None):
+    window_start = login_lockout_window_start()
+    query = LoginAttempt.query.filter(LoginAttempt.success.is_(True))
+    if username is not None:
+        query = query.filter(LoginAttempt.username == username)
+    if ip_address is not None:
+        query = query.filter(LoginAttempt.ip_address == ip_address)
+    last_success_at = query.with_entities(db.func.max(LoginAttempt.created_at)).scalar()
+    if last_success_at and last_success_at > window_start:
+        return last_success_at
+    return window_start
+
+
+def recent_failed_login_count(username=None, ip_address=None):
+    counter_start = login_counter_start(username=username, ip_address=ip_address)
+    query = LoginAttempt.query.filter(
+        LoginAttempt.success.is_(False),
+        LoginAttempt.reason == "wrong_credentials",
+        LoginAttempt.created_at >= counter_start,
+    )
+    if username is not None:
+        query = query.filter(LoginAttempt.username == username)
+    if ip_address is not None:
+        query = query.filter(LoginAttempt.ip_address == ip_address)
+    return query.count()
+
+
+def login_rate_limit_reason(username, ip_address):
+    max_user_attempts = current_app.config["LOGIN_MAX_FAILED_ATTEMPTS"]
+    max_ip_attempts = current_app.config["LOGIN_IP_MAX_FAILED_ATTEMPTS"]
+    username_blocked = bool(username) and (
+        recent_failed_login_count(username=username) >= max_user_attempts
+    )
+    ip_blocked = recent_failed_login_count(ip_address=ip_address) >= max_ip_attempts
+    if username_blocked:
+        return "locked"
+    if ip_blocked:
+        return "rate_limited"
+    return None
+
+
+def log_login_attempt(username, ip_address, success, reason):
+    db.session.add(
+        LoginAttempt(
+            username=username or None,
+            ip_address=ip_address,
+            user_agent=login_user_agent(),
+            success=success,
+            reason=reason,
+        )
+    )
+
+
+def validate_password_policy(password):
+    if not password or len(password) < current_app.config["PASSWORD_MIN_LENGTH"]:
+        raise ValueError("password_too_short")
+
+
+def flash_user_form_error(error):
+    error_key = str(error)
+    if error_key == "username_exists":
+        flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
+    elif error_key == "password_too_short":
+        flash("Parola en az 4 karakter olmalıdır.", "danger")
+    else:
+        flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if g.current_user is not None:
         return redirect(url_for("main.dashboard"))
 
     if request.method == "POST":
-        identity = request.form.get("identity", "").strip().lower()
+        identity = normalize_login_identity(request.form.get("identity"))
         password = request.form.get("password", "")
+        ip_address = login_client_ip()
+
+        lock_reason = login_rate_limit_reason(identity, ip_address)
+        if lock_reason:
+            log_login_attempt(identity, ip_address, False, lock_reason)
+            db.session.commit()
+            flash(
+                "Çok fazla hatalı giriş denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
+                "danger",
+            )
+            return render_template("login.html")
+
         user = User.query.filter(
             or_(
                 db.func.lower(User.username) == identity,
@@ -4460,12 +4604,16 @@ def login():
         ).first()
 
         if user and user.is_active and user.check_password(password):
+            log_login_attempt(identity, ip_address, True, "success")
+            db.session.commit()
             session.clear()
             session["user_id"] = user.id
             flash("Giriş başarılı.", "success")
             next_url = request.args.get("next") or url_for("main.dashboard")
             return redirect(next_url)
 
+        log_login_attempt(identity, ip_address, False, "wrong_credentials")
+        db.session.commit()
         flash("Kullanıcı adı veya şifre hatalı.", "danger")
 
     return render_template("login.html")
@@ -7883,10 +8031,7 @@ def create_user():
             flash("Kullanıcı oluşturuldu.", "success")
             return redirect(url_for("main.users"))
         except ValueError as error:
-            if str(error) == "username_exists":
-                flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
-            else:
-                flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
+            flash_user_form_error(error)
 
     return render_template(
         "user_form.html",
@@ -7912,10 +8057,7 @@ def edit_user(user_id):
             flash("Kullanıcı güncellendi.", "success")
             return redirect(url_for("main.users"))
         except ValueError as error:
-            if str(error) == "username_exists":
-                flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
-            else:
-                flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
+            flash_user_form_error(error)
 
     return render_template(
         "user_form.html",

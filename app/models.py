@@ -269,6 +269,22 @@ class User(db.Model):
         )
 
 
+class LoginAttempt(db.Model):
+    __tablename__ = "login_attempts"
+    __table_args__ = (
+        db.Index("ix_login_attempts_username_created_at", "username", "created_at"),
+        db.Index("ix_login_attempts_ip_created_at", "ip_address", "created_at"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(160), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=False)
+    reason = db.Column(db.String(40), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+
 class Action(db.Model):
     __tablename__ = "actions"
 
