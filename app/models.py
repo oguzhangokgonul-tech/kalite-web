@@ -220,6 +220,7 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     username = db.Column(db.String(80), nullable=False, unique=True)
     full_name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
@@ -309,6 +310,7 @@ class Action(db.Model):
     __tablename__ = "actions"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     action_number = db.Column(db.Integer, nullable=True, unique=True)
     title = db.Column(db.String(160), nullable=False)
     responsible_owner = db.Column(db.String(120), nullable=False)
@@ -471,6 +473,7 @@ class Dof(db.Model):
     __tablename__ = "dofs"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     dof_no = db.Column(db.String(30), nullable=False, unique=True)
     title = db.Column(db.String(160), nullable=True)
     department = db.Column(db.String(80), nullable=True)
@@ -549,6 +552,7 @@ class DofFile(db.Model):
     __tablename__ = "dof_files"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=False)
     original_name = db.Column(db.String(255), nullable=False)
     stored_name = db.Column(db.String(255), nullable=False)
@@ -563,6 +567,7 @@ class DofComment(db.Model):
     __tablename__ = "dof_comments"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     comment = db.Column(db.Text, nullable=False)
@@ -577,6 +582,7 @@ class DocumentCategory(db.Model):
     __tablename__ = "document_categories"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     code = db.Column(db.String(10), nullable=False)
     name = db.Column(db.String(120), nullable=False)
     slug = db.Column(db.String(160), nullable=False, unique=True)
@@ -608,6 +614,7 @@ class Document(db.Model):
     __tablename__ = "documents"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     category_id = db.Column(
         db.Integer,
         db.ForeignKey("document_categories.id"),
@@ -649,6 +656,7 @@ class MaintenanceMachine(db.Model):
     __tablename__ = "maintenance_machines"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     code = db.Column(db.String(80), nullable=False, unique=True)
     machine_name = db.Column(db.String(180), nullable=False)
     brand_model = db.Column(db.String(180), nullable=True)
@@ -678,6 +686,7 @@ class MaintenanceFault(db.Model):
     __tablename__ = "maintenance_faults"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     fault_number = db.Column(db.Integer, nullable=True, unique=True)
     machine_id = db.Column(
         db.Integer,
@@ -722,6 +731,7 @@ class QualityTestRecord(db.Model):
     __tablename__ = "quality_test_records"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     test_type = db.Column(db.String(80), nullable=False)
     record_number = db.Column(db.Integer, nullable=True)
     title = db.Column(db.String(180), nullable=False)
@@ -823,6 +833,7 @@ class InternalAudit(db.Model):
     __tablename__ = "internal_audits"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     audit_no = db.Column(db.String(30), nullable=False, unique=True)
     title = db.Column(db.String(160), nullable=False, default="İç Denetim")
     auditor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -858,6 +869,7 @@ class InternalAuditQuestion(db.Model):
     __tablename__ = "internal_audit_questions"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     audit_id = db.Column(db.Integer, db.ForeignKey("internal_audits.id"), nullable=False)
     order_no = db.Column(db.Integer, nullable=False)
     standard = db.Column(db.String(160), nullable=False)
@@ -883,6 +895,7 @@ class InternalAuditAnswer(db.Model):
     __tablename__ = "internal_audit_answers"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     audit_id = db.Column(db.Integer, db.ForeignKey("internal_audits.id"), nullable=False)
     question_id = db.Column(
         db.Integer,
@@ -921,6 +934,7 @@ class ActionClosureFile(db.Model):
     __tablename__ = "action_closure_files"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
     original_name = db.Column(db.String(255), nullable=False)
     stored_name = db.Column(db.String(255), nullable=False)
@@ -934,6 +948,7 @@ class ActionSubTask(db.Model):
     __tablename__ = "action_sub_tasks"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     parent_action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
     title = db.Column(db.String(160), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -986,6 +1001,7 @@ class ActionComment(db.Model):
     __tablename__ = "action_comments"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     comment = db.Column(db.Text, nullable=False)
@@ -999,6 +1015,7 @@ class ActionHistory(db.Model):
     __tablename__ = "action_histories"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=False)
     actor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     event_type = db.Column(db.String(40), nullable=False)
@@ -1013,6 +1030,7 @@ class Notification(db.Model):
     __tablename__ = "notifications"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
     dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
@@ -1036,6 +1054,7 @@ class OrientationNode(db.Model):
     __tablename__ = "orientation_nodes"
 
     id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     parent_id = db.Column(
         db.Integer,
         db.ForeignKey("orientation_nodes.id"),

@@ -162,6 +162,7 @@ DEFAULT_COMPANIES = (
         "name": "Er Prefabrik",
     },
 )
+PRIMARY_COMPANY_CODE = "001"
 
 ROLE_DEFINITIONS = (
     {
@@ -771,6 +772,11 @@ def ensure_default_companies():
 def ensure_default_users(reset_passwords=True):
     ensure_runtime_schema()
     ensure_default_companies()
+    primary_company = Company.query.filter_by(code=PRIMARY_COMPANY_CODE).first()
+    user_columns = {
+        column["name"] for column in inspect(db.engine).get_columns("users")
+    }
+    users_have_company_id = "company_id" in user_columns
     role_by_key = ensure_default_roles()
     role_assignments_initialized = (
         db.session.get(AppSetting, DEFAULT_ROLE_ASSIGNMENT_MARKER) is not None
@@ -795,10 +801,18 @@ def ensure_default_users(reset_passwords=True):
             user.title = item["title"]
 
         if user.username in ADMIN_USERNAMES:
+            if users_have_company_id:
+                user.company_id = None
             user.is_active = True
             for permission, value in item["permissions"].items():
                 if value:
                     setattr(user, permission, True)
+        elif (
+            users_have_company_id
+            and primary_company is not None
+            and user.company_id is None
+        ):
+            user.company_id = primary_company.id
 
         item_roles = item.get("roles") or ()
         should_apply_default_roles = (
