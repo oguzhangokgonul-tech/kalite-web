@@ -38,6 +38,7 @@
 
   <div class="dof-layout">
     <form class="dof-form-card" id="dofForm" method="post" action="{{ form_action or url_for('main.create_dof') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if form_data.get("internal_audit_answer_id") %}
         <input type="hidden" name="internal_audit_answer_id" value="{{ form_data.get('internal_audit_answer_id') }}">
       {% endif %}

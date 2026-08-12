@@ -98,6 +98,7 @@
         </div>
       </div>
       <form class="app-form-grid" method="post" action="{{ url_for('main.complete_sub_action', sub_action_id=sub_action.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="app-form-full">
           <label class="form-label" for="closing_note">Kapanış açıklaması</label>
           <textarea class="form-control" id="closing_note" name="closing_note" rows="4" maxlength="2000">{{ sub_action.closing_note or "" }}</textarea>

@@ -120,6 +120,7 @@
                         <span>Düzenle</span>
                       </a>
                       <form method="post" action="{{ url_for('main.copy_internal_audit', audit_id=audit.id) }}" onsubmit="return confirm('{{ audit.audit_no }} numaralı iç denetimin kopyası oluşturulsun mu?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-secondary" type="submit">
                           <i class="bi bi-copy"></i>
                           <span>Kopya Oluştur</span>
@@ -134,6 +135,7 @@
                     {% endif %}
                     {% if can_delete_internal_audit %}
                       <form method="post" action="{{ url_for('main.delete_internal_audit', audit_id=audit.id) }}" onsubmit="return confirm('{{ audit.audit_no }} numaralı iç denetim silinsin mi?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">
                           <i class="bi bi-trash"></i>
                           <span>Sil</span>

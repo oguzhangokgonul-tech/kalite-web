@@ -55,6 +55,7 @@
             {% if can_manage_documents %}
               <a class="dropdown-item" href="{{ url_for('main.edit_document', document_id=document.id) }}">Düzenle</a>
               <form action="{{ url_for('main.generate_document_preview_route', document_id=document.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="dropdown-item" type="submit">PDF önizlemeyi yenile</button>
               </form>
             {% endif %}
@@ -78,6 +79,7 @@
             </a>
             {% if can_manage_documents %}
               <form action="{{ url_for('main.generate_document_preview_route', document_id=document.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-primary" type="submit">
                   <i class="bi bi-arrow-clockwise"></i>
                   <span>PDF Önizlemeyi Yeniden Dene</span>
@@ -136,12 +138,14 @@
             {% endif %}
             {% if can_delete_document %}
               <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-secondary" type="submit">
                   <i class="bi bi-archive"></i>
                   <span>Arşivle</span>
                 </button>
               </form>
               <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-danger" type="submit">
                   <i class="bi bi-trash"></i>
                   <span>Sil</span>

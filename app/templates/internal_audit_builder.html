@@ -17,6 +17,7 @@
   {% endcall %}
 
   <form class="audit-builder-form" id="internalAuditBuilderForm" method="post" data-audit-builder>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="question_indexes" value="" data-question-indexes>
 
     <section class="audit-builder-card">

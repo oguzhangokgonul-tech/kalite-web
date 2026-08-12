@@ -13,6 +13,7 @@
 
   <div class="quality-measurement-layout">
     <form class="quality-test-form-card" method="post" action="{{ form_action }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="quality-test-form-header">
         <span class="app-card-icon"><i class="bi bi-speedometer2"></i></span>
         <div>

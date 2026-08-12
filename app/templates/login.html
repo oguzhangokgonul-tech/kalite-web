@@ -10,6 +10,7 @@
   <img class="login-watermark" src="{{ url_for('static', filename='brand/volkaportal-reference-icon.png') }}" alt="" aria-hidden="true">
   <section class="login-form-panel" aria-label="Giriş">
     <form class="login-card" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="login-card-brand">
         <img class="login-brand-logo" src="{{ url_for('static', filename='brand/volkaportal-reference-icon.png') }}" alt="{{ config.SITE_NAME }}">
         <div>

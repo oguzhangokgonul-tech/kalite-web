@@ -1,5 +1,7 @@
 from flask import Flask
 from flask.cli import with_appcontext
+from flask import flash, jsonify, redirect, request, url_for
+from flask_wtf.csrf import CSRFError
 from pathlib import Path
 from dotenv import load_dotenv
 import click
@@ -7,7 +9,7 @@ import click
 load_dotenv()
 
 from .config import Config
-from .extensions import db, migrate
+from .extensions import csrf, db, migrate
 from .routes import bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
@@ -20,8 +22,22 @@ def create_app(config_class=Config):
 
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
     app.register_blueprint(bp)
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        message = (
+            "Güvenlik doğrulaması başarısız oldu. Lütfen sayfayı yenileyip tekrar deneyin."
+        )
+        if request.is_json or request.accept_mimetypes.best == "application/json":
+            return jsonify({"ok": False, "message": message}), 400
+        flash(
+            message,
+            "danger",
+        )
+        return redirect(request.referrer or url_for("main.dashboard"))
 
     @app.cli.command("seed-users")
     @with_appcontext

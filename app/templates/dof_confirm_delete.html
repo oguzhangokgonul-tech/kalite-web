@@ -31,6 +31,7 @@
       </p>
     {% endif %}
     <form class="app-heading-actions justify-content-start" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">
         <i class="bi bi-trash"></i>
         <span>Sil</span>

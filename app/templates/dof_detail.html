@@ -61,6 +61,7 @@
       {% endif %}
       {% if can_approve_management %}
         <form action="{{ url_for('main.approve_dof_management', dof_id=dof.id) }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-primary" type="submit">
             <i class="bi bi-check-circle"></i>
             <span>Yönetim Temsilcisi Onayını Ver</span>
@@ -69,6 +70,7 @@
       {% endif %}
       {% if can_approve_deputy %}
         <form action="{{ url_for('main.approve_dof_deputy', dof_id=dof.id) }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn btn-primary" type="submit">
             <i class="bi bi-check-circle"></i>
             <span>Genel Müdür Yardımcısı Onayını Ver</span>
@@ -168,6 +170,7 @@
             </div>
           </div>
           <form method="post" action="{{ url_for('main.reject_dof', dof_id=dof.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="form-label" for="rejection_reason">Red sebebi</label>
             <textarea class="form-control" id="rejection_reason" name="rejection_reason" rows="4" required></textarea>
             <button class="btn btn-outline-danger w-100 mt-3" type="submit">
@@ -232,6 +235,7 @@
         </div>
       </div>
       <form method="post" action="{{ url_for('main.revise_dof', dof_id=dof.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="dof-grid">
           <div>
             <label class="form-label" for="revision_title">Başlık *</label>

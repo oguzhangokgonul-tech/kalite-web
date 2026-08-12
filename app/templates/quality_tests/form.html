@@ -16,6 +16,7 @@
   {% endcall %}
 
   <form class="quality-test-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="quality-test-form-header">
       <span class="app-card-icon"><i class="bi {{ quality_test.icon }}"></i></span>
       <div>

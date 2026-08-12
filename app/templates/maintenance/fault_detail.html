@@ -96,6 +96,7 @@
           </div>
         {% elif can_complete_fault %}
           <form id="maintenance-complete" method="post" action="{{ url_for('main.complete_maintenance_fault', fault_id=fault.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="form-label" for="closing_note">Yapılan İşlem <span class="text-danger">*</span></label>
             <textarea class="form-control" id="closing_note" name="closing_note" rows="5" placeholder="Arızayı kapatmak için yapılan bakım işlemini yazın"></textarea>
             <button class="btn btn-success w-100 mt-3" type="submit">
@@ -110,6 +111,7 @@
 
       {% if can_delete_fault %}
         <form class="maintenance-form-card maintenance-danger-card" action="{{ url_for('main.delete_maintenance_fault', fault_id=fault.id) }}" method="post" onsubmit="return confirm('Arıza kaydını silmek istediğinize emin misiniz?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <strong>Arıza Kaydını Sil</strong>
           <span>Bu işlem bakım arıza kaydını kalıcı olarak kaldırır.</span>
           <button class="btn btn-outline-danger" type="submit">

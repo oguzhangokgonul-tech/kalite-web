@@ -44,6 +44,7 @@
               {% endif %}
               {% if can_delete_internal_audit %}
                 <form method="post" action="{{ url_for('main.delete_internal_audit', audit_id=audit_item.id) }}" onsubmit="return confirm('{{ audit_item.audit_no }} numaralı iç denetim silinsin mi?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="audit-selector-delete" type="submit" aria-label="{{ audit_item.audit_no }} sil">
                     <i class="bi bi-trash"></i>
                   </button>
@@ -77,6 +78,7 @@
   <div class="audit-flow-layout">
     <div class="audit-flow-main">
       <form class="audit-question-card" id="auditQuestionForm" method="post" action="{{ url_for('main.save_internal_audit_answer', audit_id=audit.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="question_id" value="{{ question.id }}">
 
         <div class="audit-question-head">
@@ -260,7 +262,8 @@
     {% endif %}
   </div>
 
-  <form id="completeAuditForm" method="post" action="{{ url_for('main.complete_internal_audit', audit_id=audit.id) }}"></form>
+  <form id="completeAuditForm" method="post" action="{{ url_for('main.complete_internal_audit', audit_id=audit.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
 {% endblock %}
 
 {% block scripts %}

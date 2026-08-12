@@ -9,6 +9,7 @@
 {% set category_value = form_data.get('category_id') if form_data else ((selected_category.id|string) if selected_category else '') %}
 
 <form class="documents-form-card" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <div class="documents-form-grid">
     <div>
       <label class="form-label" for="document_code">Doküman Kodu *</label>

@@ -13,6 +13,7 @@
   {% endcall %}
 
   <form class="app-form-card" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-clipboard-plus"></i></span>
       <div>

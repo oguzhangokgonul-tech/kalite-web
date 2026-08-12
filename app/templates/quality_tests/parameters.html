@@ -12,6 +12,7 @@
   {% endcall %}
 
   <form method="post" class="quality-parameters-card">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="quality-parameters-intro">
       <span class="app-card-icon"><i class="bi bi-sliders"></i></span>
       <div>

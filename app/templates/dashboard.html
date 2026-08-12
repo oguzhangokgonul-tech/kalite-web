@@ -155,6 +155,7 @@
                   </a>
                   {% if can_approve_closure_action(action) %}
                     <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <button class="btn btn-sm btn-outline-success" type="submit">
                         <i class="bi bi-check-circle"></i>
                         <span>Onayla</span>

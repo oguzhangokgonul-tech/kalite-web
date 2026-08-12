@@ -147,6 +147,7 @@
                 {% if can_approve_closure_action(action) %}
                   <li>
                     <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <button class="dropdown-item text-success" type="submit">Kapatma onayını ver</button>
                     </form>
                   </li>

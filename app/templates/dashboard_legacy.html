@@ -138,6 +138,7 @@
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.action_detail', action_id=action.id) }}">Detay</a>
                 {% if can_approve_closure_action(action) %}
                   <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline-success" type="submit">Kapatma Onayını Ver</button>
                   </form>
                 {% elif can_request_closure_action(action) %}

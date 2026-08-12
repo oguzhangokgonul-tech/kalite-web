@@ -25,6 +25,7 @@
       <div class="role-stack">
         {% for role in roles %}
           <form class="role-admin-role-card" method="post" action="{{ url_for('main.roles') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="role_id" value="{{ role.id }}">
             <div class="role-admin-role-head">
               <span class="role-level-badge">Seviye {{ role.hierarchy_level }}</span>
@@ -86,6 +87,7 @@
 
     <section class="app-card role-admin-card">
       <form method="post" action="{{ url_for('main.update_user_roles') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {{ ui.card_header("Kullanıcı Rol Atamaları", "Kullanıcıları hiyerarşik rollere atayın. Bir kullanıcı birden fazla role sahip olabilir.", icon="bi-person-check") }}
 
         <div class="role-user-list">

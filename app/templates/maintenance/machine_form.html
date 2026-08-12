@@ -22,6 +22,7 @@
   {% endcall %}
 
   <form class="maintenance-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="app-card-header">
       <span class="app-card-icon maintenance-card-icon"><i class="bi bi-wrench-adjustable"></i></span>
       <div>

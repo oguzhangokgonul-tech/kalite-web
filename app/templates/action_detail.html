@@ -26,6 +26,7 @@
   {% call ui.page_header(action.number_label ~ " " ~ action.title, action.responsible_owner ~ " için atanmış aksiyon", icon="bi-clipboard-check") %}
     {% if can_approve_closure %}
       <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-success" type="submit">
           <i class="bi bi-check-circle"></i>
           <span>Kapatma Onayını Ver</span>
@@ -192,6 +193,7 @@
                     {% endif %}
                     {% if can_delete_sub_action(sub_action) %}
                       <form method="post" action="{{ url_for('main.delete_sub_action', sub_action_id=sub_action.id) }}" onsubmit="return confirm('Alt aksiyon silinsin mi?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">
                           <i class="bi bi-trash"></i>
                           <span>Sil</span>
@@ -212,6 +214,7 @@
     {% if can_create_sub_action %}
       <hr>
       <form class="app-form-grid" method="post" action="{{ url_for('main.create_sub_action', action_id=action.id) }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
           <label class="form-label" for="sub_title">Alt Aksiyon Başlığı</label>
           <input class="form-control" id="sub_title" name="title" maxlength="160" required>
@@ -299,6 +302,7 @@
         </div>
       </div>
       <form class="app-form-grid" method="post" action="{{ url_for('main.reassign_action', action_id=action.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
           <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
           <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
@@ -351,6 +355,7 @@
         </div>
       </div>
       <form class="app-inline-form" method="post" action="{{ url_for('main.revise_action_termin', action_id=action.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
           <label class="form-label" for="termin_date_revision">Yeni termin tarihi</label>
           <input class="form-control" id="termin_date_revision" name="termin_date" type="date" value="{{ action.termin_date.isoformat() }}" required>
@@ -442,12 +447,14 @@
       {% if can_approve_closure %}
         <div class="closure-review-box">
           <form action="{{ url_for('main.complete_action', action_id=action.id) }}" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-success" type="submit">
               <i class="bi bi-check-circle"></i>
               <span>Kapatma Onayını Ver</span>
             </button>
           </form>
           <form method="post" action="{{ url_for('main.reject_action_closure', action_id=action.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="form-label" for="closure_rejection_reason">Red sebebi</label>
             <textarea class="form-control" id="closure_rejection_reason" name="closure_rejection_reason" rows="3" required></textarea>
             <button class="btn btn-outline-danger mt-3" type="submit">Kapatma Onayını Reddet</button>
@@ -460,6 +467,7 @@
           <hr>
         {% endif %}
         <form method="post" action="{{ url_for('main.request_action_closure', action_id=action.id) }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <label class="form-label" for="closure_evidence_note">Açıklama</label>
             <textarea class="form-control" id="closure_evidence_note" name="closure_evidence_note" rows="4" required></textarea>
@@ -504,6 +512,7 @@
 
     {% if can_comment %}
       <form class="mt-3" method="post" action="{{ url_for('main.add_action_comment', action_id=action.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label class="form-label" for="comment">Yorum ekle</label>
         <textarea class="form-control" id="comment" name="comment" rows="3" required></textarea>
         <button class="btn btn-primary mt-3" type="submit">Yorum Kaydet</button>

@@ -138,11 +138,13 @@
                   {% endif %}
                   {% if can_delete_document(document) %}
                     <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <button class="btn btn-sm btn-outline-secondary" type="submit" aria-label="Arşivle">
                         <i class="bi bi-archive"></i>
                       </button>
                     </form>
                     <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Sil">
                         <i class="bi bi-trash"></i>
                       </button>

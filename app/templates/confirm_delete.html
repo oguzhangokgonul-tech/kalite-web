@@ -12,6 +12,7 @@
       {% endif %}
     </p>
     <form class="d-flex flex-column flex-sm-row gap-2" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">Sil</button>
       <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Vazgeç</a>
     </form>
