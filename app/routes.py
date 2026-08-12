@@ -2522,6 +2522,10 @@ def can_manage_documents():
     return current_user_can("documents.manage")
 
 
+def can_view_documents():
+    return current_user_can("documents.view") or can_manage_documents()
+
+
 def can_delete_document(document=None):
     return current_user_can("documents.delete")
 
@@ -4421,7 +4425,11 @@ def permission_catalog_grouped():
 
 
 def role_hierarchy():
-    return Role.query.order_by(Role.hierarchy_level.asc(), Role.name.asc()).all()
+    return (
+        Role.query.filter_by(is_system=True)
+        .order_by(Role.hierarchy_level.asc(), Role.name.asc())
+        .all()
+    )
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -5457,12 +5465,16 @@ def quality_test_measurement(slug, record_id):
 @bp.route("/documents")
 @login_required
 def documents_dashboard():
+    if not can_view_documents():
+        abort(403)
     return render_template("documents/index.html", **documents_dashboard_context())
 
 
 @bp.route("/documents/list")
 @login_required
 def documents_list():
+    if not can_view_documents():
+        abort(403)
     return render_template(
         "documents/category.html",
         **documents_category_context(None),
@@ -5472,6 +5484,8 @@ def documents_list():
 @bp.route("/documents/category/<slug>")
 @login_required
 def documents_category(slug):
+    if not can_view_documents():
+        abort(403)
     category = DocumentCategory.query.filter_by(slug=slug, is_active=True).first_or_404()
     return render_template(
         "documents/category.html",
@@ -5562,6 +5576,8 @@ def upload_document():
 @bp.get("/documents/<int:document_id>")
 @login_required
 def document_detail(document_id):
+    if not can_view_documents():
+        abort(403)
     document = Document.query.get_or_404(document_id)
     if not document.preview_status:
         generate_document_preview(document)
@@ -5656,6 +5672,8 @@ def edit_document(document_id):
 @bp.get("/documents/<int:document_id>/download")
 @login_required
 def download_document(document_id):
+    if not can_view_documents():
+        abort(403)
     document = Document.query.get_or_404(document_id)
     return send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
@@ -5668,6 +5686,8 @@ def download_document(document_id):
 @bp.get("/documents/<int:document_id>/preview")
 @login_required
 def preview_document(document_id):
+    if not can_view_documents():
+        abort(403)
     document = Document.query.get_or_404(document_id)
     if not document_can_preview(document):
         flash(document_preview_message(document), "warning")

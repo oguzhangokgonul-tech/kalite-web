@@ -103,6 +103,12 @@ PERMISSION_CATALOG = (
         "description": "İç denetim oluşturur, düzenler, kopyalar, siler ve cevaplar.",
     },
     {
+        "key": "documents.view",
+        "label": "Doküman görüntüleme",
+        "group": "Doküman",
+        "description": "Doküman listelerini, detaylarını, indirme ve önizleme alanlarını sadece görüntüler.",
+    },
+    {
         "key": "documents.manage",
         "label": "Doküman yönetimi",
         "group": "Doküman",
@@ -176,15 +182,16 @@ ROLE_DEFINITIONS = (
         ],
     },
     {
-        "key": "executive_approver",
-        "name": "Üst Yönetim Onaycısı",
+        "key": "management",
+        "name": "Yönetim",
         "hierarchy_level": 20,
-        "description": "Üst yönetim seviyesinde IF kayıtlarını ve raporları görüntüler, yetkili onayları verir.",
+        "description": "Yönetim seviyesinde aksiyonları ve IF kayıtlarını görüntüler, yetkili onayları verir.",
         "permissions": [
             "if.view_all",
             "if.approve_deputy",
             "if.reject",
             "actions.view_all",
+            "documents.view",
         ],
     },
     {
@@ -197,45 +204,37 @@ ROLE_DEFINITIONS = (
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "maintenance.fault_manage",
+            "documents.view",
         ],
     },
     {
-        "key": "module_responsible",
-        "name": "Modül Sorumlusu",
+        "key": "department_staff",
+        "name": "Departman Personeli",
         "hierarchy_level": 40,
-        "description": "Yetkilendirildiği modüllerde operasyonel kayıtları yönetir.",
-        "permissions": [
-            "actions.create",
-            "actions.comment_assigned",
-            "actions.request_close_assigned",
-            "maintenance.fault_manage",
-        ],
-    },
-    {
-        "key": "task_responsible",
-        "name": "Aksiyon / Görev Sorumlusu",
-        "hierarchy_level": 50,
-        "description": "Kendisine atanan aksiyon ve alt görevlerde yorum, kanıt ve kapanış talebi işlemleri yapar.",
+        "description": "Kendisine atanan aksiyon ve görevlerde yorum, kanıt ve kapanış talebi işlemleri yapar.",
         "permissions": [
             "actions.comment_assigned",
             "actions.request_close_assigned",
+            "documents.view",
         ],
-    },
-    {
-        "key": "audited_viewer",
-        "name": "Denetlenen Personel / Gözlemci",
-        "hierarchy_level": 60,
-        "description": "Kendisiyle ilişkili kayıtları görüntüler, dokümanlara erişir.",
-        "permissions": [],
     },
     {
         "key": "viewer",
         "name": "Sadece Görüntüleyici",
-        "hierarchy_level": 70,
+        "hierarchy_level": 50,
         "description": "Yetkili olduğu sayfaları sadece görüntüler.",
-        "permissions": [],
+        "permissions": [
+            "documents.view",
+        ],
     },
 )
+
+REMOVED_ROLE_MAPPINGS = {
+    "executive_approver": "management",
+    "module_responsible": "department_staff",
+    "task_responsible": "department_staff",
+    "audited_viewer": "department_staff",
+}
 
 
 DEFAULT_USERS = (
@@ -277,7 +276,7 @@ DEFAULT_USERS = (
         "title": "Prefabrik Proje Müdürü",
         "email": "",
         "password": "kysufuk",
-        "roles": ("task_responsible",),
+        "roles": ("department_staff",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -293,7 +292,7 @@ DEFAULT_USERS = (
         "title": "Proje Sorumlusu",
         "email": "seymainci@erprefabrik.com.tr",
         "password": "kysseyma",
-        "roles": ("task_responsible",),
+        "roles": ("department_staff",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -309,7 +308,7 @@ DEFAULT_USERS = (
         "title": "Şantiye Peygamberi",
         "email": "turgutpekyilmaz@erprefabrik.com.tr",
         "password": "kysturgut",
-        "roles": ("task_responsible",),
+        "roles": ("department_staff",),
         "permissions": {
             "can_create_actions": False,
             "can_edit_actions": False,
@@ -780,6 +779,7 @@ def ensure_default_users(reset_passwords=True):
 
 def ensure_default_roles():
     role_by_key = {}
+    active_role_keys = {definition["key"] for definition in ROLE_DEFINITIONS}
     for definition in ROLE_DEFINITIONS:
         role = Role.query.filter_by(key=definition["key"]).first()
         is_new_role = role is None
@@ -801,6 +801,24 @@ def ensure_default_roles():
                 if permission.permission_key not in desired_permissions:
                     role.permissions.remove(permission)
         role_by_key[role.key] = role
+
+    db.session.flush()
+    for old_role_key, new_role_key in REMOVED_ROLE_MAPPINGS.items():
+        old_role = Role.query.filter_by(key=old_role_key).first()
+        new_role = role_by_key.get(new_role_key)
+        if old_role is None:
+            continue
+        if new_role is not None:
+            for user in list(old_role.users):
+                if new_role not in user.roles:
+                    user.roles.append(new_role)
+                if old_role in user.roles:
+                    user.roles.remove(old_role)
+        old_role.is_system = False
+
+    for role in Role.query.all():
+        if role.key not in active_role_keys and role.key not in REMOVED_ROLE_MAPPINGS:
+            role.is_system = False
 
     db.session.flush()
     return role_by_key
