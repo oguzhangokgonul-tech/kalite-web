@@ -114,6 +114,8 @@ Beklenen:
 
 - Kendi firmasina ait dosyalar iner
 - Baska firmaya ait dosya linki 404 veya 403 verir
+- Yeni yuklenen dosyalar `uploads/company-001/...` gibi firma klasoru altinda saklanir
+- Eski dosyalar duz `uploads/...` yolunda kalsa bile indirme linkleri calismaya devam eder
 
 ## Risk Notlari
 

@@ -2515,6 +2515,67 @@ def validate_dof_opening_file(uploaded_file):
         raise ValueError("invalid_dof_opening_file_type")
 
 
+def upload_storage_relative_path(filename, folder=None, company_id=None):
+    parts = []
+    effective_company_id = company_id if company_id is not None else current_company_id()
+    if effective_company_id:
+        parts.append(f"company-{effective_company_id:03d}")
+    if folder:
+        parts.append(folder)
+    parts.append(filename)
+    return Path(*parts)
+
+
+def upload_storage_path(filename, folder=None, company_id=None):
+    relative_path = upload_storage_relative_path(filename, folder, company_id)
+    absolute_path = Path(current_app.config["UPLOAD_FOLDER"]) / relative_path
+    absolute_path.parent.mkdir(parents=True, exist_ok=True)
+    return relative_path, absolute_path
+
+
+def uploaded_file_path(stored_name):
+    if not stored_name:
+        return None
+    return Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+
+
+def legacy_uploaded_file_path(stored_name):
+    if not stored_name:
+        return None
+    return Path(current_app.config["UPLOAD_FOLDER"]) / Path(stored_name).name
+
+
+def existing_uploaded_file_path(stored_name):
+    file_path = uploaded_file_path(stored_name)
+    if file_path and file_path.exists():
+        return file_path
+
+    legacy_path = legacy_uploaded_file_path(stored_name)
+    if legacy_path and legacy_path.exists():
+        return legacy_path
+    return file_path
+
+
+def delete_stored_upload(stored_name):
+    file_path = existing_uploaded_file_path(stored_name)
+    if file_path and file_path.exists():
+        file_path.unlink()
+
+
+def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attachment=True):
+    file_path = existing_uploaded_file_path(stored_name)
+    if not file_path or not file_path.exists():
+        abort(404)
+
+    return send_from_directory(
+        str(file_path.parent),
+        file_path.name,
+        as_attachment=as_attachment,
+        download_name=download_name,
+        mimetype=mimetype,
+    )
+
+
 def dof_opening_file_uploads():
     uploaded_files = request.files.getlist("opening_files")
     return [uploaded_file for uploaded_file in uploaded_files if uploaded_file.filename]
@@ -2534,7 +2595,11 @@ def save_dof_opening_files(dof):
             safe_name = secure_filename(uploaded_file.filename) or "dof-gorsel"
             extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
             stored_name = f"dof-opening-{uuid4().hex}.{extension}"
-            upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+            relative_path, upload_path = upload_storage_path(
+                stored_name,
+                "dof/opening",
+                dof.company_id,
+            )
             uploaded_file.save(upload_path)
             saved_paths.append(upload_path)
             if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
@@ -2544,7 +2609,7 @@ def save_dof_opening_files(dof):
                     dof=dof,
                     company_id=dof.company_id,
                     original_name=safe_name,
-                    stored_name=stored_name,
+                    stored_name=str(relative_path).replace("\\", "/"),
                     mime_type=uploaded_file.mimetype,
                     file_type="opening",
                 )
@@ -2565,28 +2630,24 @@ def save_dof_evidence_file(dof):
     safe_name = secure_filename(uploaded_file.filename) or "dof-kanit"
     extension = safe_name.rsplit(".", 1)[1].lower()
     stored_name = f"dof-{uuid4().hex}.{extension}"
-    upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+    relative_path, upload_path = upload_storage_path(stored_name, "dof/evidence", dof.company_id)
     uploaded_file.save(upload_path)
     if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
         upload_path.unlink(missing_ok=True)
         raise ValueError("dof_file_too_large")
 
     dof.evidence_original_name = safe_name
-    dof.evidence_stored_name = stored_name
+    dof.evidence_stored_name = str(relative_path).replace("\\", "/")
     dof.evidence_mime_type = uploaded_file.mimetype
 
 
 def delete_dof_evidence_file(dof):
     for dof_file in list(dof.files):
-        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / dof_file.stored_name
-        if file_path.exists():
-            file_path.unlink()
+        delete_stored_upload(dof_file.stored_name)
         db.session.delete(dof_file)
 
     if dof.evidence_stored_name:
-        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / dof.evidence_stored_name
-        if file_path.exists():
-            file_path.unlink()
+        delete_stored_upload(dof.evidence_stored_name)
 
     dof.evidence_original_name = None
     dof.evidence_stored_name = None
@@ -2673,7 +2734,7 @@ def document_can_preview(document):
     return (
         document.preview_status == "ready"
         and bool(document.preview_file_path)
-        and (Path(current_app.config["UPLOAD_FOLDER"]) / document.preview_file_path).exists()
+        and existing_uploaded_file_path(document.preview_file_path).exists()
     )
 
 
@@ -2704,32 +2765,26 @@ def libreoffice_binary():
 
 
 def document_source_path(document):
-    return Path(current_app.config["UPLOAD_FOLDER"]) / document.file_path
+    return existing_uploaded_file_path(document.file_path)
 
 
 def document_preview_storage(document):
     category_slug = document.category.slug if document.category else "genel"
-    preview_dir = (
-        Path(current_app.config["UPLOAD_FOLDER"])
-        / "documents"
-        / "previews"
-        / category_slug
-    )
-    preview_dir.mkdir(parents=True, exist_ok=True)
     source_stem = Path(document.file_name or "document").stem
     preview_key = f"{source_stem}-{document.id or uuid4().hex}"
     preview_name = f"{preview_key}_preview.pdf"
-    preview_path = preview_dir / preview_name
-    preview_relative = Path("documents") / "previews" / category_slug / preview_name
+    preview_relative, preview_path = upload_storage_path(
+        preview_name,
+        Path("documents") / "previews" / category_slug,
+        document.company_id,
+    )
     return preview_name, preview_path, str(preview_relative).replace("\\", "/")
 
 
 def delete_document_preview(document):
     if not document.preview_file_path:
         return
-    preview_path = Path(current_app.config["UPLOAD_FOLDER"]) / document.preview_file_path
-    if preview_path.exists():
-        preview_path.unlink()
+    delete_stored_upload(document.preview_file_path)
 
 
 def fail_document_preview(document, status, message):
@@ -2896,15 +2951,10 @@ def save_document_upload(uploaded_file, category):
     if not original_name:
         original_name = f"dokuman.{extension}"
     stored_name = f"document-{uuid4().hex}.{extension}"
-    relative_path = Path("documents") / "originals" / category.slug / stored_name
-    upload_dir = (
-        Path(current_app.config["UPLOAD_FOLDER"])
-        / "documents"
-        / "originals"
-        / category.slug
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        Path("documents") / "originals" / category.slug,
     )
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    upload_path = upload_dir / stored_name
     uploaded_file.save(upload_path)
 
     if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
@@ -2923,9 +2973,7 @@ def save_document_upload(uploaded_file, category):
 def delete_document_file(document):
     if not document.file_path:
         return
-    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / document.file_path
-    if file_path.exists():
-        file_path.unlink()
+    delete_stored_upload(document.file_path)
 
 
 def delete_document_files(document):
@@ -3964,16 +4012,14 @@ def delete_uploaded_file(action):
     if not action.file_stored_name:
         return
 
-    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / action.file_stored_name
-    if file_path.exists():
-        file_path.unlink()
+    delete_stored_upload(action.file_stored_name)
 
     action.file_original_name = None
     action.file_stored_name = None
     action.file_mime_type = None
 
 
-def store_uploaded_file(uploaded_file, allowed_extensions=None):
+def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions", company_id=None):
     extension_allowed = (
         "." in uploaded_file.filename
         and uploaded_file.filename.rsplit(".", 1)[1].lower()
@@ -3985,9 +4031,9 @@ def store_uploaded_file(uploaded_file, allowed_extensions=None):
     safe_name = secure_filename(uploaded_file.filename)
     extension = safe_name.rsplit(".", 1)[1].lower()
     stored_name = f"{uuid4().hex}.{extension}"
-    upload_path = Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+    relative_path, upload_path = upload_storage_path(stored_name, folder, company_id)
     uploaded_file.save(upload_path)
-    return safe_name, stored_name, uploaded_file.mimetype
+    return safe_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
 
 
 def save_uploaded_file(action):
@@ -3996,7 +4042,11 @@ def save_uploaded_file(action):
         return
 
     delete_uploaded_file(action)
-    safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
+    safe_name, stored_name, mime_type = store_uploaded_file(
+        uploaded_file,
+        folder="actions/files",
+        company_id=action.company_id,
+    )
 
     action.file_original_name = safe_name
     action.file_stored_name = stored_name
@@ -4005,15 +4055,11 @@ def save_uploaded_file(action):
 
 def delete_closure_evidence_file(action):
     for closure_file in list(action.closure_files):
-        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / closure_file.stored_name
-        if file_path.exists():
-            file_path.unlink()
+        delete_stored_upload(closure_file.stored_name)
         db.session.delete(closure_file)
 
     if action.closure_file_stored_name:
-        file_path = Path(current_app.config["UPLOAD_FOLDER"]) / action.closure_file_stored_name
-        if file_path.exists():
-            file_path.unlink()
+        delete_stored_upload(action.closure_file_stored_name)
 
     action.closure_file_original_name = None
     action.closure_file_stored_name = None
@@ -4036,7 +4082,11 @@ def save_closure_evidence_files(action):
 
     delete_closure_evidence_file(action)
     for uploaded_file in uploaded_files:
-        safe_name, stored_name, mime_type = store_uploaded_file(uploaded_file)
+        safe_name, stored_name, mime_type = store_uploaded_file(
+            uploaded_file,
+            folder="actions/closure",
+            company_id=action.company_id,
+        )
         db.session.add(
             ActionClosureFile(
                 action=action,
@@ -4052,9 +4102,7 @@ def delete_sub_action_evidence_file(sub_action):
     if not sub_action.evidence_stored_name:
         return
 
-    file_path = Path(current_app.config["UPLOAD_FOLDER"]) / sub_action.evidence_stored_name
-    if file_path.exists():
-        file_path.unlink()
+    delete_stored_upload(sub_action.evidence_stored_name)
 
     sub_action.evidence_original_name = None
     sub_action.evidence_stored_name = None
@@ -4070,6 +4118,8 @@ def save_sub_action_evidence_file(sub_action):
     safe_name, stored_name, mime_type = store_uploaded_file(
         uploaded_file,
         SUB_ACTION_EVIDENCE_EXTENSIONS,
+        folder="actions/sub-actions",
+        company_id=sub_action.company_id,
     )
     sub_action.evidence_original_name = safe_name
     sub_action.evidence_stored_name = stored_name
@@ -6085,9 +6135,7 @@ def edit_document(document_id):
             document.archived_at = datetime.utcnow() if document.status == "Arşiv" else None
             if saved_file_values is not None:
                 if old_file_path:
-                    old_path = Path(current_app.config["UPLOAD_FOLDER"]) / old_file_path
-                    if old_path.exists():
-                        old_path.unlink()
+                    delete_stored_upload(old_file_path)
                 delete_document_preview(document)
                 for key, value in saved_file_values.items():
                     setattr(document, key, value)
@@ -6132,8 +6180,7 @@ def download_document(document_id):
         abort(403)
     document = Document.query.get_or_404(document_id)
     ensure_same_company(document)
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         document.file_path,
         as_attachment=True,
         download_name=document.original_file_name,
@@ -6151,8 +6198,7 @@ def preview_document(document_id):
         flash(document_preview_message(document), "warning")
         return redirect(url_for("main.document_detail", document_id=document.id))
 
-    response = send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    response = send_stored_upload(
         document.preview_file_path,
         mimetype="application/pdf",
         as_attachment=False,
@@ -7516,8 +7562,7 @@ def download_dof_evidence_file(dof_id):
         flash("Bu İF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         dof.evidence_stored_name,
         as_attachment=True,
         download_name=dof.evidence_original_name,
@@ -7533,8 +7578,7 @@ def download_dof_file(dof_id, file_id):
         abort(403)
 
     dof_file = DofFile.query.filter_by(id=file_id, dof_id=dof.id).first_or_404()
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         dof_file.stored_name,
         as_attachment=True,
         download_name=dof_file.original_name,
@@ -8091,8 +8135,7 @@ def download_sub_action_evidence(sub_action_id):
     if not sub_action.evidence_stored_name:
         flash("Bu alt aksiyon için kanıt dosyası bulunmuyor.", "warning")
         return redirect(url_for("main.sub_action_detail", sub_action_id=sub_action.id))
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         sub_action.evidence_stored_name,
         as_attachment=True,
         download_name=sub_action.evidence_original_name,
@@ -8257,8 +8300,7 @@ def download_action_file(action_id):
         flash("Bu kayda ait yüklenmiş dosya bulunamadı.", "warning")
         return redirect(url_for("main.dashboard"))
 
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         action.file_stored_name,
         as_attachment=True,
         download_name=action.file_original_name,
@@ -8278,8 +8320,7 @@ def download_closure_evidence_file(action_id, file_id):
         action_id=action.id,
     ).first_or_404()
 
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         closure_file.stored_name,
         as_attachment=True,
         download_name=closure_file.original_name,
@@ -8308,8 +8349,7 @@ def download_latest_closure_evidence_file(action_id):
         flash("Bu aksiyona ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
-    return send_from_directory(
-        current_app.config["UPLOAD_FOLDER"],
+    return send_stored_upload(
         action.closure_file_stored_name,
         as_attachment=True,
         download_name=action.closure_file_original_name,

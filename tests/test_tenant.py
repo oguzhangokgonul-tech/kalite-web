@@ -1,4 +1,5 @@
 from datetime import date
+from pathlib import Path
 
 import pytest
 from flask import Flask
@@ -16,13 +17,14 @@ from app.tenant import (
 
 
 @pytest.fixture()
-def app():
+def app(tmp_path):
     test_app = Flask(__name__)
     test_app.config.update(
         SECRET_KEY="test",
         SQLALCHEMY_DATABASE_URI="sqlite:///:memory:",
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         TENANT_BASE_DOMAIN="volkaportal.com",
+        UPLOAD_FOLDER=tmp_path,
     )
     db.init_app(test_app)
     with test_app.app_context():
@@ -197,3 +199,33 @@ def test_current_company_id_prefers_current_company(app, companies):
         g.current_user_is_super_admin = False
 
         assert current_company_id() == erprefabrik.id
+
+
+def test_upload_storage_path_uses_company_folder(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import upload_storage_path
+
+        g.current_company = erprefabrik
+        g.current_user = None
+        g.current_user_is_super_admin = False
+
+        relative_path, absolute_path = upload_storage_path("kanit.pdf", "actions/files")
+
+    assert relative_path.as_posix() == f"company-{erprefabrik.id:03d}/actions/files/kanit.pdf"
+    assert absolute_path.parent.exists()
+
+
+def test_existing_uploaded_file_path_falls_back_to_legacy_path(app):
+    with app.test_request_context("/"):
+        from app.routes import existing_uploaded_file_path
+
+        upload_dir = Path(app.config["UPLOAD_FOLDER"])
+        legacy_path = upload_dir / "legacy.pdf"
+        legacy_path.write_text("legacy", encoding="utf-8")
+
+        file_path = existing_uploaded_file_path("company-001/actions/files/legacy.pdf")
+
+    assert file_path == legacy_path
