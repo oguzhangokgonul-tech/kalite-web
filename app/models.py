@@ -27,6 +27,9 @@ class Company(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(3), nullable=False, unique=True)
     name = db.Column(db.String(160), nullable=False)
+    slug = db.Column(db.String(80), nullable=True, unique=True)
+    primary_domain = db.Column(db.String(255), nullable=True, unique=True)
+    custom_domain = db.Column(db.String(255), nullable=True, unique=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(

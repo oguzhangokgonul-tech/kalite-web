@@ -50,6 +50,43 @@
             required
           >
         </div>
+        <div class="col-md-4">
+          <label class="form-label" for="slug">&#350;irket Adres Ad&#305;</label>
+          <input
+            class="form-control form-control-lg"
+            id="slug"
+            name="slug"
+            type="text"
+            maxlength="80"
+            placeholder="erprefabrik"
+            value="{{ request.form.get('slug', company.slug if company else '') }}"
+          >
+          <div class="form-text">Bo&#351; b&#305;rak&#305;l&#305;rsa &#351;irket ad&#305;ndan otomatik olu&#351;ur.</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="primary_domain">Ana Domain</label>
+          <input
+            class="form-control form-control-lg"
+            id="primary_domain"
+            name="primary_domain"
+            type="text"
+            maxlength="255"
+            placeholder="erprefabrik.volkaportal.com"
+            value="{{ request.form.get('primary_domain', company.primary_domain if company else '') }}"
+          >
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="custom_domain">&#214;zel Domain</label>
+          <input
+            class="form-control form-control-lg"
+            id="custom_domain"
+            name="custom_domain"
+            type="text"
+            maxlength="255"
+            placeholder="kalite.erprefabrik.com"
+            value="{{ request.form.get('custom_domain', company.custom_domain if company else '') }}"
+          >
+        </div>
         <div class="col-12">
           <label class="company-active-toggle" for="is_active">
             <input

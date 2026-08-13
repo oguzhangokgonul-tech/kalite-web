@@ -4592,15 +4592,77 @@ def role_hierarchy():
     )
 
 
+RESERVED_COMPANY_SLUGS = {
+    "admin",
+    "api",
+    "app",
+    "assets",
+    "mail",
+    "smtp",
+    "static",
+    "superadmin",
+    "www",
+}
+
+
+def normalize_company_slug(value):
+    value = (value or "").strip().lower()
+    replacements = {
+        "ç": "c",
+        "ğ": "g",
+        "ı": "i",
+        "ö": "o",
+        "ş": "s",
+        "ü": "u",
+    }
+    for source, target in replacements.items():
+        value = value.replace(source, target)
+
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    value = re.sub(r"-+", "-", value).strip("-")
+    return value[:80]
+
+
+def normalize_company_domain(value):
+    value = (value or "").strip().lower()
+    for prefix in ("https://", "http://"):
+        if value.startswith(prefix):
+            value = value[len(prefix):]
+    value = value.split("/")[0].strip(".")
+    return value[:255]
+
+
+def company_field_exists(field_name, value, company_id=None):
+    if not value:
+        return False
+
+    return (
+        Company.query.filter(
+            getattr(Company, field_name) == value,
+            Company.id != company_id,
+        ).first()
+        is not None
+    )
+
+
 def parse_company_form(company=None):
     company = company or Company()
     code = request.form.get("code", "").strip()
     name = request.form.get("name", "").strip()
+    slug = normalize_company_slug(request.form.get("slug") or name)
+    primary_domain = normalize_company_domain(request.form.get("primary_domain"))
+    custom_domain = normalize_company_domain(request.form.get("custom_domain"))
 
     if not code or not name:
         raise ValueError("required_fields")
     if not code.isdigit() or len(code) != 3:
         raise ValueError("invalid_code")
+    if not slug or slug in RESERVED_COMPANY_SLUGS:
+        raise ValueError("invalid_slug")
+    if not primary_domain:
+        primary_domain = f"{slug}.volkaportal.com"
+    if custom_domain and custom_domain == primary_domain:
+        raise ValueError("duplicate_domain")
 
     existing_company = Company.query.filter(
         Company.code == code,
@@ -4608,9 +4670,18 @@ def parse_company_form(company=None):
     ).first()
     if existing_company:
         raise ValueError("code_exists")
+    if company_field_exists("slug", slug, company.id):
+        raise ValueError("slug_exists")
+    if company_field_exists("primary_domain", primary_domain, company.id):
+        raise ValueError("domain_exists")
+    if company_field_exists("custom_domain", custom_domain, company.id):
+        raise ValueError("domain_exists")
 
     company.code = code
     company.name = name[:160]
+    company.slug = slug
+    company.primary_domain = primary_domain
+    company.custom_domain = custom_domain or None
     company.is_active = request.form.get("is_active") == "on"
     return company
 

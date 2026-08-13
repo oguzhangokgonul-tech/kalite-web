@@ -28,6 +28,7 @@
           <tr>
             <th>Kod</th>
             <th>&#350;irket</th>
+            <th>Adres</th>
             <th>Durum</th>
             <th>Kullan&#305;c&#305;</th>
             <th>Aksiyon</th>
@@ -46,6 +47,13 @@
                 <strong>{{ company.name }}</strong>
                 <small>{{ company.label }}</small>
               </td>
+              <td>
+                <strong>{{ company.slug or "-" }}</strong>
+                <small>{{ company.primary_domain or "-" }}</small>
+                {% if company.custom_domain %}
+                  <small>{{ company.custom_domain }}</small>
+                {% endif %}
+              </td>
               <td>{{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}</td>
               <td>{{ stats.get("users", 0) }}</td>
               <td>{{ stats.get("actions", 0) }}</td>
@@ -61,7 +69,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="9" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
+              <td colspan="10" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
             </tr>
           {% endfor %}
         </tbody>
