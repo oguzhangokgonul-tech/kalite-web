@@ -220,11 +220,48 @@ def assigned_tasks_badge_count():
     )
 
 
+def normalize_request_host(host):
+    host = (host or "").split(":")[0].strip().lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host
+
+
+def host_looks_local(host):
+    return host in {"", "localhost", "127.0.0.1", "0.0.0.0"} or host.endswith(".local")
+
+
+def tenant_company_from_host(host):
+    host = normalize_request_host(host)
+    if host_looks_local(host):
+        return None
+
+    base_domain = normalize_request_host(current_app.config.get("TENANT_BASE_DOMAIN"))
+    query = Company.query.filter(
+        Company.is_active.is_(True),
+        or_(
+            db.func.lower(Company.primary_domain) == host,
+            db.func.lower(Company.custom_domain) == host,
+        ),
+    )
+    company = query.first()
+    if company is not None:
+        return company
+
+    if base_domain and host.endswith(f".{base_domain}"):
+        slug = host[: -(len(base_domain) + 1)]
+        if slug and "." not in slug:
+            return Company.query.filter_by(slug=slug, is_active=True).first()
+
+    return None
+
+
 @bp.before_app_request
 def load_logged_in_user():
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
     g.current_company = None
+    g.tenant_company = tenant_company_from_host(request.host)
     g.current_company_code = session.get("company_code")
     g.current_user_initials = ""
     g.unread_notification_count = 0
@@ -236,10 +273,20 @@ def load_logged_in_user():
         g.current_user_initials = user_initials(g.current_user)
         g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
         session_company_id = session.get("company_id")
-        if session_company_id:
+        if g.tenant_company is not None and session_company_id != g.tenant_company.id:
+            g.current_company = g.tenant_company
+            session["company_id"] = g.tenant_company.id
+            session["company_code"] = g.tenant_company.code
+            g.current_company_code = g.tenant_company.code
+        elif session_company_id:
             g.current_company = db.session.get(Company, session_company_id)
             if g.current_company is not None:
                 g.current_company_code = g.current_company.code
+        elif g.tenant_company is not None:
+            g.current_company = g.tenant_company
+            session["company_id"] = g.tenant_company.id
+            session["company_code"] = g.tenant_company.code
+            g.current_company_code = g.tenant_company.code
         elif g.current_user.company_id and not g.current_user_is_super_admin:
             g.current_company = db.session.get(Company, g.current_user.company_id)
             if g.current_company is not None:
@@ -4794,6 +4841,7 @@ def login():
         identity = normalize_login_identity(request.form.get("identity"))
         password = request.form.get("password", "")
         ip_address = login_client_ip()
+        tenant_company = getattr(g, "tenant_company", None)
 
         lock_reason = login_rate_limit_reason(identity, ip_address)
         if lock_reason:
@@ -4805,7 +4853,7 @@ def login():
             )
             return render_template("login.html", company_code=company_code)
 
-        company = None
+        company = tenant_company
         if company_code:
             company = Company.query.filter_by(code=company_code).first()
             if company is None or not company.is_active:
@@ -4824,7 +4872,7 @@ def login():
         if user and user.is_active and user.check_password(password):
             is_super_admin = has_role(user, "super_admin")
             if not is_super_admin:
-                if not company_code:
+                if company is None:
                     log_login_attempt(identity, ip_address, False, "missing_company")
                     db.session.commit()
                     flash("Lütfen şirket kodunu girin.", "danger")
@@ -5746,6 +5794,9 @@ def dashboard():
 def switch_company():
     if not g.current_user_is_super_admin:
         abort(403)
+    if getattr(g, "tenant_company", None) is not None:
+        flash("Domain uzerinden giriste sirket otomatik secilir.", "warning")
+        return redirect(request.referrer or url_for("main.dashboard"))
 
     company_id = request.form.get("company_id", type=int)
     if not company_id:
