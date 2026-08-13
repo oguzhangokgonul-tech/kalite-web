@@ -63,6 +63,15 @@
           >
           <div class="form-text">Bo&#351; b&#305;rak&#305;l&#305;rsa &#351;irket ad&#305;ndan otomatik olu&#351;ur.</div>
         </div>
+        <div class="col-12">
+          <div class="company-domain-hint">
+            <i class="bi bi-globe2"></i>
+            <div>
+              <strong>Yeni firma adres standard&#305;</strong>
+              <span>Adres ad&#305; <code>ornekfirma</code> ise sistem varsay&#305;lan olarak <code>ornekfirma.{{ config.TENANT_BASE_DOMAIN }}</code> adresini kullan&#305;r.</span>
+            </div>
+          </div>
+        </div>
         <div class="col-md-4">
           <label class="form-label" for="primary_domain">Ana Domain</label>
           <input
@@ -119,5 +128,16 @@
         </a>
       </div>
     </form>
+  </section>
+
+  <section class="app-card company-onboarding-card">
+    {{ ui.card_header("Yay&#305;na Alma Kontrol Listesi"|safe, "Yeni firma kayd&#305; olu&#351;turulduktan sonra uygulanacak standart teknik ad&#305;mlar."|safe, icon="bi-list-check") }}
+    <ol class="company-onboarding-list">
+      <li>DNS kayd&#305; ekle: <code>A</code> kayd&#305; ile <code>firma-adresi.{{ config.TENANT_BASE_DOMAIN }}</code> sunucu IP adresine y&#246;nlendirilir.</li>
+      <li>Nginx taraf&#305;nda ilgili subdomain proxy blo&#287;una eklenir veya wildcard yap&#305; kullan&#305;l&#305;r.</li>
+      <li>SSL sertifikas&#305;na yeni subdomain eklenir.</li>
+      <li>S&#252;per Admin ilgili firmaya ge&#231;ip ilk kullan&#305;c&#305;lar&#305; ve rolleri olu&#351;turur.</li>
+      <li>Yeni firma bo&#351; ba&#351;lar; mevcut Er Prefabrik verileri yeni firmaya ta&#351;&#305;nmaz.</li>
+    </ol>
   </section>
 {% endblock %}

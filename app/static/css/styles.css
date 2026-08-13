@@ -8406,6 +8406,50 @@ textarea.form-control:focus {
     color: #64748b;
 }
 
+.company-domain-hint {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    border: 1px solid #cfe1ff;
+    border-radius: 14px;
+    background: #edf5ff;
+    color: #1e3a8a;
+}
+
+.company-domain-hint i {
+    color: #0d6efd;
+    font-size: 1.1rem;
+}
+
+.company-domain-hint strong,
+.company-domain-hint span {
+    display: block;
+}
+
+.company-domain-hint span {
+    margin-top: 2px;
+    color: #475569;
+}
+
+.company-onboarding-card {
+    margin-top: 18px;
+}
+
+.company-onboarding-list {
+    margin: 0;
+    padding-left: 22px;
+    color: #334155;
+}
+
+.company-onboarding-list li {
+    margin-bottom: 10px;
+}
+
+.company-onboarding-list li:last-child {
+    margin-bottom: 0;
+}
+
 @media (max-width: 992px) {
     .role-permission-groups {
         grid-template-columns: 1fr;
