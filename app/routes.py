@@ -202,11 +202,16 @@ def assigned_tasks_badge_count():
 
     user_id = g.current_user.id
     return (
-        Action.query.filter_by(responsible_user_id=user_id).count()
-        + ActionSubTask.query.filter_by(responsible_id=user_id).count()
-        + Dof.query.filter_by(responsible_id=user_id).count()
-        + MaintenanceFault.query.filter_by(responsible_user_id=user_id).count()
-        + InternalAudit.query.filter(
+        scoped_query(Action.query, Action).filter_by(responsible_user_id=user_id).count()
+        + scoped_query(ActionSubTask.query, ActionSubTask)
+        .filter_by(responsible_id=user_id)
+        .count()
+        + scoped_query(Dof.query, Dof).filter_by(responsible_id=user_id).count()
+        + scoped_query(MaintenanceFault.query, MaintenanceFault)
+        .filter_by(responsible_user_id=user_id)
+        .count()
+        + scoped_query(InternalAudit.query, InternalAudit)
+        .filter(
             or_(
                 InternalAudit.auditor_id == user_id,
                 InternalAudit.audited_user_id == user_id,
@@ -250,7 +255,10 @@ def load_logged_in_user():
         ensure_maintenance_schema()
         ensure_quality_test_schema()
         try:
-            notification_query = Notification.query.filter_by(user_id=g.current_user.id)
+            notification_query = scoped_query(
+                Notification.query,
+                Notification,
+            ).filter_by(user_id=g.current_user.id)
             g.unread_notification_count = notification_query.filter_by(
                 is_read=False
             ).count()
@@ -761,9 +769,12 @@ def ensure_document_schema():
 def ensure_document_categories():
     changed = False
     for category_data in DOCUMENT_CATEGORY_DEFAULTS:
-        category = DocumentCategory.query.filter_by(slug=category_data["slug"]).first()
+        category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+            slug=category_data["slug"]
+        ).first()
         if category is None:
             category = DocumentCategory(**category_data)
+            assign_current_company(category)
             db.session.add(category)
             changed = True
             continue
@@ -1398,7 +1409,7 @@ def can_complete_sub_action(sub_action):
 
 
 def visible_actions_query():
-    query = Action.query
+    query = scoped_query(Action.query, Action)
     if is_oguzhan_admin():
         return query
     return query.filter(
@@ -1417,8 +1428,63 @@ def visible_actions_query():
     )
 
 
+def current_company_id():
+    current_company = getattr(g, "current_company", None)
+    if current_company is not None:
+        return current_company.id
+    current_user = getattr(g, "current_user", None)
+    if current_user is not None and not getattr(g, "current_user_is_super_admin", False):
+        return current_user.company_id
+    return session.get("company_id")
+
+
+def scoped_query(query, model):
+    if not hasattr(model, "company_id"):
+        return query
+    company_id = current_company_id()
+    if company_id:
+        return query.filter(model.company_id == company_id)
+    if getattr(g, "current_user_is_super_admin", False):
+        return query
+    return query.filter(model.company_id.is_(None))
+
+
+def assign_current_company(record):
+    if hasattr(record, "company_id"):
+        record.company_id = current_company_id()
+    return record
+
+
+def ensure_same_company(record):
+    if not hasattr(record, "company_id"):
+        return record
+    company_id = current_company_id()
+    if company_id:
+        if record.company_id != company_id:
+            abort(404)
+    elif not getattr(g, "current_user_is_super_admin", False) and record.company_id is not None:
+        abort(404)
+    return record
+
+
 def active_users():
-    return User.query.filter_by(is_active=True).order_by(User.full_name.asc()).all()
+    query = User.query.filter_by(is_active=True)
+    company_id = current_company_id()
+    if company_id:
+        query = query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
+    elif not getattr(g, "current_user_is_super_admin", False):
+        query = query.filter(User.company_id == g.current_user.company_id)
+    return query.order_by(User.full_name.asc()).all()
+
+
+def active_user_by_id(user_id):
+    query = User.query.filter_by(id=user_id, is_active=True)
+    company_id = current_company_id()
+    if company_id:
+        query = query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
+    elif not getattr(g, "current_user_is_super_admin", False):
+        query = query.filter(User.company_id == g.current_user.company_id)
+    return query.first()
 
 
 def user_initials(user):
@@ -1783,7 +1849,9 @@ def quality_test_records_context(quality_test):
         "sample_name": request.args.get("sample_name", "").strip(),
         "concrete_class": request.args.get("concrete_class", "").strip(),
     }
-    query = QualityTestRecord.query.filter_by(test_type=quality_test["slug"])
+    query = scoped_query(QualityTestRecord.query, QualityTestRecord).filter_by(
+        test_type=quality_test["slug"]
+    )
     if filters["search"]:
         search_value = f"%{filters['search']}%"
         query = query.filter(
@@ -1804,7 +1872,9 @@ def quality_test_records_context(quality_test):
         QualityTestRecord.record_number.asc(),
         QualityTestRecord.id.asc(),
     ).all()
-    total_count = QualityTestRecord.query.filter_by(test_type=quality_test["slug"]).count()
+    total_count = scoped_query(QualityTestRecord.query, QualityTestRecord).filter_by(
+        test_type=quality_test["slug"]
+    ).count()
     today = date.today()
     is_concrete = is_concrete_quality_test(quality_test["slug"])
     strength_parameters = concrete_strength_parameters() if is_concrete else {}
@@ -1918,7 +1988,7 @@ def can_answer_internal_audit(audit=None):
 
 
 def visible_internal_audits():
-    query = InternalAudit.query
+    query = scoped_query(InternalAudit.query, InternalAudit)
     if not current_user_can("internal_audit.manage"):
         query = query.filter(InternalAudit.id == 0)
     return query.order_by(InternalAudit.created_at.desc(), InternalAudit.id.desc()).all()
@@ -2102,6 +2172,7 @@ def apply_internal_audit_questions(audit, parsed_questions):
             question = InternalAuditQuestion(audit=audit)
             db.session.add(question)
 
+        question.company_id = audit.company_id
         question.order_no = order_no
         question.standard = question_data["standard"]
         question.audit_topic = question_data["audit_topic"]
@@ -2117,6 +2188,7 @@ def apply_internal_audit_questions(audit, parsed_questions):
         question.is_required = question_data["is_required"]
 
         for answer in question.answers:
+            answer.company_id = audit.company_id
             answer.standard = question.standard
             answer.audit_topic = question.audit_topic
             answer.audit_subject = question.audit_subject
@@ -2335,11 +2407,14 @@ def internal_audit_history_items(audit, active_question):
 def internal_audit_previous_nonconformities(question, selected_dof_id=None):
     candidates = [
         dof
-        for dof in Dof.query.order_by(Dof.created_at.desc(), Dof.id.desc()).limit(200).all()
+        for dof in scoped_query(Dof.query, Dof)
+        .order_by(Dof.created_at.desc(), Dof.id.desc())
+        .limit(200)
+        .all()
         if can_view_dof(dof)
     ]
     if selected_dof_id and all(dof.id != selected_dof_id for dof in candidates):
-        selected_dof = Dof.query.get(selected_dof_id)
+        selected_dof = scoped_query(Dof.query, Dof).filter_by(id=selected_dof_id).first()
         if selected_dof and can_view_dof(selected_dof):
             candidates.insert(0, selected_dof)
     return attach_dof_view_state(candidates)
@@ -2380,13 +2455,17 @@ def parse_internal_audit_answer_form(audit, question, is_draft=False):
             previous_dof_id = int(previous_nonconformity_id)
         except ValueError:
             raise ValueError("invalid_previous_nonconformity") from None
-        previous_dof = Dof.query.get(previous_dof_id)
+        previous_dof = scoped_query(Dof.query, Dof).filter_by(id=previous_dof_id).first()
         if previous_dof is None or not can_view_dof(previous_dof):
             raise ValueError("invalid_previous_nonconformity")
 
     answer = internal_audit_answer_for_question(audit, question)
     if answer is None:
-        answer = InternalAuditAnswer(audit=audit, question=question)
+        answer = InternalAuditAnswer(
+            audit=audit,
+            question=question,
+            company_id=audit.company_id,
+        )
         db.session.add(answer)
 
     answer.standard = question.standard
@@ -2446,7 +2525,7 @@ def parse_optional_active_user(field_name):
         user_id = int(value)
     except ValueError:
         raise ValueError("invalid_user") from None
-    user = User.query.filter_by(id=user_id, is_active=True).first()
+    user = active_user_by_id(user_id)
     if user is None:
         raise ValueError("invalid_user")
     return user
@@ -2495,6 +2574,7 @@ def save_dof_opening_files(dof):
             db.session.add(
                 DofFile(
                     dof=dof,
+                    company_id=dof.company_id,
                     original_name=safe_name,
                     stored_name=stored_name,
                     mime_type=uploaded_file.mimetype,
@@ -2555,7 +2635,7 @@ def parse_optional_user(field_name):
     except ValueError:
         raise ValueError("invalid_user") from None
 
-    user = User.query.filter_by(id=user_id, is_active=True).first()
+    user = active_user_by_id(user_id)
     if user is None:
         raise ValueError("invalid_user")
     return user
@@ -2811,7 +2891,7 @@ def parse_document_form():
     except ValueError:
         raise ValueError("invalid_category") from None
 
-    category = DocumentCategory.query.filter_by(
+    category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
         id=category_id,
         is_active=True,
     ).first()
@@ -2886,7 +2966,7 @@ def delete_document_files(document):
 
 
 def document_query():
-    return Document.query.join(DocumentCategory)
+    return scoped_query(Document.query, Document).join(DocumentCategory)
 
 
 def document_filters():
@@ -2922,7 +3002,8 @@ def filtered_document_query(category=None, filters=None):
 def ordered_document_categories():
     ensure_document_categories()
     return (
-        DocumentCategory.query.filter_by(is_active=True)
+        scoped_query(DocumentCategory.query, DocumentCategory)
+        .filter_by(is_active=True)
         .order_by(DocumentCategory.sort_order.asc(), DocumentCategory.id.asc())
         .all()
     )
@@ -3009,7 +3090,7 @@ def document_form_context(document=None, category_slug=None):
     if document is not None:
         selected_category = document.category
     elif category_slug:
-        selected_category = DocumentCategory.query.filter_by(
+        selected_category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
             slug=category_slug,
             is_active=True,
         ).first()
@@ -3079,7 +3160,7 @@ def is_unplanned_maintenance_machine(machine):
 
 
 def ensure_unplanned_maintenance_machine():
-    machine = MaintenanceMachine.query.filter_by(
+    machine = scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter_by(
         code=UNPLANNED_MAINTENANCE_CODE
     ).first()
     if machine is None:
@@ -3089,6 +3170,7 @@ def ensure_unplanned_maintenance_machine():
             status="ÇALIŞIYOR",
             is_active=True,
         )
+        assign_current_company(machine)
         db.session.add(machine)
         db.session.flush()
     else:
@@ -3108,7 +3190,7 @@ def refresh_machine_status_from_faults(machine):
     if machine is None or is_unplanned_maintenance_machine(machine):
         return
     has_open_fault = (
-        MaintenanceFault.query.filter(
+        scoped_query(MaintenanceFault.query, MaintenanceFault).filter(
             MaintenanceFault.machine_id == machine.id,
             MaintenanceFault.status != "Tamamlandı",
         ).first()
@@ -3121,7 +3203,7 @@ def refresh_machine_status_from_faults(machine):
 
 
 def maintenance_machine_query():
-    return MaintenanceMachine.query.filter(
+    return scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter(
         MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE
     ).order_by(
         MaintenanceMachine.code.asc(),
@@ -3130,7 +3212,7 @@ def maintenance_machine_query():
 
 
 def maintenance_fault_query():
-    return MaintenanceFault.query.join(MaintenanceMachine).order_by(
+    return scoped_query(MaintenanceFault.query, MaintenanceFault).join(MaintenanceMachine).order_by(
         MaintenanceFault.created_at.desc(),
         MaintenanceFault.id.desc(),
     )
@@ -3217,7 +3299,7 @@ def parse_maintenance_fault_form(fault=None):
         except ValueError:
             raise ValueError("invalid_machine") from None
 
-        machine = MaintenanceMachine.query.filter_by(
+        machine = scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter_by(
             id=machine_id,
             is_active=True,
         ).first()
@@ -3244,10 +3326,10 @@ def maintenance_dashboard_context():
     filters = maintenance_filters()
     machines = filtered_maintenance_machines(filters)
     faults = filtered_maintenance_faults(filters)
-    all_machines = MaintenanceMachine.query.filter(
+    all_machines = scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter(
         MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE
     ).all()
-    all_faults = MaintenanceFault.query.all()
+    all_faults = scoped_query(MaintenanceFault.query, MaintenanceFault).all()
     open_faults = [fault for fault in all_faults if fault.status != "Tamamlandı"]
 
     return {
@@ -3290,7 +3372,8 @@ def maintenance_fault_form_context(fault=None, machine=None):
     return {
         "fault": fault,
         "selected_machine": selected_machine,
-        "machines": MaintenanceMachine.query.filter_by(is_active=True)
+        "machines": scoped_query(MaintenanceMachine.query, MaintenanceMachine)
+        .filter_by(is_active=True)
         .filter(MaintenanceMachine.code != UNPLANNED_MAINTENANCE_CODE)
         .order_by(MaintenanceMachine.code.asc(), MaintenanceMachine.machine_name.asc())
         .all(),
@@ -3410,6 +3493,7 @@ def describe_sub_action_changes(before, sub_action):
 def add_action_history(action, event_type, message, actor=None):
     history = ActionHistory(
         action=action,
+        company_id=action.company_id,
         actor_user_id=actor.id if actor else None,
         event_type=event_type,
         message=message,
@@ -3436,6 +3520,7 @@ def notify_users(user_ids, action, message, exclude_user_id=None):
         db.session.add(
             Notification(
                 user_id=user_id,
+                company_id=action.company_id,
                 action=action,
                 message=message,
             )
@@ -3498,6 +3583,7 @@ def dof_primary_users(dof):
 def add_dof_comment(dof, message, comment_type="note", actor=None):
     comment = DofComment(
         dof=dof,
+        company_id=dof.company_id,
         user_id=actor.id if actor else None,
         comment=message,
         comment_type=comment_type,
@@ -3537,6 +3623,7 @@ def notify_dof_users(users, dof, message, exclude_user_id=None):
         db.session.add(
             Notification(
                 user_id=user.id,
+                company_id=dof.company_id,
                 dof=dof,
                 message=message,
             )
@@ -3570,7 +3657,8 @@ def dof_change_notification_users(dof):
 
 def orientation_nodes_payload():
     nodes = (
-        OrientationNode.query.order_by(
+        scoped_query(OrientationNode.query, OrientationNode)
+        .order_by(
             OrientationNode.y.asc(),
             OrientationNode.x.asc(),
             OrientationNode.id.asc(),
@@ -3606,7 +3694,9 @@ def parse_node_parent(parent_id, current_node=None):
     except (TypeError, ValueError):
         raise ValueError("invalid_parent") from None
 
-    parent = OrientationNode.query.get(parent_id)
+    parent = scoped_query(OrientationNode.query, OrientationNode).filter_by(
+        id=parent_id
+    ).first()
     if parent is None:
         raise ValueError("invalid_parent")
 
@@ -3836,7 +3926,7 @@ def dof_approval_steps(dof):
 
 
 def visible_dofs_query():
-    query = Dof.query
+    query = scoped_query(Dof.query, Dof)
     if can_view_all_dofs():
         return query
     return query.filter(
@@ -3983,6 +4073,7 @@ def save_closure_evidence_files(action):
         db.session.add(
             ActionClosureFile(
                 action=action,
+                company_id=action.company_id,
                 original_name=safe_name,
                 stored_name=stored_name,
                 mime_type=mime_type,
@@ -4074,7 +4165,7 @@ def parse_sub_action_limited_revision(sub_action):
         except ValueError:
             raise ValueError("invalid_user") from None
 
-        responsible = User.query.filter_by(id=responsible_id, is_active=True).first()
+        responsible = active_user_by_id(responsible_id)
         if responsible is None:
             raise ValueError("invalid_user")
 
@@ -4144,6 +4235,7 @@ def create_inline_sub_actions(action):
             continue
         sub_action = ActionSubTask(
             parent_action=action,
+            company_id=action.company_id,
             created_by_user_id=g.current_user.id,
             **data,
         )
@@ -4185,9 +4277,7 @@ def parse_action_form(action=None):
     except ValueError:
         raise ValueError("invalid_user") from None
 
-    responsible_user = User.query.filter_by(
-        id=responsible_user_id, is_active=True
-    ).first()
+    responsible_user = active_user_by_id(responsible_user_id)
     if responsible_user is None:
         raise ValueError("invalid_user")
     related_user_1 = parse_optional_user("related_user_1_id")
@@ -4463,6 +4553,8 @@ def parse_user_form(user=None):
     )
     user.can_close_assigned_actions = request.form.get("can_close_assigned_actions") == "on"
     user.can_manage_users = request.form.get("can_manage_users") == "on"
+    if user.username != "superadmin" and current_company_id():
+        user.company_id = current_company_id()
 
     if password:
         user.set_password(password)
@@ -4683,12 +4775,13 @@ def logout():
 @login_required
 def notifications():
     notification_list = (
-        Notification.query.filter_by(user_id=g.current_user.id)
+        scoped_query(Notification.query, Notification)
+        .filter_by(user_id=g.current_user.id)
         .order_by(Notification.created_at.desc())
         .limit(100)
         .all()
     )
-    unread_count = Notification.query.filter_by(
+    unread_count = scoped_query(Notification.query, Notification).filter_by(
         user_id=g.current_user.id, is_read=False
     ).count()
     return render_template(
@@ -4701,7 +4794,7 @@ def notifications():
 @bp.get("/notifications/count")
 @login_required
 def notification_count():
-    unread_count = Notification.query.filter_by(
+    unread_count = scoped_query(Notification.query, Notification).filter_by(
         user_id=g.current_user.id, is_read=False
     ).count()
     return jsonify({"count": unread_count})
@@ -4710,13 +4803,13 @@ def notification_count():
 @bp.post("/notifications/<int:notification_id>/read")
 @login_required
 def mark_notification_read(notification_id):
-    notification = Notification.query.filter_by(
+    notification = scoped_query(Notification.query, Notification).filter_by(
         id=notification_id, user_id=g.current_user.id
     ).first_or_404()
     if not notification.is_read:
         notification.is_read = True
         db.session.commit()
-    unread_count = Notification.query.filter_by(
+    unread_count = scoped_query(Notification.query, Notification).filter_by(
         user_id=g.current_user.id, is_read=False
     ).count()
     return jsonify({"ok": True, "count": unread_count})
@@ -4725,7 +4818,7 @@ def mark_notification_read(notification_id):
 @bp.post("/notifications/read-all")
 @login_required
 def mark_all_notifications_read():
-    unread_notifications = Notification.query.filter_by(
+    unread_notifications = scoped_query(Notification.query, Notification).filter_by(
         user_id=g.current_user.id, is_read=False
     ).all()
     for notification in unread_notifications:
@@ -4739,7 +4832,7 @@ def mark_all_notifications_read():
 @bp.get("/notifications/<int:notification_id>/open")
 @login_required
 def open_notification(notification_id):
-    notification = Notification.query.filter_by(
+    notification = scoped_query(Notification.query, Notification).filter_by(
         id=notification_id, user_id=g.current_user.id
     ).first_or_404()
     if notification.action and can_view_action(notification.action):
@@ -4793,15 +4886,20 @@ def create_orientation_node():
         return jsonify({"ok": False, "message": "Geçerli bir üst kişi seçin."}), 400
 
     if parent is not None:
-        child_count = OrientationNode.query.filter_by(parent_id=parent.id).count()
+        child_count = scoped_query(OrientationNode.query, OrientationNode).filter_by(
+            parent_id=parent.id
+        ).count()
         default_x = parent.x + (child_count * 24)
         default_y = parent.y + 170
     else:
-        root_count = OrientationNode.query.filter_by(parent_id=None).count()
+        root_count = scoped_query(OrientationNode.query, OrientationNode).filter_by(
+            parent_id=None
+        ).count()
         default_x = 120 + (root_count * 32)
         default_y = 80
 
     node = OrientationNode(
+        company_id=current_company_id(),
         parent_id=parent.id if parent else None,
         name=name[:160],
         title=title[:160],
@@ -4822,6 +4920,7 @@ def update_orientation_node(node_id):
         abort(403)
 
     node = OrientationNode.query.get_or_404(node_id)
+    ensure_same_company(node)
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
     title = (data.get("title") or "").strip()
@@ -4854,6 +4953,7 @@ def move_orientation_node(node_id):
         abort(403)
 
     node = OrientationNode.query.get_or_404(node_id)
+    ensure_same_company(node)
     data = request.get_json(silent=True) or {}
     node.x = parse_coordinate(data, "x", node.x)
     node.y = parse_coordinate(data, "y", node.y)
@@ -4868,6 +4968,7 @@ def delete_orientation_node(node_id):
         abort(403)
 
     node = OrientationNode.query.get_or_404(node_id)
+    ensure_same_company(node)
     db.session.delete(node)
     db.session.commit()
     return jsonify({"ok": True, "nodes": orientation_nodes_payload()})
@@ -5137,7 +5238,8 @@ def assigned_action_tasks(scope):
     if scope == "created":
         created_action_ids = [
             row.action_id
-            for row in ActionHistory.query.with_entities(ActionHistory.action_id)
+            for row in scoped_query(ActionHistory.query, ActionHistory)
+            .with_entities(ActionHistory.action_id)
             .filter(
                 ActionHistory.actor_user_id == user_id,
                 ActionHistory.event_type == "created",
@@ -5146,14 +5248,20 @@ def assigned_action_tasks(scope):
             .all()
         ]
         actions = (
-            Action.query.filter(Action.id.in_(created_action_ids)).all()
+            scoped_query(Action.query, Action).filter(Action.id.in_(created_action_ids)).all()
             if created_action_ids
             else []
         )
-        sub_actions = ActionSubTask.query.filter_by(created_by_user_id=user_id).all()
+        sub_actions = scoped_query(ActionSubTask.query, ActionSubTask).filter_by(
+            created_by_user_id=user_id
+        ).all()
     else:
-        actions = Action.query.filter_by(responsible_user_id=user_id).all()
-        sub_actions = ActionSubTask.query.filter_by(responsible_id=user_id).all()
+        actions = scoped_query(Action.query, Action).filter_by(
+            responsible_user_id=user_id
+        ).all()
+        sub_actions = scoped_query(ActionSubTask.query, ActionSubTask).filter_by(
+            responsible_id=user_id
+        ).all()
 
     rows = []
     for action in actions:
@@ -5211,9 +5319,9 @@ def assigned_action_tasks(scope):
 def assigned_dof_tasks(scope):
     user_id = g.current_user.id
     if scope == "created":
-        dofs = Dof.query.filter_by(created_by_user_id=user_id).all()
+        dofs = scoped_query(Dof.query, Dof).filter_by(created_by_user_id=user_id).all()
     else:
-        dofs = Dof.query.filter_by(responsible_id=user_id).all()
+        dofs = scoped_query(Dof.query, Dof).filter_by(responsible_id=user_id).all()
 
     rows = []
     for dof in attach_dof_view_state(dofs):
@@ -5243,9 +5351,11 @@ def assigned_dof_tasks(scope):
 def assigned_internal_audit_tasks(scope):
     user_id = g.current_user.id
     if scope == "created":
-        audits = InternalAudit.query.filter_by(auditor_id=user_id).all()
+        audits = scoped_query(InternalAudit.query, InternalAudit).filter_by(
+            auditor_id=user_id
+        ).all()
     else:
-        audits = InternalAudit.query.filter(
+        audits = scoped_query(InternalAudit.query, InternalAudit).filter(
             or_(
                 InternalAudit.auditor_id == user_id,
                 InternalAudit.audited_user_id == user_id,
@@ -5293,9 +5403,13 @@ def maintenance_task_status(fault):
 def assigned_maintenance_tasks(scope):
     user_id = g.current_user.id
     if scope == "created":
-        faults = MaintenanceFault.query.filter_by(reported_by_user_id=user_id).all()
+        faults = scoped_query(MaintenanceFault.query, MaintenanceFault).filter_by(
+            reported_by_user_id=user_id
+        ).all()
     else:
-        faults = MaintenanceFault.query.filter_by(responsible_user_id=user_id).all()
+        faults = scoped_query(MaintenanceFault.query, MaintenanceFault).filter_by(
+            responsible_user_id=user_id
+        ).all()
 
     rows = []
     for fault in faults:
@@ -5631,6 +5745,7 @@ def create_quality_test_record(slug):
                 created_by_user_id=g.current_user.id,
                 **values,
             )
+            assign_current_company(record)
             db.session.add(record)
             db.session.commit()
             if is_concrete_quality_test(slug):
@@ -5675,7 +5790,10 @@ def quality_test_measurement(slug, record_id):
     if not can_create_quality_test_record():
         abort(403)
 
-    record = QualityTestRecord.query.filter_by(id=record_id, test_type=slug).first_or_404()
+    record = scoped_query(QualityTestRecord.query, QualityTestRecord).filter_by(
+        id=record_id,
+        test_type=slug,
+    ).first_or_404()
     current_day = record.current_measurement_day
 
     if request.method == "POST":
@@ -5743,7 +5861,10 @@ def documents_list():
 def documents_category(slug):
     if not can_view_documents():
         abort(403)
-    category = DocumentCategory.query.filter_by(slug=slug, is_active=True).first_or_404()
+    category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+        slug=slug,
+        is_active=True,
+    ).first_or_404()
     return render_template(
         "documents/category.html",
         **documents_category_context(category),
@@ -5780,6 +5901,7 @@ def upload_document():
                     uploaded_by=g.current_user.id,
                     **file_values,
                 )
+                assign_current_company(document)
                 db.session.add(document)
                 saved_documents.append(document)
 
@@ -5836,6 +5958,7 @@ def document_detail(document_id):
     if not can_view_documents():
         abort(403)
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not document.preview_status:
         generate_document_preview(document)
         db.session.commit()
@@ -5858,6 +5981,7 @@ def document_detail(document_id):
 @login_required
 def edit_document(document_id):
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not can_manage_documents():
         abort(403)
 
@@ -5932,6 +6056,7 @@ def download_document(document_id):
     if not can_view_documents():
         abort(403)
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     return send_from_directory(
         current_app.config["UPLOAD_FOLDER"],
         document.file_path,
@@ -5946,6 +6071,7 @@ def preview_document(document_id):
     if not can_view_documents():
         abort(403)
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not document_can_preview(document):
         flash(document_preview_message(document), "warning")
         return redirect(url_for("main.document_detail", document_id=document.id))
@@ -5966,6 +6092,7 @@ def preview_document(document_id):
 @login_required
 def generate_document_preview_route(document_id):
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not can_manage_documents():
         abort(403)
     if generate_document_preview(document):
@@ -5980,6 +6107,7 @@ def generate_document_preview_route(document_id):
 @login_required
 def archive_document(document_id):
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not can_delete_document(document):
         abort(403)
     document.status = "Arşiv"
@@ -5993,6 +6121,7 @@ def archive_document(document_id):
 @login_required
 def delete_document(document_id):
     document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
     if not can_delete_document(document):
         abort(403)
     category_slug = document.category.slug if document.category else None
@@ -6023,13 +6152,16 @@ def create_maintenance_machine():
     if request.method == "POST":
         try:
             values = parse_maintenance_machine_form()
-            if MaintenanceMachine.query.filter_by(code=values["code"]).first():
+            if scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter_by(
+                code=values["code"]
+            ).first():
                 raise ValueError("duplicate_code")
             machine = MaintenanceMachine(
                 **values,
                 created_by_user_id=g.current_user.id,
                 is_active=True,
             )
+            assign_current_company(machine)
             db.session.add(machine)
             db.session.commit()
             flash("Makine envantere eklendi.", "success")
@@ -6063,10 +6195,13 @@ def edit_maintenance_machine(machine_id):
         abort(403)
 
     machine = MaintenanceMachine.query.get_or_404(machine_id)
+    ensure_same_company(machine)
     if request.method == "POST":
         try:
             values = parse_maintenance_machine_form()
-            existing = MaintenanceMachine.query.filter_by(code=values["code"]).first()
+            existing = scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter_by(
+                code=values["code"]
+            ).first()
             if existing is not None and existing.id != machine.id:
                 raise ValueError("duplicate_code")
             for key, value in values.items():
@@ -6104,6 +6239,7 @@ def delete_maintenance_machine(machine_id):
         abort(403)
 
     machine = MaintenanceMachine.query.get_or_404(machine_id)
+    ensure_same_company(machine)
     if machine.faults:
         machine.is_active = False
         machine.status = "PASİF"
@@ -6128,7 +6264,7 @@ def create_maintenance_fault():
     selected_machine = None
     machine_id = request.args.get("machine_id", type=int)
     if machine_id:
-        selected_machine = MaintenanceMachine.query.filter_by(
+        selected_machine = scoped_query(MaintenanceMachine.query, MaintenanceMachine).filter_by(
             id=machine_id,
             is_active=True,
         ).first()
@@ -6153,6 +6289,7 @@ def create_maintenance_fault():
                 status="Açık",
                 reported_by_user_id=g.current_user.id,
             )
+            assign_current_company(fault)
             db.session.add(fault)
             db.session.flush()
             refresh_machine_status_from_faults(values["machine"])
@@ -6189,6 +6326,7 @@ def create_maintenance_fault():
 @login_required
 def maintenance_fault_detail(fault_id):
     fault = MaintenanceFault.query.get_or_404(fault_id)
+    ensure_same_company(fault)
     return render_template(
         "maintenance/fault_detail.html",
         fault=fault,
@@ -6206,6 +6344,7 @@ def maintenance_fault_detail(fault_id):
 @login_required
 def edit_maintenance_fault(fault_id):
     fault = MaintenanceFault.query.get_or_404(fault_id)
+    ensure_same_company(fault)
     if not can_edit_maintenance_fault(fault):
         abort(403)
 
@@ -6260,6 +6399,7 @@ def edit_maintenance_fault(fault_id):
 @login_required
 def complete_maintenance_fault(fault_id):
     fault = MaintenanceFault.query.get_or_404(fault_id)
+    ensure_same_company(fault)
     if not can_complete_maintenance_fault(fault):
         abort(403)
 
@@ -6281,6 +6421,7 @@ def complete_maintenance_fault(fault_id):
 @login_required
 def delete_maintenance_fault(fault_id):
     fault = MaintenanceFault.query.get_or_404(fault_id)
+    ensure_same_company(fault)
     if not can_delete_maintenance_fault(fault):
         abort(403)
 
@@ -6393,6 +6534,7 @@ def create_internal_audit():
                 status="Devam Ediyor",
                 active_question_order=1,
             )
+            assign_current_company(audit)
             db.session.add(audit)
             db.session.flush()
             apply_internal_audit_questions(audit, parsed_questions)
@@ -6429,6 +6571,7 @@ def create_internal_audit():
 @login_required
 def edit_internal_audit(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_edit_internal_audit(audit):
         abort(403)
 
@@ -6530,6 +6673,7 @@ def edit_internal_audit(audit_id):
 @login_required
 def internal_audit_report(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     return render_template(
@@ -6543,6 +6687,7 @@ def internal_audit_report(audit_id):
 @login_required
 def internal_audit_personnel_report(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     return render_template(
@@ -6556,12 +6701,14 @@ def internal_audit_personnel_report(audit_id):
 @login_required
 def copy_internal_audit(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_create_internal_audit():
         abort(403)
 
     copied_title = f"{audit.title} - Kopya"
     copied_audit = InternalAudit(
         audit_no=reserve_internal_audit_number(date.today()),
+        company_id=audit.company_id,
         title=copied_title[:160],
         auditor_id=g.current_user.id,
         evaluated_department=audit.evaluated_department,
@@ -6576,6 +6723,7 @@ def copy_internal_audit(audit_id):
     for question in audit.questions:
         copied_question = InternalAuditQuestion(
             audit=copied_audit,
+            company_id=copied_audit.company_id,
             order_no=question.order_no,
             standard=question.standard,
             audit_topic=question.audit_topic,
@@ -6598,6 +6746,7 @@ def copy_internal_audit(audit_id):
 @login_required
 def delete_internal_audit(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_delete_internal_audit(audit):
         abort(403)
 
@@ -6612,6 +6761,7 @@ def delete_internal_audit(audit_id):
 @login_required
 def internal_audit_question(audit_id, question_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
 
@@ -6633,6 +6783,7 @@ def internal_audit_question(audit_id, question_id):
 @login_required
 def previous_internal_audit_question(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     current_question_id = request.args.get("question_id", type=int)
@@ -6659,6 +6810,7 @@ def previous_internal_audit_question(audit_id):
 @login_required
 def save_internal_audit_answer(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     if not can_answer_internal_audit(audit):
@@ -6742,6 +6894,7 @@ def save_internal_audit_answer(audit_id):
 @login_required
 def open_internal_audit_nonconformity(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     if not can_answer_internal_audit(audit):
@@ -6797,6 +6950,7 @@ def open_internal_audit_nonconformity(audit_id):
 @login_required
 def complete_internal_audit(audit_id):
     audit = InternalAudit.query.get_or_404(audit_id)
+    ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
     if not can_answer_internal_audit(audit):
@@ -6828,7 +6982,10 @@ def create_dof():
         audit_answer = None
         audit_answer_id = request.form.get("internal_audit_answer_id", type=int)
         if audit_answer_id:
-            audit_answer = InternalAuditAnswer.query.get(audit_answer_id)
+            audit_answer = scoped_query(
+                InternalAuditAnswer.query,
+                InternalAuditAnswer,
+            ).filter_by(id=audit_answer_id).first()
             if audit_answer is None or not can_view_internal_audit(audit_answer.audit):
                 flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
                 return redirect(url_for("main.dof_management"))
@@ -6837,6 +6994,7 @@ def create_dof():
                 return redirect(url_for("main.dof_detail", dof_id=audit_answer.dof_id))
         try:
             dof = parse_dof_form(save_mode=save_mode)
+            assign_current_company(dof)
             dof.dof_no = reserve_dof_number()
             dof.created_by_user_id = g.current_user.id
             db.session.add(dof)
@@ -6889,7 +7047,10 @@ def create_dof():
     if request.method == "GET":
         audit_answer_id = request.args.get("internal_audit_answer_id", type=int)
         if audit_answer_id:
-            audit_answer = InternalAuditAnswer.query.get(audit_answer_id)
+            audit_answer = scoped_query(
+                InternalAuditAnswer.query,
+                InternalAuditAnswer,
+            ).filter_by(id=audit_answer_id).first()
             if audit_answer is None or not can_view_internal_audit(audit_answer.audit):
                 flash("İç denetim cevabı bulunamadı veya erişim yetkiniz yok.", "danger")
                 return redirect(url_for("main.dof_management"))
@@ -6916,6 +7077,7 @@ def create_dof():
 @login_required
 def edit_dof_draft(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     if not can_edit_dof(dof):
@@ -7062,6 +7224,7 @@ def edit_dof_draft(dof_id):
 @login_required
 def dof_detail(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     attach_dof_view_state([dof])
@@ -7087,6 +7250,7 @@ def dof_detail(dof_id):
 @login_required
 def approve_dof_management(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     attach_dof_view_state([dof])
@@ -7113,6 +7277,7 @@ def approve_dof_management(dof_id):
 @login_required
 def approve_dof_deputy(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     attach_dof_view_state([dof])
@@ -7145,6 +7310,7 @@ def approve_dof_deputy(dof_id):
 @login_required
 def reject_dof(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     attach_dof_view_state([dof])
@@ -7199,6 +7365,7 @@ def reject_dof(dof_id):
 @login_required
 def revise_dof(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     attach_dof_view_state([dof])
@@ -7267,6 +7434,7 @@ def revise_dof(dof_id):
 @login_required
 def download_dof_evidence_file(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
     if not dof.evidence_stored_name:
@@ -7285,6 +7453,7 @@ def download_dof_evidence_file(dof_id):
 @login_required
 def download_dof_file(dof_id, file_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_view_dof(dof):
         abort(403)
 
@@ -7301,6 +7470,7 @@ def download_dof_file(dof_id, file_id):
 @login_required
 def delete_dof(dof_id):
     dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
     if not can_delete_dof(dof):
         abort(403)
 
@@ -7329,6 +7499,7 @@ def create_action():
     if request.method == "POST":
         try:
             action = parse_action_form()
+            assign_current_company(action)
             action.action_number = reserve_action_number()
             db.session.add(action)
             db.session.flush()
@@ -7398,6 +7569,7 @@ def create_action():
 @login_required
 def action_detail(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_view_action(action):
         abort(403)
 
@@ -7425,6 +7597,7 @@ def action_detail(action_id):
 @login_required
 def reassign_action(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_reassign_action(action):
         abort(403)
 
@@ -7435,9 +7608,7 @@ def reassign_action(action_id):
         flash("Lütfen geçerli bir aksiyon sorumlusu seçin.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
-    responsible_user = User.query.filter_by(
-        id=responsible_user_id, is_active=True
-    ).first()
+    responsible_user = active_user_by_id(responsible_user_id)
     if responsible_user is None:
         flash("Seçilen kullanıcı bulunamadı.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
@@ -7494,6 +7665,7 @@ def reassign_action(action_id):
 @login_required
 def revise_action_termin(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_revise_termin(action):
         abort(403)
 
@@ -7535,6 +7707,7 @@ def revise_action_termin(action_id):
 @login_required
 def add_action_comment(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_comment_action(action):
         abort(403)
 
@@ -7545,6 +7718,7 @@ def add_action_comment(action_id):
 
     comment = ActionComment(
         action_id=action.id,
+        company_id=action.company_id,
         user_id=g.current_user.id,
         comment=comment_text,
     )
@@ -7570,6 +7744,7 @@ def add_action_comment(action_id):
 @permission_required("can_edit_actions")
 def edit_action(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
 
     if request.method == "POST":
         try:
@@ -7624,12 +7799,14 @@ def edit_action(action_id):
 @login_required
 def create_sub_action(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_create_sub_action(action):
         abort(403)
 
     try:
         sub_action = parse_sub_action_form()
         sub_action.parent_action = action
+        sub_action.company_id = action.company_id
         sub_action.created_by_user_id = g.current_user.id
         db.session.add(sub_action)
         db.session.flush()
@@ -7667,6 +7844,7 @@ def create_sub_action(action_id):
 @login_required
 def sub_action_detail(sub_action_id):
     sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    ensure_same_company(sub_action)
     if not can_view_action(sub_action.parent_action):
         abort(403)
     return render_template(
@@ -7683,6 +7861,7 @@ def sub_action_detail(sub_action_id):
 @login_required
 def edit_sub_action(sub_action_id):
     sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    ensure_same_company(sub_action)
     action = sub_action.parent_action
     if not can_edit_sub_action(sub_action):
         abort(403)
@@ -7764,6 +7943,7 @@ def edit_sub_action(sub_action_id):
 @login_required
 def complete_sub_action(sub_action_id):
     sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    ensure_same_company(sub_action)
     action = sub_action.parent_action
     if not can_complete_sub_action(sub_action):
         abort(403)
@@ -7807,6 +7987,7 @@ def complete_sub_action(sub_action_id):
 @login_required
 def delete_sub_action(sub_action_id):
     sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    ensure_same_company(sub_action)
     action = sub_action.parent_action
     if not can_delete_sub_action(sub_action):
         abort(403)
@@ -7829,6 +8010,7 @@ def delete_sub_action(sub_action_id):
 @login_required
 def download_sub_action_evidence(sub_action_id):
     sub_action = ActionSubTask.query.get_or_404(sub_action_id)
+    ensure_same_company(sub_action)
     if not can_view_action(sub_action.parent_action):
         abort(403)
     if not sub_action.evidence_stored_name:
@@ -7846,6 +8028,7 @@ def download_sub_action_evidence(sub_action_id):
 @login_required
 def request_action_closure(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_request_closure_action(action):
         abort(403)
 
@@ -7898,6 +8081,7 @@ def request_action_closure(action_id):
 @login_required
 def complete_action(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_approve_closure_action(action):
         abort(403)
 
@@ -7930,6 +8114,7 @@ def complete_action(action_id):
 @login_required
 def reject_action_closure(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_approve_closure_action(action):
         abort(403)
 
@@ -7970,6 +8155,7 @@ def reject_action_closure(action_id):
 @permission_required("can_delete_actions")
 def delete_action(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
 
     if request.method == "POST":
         for sub_action in list(action.sub_actions):
@@ -7988,6 +8174,7 @@ def delete_action(action_id):
 @login_required
 def download_action_file(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_view_action(action):
         abort(403)
 
@@ -8007,6 +8194,7 @@ def download_action_file(action_id):
 @login_required
 def download_closure_evidence_file(action_id, file_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_view_action(action):
         abort(403)
 
@@ -8027,6 +8215,7 @@ def download_closure_evidence_file(action_id, file_id):
 @login_required
 def download_latest_closure_evidence_file(action_id):
     action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
     if not can_view_action(action):
         abort(403)
 
@@ -8056,7 +8245,7 @@ def download_latest_closure_evidence_file(action_id):
 @login_required
 @permission_required("can_manage_users")
 def users():
-    user_list = User.query.order_by(User.full_name.asc()).all()
+    user_list = active_users()
     return render_template("users.html", users=user_list)
 
 
@@ -8122,6 +8311,14 @@ def create_user():
 @permission_required("can_manage_users")
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
+    if user.username == "superadmin" and not getattr(g, "current_user_is_super_admin", False):
+        abort(403)
+    if user.username != "superadmin":
+        company_id = current_company_id()
+        if company_id and user.company_id != company_id:
+            abort(404)
+        if not getattr(g, "current_user_is_super_admin", False) and user.company_id != company_id:
+            abort(404)
 
     if request.method == "POST":
         try:
