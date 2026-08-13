@@ -1,0 +1,71 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Şirket Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Şirket Yönetimi", "VolkaPortal içindeki firmaları ve aktiflik durumlarını yönetin.", icon="bi-buildings") %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_company') }}">
+      <i class="bi bi-plus-lg"></i>
+      <span>Yeni Şirket Ekle</span>
+    </a>
+  {% endcall %}
+
+  <div class="alert alert-primary role-admin-alert" role="alert">
+    <i class="bi bi-info-circle-fill"></i>
+    <div>
+      <strong>Bu alan sadece Süper Admin tarafından görülür.</strong>
+      <p class="mb-0">Mevcut veriler 001 - Er Prefabrik altında tutulur; yeni şirketler boş başlar.</p>
+    </div>
+  </div>
+
+  <section class="app-card company-admin-card">
+    {{ ui.card_header("Kayıtlı Şirketler", "Şirket kodu giriş ekranında kullanılacak 3 haneli koddur.", icon="bi-building-check") }}
+
+    <div class="company-table-wrapper">
+      <table class="table app-table company-admin-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Kod</th>
+            <th>Şirket</th>
+            <th>Durum</th>
+            <th>Kullanıcı</th>
+            <th>Aksiyon</th>
+            <th>IF</th>
+            <th>İç Denetim</th>
+            <th>Doküman</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for company in companies %}
+            {% set stats = company_stats.get(company.id, {}) %}
+            <tr>
+              <td><span class="company-code-badge">{{ company.code }}</span></td>
+              <td>
+                <strong>{{ company.name }}</strong>
+                <small>{{ company.label }}</small>
+              </td>
+              <td>{{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}</td>
+              <td>{{ stats.get("users", 0) }}</td>
+              <td>{{ stats.get("actions", 0) }}</td>
+              <td>{{ stats.get("dofs", 0) }}</td>
+              <td>{{ stats.get("audits", 0) }}</td>
+              <td>{{ stats.get("documents", 0) }}</td>
+              <td class="text-end">
+                <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_company', company_id=company.id) }}">
+                  <i class="bi bi-pencil"></i>
+                  <span>Düzenle</span>
+                </a>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9" class="text-center text-muted py-4">Henüz şirket kaydı yok.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

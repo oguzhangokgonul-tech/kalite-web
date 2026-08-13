@@ -8345,6 +8345,66 @@ textarea.form-control:focus {
     font-size: 0.78rem;
 }
 
+.company-admin-card,
+.company-form-card {
+    display: grid;
+    gap: 18px;
+}
+
+.company-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.company-admin-table {
+    min-width: 980px;
+}
+
+.company-admin-table td strong,
+.company-admin-table td small {
+    display: block;
+}
+
+.company-admin-table td small {
+    margin-top: 2px;
+    color: #64748b;
+}
+
+.company-code-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 58px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid #cfe1ff;
+    border-radius: 999px;
+    color: #0b5ed7;
+    background: #edf5ff;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.company-active-toggle {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    border: 1px solid #dbe6f4;
+    border-radius: 14px;
+    background: #f8fbff;
+    cursor: pointer;
+}
+
+.company-active-toggle strong,
+.company-active-toggle small {
+    display: block;
+}
+
+.company-active-toggle small {
+    color: #64748b;
+}
+
 @media (max-width: 992px) {
     .role-permission-groups {
         grid-template-columns: 1fr;

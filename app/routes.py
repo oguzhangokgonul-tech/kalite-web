@@ -769,12 +769,9 @@ def ensure_document_schema():
 def ensure_document_categories():
     changed = False
     for category_data in DOCUMENT_CATEGORY_DEFAULTS:
-        category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
-            slug=category_data["slug"]
-        ).first()
+        category = DocumentCategory.query.filter_by(slug=category_data["slug"]).first()
         if category is None:
             category = DocumentCategory(**category_data)
-            assign_current_company(category)
             db.session.add(category)
             changed = True
             continue
@@ -2891,7 +2888,7 @@ def parse_document_form():
     except ValueError:
         raise ValueError("invalid_category") from None
 
-    category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+    category = DocumentCategory.query.filter_by(
         id=category_id,
         is_active=True,
     ).first()
@@ -3002,8 +2999,7 @@ def filtered_document_query(category=None, filters=None):
 def ordered_document_categories():
     ensure_document_categories()
     return (
-        scoped_query(DocumentCategory.query, DocumentCategory)
-        .filter_by(is_active=True)
+        DocumentCategory.query.filter_by(is_active=True)
         .order_by(DocumentCategory.sort_order.asc(), DocumentCategory.id.asc())
         .all()
     )
@@ -3090,7 +3086,7 @@ def document_form_context(document=None, category_slug=None):
     if document is not None:
         selected_category = document.category
     elif category_slug:
-        selected_category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+        selected_category = DocumentCategory.query.filter_by(
             slug=category_slug,
             is_active=True,
         ).first()
@@ -4596,6 +4592,41 @@ def role_hierarchy():
     )
 
 
+def parse_company_form(company=None):
+    company = company or Company()
+    code = request.form.get("code", "").strip()
+    name = request.form.get("name", "").strip()
+
+    if not code or not name:
+        raise ValueError("required_fields")
+    if not code.isdigit() or len(code) != 3:
+        raise ValueError("invalid_code")
+
+    existing_company = Company.query.filter(
+        Company.code == code,
+        Company.id != company.id,
+    ).first()
+    if existing_company:
+        raise ValueError("code_exists")
+
+    company.code = code
+    company.name = name[:160]
+    company.is_active = request.form.get("is_active") == "on"
+    return company
+
+
+def flash_company_form_error(error):
+    error_key = str(error)
+    if error_key == "required_fields":
+        flash("Åirket kodu ve ÅŸirket adÄ± zorunludur.", "danger")
+    elif error_key == "invalid_code":
+        flash("Åirket kodu 000 gibi tam 3 haneli sayÄ± olmalÄ±dÄ±r.", "danger")
+    elif error_key == "code_exists":
+        flash("Bu ÅŸirket kodu zaten kullanÄ±lÄ±yor.", "danger")
+    else:
+        flash("Åirket formunu kontrol edin.", "danger")
+
+
 def normalize_login_identity(value):
     return (value or "").strip().lower()[:160]
 
@@ -5861,7 +5892,7 @@ def documents_list():
 def documents_category(slug):
     if not can_view_documents():
         abort(403)
-    category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+    category = DocumentCategory.query.filter_by(
         slug=slug,
         is_active=True,
     ).first_or_404()
@@ -8373,6 +8404,76 @@ def roles():
         permission_groups=permission_catalog_grouped(),
         users=User.query.order_by(User.full_name.asc()).all(),
         user_extra_permission_keys=user_extra_permission_keys,
+    )
+
+
+@bp.route("/companies")
+@login_required
+@super_admin_required
+def companies():
+    company_list = Company.query.order_by(Company.code.asc(), Company.id.asc()).all()
+    company_stats = {}
+    for company in company_list:
+        company_stats[company.id] = {
+            "users": User.query.filter_by(company_id=company.id).count(),
+            "actions": Action.query.filter_by(company_id=company.id).count(),
+            "dofs": Dof.query.filter_by(company_id=company.id).count(),
+            "audits": InternalAudit.query.filter_by(company_id=company.id).count(),
+            "documents": Document.query.filter_by(company_id=company.id).count(),
+        }
+    return render_template(
+        "companies.html",
+        companies=company_list,
+        company_stats=company_stats,
+    )
+
+
+@bp.route("/companies/new", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def create_company():
+    if request.method == "POST":
+        try:
+            company = parse_company_form()
+            db.session.add(company)
+            db.session.commit()
+            flash(f"{company.label} ÅŸirketi oluÅŸturuldu.", "success")
+            return redirect(url_for("main.companies"))
+        except ValueError as error:
+            flash_company_form_error(error)
+
+    return render_template(
+        "company_form.html",
+        company=None,
+        title="Yeni Åirket",
+        description="VolkaPortal iÃ§in boÅŸ baÅŸlayacak yeni bir firma oluÅŸturun.",
+        form_action=url_for("main.create_company"),
+        submit_label="Åirketi Kaydet",
+    )
+
+
+@bp.route("/companies/<int:company_id>/edit", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def edit_company(company_id):
+    company = Company.query.get_or_404(company_id)
+
+    if request.method == "POST":
+        try:
+            parse_company_form(company)
+            db.session.commit()
+            flash(f"{company.label} ÅŸirketi gÃ¼ncellendi.", "success")
+            return redirect(url_for("main.companies"))
+        except ValueError as error:
+            flash_company_form_error(error)
+
+    return render_template(
+        "company_form.html",
+        company=company,
+        title="Åirket DÃ¼zenle",
+        description=f"{company.label} kaydÄ±nÄ± gÃ¼ncelleyin.",
+        form_action=url_for("main.edit_company", company_id=company.id),
+        submit_label="DeÄŸiÅŸiklikleri Kaydet",
     )
 
 

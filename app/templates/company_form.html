@@ -1,0 +1,82 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(title, description, icon="bi-building-add") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Şirket Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <section class="app-card company-form-card">
+    {{ ui.card_header("Şirket Bilgileri", "Şirket kodu 000, 001, 002 formatında tam 3 haneli olmalıdır.", icon="bi-buildings") }}
+
+    <form method="post" action="{{ form_action }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label" for="code">Şirket Kodu</label>
+          <input
+            class="form-control form-control-lg"
+            id="code"
+            name="code"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]{3}"
+            maxlength="3"
+            placeholder="002"
+            value="{{ request.form.get('code', company.code if company else '') }}"
+            required
+          >
+        </div>
+        <div class="col-md-8">
+          <label class="form-label" for="name">Şirket Adı</label>
+          <input
+            class="form-control form-control-lg"
+            id="name"
+            name="name"
+            type="text"
+            maxlength="160"
+            placeholder="Yeni Firma"
+            value="{{ request.form.get('name', company.name if company else '') }}"
+            required
+          >
+        </div>
+        <div class="col-12">
+          <label class="company-active-toggle" for="is_active">
+            <input
+              class="form-check-input"
+              id="is_active"
+              name="is_active"
+              type="checkbox"
+              {% if request.method == 'POST' %}
+                {% if request.form.get('is_active') == 'on' %}checked{% endif %}
+              {% elif not company or company.is_active %}
+                checked
+              {% endif %}
+            >
+            <span>
+              <strong>Aktif şirket</strong>
+              <small>Pasife alınan şirketlerle normal kullanıcı girişi yapılamaz.</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="app-form-actions">
+        <button class="btn btn-success btn-lg" type="submit">
+          <i class="bi bi-save2"></i>
+          <span>{{ submit_label }}</span>
+        </button>
+        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
+          <i class="bi bi-x-lg"></i>
+          <span>Vazgeç</span>
+        </a>
+      </div>
+    </form>
+  </section>
+{% endblock %}
