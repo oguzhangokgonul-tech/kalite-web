@@ -1,25 +1,29 @@
 {% extends "app_shell.html" %}
 {% import "components/ui.html" as ui %}
 
-{% block title %}{{ title }}{% endblock %}
+{% set clean_title = "&#350;irket D&#252;zenle" if company else "Yeni &#350;irket" %}
+{% set clean_description = (company.label ~ " kayd&#305;n&#305; g&#252;ncelleyin.") if company else "VolkaPortal i&#231;in bo&#351; ba&#351;layacak yeni bir firma olu&#351;turun." %}
+{% set clean_submit_label = "De&#287;i&#351;iklikleri Kaydet" if company else "&#350;irketi Kaydet" %}
+
+{% block title %}{{ clean_title|safe }}{% endblock %}
 
 {% block app_content %}
-  {% call ui.page_header(title, description, icon="bi-building-add") %}
+  {% call ui.page_header(clean_title|safe, clean_description|safe, icon="bi-building-add") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
       <i class="bi bi-arrow-left"></i>
-      <span>Şirket Yönetimi</span>
+      <span>&#350;irket Y&#246;netimi</span>
     </a>
   {% endcall %}
 
   <section class="app-card company-form-card">
-    {{ ui.card_header("Şirket Bilgileri", "Şirket kodu 000, 001, 002 formatında tam 3 haneli olmalıdır.", icon="bi-buildings") }}
+    {{ ui.card_header("&#350;irket Bilgileri"|safe, "&#350;irket kodu 000, 001, 002 format&#305;nda tam 3 haneli olmal&#305;d&#305;r."|safe, icon="bi-buildings") }}
 
     <form method="post" action="{{ form_action }}" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="row g-3">
         <div class="col-md-4">
-          <label class="form-label" for="code">Şirket Kodu</label>
+          <label class="form-label" for="code">&#350;irket Kodu</label>
           <input
             class="form-control form-control-lg"
             id="code"
@@ -34,7 +38,7 @@
           >
         </div>
         <div class="col-md-8">
-          <label class="form-label" for="name">Şirket Adı</label>
+          <label class="form-label" for="name">&#350;irket Ad&#305;</label>
           <input
             class="form-control form-control-lg"
             id="name"
@@ -60,8 +64,8 @@
               {% endif %}
             >
             <span>
-              <strong>Aktif şirket</strong>
-              <small>Pasife alınan şirketlerle normal kullanıcı girişi yapılamaz.</small>
+              <strong>Aktif &#351;irket</strong>
+              <small>Pasife al&#305;nan &#351;irketlerle normal kullan&#305;c&#305; giri&#351;i yap&#305;lamaz.</small>
             </span>
           </label>
         </div>
@@ -70,11 +74,11 @@
       <div class="app-form-actions">
         <button class="btn btn-success btn-lg" type="submit">
           <i class="bi bi-save2"></i>
-          <span>{{ submit_label }}</span>
+          <span>{{ clean_submit_label|safe }}</span>
         </button>
         <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
           <i class="bi bi-x-lg"></i>
-          <span>Vazgeç</span>
+          <span>Vazge&#231;</span>
         </a>
       </div>
     </form>
