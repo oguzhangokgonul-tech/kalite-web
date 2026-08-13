@@ -20,6 +20,20 @@
 
 {% block app_content %}
   {% call ui.page_header("Ana Sayfa", "Kalite yönetim sistemi aksiyon takip ekranı", icon="bi-house-door") %}
+    {% if g.current_user_is_super_admin %}
+      <form class="dashboard-company-switcher" method="post" action="{{ url_for('main.switch_company') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="visually-hidden" for="company_id">Şirket seç</label>
+        <select class="form-select" id="company_id" name="company_id" onchange="this.form.submit()">
+          <option value="" {% if not g.current_company %}selected{% endif %}>Ortak görünüm</option>
+          {% for company in available_companies %}
+            <option value="{{ company.id }}" {% if g.current_company and g.current_company.id == company.id %}selected{% endif %}>
+              {{ company.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
     {% if g.current_user.can_create_actions %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_action') }}">
         <i class="bi bi-plus-lg"></i>

@@ -4890,6 +4890,11 @@ def dashboard_context():
 
     return {
         "actions": actions,
+        "available_companies": Company.query.filter_by(is_active=True)
+        .order_by(Company.code.asc())
+        .all()
+        if g.current_user_is_super_admin
+        else [],
         "delayed_count": delayed_count,
         "completed_count": completed_count,
         "pending_approval_count": pending_approval_count,
@@ -5518,6 +5523,30 @@ def internal_audit_question_context(audit, question):
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.post("/companies/switch")
+@login_required
+def switch_company():
+    if not g.current_user_is_super_admin:
+        abort(403)
+
+    company_id = request.form.get("company_id", type=int)
+    if not company_id:
+        session.pop("company_id", None)
+        session.pop("company_code", None)
+        flash("Ortak superadmin görünümüne geçildi.", "success")
+        return redirect(request.referrer or url_for("main.dashboard"))
+
+    company = Company.query.filter_by(id=company_id, is_active=True).first()
+    if company is None:
+        flash("Seçilen şirket bulunamadı veya pasif.", "danger")
+        return redirect(request.referrer or url_for("main.dashboard"))
+
+    session["company_id"] = company.id
+    session["company_code"] = company.code
+    flash(f"{company.label} şirketine geçildi.", "success")
+    return redirect(request.referrer or url_for("main.dashboard"))
 
 
 @bp.route("/uzerime-atananlar")

@@ -78,6 +78,17 @@ body {
     gap: 10px;
 }
 
+.dashboard-company-switcher {
+    min-width: 240px;
+}
+
+.dashboard-company-switcher .form-select {
+    min-height: 44px;
+    border-color: color-mix(in srgb, var(--vp-blue) 24%, var(--vp-border));
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+    font-weight: 700;
+}
+
 .app-section-header {
     padding: 18px 20px;
     border-bottom: 1px solid var(--vp-border);
