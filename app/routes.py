@@ -4837,7 +4837,6 @@ def login():
         return redirect(url_for("main.dashboard"))
 
     if request.method == "POST":
-        company_code = (request.form.get("company_code") or "").strip()[:3]
         identity = normalize_login_identity(request.form.get("identity"))
         password = request.form.get("password", "")
         ip_address = login_client_ip()
@@ -4851,17 +4850,9 @@ def login():
                 "Çok fazla hatalı giriş denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
                 "danger",
             )
-            return render_template("login.html", company_code=company_code)
+            return render_template("login.html")
 
         company = tenant_company
-        if company_code:
-            company = Company.query.filter_by(code=company_code).first()
-            if company is None or not company.is_active:
-                log_login_attempt(identity, ip_address, False, "wrong_company")
-                db.session.commit()
-                flash("Şirket kodu hatalı veya pasif.", "danger")
-                return render_template("login.html", company_code=company_code)
-
         user = User.query.filter(
             or_(
                 db.func.lower(User.username) == identity,
@@ -4875,13 +4866,13 @@ def login():
                 if company is None:
                     log_login_attempt(identity, ip_address, False, "missing_company")
                     db.session.commit()
-                    flash("Lütfen şirket kodunu girin.", "danger")
-                    return render_template("login.html", company_code=company_code)
+                    flash("Lutfen sirketinize ait VolkaPortal adresinden giris yapin.", "danger")
+                    return render_template("login.html")
                 if user.company_id != company.id:
                     log_login_attempt(identity, ip_address, False, "wrong_company")
                     db.session.commit()
                     flash("Bu kullanıcı seçilen şirkete bağlı değil.", "danger")
-                    return render_template("login.html", company_code=company_code)
+                    return render_template("login.html")
 
             log_login_attempt(identity, ip_address, True, "success")
             db.session.commit()

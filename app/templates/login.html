@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Giriş{% endblock %}
+{% block title %}Giri&#351;{% endblock %}
 {% block body_class %}dashboard-body login-body{% endblock %}
 {% block navbar %}{% endblock %}
 {% block main_class %}login-shell login-page{% endblock %}
@@ -8,11 +8,11 @@
 
 {% block content %}
   <img class="login-watermark" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
-  <section class="login-form-panel" aria-label="Giriş">
+  <section class="login-form-panel" aria-label="Giri&#351;">
     <form class="login-card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="login-card-brand">
-        <img class="login-brand-logo" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-stacked-on-dark-768.png') }}" alt="VolkaPortal — Kurumsal Süreç Yönetim Platformu" width="768" height="576">
+        <img class="login-brand-logo" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-stacked-on-dark-768.png') }}" alt="VolkaPortal - Kurumsal S&#252;re&#231; Y&#246;netim Platformu" width="768" height="576">
       </div>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -37,35 +37,28 @@
 
       <div class="login-form-stack">
         <div>
-          <label class="form-label" for="company_code">Şirket Kodu</label>
-          <div class="login-input-icon">
-            <i class="bi bi-building"></i>
-            <input class="form-control" id="company_code" name="company_code" value="{{ company_code or '' }}" maxlength="3" inputmode="numeric" autocomplete="organization" placeholder="Örn. 001">
-          </div>
-        </div>
-        <div>
-          <label class="form-label" for="identity">Kullanıcı adı</label>
+          <label class="form-label" for="identity">Kullan&#305;c&#305; ad&#305;</label>
           <div class="login-input-icon">
             <i class="bi bi-person"></i>
-            <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username" placeholder="Kullanıcı adınızı girin">
+            <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username" placeholder="Kullan&#305;c&#305; ad&#305;n&#305;z&#305; girin">
           </div>
         </div>
         <div>
-          <label class="form-label" for="password">Şifre</label>
+          <label class="form-label" for="password">&#350;ifre</label>
           <div class="login-input-icon">
             <i class="bi bi-lock"></i>
-            <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password" placeholder="Şifrenizi girin">
+            <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password" placeholder="&#350;ifrenizi girin">
           </div>
         </div>
         <button class="btn login-button w-100" type="submit">
           <i class="bi bi-box-arrow-in-right"></i>
-          <span>Giriş Yap</span>
+          <span>Giri&#351; Yap</span>
         </button>
       </div>
       <div class="login-footer-note">
-        <span><i class="bi bi-shield-check"></i> Güvenli bağlantı</span>
-        <span aria-hidden="true">·</span>
-        <span>Tüm hakları saklıdır.</span>
+        <span><i class="bi bi-shield-check"></i> G&#252;venli ba&#287;lant&#305;</span>
+        <span aria-hidden="true">-</span>
+        <span>T&#252;m haklar&#305; sakl&#305;d&#305;r.</span>
       </div>
     </form>
   </section>
