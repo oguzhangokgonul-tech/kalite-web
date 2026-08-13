@@ -37,6 +37,7 @@ from .models import (
     ACTION_SUB_TASK_PRIORITIES,
     ACTION_SUB_TASK_STATUSES,
     AppSetting,
+    Company,
     DEPARTMENTS,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
@@ -218,6 +219,8 @@ def assigned_tasks_badge_count():
 def load_logged_in_user():
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
+    g.current_company = None
+    g.current_company_code = session.get("company_code")
     g.current_user_initials = ""
     g.unread_notification_count = 0
     g.latest_notifications = []
@@ -227,6 +230,17 @@ def load_logged_in_user():
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
         g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
+        session_company_id = session.get("company_id")
+        if session_company_id:
+            g.current_company = db.session.get(Company, session_company_id)
+            if g.current_company is not None:
+                g.current_company_code = g.current_company.code
+        elif g.current_user.company_id and not g.current_user_is_super_admin:
+            g.current_company = db.session.get(Company, g.current_user.company_id)
+            if g.current_company is not None:
+                session["company_id"] = g.current_company.id
+                session["company_code"] = g.current_company.code
+                g.current_company_code = g.current_company.code
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
@@ -4582,6 +4596,7 @@ def login():
         return redirect(url_for("main.dashboard"))
 
     if request.method == "POST":
+        company_code = (request.form.get("company_code") or "").strip()[:3]
         identity = normalize_login_identity(request.form.get("identity"))
         password = request.form.get("password", "")
         ip_address = login_client_ip()
@@ -4594,7 +4609,16 @@ def login():
                 "Çok fazla hatalı giriş denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
                 "danger",
             )
-            return render_template("login.html")
+            return render_template("login.html", company_code=company_code)
+
+        company = None
+        if company_code:
+            company = Company.query.filter_by(code=company_code).first()
+            if company is None or not company.is_active:
+                log_login_attempt(identity, ip_address, False, "wrong_company")
+                db.session.commit()
+                flash("Şirket kodu hatalı veya pasif.", "danger")
+                return render_template("login.html", company_code=company_code)
 
         user = User.query.filter(
             or_(
@@ -4604,10 +4628,31 @@ def login():
         ).first()
 
         if user and user.is_active and user.check_password(password):
+            is_super_admin = has_role(user, "super_admin")
+            if not is_super_admin:
+                if not company_code:
+                    log_login_attempt(identity, ip_address, False, "missing_company")
+                    db.session.commit()
+                    flash("Lütfen şirket kodunu girin.", "danger")
+                    return render_template("login.html", company_code=company_code)
+                if user.company_id != company.id:
+                    log_login_attempt(identity, ip_address, False, "wrong_company")
+                    db.session.commit()
+                    flash("Bu kullanıcı seçilen şirkete bağlı değil.", "danger")
+                    return render_template("login.html", company_code=company_code)
+
             log_login_attempt(identity, ip_address, True, "success")
             db.session.commit()
             session.clear()
             session["user_id"] = user.id
+            if company is not None:
+                session["company_id"] = company.id
+                session["company_code"] = company.code
+            elif user.company_id:
+                user_company = db.session.get(Company, user.company_id)
+                if user_company is not None:
+                    session["company_id"] = user_company.id
+                    session["company_code"] = user_company.code
             flash("Giriş başarılı.", "success")
             next_url = request.args.get("next") or url_for("main.dashboard")
             return redirect(next_url)

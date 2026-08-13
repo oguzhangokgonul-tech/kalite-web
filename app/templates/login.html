@@ -41,6 +41,13 @@
 
       <div class="login-form-stack">
         <div>
+          <label class="form-label" for="company_code">Şirket Kodu</label>
+          <div class="login-input-icon">
+            <i class="bi bi-building"></i>
+            <input class="form-control" id="company_code" name="company_code" value="{{ company_code or '' }}" maxlength="3" inputmode="numeric" autocomplete="organization" placeholder="Örn. 001">
+          </div>
+        </div>
+        <div>
           <label class="form-label" for="identity">Kullanıcı adı</label>
           <div class="login-input-icon">
             <i class="bi bi-person"></i>
