@@ -42,7 +42,7 @@
         {% if g.current_user_is_super_admin %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.companies', 'main.create_company', 'main.edit_company'] %}active{% endif %}" href="{{ url_for('main.companies') }}">
             <i class="bi bi-buildings"></i>
-            <span>Åirket YÃ¶netimi</span>
+            <span>Şirket Yönetimi</span>
           </a>
           <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>
