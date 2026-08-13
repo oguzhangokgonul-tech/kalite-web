@@ -71,7 +71,7 @@
             name="primary_domain"
             type="text"
             maxlength="255"
-            placeholder="erprefabrik.volkaportal.com"
+            placeholder="erprefabrik.{{ config.TENANT_BASE_DOMAIN }}"
             value="{{ request.form.get('primary_domain', company.primary_domain if company else '') }}"
           >
         </div>

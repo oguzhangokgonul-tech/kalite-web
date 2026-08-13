@@ -4611,6 +4611,17 @@ def normalize_company_domain(value):
     return value[:255]
 
 
+def tenant_base_domain():
+    return normalize_company_domain(current_app.config.get("TENANT_BASE_DOMAIN"))
+
+
+def company_primary_domain_for_slug(slug):
+    base_domain = tenant_base_domain()
+    if not base_domain:
+        return slug
+    return f"{slug}.{base_domain}"
+
+
 def company_field_exists(field_name, value, company_id=None):
     if not value:
         return False
@@ -4639,7 +4650,7 @@ def parse_company_form(company=None):
     if not slug or slug in RESERVED_COMPANY_SLUGS:
         raise ValueError("invalid_slug")
     if not primary_domain:
-        primary_domain = f"{slug}.volkaportal.com"
+        primary_domain = company_primary_domain_for_slug(slug)
     if custom_domain and custom_domain == primary_domain:
         raise ValueError("duplicate_domain")
 
