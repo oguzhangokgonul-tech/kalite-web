@@ -233,7 +233,7 @@ def load_logged_in_user():
     g.current_user = User.query.get(user_id) if user_id else None
     g.current_company = None
     g.tenant_company = tenant_company_from_host(request.host)
-    g.current_company_code = session.get("company_code")
+    session.pop("company_code", None)
     g.current_user_initials = ""
     g.unread_notification_count = 0
     g.latest_notifications = []
@@ -247,23 +247,15 @@ def load_logged_in_user():
         if g.tenant_company is not None and session_company_id != g.tenant_company.id:
             g.current_company = g.tenant_company
             session["company_id"] = g.tenant_company.id
-            session["company_code"] = g.tenant_company.code
-            g.current_company_code = g.tenant_company.code
         elif session_company_id:
             g.current_company = db.session.get(Company, session_company_id)
-            if g.current_company is not None:
-                g.current_company_code = g.current_company.code
         elif g.tenant_company is not None:
             g.current_company = g.tenant_company
             session["company_id"] = g.tenant_company.id
-            session["company_code"] = g.tenant_company.code
-            g.current_company_code = g.tenant_company.code
         elif g.current_user.company_id and not g.current_user_is_super_admin:
             g.current_company = db.session.get(Company, g.current_user.company_id)
             if g.current_company is not None:
                 session["company_id"] = g.current_company.id
-                session["company_code"] = g.current_company.code
-                g.current_company_code = g.current_company.code
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
@@ -4823,12 +4815,10 @@ def login():
             session["user_id"] = user.id
             if company is not None:
                 session["company_id"] = company.id
-                session["company_code"] = company.code
             elif user.company_id:
                 user_company = db.session.get(Company, user.company_id)
                 if user_company is not None:
                     session["company_id"] = user_company.id
-                    session["company_code"] = user_company.code
             flash("Giriş başarılı.", "success")
             next_url = request.args.get("next") or url_for("main.dashboard")
             return redirect(next_url)
@@ -5735,7 +5725,6 @@ def switch_company():
     company_id = request.form.get("company_id", type=int)
     if not company_id:
         session.pop("company_id", None)
-        session.pop("company_code", None)
         flash("Ortak superadmin görünümüne geçildi.", "success")
         return redirect(request.referrer or url_for("main.dashboard"))
 
@@ -5745,7 +5734,6 @@ def switch_company():
         return redirect(request.referrer or url_for("main.dashboard"))
 
     session["company_id"] = company.id
-    session["company_code"] = company.code
     flash(f"{company.label} şirketine geçildi.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
 
