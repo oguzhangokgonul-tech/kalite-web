@@ -7,16 +7,12 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
-  <img class="login-watermark" src="{{ url_for('static', filename='brand/volkaportal-reference-icon.png') }}" alt="" aria-hidden="true">
+  <img class="login-watermark" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
   <section class="login-form-panel" aria-label="Giriş">
     <form class="login-card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="login-card-brand">
-        <img class="login-brand-logo" src="{{ url_for('static', filename='brand/volkaportal-reference-icon.png') }}" alt="{{ config.SITE_NAME }}">
-        <div>
-          <h1 class="login-title"><span>Volka</span><span>Portal</span></h1>
-          <p class="login-subtitle">Kurumsal Süreç Yönetim Platformu</p>
-        </div>
+        <img class="login-brand-logo" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-stacked-on-dark-768.png') }}" alt="VolkaPortal — Kurumsal Süreç Yönetim Platformu" width="768" height="576">
       </div>
 
       {% with messages = get_flashed_messages(with_categories=true) %}

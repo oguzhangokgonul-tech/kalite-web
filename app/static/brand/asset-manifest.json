@@ -1,0 +1,24 @@
+{
+  "brand": "VolkaPortal",
+  "tagline": "Kurumsal Süreç Yönetim Platformu",
+  "source_size": [
+    1448,
+    1086
+  ],
+  "formats": [
+    "PNG (RGBA)",
+    "WebP (lossless alpha)",
+    "ICO"
+  ],
+  "recommended": {
+    "login": "logo/volkaportal-logo-stacked-768.png",
+    "desktop_header": "logo/volkaportal-logo-horizontal-640.png",
+    "sidebar_expanded": "logo/volkaportal-logo-horizontal-400.png",
+    "sidebar_expanded_dark": "logo/volkaportal-logo-horizontal-on-dark-400.png",
+    "sidebar_collapsed": "icon/volkaportal-stag-128.png",
+    "empty_state": "icon/volkaportal-stag-512.png",
+    "favicon": "favicon/favicon.ico",
+    "apple_touch_icon": "favicon/favicon-180x180.png",
+    "pwa_icon": "favicon/favicon-512x512.png"
+  }
+}

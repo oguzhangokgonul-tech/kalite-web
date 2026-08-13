@@ -7178,17 +7178,19 @@ body {
 
 .dashboard-sidebar-brand {
     justify-content: flex-start;
-    min-height: 88px;
+    min-height: 90px;
     margin: 0 0 20px;
-    padding: 8px 10px 18px;
+    padding: 10px 8px 18px;
     color: #0b1d36;
     text-decoration: none;
     border-bottom: 1px solid #cfdbe9;
 }
 
 .dashboard-brand-logo {
-    width: 76px;
-    height: 76px;
+    display: block;
+    width: min(100%, 210px);
+    max-width: 210px;
+    height: auto;
     object-fit: contain;
     object-position: center;
     background: transparent;
@@ -7639,7 +7641,7 @@ textarea.form-control:focus {
     height: 420px;
     background-image:
         linear-gradient(135deg, rgba(30, 91, 255, 0.22), rgba(0, 187, 170, 0.16)),
-        url("../brand/volkaportal-reference-icon.png");
+        url("../brand/webp/volkaportal-stag.webp");
     background-repeat: no-repeat;
     background-position: center;
     background-size: contain;
@@ -7905,9 +7907,9 @@ textarea.form-control:focus {
 
 .login-page .login-brand-logo {
     display: block;
-    width: 108px;
-    height: 108px;
-    max-width: none;
+    width: min(100%, 360px);
+    max-width: 360px;
+    height: auto;
     object-fit: contain;
     border-radius: 0;
     filter: drop-shadow(0 0 24px rgba(0, 212, 255, 0.24));
@@ -8083,8 +8085,7 @@ textarea.form-control:focus {
     }
 
     .login-page .login-brand-logo {
-        width: 92px;
-        height: 92px;
+        width: min(100%, 300px);
     }
 }
 
