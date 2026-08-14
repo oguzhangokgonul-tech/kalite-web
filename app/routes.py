@@ -1468,7 +1468,13 @@ def user_initials(user):
 
 
 def oguzhan_user():
-    return User.query.filter_by(username="oguzhan", is_active=True).first()
+    query = User.query.filter_by(username="oguzhan", is_active=True)
+    company_id = current_company_id()
+    if company_id:
+        query = query.filter(User.company_id == company_id)
+    elif not getattr(g, "current_user_is_super_admin", False) and g.current_user:
+        query = query.filter(User.company_id == g.current_user.company_id)
+    return query.first()
 
 
 def reserve_action_number():

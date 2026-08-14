@@ -128,6 +128,32 @@ def test_company_primary_domain_falls_back_to_slug(app, companies):
     assert domain == "deneme.volkaportal.com"
 
 
+def test_oguzhan_user_is_scoped_to_current_company(app, companies):
+    erprefabrik, deneme, _passive = companies
+    oguzhan = User(
+        username="oguzhan",
+        full_name="Oguzhan",
+        password_hash="not-used",
+        company_id=erprefabrik.id,
+        is_active=True,
+    )
+    db.session.add(oguzhan)
+    db.session.commit()
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import oguzhan_user
+
+        g.current_company = deneme
+        g.current_user = None
+        g.current_user_is_super_admin = False
+
+        assert oguzhan_user() is None
+
+        g.current_company = erprefabrik
+        assert oguzhan_user().id == oguzhan.id
+
+
 def test_tenant_urls_are_generated_from_configured_domains(app, companies):
     erprefabrik, _deneme, _passive = companies
 
