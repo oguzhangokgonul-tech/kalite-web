@@ -16,12 +16,58 @@ def host_looks_local(host):
     return host in {"", "localhost", "127.0.0.1", "0.0.0.0"} or host.endswith(".local")
 
 
+def tenant_base_domain():
+    return normalize_request_host(current_app.config.get("TENANT_BASE_DOMAIN"))
+
+
+def host_is_tenant_base(host):
+    base_domain = tenant_base_domain()
+    if not base_domain:
+        return False
+    return normalize_request_host(host) == base_domain
+
+
+def company_primary_domain(company):
+    if company.primary_domain:
+        return normalize_request_host(company.primary_domain)
+
+    base_domain = tenant_base_domain()
+    if company.slug and base_domain:
+        return f"{company.slug}.{base_domain}"
+
+    return ""
+
+
+def tenant_url_for_company(company, path="/"):
+    domain = company_primary_domain(company)
+    if not domain:
+        return path
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    scheme = current_app.config.get("PREFERRED_URL_SCHEME", "https")
+    return f"{scheme}://{domain}{path}"
+
+
+def tenant_base_url(path="/"):
+    base_domain = tenant_base_domain()
+    if not base_domain:
+        return path
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    scheme = current_app.config.get("PREFERRED_URL_SCHEME", "https")
+    return f"{scheme}://{base_domain}{path}"
+
+
 def tenant_company_from_host(host):
     host = normalize_request_host(host)
     if host_looks_local(host):
         return None
 
-    base_domain = normalize_request_host(current_app.config.get("TENANT_BASE_DOMAIN"))
+    base_domain = tenant_base_domain()
     company = (
         Company.query.filter(
             Company.is_active.is_(True),

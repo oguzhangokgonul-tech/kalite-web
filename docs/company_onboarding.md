@@ -21,9 +21,20 @@ Yeni firma bos veriyle baslar. Mevcut Er Prefabrik verileri yeni firmaya kopyala
 
 ## 2. DNS Kaydi Ekle
 
-Domain panelinde yeni subdomain icin A kaydi eklenir.
+Tercih edilen yapi wildcard DNS kaydidir. Bu kayit bir kez eklenirse
+`erprefabrik.volkaportal.com`, `ornekfirma.volkaportal.com` gibi yeni
+subdomainler ayrica DNS kaydi istemeden ayni sunucuya gider.
 
-Ornek:
+Onerilen:
+
+```text
+Type: A
+Host: *
+Value: 94.103.45.122
+TTL: 30 dk veya 1 saat
+```
+
+Wildcard kullanilmiyorsa tekil subdomain kaydi eklenir:
 
 ```text
 Type: A
@@ -46,12 +57,12 @@ Beklenen IP:
 
 ## 3. Nginx Ayarini Guncelle
 
-Wildcard Nginx yapisi kurulana kadar yeni subdomain mevcut `server_name` satirina eklenir.
+Onerilen Nginx yapisi wildcard `server_name` kullanir.
 
 Ornek:
 
 ```nginx
-server_name volkaportal.com www.volkaportal.com erprefabrik.volkaportal.com ornekfirma.volkaportal.com;
+server_name volkaportal.com www.volkaportal.com *.volkaportal.com;
 ```
 
 Kontrol:
@@ -63,13 +74,17 @@ systemctl reload nginx
 
 ## 4. SSL Sertifikasina Ekle
 
-Yeni subdomain sertifikaya eklenir.
+Uzun vadeli onerilen yapi wildcard SSL sertifikasidir.
+
+```bash
+certbot certonly --manual --preferred-challenges dns -d volkaportal.com -d "*.volkaportal.com"
+```
+
+Wildcard SSL kullanilmiyorsa yeni subdomain mevcut sertifikaya tekil olarak eklenir.
 
 ```bash
 certbot --nginx -d volkaportal.com -d www.volkaportal.com -d erprefabrik.volkaportal.com -d ornekfirma.volkaportal.com
 ```
-
-Certbot mevcut sertifikayi genisletmek isterse `Expand` secilir.
 
 ## 5. Ilk Kullanicilari Olustur
 
@@ -97,4 +112,5 @@ Yeni firma icin temel kontrol listesi:
 
 - Sirket kodu artik giris ekrani icin kullanilmaz; sistem firmayi domain/subdomain uzerinden secer.
 - Sirket kodu sadece envanter ve idari takip amaciyla tutulur.
+- Canli ortamda oturumun ana domain ve subdomainler arasinda korunmasi icin `SESSION_COOKIE_DOMAIN=.volkaportal.com` mantigi kullanilir.
 - Uzun vadede wildcard DNS, wildcard Nginx ve wildcard SSL yapisina gecilirse 2-4. adimlar otomatiklesebilir.

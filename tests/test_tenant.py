@@ -9,10 +9,14 @@ from app.extensions import db
 from app.models import Action, Company, User
 from app.tenant import (
     assign_current_company,
+    company_primary_domain,
     current_company_id,
     ensure_same_company,
+    host_is_tenant_base,
     scoped_query,
+    tenant_base_url,
     tenant_company_from_host,
+    tenant_url_for_company,
 )
 
 
@@ -25,6 +29,7 @@ def app(tmp_path):
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         TENANT_BASE_DOMAIN="volkaportal.com",
         UPLOAD_FOLDER=tmp_path,
+        PREFERRED_URL_SCHEME="https",
     )
     db.init_app(test_app)
     with test_app.app_context():
@@ -105,6 +110,33 @@ def test_tenant_company_ignores_passive_company(app, companies):
         company = tenant_company_from_host("pasif.volkaportal.com")
 
     assert company is None
+
+
+def test_tenant_base_host_accepts_www_and_port(app):
+    with app.app_context():
+        assert host_is_tenant_base("www.volkaportal.com:443")
+
+
+def test_company_primary_domain_falls_back_to_slug(app, companies):
+    _erprefabrik, deneme, _passive = companies
+    deneme.primary_domain = None
+    db.session.commit()
+
+    with app.app_context():
+        domain = company_primary_domain(deneme)
+
+    assert domain == "deneme.volkaportal.com"
+
+
+def test_tenant_urls_are_generated_from_configured_domains(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    with app.app_context():
+        company_url = tenant_url_for_company(erprefabrik, "/")
+        base_url = tenant_base_url("/login")
+
+    assert company_url == "https://erprefabrik.volkaportal.com/"
+    assert base_url == "https://volkaportal.com/login"
 
 
 def test_scoped_query_limits_records_to_current_company(app, companies):

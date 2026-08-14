@@ -69,8 +69,11 @@ from .tenant import (
     assign_current_company,
     current_company_id,
     ensure_same_company,
+    host_looks_local,
     scoped_query,
+    tenant_base_url,
     tenant_company_from_host,
+    tenant_url_for_company,
 )
 
 
@@ -5768,13 +5771,14 @@ def dashboard():
 def switch_company():
     if not g.current_user_is_super_admin:
         abort(403)
-    if getattr(g, "tenant_company", None) is not None:
-        flash("Domain uzerinden giriste sirket otomatik secilir.", "warning")
-        return redirect(request.referrer or url_for("main.dashboard"))
 
+    is_local_host = host_looks_local(request.host.split(":", 1)[0].lower())
     company_id = request.form.get("company_id", type=int)
     if not company_id:
         session.pop("company_id", None)
+        if not is_local_host:
+            flash("Ortak superadmin gorunumune gecildi.", "success")
+            return redirect(tenant_base_url(url_for("main.dashboard")))
         flash("Ortak superadmin görünümüne geçildi.", "success")
         return redirect(request.referrer or url_for("main.dashboard"))
 
@@ -5784,6 +5788,9 @@ def switch_company():
         return redirect(request.referrer or url_for("main.dashboard"))
 
     session["company_id"] = company.id
+    if not is_local_host:
+        flash(f"{company.label} sirketine gecildi.", "success")
+        return redirect(tenant_url_for_company(company, url_for("main.dashboard")))
     flash(f"{company.label} şirketine geçildi.", "success")
     return redirect(request.referrer or url_for("main.dashboard"))
 
