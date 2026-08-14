@@ -508,6 +508,8 @@
 .vp-product-grid small {
     color: #667085;
     font-weight: 800;
+    min-height: 2.2em;
+    line-height: 1.1;
 }
 
 .vp-product-grid strong {
