@@ -156,4 +156,16 @@ def create_app(config_class=Config):
         db.session.commit()
         print(f"{len(dofs)} IF kaydi geri alindi.")
 
+    @app.cli.command("tenant-health")
+    @with_appcontext
+    def tenant_health_command():
+        from .tenant_health import collect_tenant_health_checks, tenant_health_has_failures
+
+        checks = collect_tenant_health_checks()
+        for check in checks:
+            click.echo(f"[{check.status}] {check.message}")
+
+        if tenant_health_has_failures(checks):
+            raise click.ClickException("Tenant health kontrolu basarisiz.")
+
     return app

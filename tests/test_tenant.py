@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 from flask import Flask
+from sqlalchemy import text
 from werkzeug.exceptions import NotFound
 
 from app.extensions import db
 from app.models import Action, AppSetting, Company, Dof, InternalAudit, User
+from app.tenant_health import collect_tenant_health_checks, tenant_health_has_failures
 from app.tenant import (
     assign_current_company,
     company_primary_domain,
@@ -355,3 +357,25 @@ def test_existing_uploaded_file_path_falls_back_to_legacy_path(app):
         file_path = existing_uploaded_file_path("company-001/actions/files/legacy.pdf")
 
     assert file_path == legacy_path
+
+
+def test_tenant_health_check_passes_for_expected_schema(app, companies):
+    with app.app_context():
+        db.session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
+        db.session.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES ('202608130004')")
+        )
+        db.session.add(
+            User(
+                username="superadmin",
+                full_name="Super Admin",
+                password_hash="not-used",
+                company_id=None,
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        checks = collect_tenant_health_checks()
+
+    assert not tenant_health_has_failures(checks)
