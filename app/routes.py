@@ -4601,6 +4601,7 @@ def parse_user_form(user=None):
     username = request.form.get("username", "").strip().lower()
     full_name = request.form.get("full_name", "").strip()
     password = request.form.get("password", "")
+    company_id = None if username == "superadmin" else current_company_id()
 
     if not username or not full_name:
         raise ValueError("required_fields")
@@ -4609,7 +4610,15 @@ def parse_user_form(user=None):
     if password:
         validate_password_policy(password)
 
-    existing_user = User.query.filter(User.username == username, User.id != user.id).first()
+    existing_query = User.query.filter(User.username == username, User.id != user.id)
+    if username == "superadmin":
+        existing_query = existing_query.filter(User.company_id.is_(None))
+    elif company_id:
+        existing_query = existing_query.filter(User.company_id == company_id)
+    else:
+        existing_query = existing_query.filter(User.company_id.is_(None))
+
+    existing_user = existing_query.first()
     if existing_user:
         raise ValueError("username_exists")
 
@@ -4626,8 +4635,10 @@ def parse_user_form(user=None):
     )
     user.can_close_assigned_actions = request.form.get("can_close_assigned_actions") == "on"
     user.can_manage_users = request.form.get("can_manage_users") == "on"
-    if user.username != "superadmin" and current_company_id():
-        user.company_id = current_company_id()
+    if user.username == "superadmin":
+        user.company_id = None
+    elif company_id:
+        user.company_id = company_id
 
     if password:
         user.set_password(password)
@@ -4857,6 +4868,31 @@ def log_login_attempt(username, ip_address, success, reason):
     )
 
 
+def find_login_user(identity, company=None):
+    identity = normalize_login_identity(identity)
+    if not identity:
+        return None
+
+    query = User.query.filter(
+        or_(
+            db.func.lower(User.username) == identity,
+            db.func.lower(User.full_name) == identity,
+        )
+    )
+
+    if company is not None:
+        query = query.filter(
+            or_(
+                User.company_id == company.id,
+                User.company_id.is_(None),
+            )
+        ).order_by(User.company_id.is_(None).asc(), User.id.asc())
+    else:
+        query = query.filter(User.company_id.is_(None)).order_by(User.id.asc())
+
+    return query.first()
+
+
 def validate_password_policy(password):
     if not password or len(password) < current_app.config["PASSWORD_MIN_LENGTH"]:
         raise ValueError("password_too_short")
@@ -4894,12 +4930,7 @@ def login():
             return render_template("login.html")
 
         company = tenant_company
-        user = User.query.filter(
-            or_(
-                db.func.lower(User.username) == identity,
-                db.func.lower(User.full_name) == identity,
-            )
-        ).first()
+        user = find_login_user(identity, company)
 
         if user and user.is_active and user.check_password(password):
             is_super_admin = has_role(user, "super_admin")

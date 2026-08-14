@@ -6,7 +6,7 @@ from .extensions import db
 from .models import Company, User
 
 
-EXPECTED_HEAD = "202608130004"
+EXPECTED_HEAD = "202608130005"
 
 REQUIRED_TABLES = (
     "companies",
@@ -55,6 +55,7 @@ COMPANY_ID_TABLES = (
 )
 
 COMPANY_SCOPED_UNIQUES = (
+    ("users", ("company_id", "username")),
     ("actions", ("company_id", "action_number")),
     ("dofs", ("company_id", "dof_no")),
     ("internal_audits", ("company_id", "audit_no")),

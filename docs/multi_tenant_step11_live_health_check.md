@@ -10,7 +10,7 @@ sudo -u aksiyon ./venv/bin/python -m flask --app app:create_app tenant-health
 Komut su kontrolleri yapar:
 
 - Beklenen temel tablolar var mi?
-- `alembic_version` head degeri `202608130004` mu?
+- `alembic_version` head degeri `202608130005` mu?
 - Tenant kapsamli tablolarda `company_id` kolonu var mi?
 - Sirket bazli unique yapilar dogrulanabiliyor mu?
 - `001` Er Prefabrik ve `000` Deneme Hesabi mevcut mu?

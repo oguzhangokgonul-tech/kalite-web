@@ -783,7 +783,13 @@ def ensure_default_users(reset_passwords=True):
     )
 
     for item in DEFAULT_USERS:
-        user = User.query.filter_by(username=item["username"]).first()
+        user_query = User.query.filter_by(username=item["username"])
+        if users_have_company_id:
+            if item["username"] in ADMIN_USERNAMES:
+                user_query = user_query.filter(User.company_id.is_(None))
+            elif primary_company is not None:
+                user_query = user_query.filter_by(company_id=primary_company.id)
+        user = user_query.first()
         is_new_user = user is None
         if user is None:
             user = User(username=item["username"])

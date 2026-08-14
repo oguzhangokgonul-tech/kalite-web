@@ -231,6 +231,58 @@ def test_scoped_query_allows_superadmin_without_company_scope(app, companies):
     assert titles == {"Er Prefabrik Aksiyon", "Deneme Aksiyon"}
 
 
+def test_same_username_is_allowed_in_different_companies(app, companies):
+    erprefabrik, deneme, _passive = companies
+    db.session.add_all(
+        [
+            User(
+                username="ortak",
+                full_name="Er Prefabrik Ortak",
+                password_hash="not-used",
+                company_id=erprefabrik.id,
+                is_active=True,
+            ),
+            User(
+                username="ortak",
+                full_name="Deneme Ortak",
+                password_hash="not-used",
+                company_id=deneme.id,
+                is_active=True,
+            ),
+        ]
+    )
+    db.session.commit()
+
+    assert User.query.filter_by(username="ortak").count() == 2
+
+
+def test_login_user_lookup_prefers_current_company(app, companies):
+    erprefabrik, deneme, _passive = companies
+    er_user = User(
+        username="ortak",
+        full_name="Er Prefabrik Ortak",
+        password_hash="not-used",
+        company_id=erprefabrik.id,
+        is_active=True,
+    )
+    deneme_user = User(
+        username="ortak",
+        full_name="Deneme Ortak",
+        password_hash="not-used",
+        company_id=deneme.id,
+        is_active=True,
+    )
+    db.session.add_all([er_user, deneme_user])
+    db.session.commit()
+
+    with app.test_request_context("/login"):
+        from app.routes import find_login_user
+
+        assert find_login_user("ortak", erprefabrik).id == er_user.id
+        assert find_login_user("ortak", deneme).id == deneme_user.id
+        assert find_login_user("ortak", None) is None
+
+
 def test_same_numbers_are_allowed_in_different_companies(app, companies):
     erprefabrik, deneme, _passive = companies
     er_action = action_for(erprefabrik, "Er Prefabrik Aksiyon")
@@ -363,7 +415,7 @@ def test_tenant_health_check_passes_for_expected_schema(app, companies):
     with app.app_context():
         db.session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
         db.session.execute(
-            text("INSERT INTO alembic_version (version_num) VALUES ('202608130004')")
+            text("INSERT INTO alembic_version (version_num) VALUES ('202608130005')")
         )
         db.session.add(
             User(

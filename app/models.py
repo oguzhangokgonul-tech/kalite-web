@@ -224,7 +224,16 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    username = db.Column(db.String(80), nullable=False, unique=True)
+    username = db.Column(db.String(80), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "username", name="uq_users_company_username"),
+        db.Index(
+            "uq_users_global_username",
+            "username",
+            unique=True,
+            sqlite_where=company_id.is_(None),
+        ),
+    )
     full_name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
     email = db.Column(db.String(255), nullable=True)
