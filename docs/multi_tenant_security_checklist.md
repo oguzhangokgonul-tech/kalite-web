@@ -20,7 +20,7 @@ sudo -u aksiyon ./venv/bin/python -m pytest tests/test_tenant.py
 Beklenen sonuc:
 
 ```text
-8 passed
+21 passed
 ```
 
 ## Canli Ortam Manuel Testi
