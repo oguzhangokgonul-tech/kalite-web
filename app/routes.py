@@ -8587,8 +8587,11 @@ def roles():
 @login_required
 @super_admin_required
 def companies():
+    from .company_onboarding import company_workspace_status
+
     company_list = Company.query.order_by(Company.code.asc(), Company.id.asc()).all()
     company_stats = {}
+    company_workspace = {}
     for company in company_list:
         company_stats[company.id] = {
             "users": User.query.filter_by(company_id=company.id).count(),
@@ -8597,10 +8600,12 @@ def companies():
             "audits": InternalAudit.query.filter_by(company_id=company.id).count(),
             "documents": Document.query.filter_by(company_id=company.id).count(),
         }
+        company_workspace[company.id] = company_workspace_status(company)
     return render_template(
         "companies.html",
         companies=company_list,
         company_stats=company_stats,
+        company_workspace=company_workspace,
     )
 
 

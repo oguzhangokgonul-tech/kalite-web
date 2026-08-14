@@ -30,6 +30,7 @@
             <th>&#350;irket</th>
             <th>Adres</th>
             <th>Durum</th>
+            <th>Haz&#305;rl&#305;k</th>
             <th>Kullan&#305;c&#305;</th>
             <th>Aksiyon</th>
             <th>IF</th>
@@ -41,6 +42,8 @@
         <tbody>
           {% for company in companies %}
             {% set stats = company_stats.get(company.id, {}) %}
+            {% set workspace = company_workspace.get(company.id, {}) %}
+            {% set missing_keys = workspace.get("missing_keys", []) %}
             <tr>
               <td><span class="company-code-badge">{{ company.code }}</span></td>
               <td>
@@ -55,6 +58,13 @@
                 {% endif %}
               </td>
               <td>{{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}</td>
+              <td>
+                {% if missing_keys %}
+                  {{ ui.status_badge("Eksik", tone="warning", icon="bi-exclamation-triangle-fill", title=missing_keys|join(", ")) }}
+                {% else %}
+                  {{ ui.status_badge("Haz&#305;r"|safe, tone="success", icon="bi-check-circle-fill") }}
+                {% endif %}
+              </td>
               <td>{{ stats.get("users", 0) }}</td>
               <td>{{ stats.get("actions", 0) }}</td>
               <td>{{ stats.get("dofs", 0) }}</td>
@@ -69,7 +79,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="10" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
+              <td colspan="11" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
             </tr>
           {% endfor %}
         </tbody>
