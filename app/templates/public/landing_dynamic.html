@@ -13,6 +13,11 @@
 
 {% block content %}
   <div class="vp-dynamic" data-dynamic-landing>
+    <div class="vp-scroll-progress" aria-hidden="true"><span data-scroll-progress></span></div>
+    <div class="vp-cursor-glow" data-cursor-glow aria-hidden="true"></div>
+    <div class="vp-tech-field" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
     <header class="vp-dynamic-header">
       <a class="vp-dynamic-brand" href="#top" aria-label="VolkaPortal">
         <img src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-on-dark-640.png') }}" alt="VolkaPortal" width="640" height="228">
@@ -37,6 +42,9 @@
       <div class="vp-dynamic-orbit" aria-hidden="true">
         <span></span><span></span><span></span><span></span>
       </div>
+      <div class="vp-hero-beams" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
       <div class="vp-dynamic-hero-copy">
         <span class="vp-dynamic-kicker">Fabrika s&#252;re&#231;leri i&#231;in tek kontrol katman&#305;</span>
         <h1>S&#252;re&#231;lerinizi izleyin, onaylay&#305;n, iyile&#351;tirin.</h1>
@@ -47,9 +55,17 @@
           <a class="vp-dynamic-primary vp-dynamic-primary-lg" href="#flow">Ak&#305;&#351;&#305; G&#246;r</a>
           <a class="vp-dynamic-ghost" href="{{ url_for('main.landing') }}">Klasik Preview</a>
         </div>
+        <div class="vp-live-pill-row" aria-label="Canl&#305; platform sinyalleri">
+          <span><i class="bi bi-broadcast-pin"></i> Canl&#305; bildirim</span>
+          <span><i class="bi bi-shield-lock"></i> Tenant izolasyonu</span>
+          <span><i class="bi bi-lightning-charge"></i> Ak&#305;&#351; otomasyonu</span>
+        </div>
       </div>
-      <div class="vp-dynamic-stage" aria-label="VolkaPortal dinamik panel g&#246;rseli">
+      <div class="vp-dynamic-stage" aria-label="VolkaPortal dinamik panel g&#246;rseli" data-parallax-card>
         <img class="vp-dynamic-stag" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
+        <div class="vp-stage-chip vp-stage-chip-one"><i class="bi bi-check2-circle"></i> Aksiyon tamamland&#305;</div>
+        <div class="vp-stage-chip vp-stage-chip-two"><i class="bi bi-bell"></i> 3 yeni bildirim</div>
+        <div class="vp-stage-chip vp-stage-chip-three"><i class="bi bi-diagram-3"></i> Onay ak&#305;&#351;&#305;</div>
         <div class="vp-dynamic-product">
           <div class="vp-product-sidebar">
             <span></span><span></span><span></span><span></span>
@@ -65,7 +81,9 @@
               <article><small>Geciken</small><strong>3</strong></article>
             </div>
             <div class="vp-product-lines">
-              <span></span><span></span><span></span>
+              <span><b>IF-0042</b><em>Y&#246;netim onay&#305; bekliyor</em></span>
+              <span><b>ICD-0016</b><em>Denetim tamamland&#305;</em></span>
+              <span><b>DOC-018</b><em>Revizyon yay&#305;nda</em></span>
             </div>
           </div>
         </div>
@@ -73,11 +91,16 @@
     </section>
 
     <section class="vp-dynamic-strip" id="platform">
-      <span>&#199;oklu &#351;irket</span>
-      <span>Rol bazl&#305; yetki</span>
-      <span>Onay ak&#305;&#351;&#305;</span>
-      <span>Dosya ve kan&#305;t</span>
-      <span>Canl&#305; bildirim</span>
+      <div class="vp-strip-track">
+        <span>&#199;oklu &#351;irket</span>
+        <span>Rol bazl&#305; yetki</span>
+        <span>Onay ak&#305;&#351;&#305;</span>
+        <span>Dosya ve kan&#305;t</span>
+        <span>Canl&#305; bildirim</span>
+        <span>Revizyon kontrol&#252;</span>
+        <span>Mobil uyum</span>
+        <span>Kurumsal izlenebilirlik</span>
+      </div>
     </section>
 
     <section class="vp-scroll-story" id="flow">
@@ -118,6 +141,7 @@
         ] %}
         {% for key, title, row, badge, color in scenes %}
           <div class="vp-scene {% if loop.first %}is-active{% endif %}" data-scene="{{ key }}" style="--scene-color: {{ color }};">
+            <div class="vp-scene-radar" aria-hidden="true"><span></span></div>
             <div class="vp-scene-header">
               <span></span>
               <strong>{{ title | safe }}</strong>
@@ -132,6 +156,10 @@
               <p><strong>{{ row | safe }}</strong><span>{{ badge | safe }}</span></p>
               <p><strong>Departman takibi</strong><span>Aktif</span></p>
               <p><strong>Bildirim ak&#305;&#351;&#305;</strong><span>Haz&#305;r</span></p>
+            </div>
+            <div class="vp-scene-footer">
+              <i class="bi bi-clock-history"></i>
+              <span>Her hareket ge&#231;mi&#351;e kaydedilir, bildirim ve yetki kontrol&#252;yle izlenir.</span>
             </div>
           </div>
         {% endfor %}
@@ -150,6 +178,23 @@
         <article><i class="bi bi-folder2-open"></i><strong>Dok&#252;man</strong><span>Revizyon</span></article>
         <article><i class="bi bi-tools"></i><strong>Bak&#305;m</strong><span>Ar&#305;za kapan&#305;&#351;&#305;</span></article>
         <article><i class="bi bi-moisture"></i><strong>Beton Deneyi</strong><span>&#214;l&#231;&#252;m takibi</span></article>
+      </div>
+      <div class="vp-screen-showcase">
+        <article class="vp-showcase-card vp-showcase-card-large">
+          <span>Ana panel</span>
+          <h3>Geciken, bekleyen ve tamamlanan i&#351;leri tek bak&#305;&#351;ta g&#246;r&#252;n.</h3>
+          <div class="vp-showcase-ui">
+            <i></i><i></i><i></i><i></i>
+          </div>
+        </article>
+        <article class="vp-showcase-card">
+          <span>Dok&#252;man</span>
+          <h3>Revizyon ve yay&#305;n kontrol&#252;</h3>
+        </article>
+        <article class="vp-showcase-card">
+          <span>Bak&#305;m</span>
+          <h3>Ar&#305;za kapan&#305;&#351; kan&#305;t&#305;</h3>
+        </article>
       </div>
     </section>
 
@@ -174,10 +219,13 @@
   <script>
     (() => {
       const root = document.querySelector("[data-dynamic-landing]");
-      if (!root || !("IntersectionObserver" in window)) return;
+      if (!root) return;
 
       const triggers = [...root.querySelectorAll("[data-scene-trigger]")];
       const scenes = [...root.querySelectorAll("[data-scene]")];
+      const progress = root.querySelector("[data-scroll-progress]");
+      const glow = root.querySelector("[data-cursor-glow]");
+      const parallaxCard = root.querySelector("[data-parallax-card]");
 
       function activate(sceneName) {
         triggers.forEach((trigger) => {
@@ -188,17 +236,44 @@
         });
       }
 
-      const observer = new IntersectionObserver((entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible) activate(visible.target.dataset.sceneTrigger);
-      }, {
-        rootMargin: "-35% 0px -45% 0px",
-        threshold: [0.15, 0.35, 0.55, 0.75],
-      });
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver((entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible) activate(visible.target.dataset.sceneTrigger);
+        }, {
+          rootMargin: "-35% 0px -45% 0px",
+          threshold: [0.15, 0.35, 0.55, 0.75],
+        });
 
-      triggers.forEach((trigger) => observer.observe(trigger));
+        triggers.forEach((trigger) => observer.observe(trigger));
+      }
+
+      function updateScrollProgress() {
+        if (!progress) return;
+        const pageHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const ratio = pageHeight > 0 ? window.scrollY / pageHeight : 0;
+        progress.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
+      }
+
+      function updateMouseEffects(event) {
+        if (glow) {
+          glow.style.setProperty("--x", `${event.clientX}px`);
+          glow.style.setProperty("--y", `${event.clientY}px`);
+        }
+        if (parallaxCard && window.matchMedia("(min-width: 980px)").matches) {
+          const rect = parallaxCard.getBoundingClientRect();
+          const x = (event.clientX - rect.left) / rect.width - 0.5;
+          const y = (event.clientY - rect.top) / rect.height - 0.5;
+          parallaxCard.style.setProperty("--tilt-x", `${-y * 8}deg`);
+          parallaxCard.style.setProperty("--tilt-y", `${x * 10}deg`);
+        }
+      }
+
+      window.addEventListener("scroll", updateScrollProgress, { passive: true });
+      window.addEventListener("mousemove", updateMouseEffects, { passive: true });
+      updateScrollProgress();
     })();
   </script>
 {% endblock %}
