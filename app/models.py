@@ -311,10 +311,17 @@ class LoginAttempt(db.Model):
 
 class Action(db.Model):
     __tablename__ = "actions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "action_number",
+            name="uq_actions_company_action_number",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    action_number = db.Column(db.Integer, nullable=True, unique=True)
+    action_number = db.Column(db.Integer, nullable=True)
     title = db.Column(db.String(160), nullable=False)
     responsible_owner = db.Column(db.String(120), nullable=False)
     responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -474,10 +481,13 @@ class Action(db.Model):
 
 class Dof(db.Model):
     __tablename__ = "dofs"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "dof_no", name="uq_dofs_company_dof_no"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    dof_no = db.Column(db.String(30), nullable=False, unique=True)
+    dof_no = db.Column(db.String(30), nullable=False)
     title = db.Column(db.String(160), nullable=True)
     department = db.Column(db.String(80), nullable=True)
     responsible_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -583,12 +593,19 @@ class DofComment(db.Model):
 
 class DocumentCategory(db.Model):
     __tablename__ = "document_categories"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "slug",
+            name="uq_document_categories_company_slug",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     code = db.Column(db.String(10), nullable=False)
     name = db.Column(db.String(120), nullable=False)
-    slug = db.Column(db.String(160), nullable=False, unique=True)
+    slug = db.Column(db.String(160), nullable=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     color = db.Column(db.String(40), nullable=True)
     icon = db.Column(db.String(80), nullable=True)
@@ -657,10 +674,17 @@ class Document(db.Model):
 
 class MaintenanceMachine(db.Model):
     __tablename__ = "maintenance_machines"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "code",
+            name="uq_maintenance_machines_company_code",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    code = db.Column(db.String(80), nullable=False, unique=True)
+    code = db.Column(db.String(80), nullable=False)
     machine_name = db.Column(db.String(180), nullable=False)
     brand_model = db.Column(db.String(180), nullable=True)
     serial_no = db.Column(db.String(120), nullable=True)
@@ -687,10 +711,17 @@ class MaintenanceMachine(db.Model):
 
 class MaintenanceFault(db.Model):
     __tablename__ = "maintenance_faults"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "fault_number",
+            name="uq_maintenance_faults_company_fault_number",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    fault_number = db.Column(db.Integer, nullable=True, unique=True)
+    fault_number = db.Column(db.Integer, nullable=True)
     machine_id = db.Column(
         db.Integer,
         db.ForeignKey("maintenance_machines.id"),
@@ -732,6 +763,14 @@ class MaintenanceFault(db.Model):
 
 class QualityTestRecord(db.Model):
     __tablename__ = "quality_test_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "test_type",
+            "record_number",
+            name="uq_quality_test_records_company_test_number",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
@@ -834,10 +873,17 @@ class QualityTestRecord(db.Model):
 
 class InternalAudit(db.Model):
     __tablename__ = "internal_audits"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "audit_no",
+            name="uq_internal_audits_company_audit_no",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
-    audit_no = db.Column(db.String(30), nullable=False, unique=True)
+    audit_no = db.Column(db.String(30), nullable=False)
     title = db.Column(db.String(160), nullable=False, default="İç Denetim")
     auditor_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     evaluated_department = db.Column(db.String(80), nullable=True)

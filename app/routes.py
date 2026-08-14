@@ -436,7 +436,8 @@ def ensure_internal_audit_schema():
                         """
                         CREATE TABLE internal_audits (
                             id INTEGER PRIMARY KEY,
-                            audit_no VARCHAR(30) NOT NULL UNIQUE,
+                            company_id INTEGER,
+                            audit_no VARCHAR(30) NOT NULL,
                             title VARCHAR(160) NOT NULL,
                             auditor_id INTEGER,
                             evaluated_department VARCHAR(80),
@@ -445,7 +446,8 @@ def ensure_internal_audit_schema():
                             status VARCHAR(40) NOT NULL DEFAULT 'Devam Ediyor',
                             active_question_order INTEGER NOT NULL DEFAULT 1,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(company_id, audit_no)
                         )
                         """
                     )
@@ -675,15 +677,17 @@ def ensure_document_schema():
                         """
                         CREATE TABLE document_categories (
                             id INTEGER PRIMARY KEY,
+                            company_id INTEGER,
                             code VARCHAR(10) NOT NULL,
                             name VARCHAR(120) NOT NULL,
-                            slug VARCHAR(160) NOT NULL UNIQUE,
+                            slug VARCHAR(160) NOT NULL,
                             sort_order INTEGER NOT NULL DEFAULT 0,
                             color VARCHAR(40),
                             icon VARCHAR(80),
                             is_active BOOLEAN NOT NULL DEFAULT 1,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(company_id, slug)
                         )
                         """
                     )
@@ -781,10 +785,18 @@ def ensure_document_schema():
 
 def ensure_document_categories():
     changed = False
+    company_id = current_company_id()
     for category_data in DOCUMENT_CATEGORY_DEFAULTS:
-        category = DocumentCategory.query.filter_by(slug=category_data["slug"]).first()
+        category_query = DocumentCategory.query.filter_by(slug=category_data["slug"])
+        if company_id:
+            category_query = category_query.filter_by(company_id=company_id)
+        else:
+            category_query = category_query.filter(DocumentCategory.company_id.is_(None))
+        category = category_query.first()
         if category is None:
-            category = DocumentCategory(**category_data)
+            category_values = dict(category_data)
+            category_values["company_id"] = company_id
+            category = DocumentCategory(**category_values)
             db.session.add(category)
             changed = True
             continue
@@ -815,7 +827,8 @@ def ensure_maintenance_schema():
                         """
                         CREATE TABLE maintenance_machines (
                             id INTEGER NOT NULL PRIMARY KEY,
-                            code VARCHAR(80) NOT NULL UNIQUE,
+                            company_id INTEGER,
+                            code VARCHAR(80) NOT NULL,
                             machine_name VARCHAR(180) NOT NULL,
                             brand_model VARCHAR(180),
                             serial_no VARCHAR(120),
@@ -826,7 +839,8 @@ def ensure_maintenance_schema():
                             created_by_user_id INTEGER,
                             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id),
+                            UNIQUE(company_id, code)
                         )
                         """
                     )
@@ -859,7 +873,8 @@ def ensure_maintenance_schema():
                         """
                         CREATE TABLE maintenance_faults (
                             id INTEGER NOT NULL PRIMARY KEY,
-                            fault_number INTEGER UNIQUE,
+                            company_id INTEGER,
+                            fault_number INTEGER,
                             machine_id INTEGER NOT NULL,
                             title VARCHAR(180) NOT NULL,
                             description TEXT,
@@ -876,7 +891,8 @@ def ensure_maintenance_schema():
                             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                             FOREIGN KEY(machine_id) REFERENCES maintenance_machines (id),
                             FOREIGN KEY(reported_by_user_id) REFERENCES users (id),
-                            FOREIGN KEY(responsible_user_id) REFERENCES users (id)
+                            FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                            UNIQUE(company_id, fault_number)
                         )
                         """
                     )
@@ -1477,15 +1493,31 @@ def oguzhan_user():
     return query.first()
 
 
+def company_counter_key(key):
+    company_id = current_company_id()
+    return f"company:{company_id}:{key}" if company_id else key
+
+
+def company_scoped_counter_query(query, model):
+    company_id = current_company_id()
+    if company_id and hasattr(model, "company_id"):
+        return query.filter(model.company_id == company_id)
+    return query
+
+
 def reserve_action_number():
     max_number = (
-        db.session.query(db.func.max(db.func.coalesce(Action.action_number, Action.id)))
+        company_scoped_counter_query(
+            db.session.query(db.func.max(db.func.coalesce(Action.action_number, Action.id))),
+            Action,
+        )
         .scalar()
         or 0
     )
-    setting = db.session.get(AppSetting, "next_action_number")
+    setting_key = company_counter_key("next_action_number")
+    setting = db.session.get(AppSetting, setting_key)
     if setting is None:
-        setting = AppSetting(key="next_action_number", value=str(max_number + 1))
+        setting = AppSetting(key=setting_key, value=str(max_number + 1))
         db.session.add(setting)
 
     next_number = int(setting.value)
@@ -1499,9 +1531,12 @@ def reserve_action_number():
 def reserve_dof_number(today=None):
     today = today or date.today()
     year = today.year
-    prefix = f"İF-{year}-"
+    prefix = f"IF-{year}-"
     existing_numbers = (
-        db.session.query(Dof.dof_no)
+        company_scoped_counter_query(
+            db.session.query(Dof.dof_no),
+            Dof,
+        )
         .filter(Dof.dof_no.like(f"{prefix}%"))
         .all()
     )
@@ -1512,7 +1547,7 @@ def reserve_dof_number(today=None):
         except ValueError:
             continue
 
-    setting_key = f"next_dof_number_{year}"
+    setting_key = company_counter_key(f"next_dof_number_{year}")
     setting = db.session.get(AppSetting, setting_key)
     if setting is None:
         setting = AppSetting(key=setting_key, value=str(max_number + 1))
@@ -1531,7 +1566,10 @@ def reserve_internal_audit_number(today=None):
     year = today.year
     prefix = f"ICD-{year}-"
     existing_numbers = (
-        db.session.query(InternalAudit.audit_no)
+        company_scoped_counter_query(
+            db.session.query(InternalAudit.audit_no),
+            InternalAudit,
+        )
         .filter(InternalAudit.audit_no.like(f"{prefix}%"))
         .all()
     )
@@ -1542,7 +1580,7 @@ def reserve_internal_audit_number(today=None):
         except ValueError:
             continue
 
-    setting_key = f"next_internal_audit_number_{year}"
+    setting_key = company_counter_key(f"next_internal_audit_number_{year}")
     setting = db.session.get(AppSetting, setting_key)
     if setting is None:
         setting = AppSetting(key=setting_key, value=str(max_number + 1))
@@ -1558,16 +1596,20 @@ def reserve_internal_audit_number(today=None):
 
 def reserve_maintenance_fault_number():
     max_number = (
-        db.session.query(
-            db.func.max(db.func.coalesce(MaintenanceFault.fault_number, MaintenanceFault.id))
+        company_scoped_counter_query(
+            db.session.query(
+                db.func.max(db.func.coalesce(MaintenanceFault.fault_number, MaintenanceFault.id))
+            ),
+            MaintenanceFault,
         )
         .scalar()
         or 0
     )
-    setting = db.session.get(AppSetting, "next_maintenance_fault_number")
+    setting_key = company_counter_key("next_maintenance_fault_number")
+    setting = db.session.get(AppSetting, setting_key)
     if setting is None:
         setting = AppSetting(
-            key="next_maintenance_fault_number",
+            key=setting_key,
             value=str(max_number + 1),
         )
         db.session.add(setting)
@@ -1586,7 +1628,10 @@ def quality_test_by_slug(slug):
 
 def reserve_quality_test_record_number(slug):
     max_number = (
-        db.session.query(db.func.max(QualityTestRecord.record_number))
+        company_scoped_counter_query(
+            db.session.query(db.func.max(QualityTestRecord.record_number)),
+            QualityTestRecord,
+        )
         .filter(QualityTestRecord.test_type == slug)
         .scalar()
         or 0
@@ -3027,7 +3072,8 @@ def filtered_document_query(category=None, filters=None):
 def ordered_document_categories():
     ensure_document_categories()
     return (
-        DocumentCategory.query.filter_by(is_active=True)
+        scoped_query(DocumentCategory.query, DocumentCategory)
+        .filter_by(is_active=True)
         .order_by(DocumentCategory.sort_order.asc(), DocumentCategory.id.asc())
         .all()
     )
@@ -3114,10 +3160,11 @@ def document_form_context(document=None, category_slug=None):
     if document is not None:
         selected_category = document.category
     elif category_slug:
-        selected_category = DocumentCategory.query.filter_by(
-            slug=category_slug,
-            is_active=True,
-        ).first()
+        selected_category = (
+            scoped_query(DocumentCategory.query, DocumentCategory)
+            .filter_by(slug=category_slug, is_active=True)
+            .first()
+        )
 
     form_data = request.form if request.method == "POST" else {}
     return {
@@ -5999,10 +6046,11 @@ def documents_list():
 def documents_category(slug):
     if not can_view_documents():
         abort(403)
-    category = DocumentCategory.query.filter_by(
-        slug=slug,
-        is_active=True,
-    ).first_or_404()
+    category = (
+        scoped_query(DocumentCategory.query, DocumentCategory)
+        .filter_by(slug=slug, is_active=True)
+        .first_or_404()
+    )
     return render_template(
         "documents/category.html",
         **documents_category_context(category),

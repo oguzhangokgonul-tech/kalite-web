@@ -6,7 +6,7 @@ from flask import Flask
 from werkzeug.exceptions import NotFound
 
 from app.extensions import db
-from app.models import Action, Company, User
+from app.models import Action, AppSetting, Company, Dof, InternalAudit, User
 from app.tenant import (
     assign_current_company,
     company_primary_domain,
@@ -84,6 +84,23 @@ def action_for(company, title):
         responsible_owner="Test User",
         department="Kalite",
         termin_date=date(2026, 8, 13),
+    )
+
+
+def dof_for(company, dof_no):
+    return Dof(
+        company_id=company.id,
+        dof_no=dof_no,
+        status="Taslak",
+        approval_step="draft",
+    )
+
+
+def audit_for(company, audit_no):
+    return InternalAudit(
+        company_id=company.id,
+        audit_no=audit_no,
+        title="Ic Denetim",
     )
 
 
@@ -210,6 +227,57 @@ def test_scoped_query_allows_superadmin_without_company_scope(app, companies):
         }
 
     assert titles == {"Er Prefabrik Aksiyon", "Deneme Aksiyon"}
+
+
+def test_same_numbers_are_allowed_in_different_companies(app, companies):
+    erprefabrik, deneme, _passive = companies
+    er_action = action_for(erprefabrik, "Er Prefabrik Aksiyon")
+    er_action.action_number = 1
+    deneme_action = action_for(deneme, "Deneme Aksiyon")
+    deneme_action.action_number = 1
+
+    db.session.add_all([
+        er_action,
+        deneme_action,
+        dof_for(erprefabrik, "IF-2026-0001"),
+        dof_for(deneme, "IF-2026-0001"),
+        audit_for(erprefabrik, "ICD-2026-0001"),
+        audit_for(deneme, "ICD-2026-0001"),
+    ])
+    db.session.commit()
+
+    assert Action.query.count() == 2
+    assert Dof.query.count() == 2
+    assert InternalAudit.query.count() == 2
+
+
+def test_company_scoped_counters_start_per_company(app, companies):
+    erprefabrik, deneme, _passive = companies
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import (
+            reserve_action_number,
+            reserve_dof_number,
+            reserve_internal_audit_number,
+        )
+
+        g.current_user = None
+        g.current_user_is_super_admin = False
+
+        g.current_company = erprefabrik
+        assert reserve_action_number() == 1
+        assert reserve_dof_number(date(2026, 8, 13)) == "IF-2026-0001"
+        assert reserve_internal_audit_number(date(2026, 8, 13)) == "ICD-2026-0001"
+
+        g.current_company = deneme
+        assert reserve_action_number() == 1
+        assert reserve_dof_number(date(2026, 8, 13)) == "IF-2026-0001"
+        assert reserve_internal_audit_number(date(2026, 8, 13)) == "ICD-2026-0001"
+
+    keys = {setting.key for setting in AppSetting.query.all()}
+    assert f"company:{erprefabrik.id}:next_action_number" in keys
+    assert f"company:{deneme.id}:next_action_number" in keys
 
 
 def test_assign_current_company_sets_company_id(app, companies):
