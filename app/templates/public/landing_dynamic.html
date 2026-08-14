@@ -61,7 +61,7 @@
           <span><i class="bi bi-lightning-charge"></i> Ak&#305;&#351; otomasyonu</span>
         </div>
       </div>
-      <div class="vp-dynamic-stage" aria-label="VolkaPortal dinamik panel g&#246;rseli" data-parallax-card>
+      <div class="vp-dynamic-stage" aria-label="VolkaPortal dinamik panel g&#246;rseli">
         <img class="vp-dynamic-stag" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
         <div class="vp-stage-chip vp-stage-chip-one"><i class="bi bi-check2-circle"></i> Aksiyon tamamland&#305;</div>
         <div class="vp-stage-chip vp-stage-chip-two"><i class="bi bi-bell"></i> 3 yeni bildirim</div>
@@ -179,38 +179,6 @@
         <article><i class="bi bi-tools"></i><strong>Bak&#305;m</strong><span>Ar&#305;za kapan&#305;&#351;&#305;</span></article>
         <article><i class="bi bi-moisture"></i><strong>Beton Deneyi</strong><span>&#214;l&#231;&#252;m takibi</span></article>
       </div>
-      <div class="vp-screen-showcase">
-        <article class="vp-showcase-card vp-showcase-card-large">
-          <span>Ana panel</span>
-          <h3>Geciken, bekleyen ve tamamlanan i&#351;leri tek bak&#305;&#351;ta g&#246;r&#252;n.</h3>
-          <div class="vp-showcase-ui">
-            <i></i><i></i><i></i><i></i>
-          </div>
-        </article>
-        <article class="vp-showcase-card">
-          <span>Dok&#252;man</span>
-          <h3>Revizyon ve yay&#305;n kontrol&#252;</h3>
-        </article>
-        <article class="vp-showcase-card">
-          <span>Bak&#305;m</span>
-          <h3>Ar&#305;za kapan&#305;&#351; kan&#305;t&#305;</h3>
-        </article>
-      </div>
-    </section>
-
-    <section class="vp-dynamic-cta" id="demo">
-      <div>
-        <span class="vp-dynamic-kicker">Alternatif tasar&#305;m denemesi</span>
-        <h2>Bunu birlikte inceltip sat&#305;&#351;a haz&#305;r ana sayfaya d&#246;n&#252;&#351;t&#252;relim.</h2>
-      </div>
-      <div class="vp-dynamic-actions">
-        <a class="vp-dynamic-primary" href="mailto:info@volkaportal.com">Demo Talep Et</a>
-        {% if g.current_user %}
-          <a class="vp-dynamic-ghost" href="{{ url_for('main.dashboard') }}">Panele Git</a>
-        {% else %}
-          <a class="vp-dynamic-ghost" href="{{ url_for('main.login') }}">Giri&#351; Yap</a>
-        {% endif %}
-      </div>
     </section>
   </div>
 {% endblock %}
@@ -225,7 +193,6 @@
       const scenes = [...root.querySelectorAll("[data-scene]")];
       const progress = root.querySelector("[data-scroll-progress]");
       const glow = root.querySelector("[data-cursor-glow]");
-      const parallaxCard = root.querySelector("[data-parallax-card]");
 
       function activate(sceneName) {
         triggers.forEach((trigger) => {
@@ -261,13 +228,6 @@
         if (glow) {
           glow.style.setProperty("--x", `${event.clientX}px`);
           glow.style.setProperty("--y", `${event.clientY}px`);
-        }
-        if (parallaxCard && window.matchMedia("(min-width: 980px)").matches) {
-          const rect = parallaxCard.getBoundingClientRect();
-          const x = (event.clientX - rect.left) / rect.width - 0.5;
-          const y = (event.clientY - rect.top) / rect.height - 0.5;
-          parallaxCard.style.setProperty("--tilt-x", `${-y * 8}deg`);
-          parallaxCard.style.setProperty("--tilt-y", `${x * 10}deg`);
         }
       }
 
