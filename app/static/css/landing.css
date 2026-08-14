@@ -20,6 +20,7 @@
         linear-gradient(180deg, #071421 0%, #08192b 46%, #f6f8fb 46%, #f6f8fb 100%);
     color: var(--landing-text);
     overflow: hidden;
+    min-height: 100vh;
 }
 
 .landing-header,
@@ -43,7 +44,7 @@
 }
 
 .landing-brand img {
-    width: 174px;
+    width: 188px;
     height: auto;
     display: block;
 }
@@ -120,7 +121,7 @@
 .landing-hero {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 0.95fr) minmax(500px, 1.25fr);
+    grid-template-columns: minmax(0, 0.92fr) minmax(520px, 1.28fr);
     gap: 44px;
     align-items: center;
     min-height: 720px;
@@ -283,25 +284,31 @@
 }
 
 .mockup-title {
-    width: 220px;
-    height: 24px;
-    border-radius: 999px;
-    background: #102a4a;
+    color: #0b1d36;
+    font-size: 1.65rem;
+    line-height: 1.1;
+    font-weight: 900;
 }
 
 .mockup-subtitle {
-    width: 150px;
-    height: 12px;
-    border-radius: 999px;
+    color: #667085;
+    font-size: 0.78rem;
+    font-weight: 700;
     margin-top: 10px;
-    background: #c8d3e1;
 }
 
 .mockup-button {
-    width: 132px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 132px;
     height: 44px;
     border-radius: 12px;
     background: #1e5bff;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 900;
+    padding: 0 14px;
 }
 
 .mockup-stat-grid {
@@ -312,19 +319,64 @@
 }
 
 .mockup-stat-grid span {
-    height: 92px;
+    display: grid;
+    align-content: center;
+    gap: 8px;
+    min-height: 92px;
     border-radius: 16px;
     background: #ffffff;
     border: 1px solid #e5eaf0;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    padding: 16px;
+}
+
+.mockup-stat-grid small {
+    color: #667085;
+    font-size: 0.66rem;
+    font-weight: 800;
+}
+
+.mockup-stat-grid strong {
+    color: #1e5bff;
+    font-size: 1.7rem;
+    line-height: 1;
 }
 
 .mockup-filter {
-    height: 76px;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 76px;
     border-radius: 16px;
     background: #ffffff;
     border: 1px solid #e5eaf0;
     margin-bottom: 22px;
+    padding: 16px;
+}
+
+.mockup-filter span,
+.mockup-filter strong {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.mockup-filter span {
+    color: #667085;
+    background: #f8fbff;
+    border: 1px solid #e5eaf0;
+    padding: 0 12px;
+}
+
+.mockup-filter strong {
+    justify-content: center;
+    color: #ffffff;
+    background: #1e5bff;
+    padding: 0 14px;
 }
 
 .mockup-table {
@@ -335,14 +387,35 @@
 }
 
 .mockup-table span {
-    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
     border-radius: 12px;
     background: #f2f6fb;
     margin-bottom: 12px;
+    padding: 0 14px;
 }
 
 .mockup-table span:last-child {
     margin-bottom: 0;
+}
+
+.mockup-table strong {
+    color: #0b1d36;
+    font-size: 0.76rem;
+}
+
+.mockup-table em {
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: #e7f8ef;
+    color: #07844d;
+    font-size: 0.64rem;
+    font-style: normal;
+    font-weight: 900;
+    padding: 5px 8px;
 }
 
 .landing-floating-card {
@@ -720,6 +793,22 @@
 
     .mockup-stat-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .mockup-topline,
+    .mockup-filter,
+    .mockup-table span {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .mockup-filter {
+        grid-template-columns: 1fr;
+    }
+
+    .mockup-button {
+        min-width: 0;
+        width: 100%;
     }
 
     .landing-floating-card {

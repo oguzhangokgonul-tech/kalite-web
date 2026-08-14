@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Kurumsal Surec Yonetim Platformu{% endblock %}
+{% block title %}Kurumsal S&#252;re&#231; Y&#246;netim Platformu{% endblock %}
 {% block body_class %}landing-body{% endblock %}
 {% block navbar %}{% endblock %}
 {% block main_class %}landing-main{% endblock %}
 {% block flashes %}{% endblock %}
 
 {% block head_extra %}
-  <meta name="description" content="VolkaPortal; aksiyon, IF, ic denetim, dokuman yonetimi, bakim ve kalite deneyleri sureclerini tek platformda yoneten kurumsal surec yonetim platformudur.">
-  <meta property="og:title" content="VolkaPortal | Kurumsal Surec Yonetim Platformu">
-  <meta property="og:description" content="Fabrikalar icin kalite, denetim, bakim ve dokumantasyon sureclerini tek merkezden yonetin.">
+  <meta name="description" content="VolkaPortal; aksiyon, IF, i&#231; denetim, dok&#252;man y&#246;netimi, bak&#305;m ve kalite deneyleri s&#252;re&#231;lerini tek platformda y&#246;neten kurumsal s&#252;re&#231; y&#246;netim platformudur.">
+  <meta property="og:title" content="VolkaPortal | Kurumsal S&#252;re&#231; Y&#246;netim Platformu">
+  <meta property="og:description" content="Fabrikalar i&#231;in kalite, denetim, bak&#305;m ve dok&#252;mantasyon s&#252;re&#231;lerini tek merkezden y&#246;netin.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
@@ -21,15 +21,19 @@
       <a class="landing-brand" href="#hero" aria-label="VolkaPortal">
         <img src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-on-dark-640.png') }}" alt="VolkaPortal" width="640" height="228">
       </a>
-      <nav class="landing-nav" aria-label="Ana menu">
+      <nav class="landing-nav" aria-label="Ana men&#252;">
         <a href="#platform">Platform</a>
-        <a href="#modules">Moduller</a>
-        <a href="#companies">Cozumler</a>
+        <a href="#modules">Mod&#252;ller</a>
+        <a href="#companies">&#199;&#246;z&#252;mler</a>
         <a href="#screens">Ekranlar</a>
         <a href="#demo">Demo</a>
       </nav>
       <div class="landing-header-actions">
-        <a class="landing-link-button" href="{{ url_for('main.login') }}">Giris Yap</a>
+        {% if g.current_user %}
+          <a class="landing-link-button" href="{{ url_for('main.dashboard') }}">Panele Git</a>
+        {% else %}
+          <a class="landing-link-button" href="{{ url_for('main.login') }}">Giri&#351; Yap</a>
+        {% endif %}
         <a class="landing-primary-button" href="#demo">Demo Talep Et</a>
       </div>
     </header>
@@ -37,38 +41,38 @@
     <section class="landing-hero" id="hero">
       <img class="landing-hero-watermark" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
       <div class="landing-hero-content">
-        <span class="landing-eyebrow">Veriden degere, surecten mukemmellige</span>
-        <h1>Fabrikalar Icin Dijital Surec Yonetimi</h1>
+        <span class="landing-eyebrow">Veriden de&#287;ere, s&#252;re&#231;ten m&#252;kemmelli&#287;e</span>
+        <h1>Fabrikalar &#304;&#231;in Dijital S&#252;re&#231; Y&#246;netimi</h1>
         <p class="landing-hero-lead">
-          Kalite, denetim, bakim ve dokumantasyon sureclerinizi tek platformda yonetin.
+          Kalite, denetim, bak&#305;m ve dok&#252;mantasyon s&#252;re&#231;lerinizi tek platformda y&#246;netin.
         </p>
         <p class="landing-hero-copy">
-          VolkaPortal; aksiyon, IF, ic denetim, dokuman yonetimi, bakim ve kalite deneyleri sureclerinizi merkezi, izlenebilir ve guvenli bir yapida toplar.
+          VolkaPortal; aksiyon, IF, i&#231; denetim, dok&#252;man y&#246;netimi, bak&#305;m ve kalite deneyleri s&#252;re&#231;lerinizi merkezi, izlenebilir ve g&#252;venli bir yap&#305;da toplar.
         </p>
         <div class="landing-hero-actions">
           <a class="landing-primary-button landing-primary-button-lg" href="#demo">Demo Talep Et</a>
-          <a class="landing-secondary-button" href="#modules">Modulleri Incele</a>
+          <a class="landing-secondary-button" href="#modules">Mod&#252;lleri &#304;ncele</a>
         </div>
-        <div class="landing-proof-grid" aria-label="Platform ozellikleri">
-          <div><strong>7+</strong><span>Modul</span></div>
-          <div><strong>360</strong><span>Surec gorunurlugu</span></div>
+        <div class="landing-proof-grid" aria-label="Platform &#246;zellikleri">
+          <div><strong>7+</strong><span>Mod&#252;l</span></div>
+          <div><strong>360</strong><span>S&#252;re&#231; g&#246;r&#252;n&#252;rl&#252;&#287;&#252;</span></div>
           <div><strong>100%</strong><span>Uyum ve izlenebilirlik</span></div>
-          <div><strong>24/7</strong><span>Kontrollu erisim</span></div>
+          <div><strong>24/7</strong><span>Kontroll&#252; eri&#351;im</span></div>
         </div>
       </div>
 
-      <div class="landing-hero-visual" aria-label="VolkaPortal panel onizlemesi">
+      <div class="landing-hero-visual" aria-label="VolkaPortal panel &#246;nizlemesi">
         <div class="landing-floating-card landing-floating-card-left">
           <i class="bi bi-clipboard2-check"></i>
-          <span>Ic Denetim</span>
+          <span>&#304;&#231; Denetim</span>
         </div>
         <div class="landing-floating-card landing-floating-card-right">
           <i class="bi bi-folder2-open"></i>
-          <span>Dokuman Yonetimi</span>
+          <span>Dok&#252;man Y&#246;netimi</span>
         </div>
         <div class="landing-floating-card landing-floating-card-bottom">
           <i class="bi bi-tools"></i>
-          <span>Bakim Yonetimi</span>
+          <span>Bak&#305;m Y&#246;netimi</span>
         </div>
         <div class="landing-dashboard-mockup">
           <aside>
@@ -81,74 +85,79 @@
           <main>
             <div class="mockup-topline">
               <div>
-                <span class="mockup-title"></span>
-                <span class="mockup-subtitle"></span>
+                <span class="mockup-title">Ana Sayfa</span>
+                <span class="mockup-subtitle">Kalite y&#246;netim sistemi aksiyon takip ekran&#305;</span>
               </div>
-              <span class="mockup-button"></span>
+              <span class="mockup-button">Yeni aksiyon ekle</span>
             </div>
             <div class="mockup-stat-grid">
-              <span></span>
-              <span></span>
-              <span></span>
-              <span></span>
+              <span><small>Toplam Aksiyon</small><strong>128</strong></span>
+              <span><small>Tamamlanan</small><strong>94</strong></span>
+              <span><small>Onay Bekleyen</small><strong>12</strong></span>
+              <span><small>Geciken</small><strong>4</strong></span>
             </div>
-            <div class="mockup-filter"></div>
+            <div class="mockup-filter">
+              <span>Arama</span>
+              <span>Departman</span>
+              <span>Durum</span>
+              <strong>Filtrele</strong>
+            </div>
             <div class="mockup-table">
-              <span></span>
-              <span></span>
-              <span></span>
+              <span><strong>#24 Bak&#305;m aksiyonu</strong><em>Devam Ediyor</em></span>
+              <span><strong>#25 &#304;&#231; denetim bulgusu</strong><em>Onay Bekliyor</em></span>
+              <span><strong>#26 Dok&#252;man revizyonu</strong><em>Tamamland&#305;</em></span>
             </div>
           </main>
         </div>
       </div>
     </section>
 
-    <section class="landing-trust-strip" id="platform" aria-label="Guven ve platform ozellikleri">
+    <section class="landing-trust-strip" id="platform" aria-label="G&#252;ven ve platform &#246;zellikleri">
       <article>
         <i class="bi bi-database-check"></i>
         <strong>Merkezi ve Entegre</strong>
-        <span>Tum surecler tek veritabaninda</span>
+        <span>T&#252;m s&#252;re&#231;ler tek veritaban&#305;nda</span>
       </article>
       <article>
         <i class="bi bi-person-lock"></i>
-        <strong>Rol Bazli Yetki</strong>
-        <span>Dogru kisi, dogru yetki</span>
+        <strong>Rol Bazl&#305; Yetki</strong>
+        <span>Do&#287;ru ki&#351;i, do&#287;ru yetki</span>
       </article>
       <article>
         <i class="bi bi-diagram-3"></i>
-        <strong>Onay Akislari</strong>
+        <strong>Onay Ak&#305;&#351;lar&#305;</strong>
         <span>Dijital onaylarla kontrol sizde</span>
       </article>
       <article>
         <i class="bi bi-phone"></i>
         <strong>Mobil Uyumlu</strong>
-        <span>Her yerden erisim</span>
+        <span>Her yerden eri&#351;im</span>
       </article>
     </section>
 
     <section class="landing-section landing-section-light" id="modules">
       <div class="landing-section-heading">
-        <span class="landing-kicker">Moduller</span>
-        <h2>Fabrikanizin Tum Kritik Surecleri Tek Platformda</h2>
-        <p>Operasyonel verimlilik, kalite ve uyum icin ihtiyaciniz olan moduller VolkaPortal'da bir arada.</p>
+        <span class="landing-kicker">Mod&#252;ller</span>
+        <h2>Fabrikan&#305;z&#305;n T&#252;m Kritik S&#252;re&#231;leri Tek Platformda</h2>
+        <p>Operasyonel verimlilik, kalite ve uyum i&#231;in ihtiyac&#305;n&#305;z olan mod&#252;ller VolkaPortal'da bir arada.</p>
       </div>
       <div class="landing-module-grid">
         {% set modules = [
-          ("bi-folder2-open", "Dokuman Yonetimi", "Dokumanlarinizi yayinlayin, revizyonlari izleyin ve arsiv surecini kontrol edin."),
-          ("bi-clipboard2-check", "Ic Denetim Yonetimi", "Denetim planlarini, soru listelerini, bulgulari ve aksiyonlari uctan uca yonetin."),
-          ("bi-shield-check", "IF Yonetimi", "Duzeltici faaliyetleri kayit altina alin, sorumlulara atayin ve onay akislarini izleyin."),
-          ("bi-beaker", "Beton Deneyi", "Numune ve deney sonuclarini kaydedin, olcum terminlerini takip edin."),
-          ("bi-tools", "Bakim Yonetimi", "Ariza ve kapanis islemlerini ekipman bazli takip edin."),
-          ("bi-diagram-2", "Organizasyon Semasi", "Departman, pozisyon ve yetki yapinizi gorsel olarak yonetin."),
-          ("bi-speedometer2", "Ana Sayfa ve Dashboard", "Geciken, tamamlanan ve onay bekleyen isleri anlik gorun."),
-          ("bi-people", "Rol Yonetimi", "Kullanici rolleri ve yetkilerini merkezi olarak belirleyin.")
+          ("bi-folder2-open", "Dok&#252;man Y&#246;netimi", "Dok&#252;manlar&#305;n&#305;z&#305; yay&#305;nlay&#305;n, revizyonlar&#305; izleyin ve ar&#351;iv s&#252;recini kontrol edin."),
+          ("bi-clipboard2-check", "&#304;&#231; Denetim Y&#246;netimi", "Denetim planlar&#305;n&#305;, soru listelerini, bulgular&#305; ve aksiyonlar&#305; u&#231;tan uca y&#246;netin."),
+          ("bi-shield-check", "IF Y&#246;netimi", "D&#252;zeltici faaliyetleri kay&#305;t alt&#305;na al&#305;n, sorumlulara atay&#305;n ve onay ak&#305;&#351;lar&#305;n&#305; izleyin."),
+          ("bi-beaker", "Beton Deneyi", "Numune ve deney sonu&#231;lar&#305;n&#305; kaydedin, &#246;l&#231;&#252;m terminlerini takip edin."),
+          ("bi-tools", "Bak&#305;m Y&#246;netimi", "Ar&#305;za ve kapan&#305;&#351; i&#351;lemlerini ekipman bazl&#305; takip edin."),
+          ("bi-diagram-2", "Organizasyon &#350;emas&#305;", "Departman, pozisyon ve yetki yap&#305;n&#305;z&#305; g&#246;rsel olarak y&#246;netin."),
+          ("bi-speedometer2", "Ana Sayfa ve Dashboard", "Geciken, tamamlanan ve onay bekleyen i&#351;leri anl&#305;k g&#246;r&#252;n."),
+          ("bi-people", "Rol Y&#246;netimi", "Kullan&#305;c&#305; rolleri ve yetkilerini merkezi olarak belirleyin.")
         ] %}
         {% for icon, title, text in modules %}
           <article class="landing-module-card">
             <span class="landing-module-icon"><i class="bi {{ icon }}"></i></span>
-            <h3>{{ title }}</h3>
-            <p>{{ text }}</p>
-            <a href="#demo">Kesfet <i class="bi bi-arrow-right"></i></a>
+            <h3>{{ title | safe }}</h3>
+            <p>{{ text | safe }}</p>
+            <a href="#demo">Ke&#351;fet <i class="bi bi-arrow-right"></i></a>
           </article>
         {% endfor %}
       </div>
@@ -156,9 +165,9 @@
 
     <section class="landing-section landing-companies" id="companies">
       <div class="landing-section-heading landing-section-heading-dark">
-        <span class="landing-kicker">Coklu sirket mimarisi</span>
-        <h2>Birden Fazla Sirket, Tek Platform</h2>
-        <p>Sirket, departman ve rol bazli erisim yapisiyla her firmanin verisini ayri, guvenli ve izlenebilir sekilde yonetin.</p>
+        <span class="landing-kicker">&#199;oklu &#351;irket mimarisi</span>
+        <h2>Birden Fazla &#350;irket, Tek Platform</h2>
+        <p>&#350;irket, departman ve rol bazl&#305; eri&#351;im yap&#305;s&#305;yla her firman&#305;n verisini ayr&#305;, g&#252;venli ve izlenebilir &#351;ekilde y&#246;netin.</p>
       </div>
       <div class="landing-company-layout">
         <div class="landing-company-list">
@@ -167,49 +176,53 @@
           <div><i class="bi bi-building-add"></i><span>Yeni Firma</span></div>
         </div>
         <div class="landing-flow-card">
-          <span>Talep Olusturuldu</span>
+          <span>Talep Olu&#351;turuldu</span>
           <i class="bi bi-arrow-right"></i>
-          <span>Inceleme</span>
+          <span>&#304;nceleme</span>
           <i class="bi bi-arrow-right"></i>
           <span>Onay</span>
           <i class="bi bi-arrow-right"></i>
-          <span>Kapatildi</span>
+          <span>Kapat&#305;ld&#305;</span>
         </div>
       </div>
     </section>
 
     <section class="landing-section landing-section-light" id="screens">
       <div class="landing-section-heading">
-        <span class="landing-kicker">Urun deneyimi</span>
-        <h2>Gercek Ekranlar, Gercek Deneyim</h2>
-        <p>Mevcut ic panel yapisina uygun ekranlarla sureclerinizi sade ve anlasilir sekilde yonetin.</p>
+        <span class="landing-kicker">&#220;r&#252;n deneyimi</span>
+        <h2>Ger&#231;ek Ekranlar, Ger&#231;ek Deneyim</h2>
+        <p>Mevcut i&#231; panel yap&#305;s&#305;na uygun ekranlarla s&#252;re&#231;lerinizi sade ve anla&#351;&#305;l&#305;r &#351;ekilde y&#246;netin.</p>
       </div>
       <div class="landing-screen-grid">
         <article><span>Ana Sayfa</span><div class="screen-card-lines"></div></article>
-        <article><span>Dokuman Yonetimi</span><div class="screen-card-lines"></div></article>
-        <article><span>Ic Denetim</span><div class="screen-card-lines"></div></article>
-        <article><span>Bakim Yonetimi</span><div class="screen-card-lines"></div></article>
+        <article><span>Dok&#252;man Y&#246;netimi</span><div class="screen-card-lines"></div></article>
+        <article><span>&#304;&#231; Denetim</span><div class="screen-card-lines"></div></article>
+        <article><span>Bak&#305;m Y&#246;netimi</span><div class="screen-card-lines"></div></article>
       </div>
     </section>
 
     <section class="landing-cta" id="demo">
       <div>
         <span class="landing-kicker">VolkaPortal</span>
-        <h2>Sureclerinizi dijitallestirmeye hazir misiniz?</h2>
-        <p>Kalite, denetim, bakim ve dokumantasyon sureclerinizi tek merkezden yonetin.</p>
+        <h2>S&#252;re&#231;lerinizi dijitalle&#351;tirmeye haz&#305;r m&#305;s&#305;n&#305;z?</h2>
+        <p>Kalite, denetim, bak&#305;m ve dok&#252;mantasyon s&#252;re&#231;lerinizi tek merkezden y&#246;netin.</p>
       </div>
       <div class="landing-cta-actions">
         <a class="landing-primary-button landing-primary-button-lg" href="mailto:info@volkaportal.com">Demo Talep Et</a>
-        <a class="landing-secondary-button" href="{{ url_for('main.login') }}">Giris Yap</a>
+        {% if g.current_user %}
+          <a class="landing-secondary-button" href="{{ url_for('main.dashboard') }}">Panele Git</a>
+        {% else %}
+          <a class="landing-secondary-button" href="{{ url_for('main.login') }}">Giri&#351; Yap</a>
+        {% endif %}
       </div>
     </section>
 
     <footer class="landing-footer">
       <div>
         <img src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-on-dark-400.png') }}" alt="VolkaPortal" width="400" height="142">
-        <p>Kurumsal surec yonetiminde akilli cozum.</p>
+        <p>Kurumsal s&#252;re&#231; y&#246;netiminde ak&#305;ll&#305; &#231;&#246;z&#252;m.</p>
       </div>
-      <span>© 2026 VolkaPortal. Tum haklari saklidir.</span>
+      <span>&copy; 2026 VolkaPortal. T&#252;m haklar&#305; sakl&#305;d&#305;r.</span>
     </footer>
   </div>
 {% endblock %}
