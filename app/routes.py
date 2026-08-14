@@ -5849,6 +5849,11 @@ def landing():
     return render_template("public/landing.html")
 
 
+@bp.route("/landing-dynamic-preview")
+def landing_dynamic_preview():
+    return render_template("public/landing_dynamic.html")
+
+
 @bp.route("/")
 @login_required
 def dashboard():
