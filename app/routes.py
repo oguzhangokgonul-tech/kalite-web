@@ -5844,6 +5844,11 @@ def internal_audit_question_context(audit, question):
     }
 
 
+@bp.route("/landing-preview")
+def landing_preview():
+    return render_template("public/landing.html")
+
+
 @bp.route("/")
 @login_required
 def dashboard():
