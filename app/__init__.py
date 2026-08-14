@@ -168,4 +168,24 @@ def create_app(config_class=Config):
         if tenant_health_has_failures(checks):
             raise click.ClickException("Tenant health kontrolu basarisiz.")
 
+    @app.cli.command("company-bootstrap")
+    @click.argument("company_code")
+    @with_appcontext
+    def company_bootstrap_command(company_code):
+        from .company_onboarding import initialize_company_workspace
+        from .models import Company
+
+        company = Company.query.filter_by(code=company_code).first()
+        if company is None:
+            raise click.ClickException(f"Sirket bulunamadi: {company_code}")
+
+        created_keys = initialize_company_workspace(company)
+        db.session.commit()
+        if created_keys:
+            click.echo(f"{company.label} icin {len(created_keys)} baslangic ayari olusturuldu.")
+            for key in created_keys:
+                click.echo(f"- {key}")
+        else:
+            click.echo(f"{company.label} baslangic ayarlari zaten hazir.")
+
     return app

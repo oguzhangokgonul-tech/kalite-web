@@ -8610,8 +8610,12 @@ def companies():
 def create_company():
     if request.method == "POST":
         try:
+            from .company_onboarding import initialize_company_workspace
+
             company = parse_company_form()
             db.session.add(company)
+            db.session.flush()
+            initialize_company_workspace(company)
             db.session.commit()
             flash(f"{company.label} ÅŸirketi oluÅŸturuldu.", "success")
             return redirect(url_for("main.companies"))

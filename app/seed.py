@@ -773,6 +773,12 @@ def ensure_default_users(reset_passwords=True):
     ensure_runtime_schema()
     ensure_default_companies()
     primary_company = Company.query.filter_by(code=PRIMARY_COMPANY_CODE).first()
+    from .company_onboarding import initialize_company_workspace
+
+    for company in Company.query.filter_by(is_active=True).all():
+        initialize_company_workspace(company)
+    db.session.flush()
+
     user_columns = {
         column["name"] for column in inspect(db.engine).get_columns("users")
     }

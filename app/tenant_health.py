@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import inspect, text
 
+from .company_onboarding import company_workspace_status
 from .extensions import db
 from .models import Company, User
 
@@ -196,6 +197,17 @@ def collect_tenant_health_checks():
         add("WARN", f"{active_without_domain} aktif firmada primary_domain bos.")
     else:
         add("OK", "Aktif firmalarin primary_domain alanlari dolu.")
+
+    for company in Company.query.filter_by(is_active=True).order_by(Company.code.asc()).all():
+        status = company_workspace_status(company)
+        missing_keys = status["missing_keys"]
+        if missing_keys:
+            add(
+                "WARN",
+                f"{company.label} icin eksik baslangic sayaci var: {', '.join(missing_keys)}",
+            )
+        else:
+            add("OK", f"{company.label} baslangic sayaclari hazir.")
 
     for table_name in TENANT_ROW_TABLES:
         if table_name not in existing_tables or "company_id" not in _table_columns(inspector, table_name):

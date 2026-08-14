@@ -8,6 +8,11 @@ from werkzeug.exceptions import NotFound
 
 from app.extensions import db
 from app.models import Action, AppSetting, Company, Dof, InternalAudit, User
+from app.company_onboarding import (
+    company_setting_key,
+    company_workspace_status,
+    initialize_company_workspace,
+)
 from app.tenant_health import collect_tenant_health_checks, tenant_health_has_failures
 from app.tenant import (
     assign_current_company,
@@ -332,6 +337,31 @@ def test_company_scoped_counters_start_per_company(app, companies):
     keys = {setting.key for setting in AppSetting.query.all()}
     assert f"company:{erprefabrik.id}:next_action_number" in keys
     assert f"company:{deneme.id}:next_action_number" in keys
+
+
+def test_initialize_company_workspace_creates_default_counters(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    created_keys = initialize_company_workspace(erprefabrik, year=2026)
+    db.session.commit()
+
+    assert set(created_keys) == {
+        company_setting_key(erprefabrik.id, "next_action_number"),
+        company_setting_key(erprefabrik.id, "next_dof_number_2026"),
+        company_setting_key(erprefabrik.id, "next_internal_audit_number_2026"),
+        company_setting_key(erprefabrik.id, "next_maintenance_fault_number"),
+    }
+    assert company_workspace_status(erprefabrik, year=2026)["missing_keys"] == []
+
+
+def test_initialize_company_workspace_is_idempotent(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    initialize_company_workspace(erprefabrik, year=2026)
+    db.session.commit()
+    created_again = initialize_company_workspace(erprefabrik, year=2026)
+
+    assert created_again == []
 
 
 def test_assign_current_company_sets_company_id(app, companies):
