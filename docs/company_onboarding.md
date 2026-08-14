@@ -21,6 +21,12 @@ Yeni firma bos veriyle baslar. Mevcut Er Prefabrik verileri yeni firmaya kopyala
 
 ## 2. DNS Kaydi Ekle
 
+Detayli DNS / Nginx / SSL standardi icin ayrica bkz:
+
+```text
+docs/multi_tenant_step15_dns_nginx_ssl_standard.md
+```
+
 Tercih edilen yapi wildcard DNS kaydidir. Bu kayit bir kez eklenirse
 `erprefabrik.volkaportal.com`, `ornekfirma.volkaportal.com` gibi yeni
 subdomainler ayrica DNS kaydi istemeden ayni sunucuya gider.
