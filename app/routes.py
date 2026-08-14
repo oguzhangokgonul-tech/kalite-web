@@ -5845,11 +5845,12 @@ def internal_audit_question_context(audit, question):
 
 
 @bp.route("/landing-preview")
-def landing_preview():
+@bp.route("/")
+def landing():
     return render_template("public/landing.html")
 
 
-@bp.route("/")
+@bp.route("/dashboard")
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
