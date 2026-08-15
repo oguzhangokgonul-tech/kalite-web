@@ -91,17 +91,29 @@
       </div>
     </section>
 
-    <section class="vp-dynamic-strip" id="platform">
+    <section class="vp-dynamic-strip" id="platform" aria-label="Referanslar">
       <strong class="vp-strip-label">Referanslar</strong>
-      <div class="vp-strip-track">
-        <span>Er Prefabrik</span>
-        <span>&#214;rnek Firma</span>
-        <span>&#214;rnek Firma 2</span>
-        <span>&#214;rnek Firma 3</span>
-        <span>Er Prefabrik</span>
-        <span>&#214;rnek Firma</span>
-        <span>&#214;rnek Firma 2</span>
-        <span>&#214;rnek Firma 3</span>
+      <div class="vp-strip-marquee">
+        <div class="vp-strip-track">
+          <span>Er Prefabrik</span>
+          <span>&#214;rnek Firma</span>
+          <span>&#214;rnek Firma 2</span>
+          <span>&#214;rnek Firma 3</span>
+          <span>Er Prefabrik</span>
+          <span>&#214;rnek Firma</span>
+          <span>&#214;rnek Firma 2</span>
+          <span>&#214;rnek Firma 3</span>
+        </div>
+        <div class="vp-strip-track" aria-hidden="true">
+          <span>Er Prefabrik</span>
+          <span>&#214;rnek Firma</span>
+          <span>&#214;rnek Firma 2</span>
+          <span>&#214;rnek Firma 3</span>
+          <span>Er Prefabrik</span>
+          <span>&#214;rnek Firma</span>
+          <span>&#214;rnek Firma 2</span>
+          <span>&#214;rnek Firma 3</span>
+        </div>
       </div>
     </section>
 
@@ -198,6 +210,7 @@
       const scenes = [...root.querySelectorAll("[data-scene]")];
       const progress = root.querySelector("[data-scroll-progress]");
       const glow = root.querySelector("[data-cursor-glow]");
+      const header = root.querySelector(".vp-dynamic-header");
 
       function activate(sceneName) {
         triggers.forEach((trigger) => {
@@ -223,10 +236,14 @@
       }
 
       function updateScrollProgress() {
-        if (!progress) return;
         const pageHeight = document.documentElement.scrollHeight - window.innerHeight;
         const ratio = pageHeight > 0 ? window.scrollY / pageHeight : 0;
-        progress.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
+        if (progress) {
+          progress.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
+        }
+        if (header) {
+          header.classList.toggle("is-compact", window.scrollY > 72);
+        }
       }
 
       function updateMouseEffects(event) {
