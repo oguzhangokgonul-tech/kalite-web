@@ -50,9 +50,9 @@
     height: 540px;
     pointer-events: none;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 212, 255, 0.13), transparent 62%);
+    background: radial-gradient(circle, rgba(0, 212, 255, 0.1), transparent 62%);
     transform: translate(calc(var(--x, -999px) - 50%), calc(var(--y, -999px) - 50%));
-    transition: transform 90ms linear;
+    will-change: transform;
 }
 
 .vp-tech-field {
@@ -61,6 +61,7 @@
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
+    contain: strict;
 }
 
 .vp-tech-field::before,
@@ -128,11 +129,9 @@
     gap: 24px;
     min-height: 78px;
     padding: 0 22px;
-    transition:
-        width 0.28s ease,
-        min-height 0.28s ease,
-        transform 0.28s ease,
-        padding 0.28s ease;
+    transform-origin: top center;
+    will-change: transform;
+    transition: transform 160ms ease-out;
 }
 
 .vp-dynamic-header::before {
@@ -148,17 +147,15 @@
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.1),
         0 22px 70px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(22px);
+    backdrop-filter: blur(12px);
     transition:
         background 0.28s ease,
-        box-shadow 0.28s ease,
+        opacity 0.18s ease,
         border-color 0.28s ease;
 }
 
 .vp-dynamic-header.is-compact {
-    width: min(980px, calc(100% - 42px));
-    min-height: 64px;
-    transform: translateY(6px);
+    transform: translateY(6px) scale(0.94);
 }
 
 .vp-dynamic-header.is-compact::before {
@@ -176,11 +173,7 @@
     display: block;
     width: 188px;
     height: auto;
-    transition: width 0.28s ease;
-}
-
-.vp-dynamic-header.is-compact .vp-dynamic-brand img {
-    width: 158px;
+    transform-origin: left center;
 }
 
 .vp-dynamic-nav {
@@ -273,7 +266,7 @@
     background:
         radial-gradient(circle at 45% 50%, rgba(0, 212, 255, 0.24), transparent 35%),
         radial-gradient(circle at 62% 55%, rgba(30, 91, 255, 0.3), transparent 44%);
-    filter: blur(18px);
+    filter: blur(12px);
     animation: vpGlowBreath 6s ease-in-out infinite;
 }
 
@@ -295,7 +288,7 @@
     height: 220px;
     border: 1px solid rgba(112, 234, 255, 0.2);
     border-radius: 50%;
-    filter: drop-shadow(0 0 18px rgba(0, 212, 255, 0.2));
+    will-change: transform, opacity;
     animation: vpOrbitPulse 7s ease-in-out infinite;
 }
 
@@ -407,7 +400,7 @@
     background:
         radial-gradient(circle at 18% 10%, rgba(0, 212, 255, 0.22), transparent 34%),
         radial-gradient(circle at 88% 84%, rgba(30, 91, 255, 0.18), transparent 38%);
-    filter: blur(18px);
+    filter: blur(12px);
     opacity: 0.78;
 }
 
@@ -428,7 +421,8 @@
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.12),
         0 14px 38px rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(10px);
+    will-change: transform, border-color;
     font-weight: 900;
     font-size: 0.88rem;
     line-height: 1.22;
@@ -484,7 +478,7 @@
     top: 28px;
     width: 360px;
     opacity: 0.18;
-    filter: drop-shadow(0 0 36px rgba(0, 212, 255, 0.42));
+    filter: drop-shadow(0 0 22px rgba(0, 212, 255, 0.34));
 }
 
 .vp-dynamic-product {
@@ -533,7 +527,8 @@
     color: #ffffff;
     background: rgba(5, 13, 24, 0.72);
     box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(10px);
+    will-change: transform;
     font-weight: 900;
     animation: vpFloatChip 4.6s ease-in-out infinite;
 }
@@ -862,7 +857,7 @@
     z-index: 0;
     height: 220px;
     background: radial-gradient(circle, color-mix(in srgb, var(--scene-color), transparent 70%), transparent 62%);
-    filter: blur(20px);
+    filter: blur(12px);
     pointer-events: none;
 }
 
@@ -898,6 +893,7 @@
     border-left-color: transparent;
     border-bottom-color: transparent;
     animation: vpRadarSpin 3.4s linear infinite;
+    will-change: transform;
 }
 
 @keyframes vpRadarSpin {
@@ -924,13 +920,14 @@
         0 18px 44px rgba(0, 0, 0, 0.26),
         0 0 28px color-mix(in srgb, var(--scene-color), transparent 68%),
         inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    backdrop-filter: blur(18px);
+    backdrop-filter: blur(10px);
     font-size: 0.84rem;
     font-weight: 950;
     opacity: 0;
     pointer-events: none;
     transition: opacity 260ms ease, transform 260ms ease;
     animation: vpSceneChipFloat 4.8s ease-in-out infinite;
+    will-change: transform, opacity;
 }
 
 .vp-scene-chip i {

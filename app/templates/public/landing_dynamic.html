@@ -219,6 +219,11 @@
       const progress = root.querySelector("[data-scroll-progress]");
       const glow = root.querySelector("[data-cursor-glow]");
       const header = root.querySelector(".vp-dynamic-header");
+      let pageHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+      let scrollTicking = false;
+      let mouseTicking = false;
+      let mouseX = -999;
+      let mouseY = -999;
 
       function activate(sceneName) {
         triggers.forEach((trigger) => {
@@ -244,7 +249,6 @@
       }
 
       function updateScrollProgress() {
-        const pageHeight = document.documentElement.scrollHeight - window.innerHeight;
         const ratio = pageHeight > 0 ? window.scrollY / pageHeight : 0;
         if (progress) {
           progress.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
@@ -252,18 +256,41 @@
         if (header) {
           header.classList.toggle("is-compact", window.scrollY > 72);
         }
+        scrollTicking = false;
       }
 
       function updateMouseEffects(event) {
-        if (glow) {
-          glow.style.setProperty("--x", `${event.clientX}px`);
-          glow.style.setProperty("--y", `${event.clientY}px`);
-        }
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+        if (!glow || mouseTicking) return;
+        mouseTicking = true;
+        window.requestAnimationFrame(() => {
+          glow.style.setProperty("--x", `${mouseX}px`);
+          glow.style.setProperty("--y", `${mouseY}px`);
+          mouseTicking = false;
+        });
       }
 
-      window.addEventListener("scroll", updateScrollProgress, { passive: true });
-      window.addEventListener("mousemove", updateMouseEffects, { passive: true });
-      updateScrollProgress();
+      function requestScrollUpdate() {
+        if (scrollTicking) return;
+        scrollTicking = true;
+        window.requestAnimationFrame(updateScrollProgress);
+      }
+
+      function refreshPageHeight() {
+        pageHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        requestScrollUpdate();
+      }
+
+      window.addEventListener("scroll", requestScrollUpdate, { passive: true });
+      window.addEventListener("resize", refreshPageHeight, { passive: true });
+      window.addEventListener("load", refreshPageHeight, { once: true });
+      if (window.matchMedia("(pointer: fine)").matches) {
+        window.addEventListener("mousemove", updateMouseEffects, { passive: true });
+      } else if (glow) {
+        glow.remove();
+      }
+      refreshPageHeight();
     })();
   </script>
 {% endblock %}
