@@ -204,8 +204,8 @@
 
 .vp-dynamic-hero {
     display: grid;
-    grid-template-columns: minmax(420px, 0.82fr) minmax(520px, 1.18fr);
-    gap: 64px;
+    grid-template-columns: minmax(430px, 0.9fr) minmax(560px, 1.1fr);
+    gap: 48px;
     align-items: center;
     min-height: 790px;
     padding: 56px 0 118px;
@@ -309,6 +309,10 @@
     z-index: 2;
 }
 
+.vp-dynamic-hero-copy {
+    max-width: 540px;
+}
+
 .vp-dynamic-kicker {
     display: inline-flex;
     color: #70eaff;
@@ -319,13 +323,14 @@
 }
 
 .vp-dynamic-hero h1 {
-    max-width: 620px;
+    max-width: 540px;
     margin: 18px 0;
-    font-size: clamp(3.05rem, 5.4vw, 6.15rem);
-    line-height: 0.94;
+    font-size: clamp(3.05rem, 4.9vw, 5.35rem);
+    line-height: 0.92;
     font-weight: 950;
     letter-spacing: 0;
     text-wrap: balance;
+    text-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
 }
 
 .vp-dynamic-hero h1 span {
@@ -382,7 +387,9 @@
 .vp-dynamic-stage {
     min-height: 580px;
     display: grid;
-    place-items: center;
+    align-items: center;
+    justify-items: end;
+    isolation: isolate;
 }
 
 .vp-dynamic-stag {
@@ -398,7 +405,7 @@
     position: relative;
     display: grid;
     grid-template-columns: 96px 1fr;
-    width: min(700px, 100%);
+    width: min(650px, 100%);
     min-height: 520px;
     border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: 34px;
@@ -407,7 +414,7 @@
         0 42px 120px rgba(0, 0, 0, 0.42),
         0 0 100px rgba(0, 212, 255, 0.18);
     overflow: hidden;
-    transform: perspective(1200px) rotateY(-10deg) rotateX(4deg);
+    transform: perspective(1200px) rotateY(-6deg) rotateX(3deg) translateX(8px);
 }
 
 .vp-dynamic-product::before {
