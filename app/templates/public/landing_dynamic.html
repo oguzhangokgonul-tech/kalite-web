@@ -132,14 +132,17 @@
       </div>
       <div class="vp-story-visual">
         {% set scenes = [
-          ("actions", "Aksiyon Takibi", "Yeni aksiyon", "Onay Bekliyor", "#1e5bff"),
-          ("if", "IF Y&#246;netimi", "Personel kapatmas&#305;", "Y&#246;netim Onay&#305;", "#8b5cf6"),
-          ("audit", "&#304;&#231; Denetim", "Soru ak&#305;&#351;&#305;", "Uygun De&#287;il", "#f59e0b"),
-          ("docs", "Dok&#252;man Y&#246;netimi", "Revizyon", "Yay&#305;nda", "#00a884"),
-          ("maintenance", "Bak&#305;m ve Deney", "A&#231;&#305;k ar&#305;za", "2 g&#252;n kald&#305;", "#00bbaa")
+          ("actions", "Aksiyon Takibi", "Yeni aksiyon", "Onay Bekliyor", "#1e5bff", "Aksiyon tamamland&#305;", "3 yeni bildirim", "Onay ak&#305;&#351;&#305;"),
+          ("if", "IF Y&#246;netimi", "Personel kapatmas&#305;", "Y&#246;netim Onay&#305;", "#8b5cf6", "IF onaya g&#246;nderildi", "Y&#246;netim bildirildi", "Kan&#305;t eklendi"),
+          ("audit", "&#304;&#231; Denetim", "Soru ak&#305;&#351;&#305;", "Uygun De&#287;il", "#f59e0b", "Bulgu olu&#351;tu", "IF a&#231;&#305;ld&#305;", "Soru tamamland&#305;"),
+          ("docs", "Dok&#252;man Y&#246;netimi", "Revizyon", "Yay&#305;nda", "#00a884", "Revizyon yay&#305;nda", "PDF haz&#305;r", "Dok&#252;man indirildi"),
+          ("maintenance", "Bak&#305;m ve Deney", "A&#231;&#305;k ar&#305;za", "2 g&#252;n kald&#305;", "#00bbaa", "Ar&#305;za kapand&#305;", "Bak&#305;m ekibi atand&#305;", "Deney takipte")
         ] %}
-        {% for key, title, row, badge, color in scenes %}
+        {% for key, title, row, badge, color, chip_one, chip_two, chip_three in scenes %}
           <div class="vp-scene {% if loop.first %}is-active{% endif %}" data-scene="{{ key }}" style="--scene-color: {{ color }};">
+            <div class="vp-scene-chip vp-scene-chip-one"><i class="bi bi-check2-circle"></i>{{ chip_one | safe }}</div>
+            <div class="vp-scene-chip vp-scene-chip-two"><i class="bi bi-bell"></i>{{ chip_two | safe }}</div>
+            <div class="vp-scene-chip vp-scene-chip-three"><i class="bi bi-diagram-3"></i>{{ chip_three | safe }}</div>
             <div class="vp-scene-radar" aria-hidden="true"><span></span></div>
             <div class="vp-scene-header">
               <span></span>
