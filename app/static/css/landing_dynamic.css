@@ -630,6 +630,9 @@
     max-width: calc(100vw - 42px);
     margin-top: -44px;
     margin-bottom: 76px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid #dbe5f0;
@@ -637,18 +640,42 @@
     overflow: hidden;
 }
 
+.vp-strip-label {
+    flex: 0 0 auto;
+    padding: 0 0 0 28px;
+    color: #1e5bff;
+    font-size: 0.78rem;
+    font-weight: 950;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
 .vp-strip-track {
     display: flex;
     gap: 12px;
     min-width: max-content;
-    padding: 18px;
-    animation: vpStripSlide 30s linear infinite;
+    padding: 18px 18px 18px 0;
+    animation: vpStripSlide 24s linear infinite;
 }
 
 .vp-strip-track span {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     color: #0b1d36;
     font-weight: 900;
-    padding: 10px 14px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(30, 91, 255, 0.08), rgba(0, 212, 255, 0.05));
+}
+
+.vp-strip-track span::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #1e5bff, #00d4ff);
+    box-shadow: 0 0 14px rgba(0, 212, 255, 0.42);
 }
 
 @keyframes vpStripSlide {
@@ -1156,6 +1183,20 @@
 
     .vp-dynamic-header::before {
         border-radius: 24px;
+    }
+
+    .vp-dynamic-strip {
+        align-items: flex-start;
+        flex-direction: column;
+        border-radius: 24px;
+    }
+
+    .vp-strip-label {
+        padding: 18px 18px 0;
+    }
+
+    .vp-strip-track {
+        padding: 0 18px 18px;
     }
 
     .vp-dynamic-stage {
