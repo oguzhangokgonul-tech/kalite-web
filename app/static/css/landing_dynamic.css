@@ -655,18 +655,19 @@
     min-height: 560px;
     display: grid;
     place-items: center;
+    padding: 86px 48px;
 }
 
 .vp-scene {
     position: absolute;
-    width: min(620px, 100%);
+    width: min(640px, calc(100% - 72px));
     border-radius: 32px;
     border: 1px solid #dbe5f0;
     background: #ffffff;
     box-shadow: 0 26px 80px rgba(15, 23, 42, 0.16);
     padding: 24px;
     opacity: 0;
-    overflow: hidden;
+    overflow: visible;
     transform: translateY(28px) scale(0.96);
     pointer-events: none;
     transition: opacity 260ms ease, transform 260ms ease;
@@ -696,9 +697,11 @@
     content: "";
     position: absolute;
     inset: auto -20% -40% 30%;
+    z-index: 0;
     height: 220px;
     background: radial-gradient(circle, color-mix(in srgb, var(--scene-color), transparent 70%), transparent 62%);
     filter: blur(20px);
+    pointer-events: none;
 }
 
 .vp-scene-radar {
@@ -741,20 +744,26 @@
 
 .vp-scene-chip {
     position: absolute;
-    z-index: 4;
+    z-index: 8;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-height: 40px;
-    max-width: 230px;
-    padding: 0 13px;
-    border: 1px solid rgba(255, 255, 255, 0.22);
+    gap: 10px;
+    min-height: 44px;
+    max-width: none;
+    white-space: nowrap;
+    padding: 0 16px 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 999px;
     color: #ffffff;
-    background: rgba(5, 13, 24, 0.78);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24), 0 0 26px color-mix(in srgb, var(--scene-color), transparent 72%);
-    backdrop-filter: blur(16px);
-    font-size: 0.82rem;
+    background:
+        linear-gradient(135deg, rgba(9, 19, 34, 0.92), rgba(35, 47, 66, 0.86)),
+        color-mix(in srgb, var(--scene-color), #0b1d36 82%);
+    box-shadow:
+        0 18px 44px rgba(0, 0, 0, 0.26),
+        0 0 28px color-mix(in srgb, var(--scene-color), transparent 68%),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(18px);
+    font-size: 0.84rem;
     font-weight: 950;
     opacity: 0;
     pointer-events: none;
@@ -763,26 +772,35 @@
 }
 
 .vp-scene-chip i {
-    color: color-mix(in srgb, var(--scene-color), white 22%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    color: #ffffff;
+    background: color-mix(in srgb, var(--scene-color), #0b1d36 18%);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--scene-color), transparent 35%);
+    font-size: 0.82rem;
 }
 
 .vp-scene-chip-one {
-    left: -28px;
-    top: 28px;
-    transform: translate3d(-18px, 8px, 0);
+    left: 26px;
+    top: -62px;
+    transform: translate3d(-10px, 12px, 0);
 }
 
 .vp-scene-chip-two {
-    right: -20px;
-    top: 126px;
-    transform: translate3d(18px, 10px, 0);
+    right: -28px;
+    top: 92px;
+    transform: translate3d(12px, 10px, 0);
     animation-delay: -1.45s;
 }
 
 .vp-scene-chip-three {
-    left: 62px;
-    bottom: -14px;
-    transform: translate3d(-8px, 18px, 0);
+    left: 76px;
+    bottom: -58px;
+    transform: translate3d(-8px, -2px, 0);
     animation-delay: -2.8s;
 }
 
@@ -792,6 +810,8 @@
 }
 
 .vp-scene-header,
+.vp-scene-metrics,
+.vp-scene-table,
 .vp-scene-table p,
 .vp-scene-footer {
     position: relative;
@@ -850,8 +870,6 @@
 }
 
 .vp-scene-metrics {
-    position: relative;
-    z-index: 2;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
