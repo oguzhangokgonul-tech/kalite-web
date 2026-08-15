@@ -204,8 +204,8 @@
 
 .vp-dynamic-hero {
     display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(500px, 1.15fr);
-    gap: 48px;
+    grid-template-columns: minmax(420px, 0.82fr) minmax(520px, 1.18fr);
+    gap: 64px;
     align-items: center;
     min-height: 790px;
     padding: 56px 0 118px;
@@ -319,12 +319,30 @@
 }
 
 .vp-dynamic-hero h1 {
-    max-width: 690px;
+    max-width: 620px;
     margin: 18px 0;
-    font-size: clamp(3.4rem, 7vw, 7.4rem);
-    line-height: 0.86;
+    font-size: clamp(3.05rem, 5.4vw, 6.15rem);
+    line-height: 0.94;
     font-weight: 950;
     letter-spacing: 0;
+    text-wrap: balance;
+}
+
+.vp-dynamic-hero h1 span {
+    display: block;
+}
+
+.vp-hero-title-accent {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 10px;
+    padding: 0 0.08em 0.08em 0;
+    color: transparent;
+    background:
+        linear-gradient(90deg, #ffffff 0%, #dbeafe 34%, #70eaff 68%, #1e5bff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter: drop-shadow(0 0 22px rgba(0, 212, 255, 0.18));
 }
 
 .vp-dynamic-hero p {
@@ -1036,6 +1054,11 @@
     .vp-dynamic-hero,
     .vp-scroll-story {
         grid-template-columns: 1fr;
+    }
+
+    .vp-dynamic-hero h1 {
+        max-width: 860px;
+        font-size: clamp(3rem, 10vw, 5.7rem);
     }
 
     .vp-dynamic-product {
