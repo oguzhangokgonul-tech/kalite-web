@@ -183,20 +183,28 @@
       </div>
     </section>
 
-    <section class="vp-dynamic-modules" id="modules">
-      <div class="vp-section-title">
-        <span>Mod&#252;l mimarisi</span>
-        <h2>Her ekran ayn&#305; sistem disiplinine ba&#287;l&#305;.</h2>
+    <footer class="vp-dynamic-footer" id="modules">
+      <div class="vp-footer-brand">
+        <img src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-on-dark-640.png') }}" alt="VolkaPortal" width="640" height="228">
       </div>
-      <div class="vp-module-marquee" aria-label="VolkaPortal mod&#252;lleri">
-        <article><i class="bi bi-check2-circle"></i><strong>Aksiyon</strong><span>Termin ve kan&#305;t</span></article>
-        <article><i class="bi bi-shield-check"></i><strong>IF</strong><span>Onay ak&#305;&#351;&#305;</span></article>
-        <article><i class="bi bi-clipboard2-pulse"></i><strong>&#304;&#231; Denetim</strong><span>Soru ve bulgu</span></article>
-        <article><i class="bi bi-folder2-open"></i><strong>Dok&#252;man</strong><span>Revizyon</span></article>
-        <article><i class="bi bi-tools"></i><strong>Bak&#305;m</strong><span>Ar&#305;za kapan&#305;&#351;&#305;</span></article>
-        <article><i class="bi bi-moisture"></i><strong>Beton Deneyi</strong><span>&#214;l&#231;&#252;m takibi</span></article>
+      <address class="vp-footer-address">
+        <span>Manisa/T&#252;rkiye</span>
+      </address>
+      <div class="vp-footer-contact">
+        <a href="mailto:Info@volkaportal.com">Info@volkaportal.com</a>
       </div>
-    </section>
+      <div class="vp-footer-bottom">
+        <span>&#169;2026 VolkaPortal. T&#252;m haklar&#305; sakl&#305;d&#305;r.</span>
+        <div class="vp-footer-social" aria-label="Sosyal medya">
+          <a href="https://www.instagram.com/volkaportal" target="_blank" rel="noopener noreferrer" aria-label="VolkaPortal Instagram">
+            <i class="bi bi-instagram"></i>
+          </a>
+          <a href="https://www.linkedin.com/company/volkaportal" target="_blank" rel="noopener noreferrer" aria-label="VolkaPortal LinkedIn">
+            <i class="bi bi-linkedin"></i>
+          </a>
+        </div>
+      </div>
+    </footer>
   </div>
 {% endblock %}
 

@@ -110,7 +110,7 @@
 .vp-dynamic-hero,
 .vp-dynamic-strip,
 .vp-scroll-story,
-.vp-dynamic-modules,
+.vp-dynamic-footer,
 .vp-dynamic-cta {
     position: relative;
     z-index: 2;
@@ -1105,24 +1105,6 @@
     color: var(--scene-color);
 }
 
-.vp-dynamic-modules {
-    color: #eaf3ff;
-    padding: 82px 0;
-}
-
-.vp-section-title {
-    max-width: 780px;
-    margin-bottom: 34px;
-}
-
-.vp-section-title span {
-    color: #1e5bff;
-    font-weight: 950;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.vp-section-title h2,
 .vp-dynamic-cta h2 {
     margin: 12px 0 0;
     font-size: clamp(2.1rem, 5vw, 4.8rem);
@@ -1131,44 +1113,88 @@
     color: #f4f8ff;
 }
 
-.vp-module-marquee {
+.vp-dynamic-footer {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 16px;
-}
-
-.vp-module-marquee article {
-    min-height: 178px;
-    display: grid;
-    align-content: space-between;
-    border-radius: 26px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.16);
-    backdrop-filter: blur(18px);
-    padding: 20px;
-    transition: transform 180ms ease, box-shadow 180ms ease;
-}
-
-.vp-module-marquee article:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 26px 70px rgba(15, 23, 42, 0.13);
-}
-
-.vp-module-marquee i {
-    color: #1e5bff;
-    font-size: 1.5rem;
-}
-
-.vp-module-marquee strong {
-    display: block;
+    grid-template-columns: 1fr 1.15fr 1.15fr;
+    gap: 34px;
+    align-items: start;
+    margin-top: 70px;
+    margin-bottom: 0;
+    padding: 74px 70px 42px;
+    border-radius: 34px 34px 0 0;
     color: #ffffff;
-    font-size: 1.02rem;
+    background:
+        radial-gradient(circle at 12% 12%, rgba(0, 212, 255, 0.12), transparent 28%),
+        linear-gradient(135deg, #02050a, #03060c 62%, #000000);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        0 -22px 80px rgba(0, 0, 0, 0.26),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
-.vp-module-marquee span {
-    color: rgba(234, 243, 255, 0.7);
+.vp-footer-brand img {
+    display: block;
+    width: 210px;
+    max-width: 100%;
+    height: auto;
+}
+
+.vp-footer-address,
+.vp-footer-contact {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: clamp(1rem, 1.55vw, 1.45rem);
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    line-height: 1.36;
+}
+
+.vp-footer-contact a {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+}
+
+.vp-footer-contact a:hover,
+.vp-footer-social a:hover {
+    color: #70eaff;
+}
+
+.vp-footer-bottom {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 72px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 1rem;
     font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.vp-footer-social {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+}
+
+.vp-footer-social a {
+    display: inline-grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    color: #ffffff;
+    text-decoration: none;
+    transition: color 160ms ease, transform 160ms ease;
+}
+
+.vp-footer-social a:hover {
+    transform: translateY(-3px);
+}
+
+.vp-footer-social i {
+    font-size: 1.78rem;
 }
 
 .vp-dynamic-cta {
@@ -1216,8 +1242,15 @@
         min-height: 560px;
     }
 
-    .vp-module-marquee {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+    .vp-dynamic-footer {
+        grid-template-columns: 1fr;
+        padding: 54px 38px 34px;
+    }
+
+    .vp-footer-bottom {
+        align-items: flex-start;
+        flex-direction: column;
+        margin-top: 36px;
     }
 
 }
@@ -1227,7 +1260,7 @@
     .vp-dynamic-hero,
     .vp-dynamic-strip,
     .vp-scroll-story,
-    .vp-dynamic-modules,
+    .vp-dynamic-footer,
     .vp-dynamic-cta {
         width: min(100% - 28px, 1240px);
     }
@@ -1289,8 +1322,7 @@
     }
 
     .vp-product-grid,
-    .vp-scene-metrics,
-    .vp-module-marquee {
+    .vp-scene-metrics {
         grid-template-columns: 1fr;
     }
 
@@ -1319,6 +1351,21 @@
 
     .vp-dynamic-cta {
         padding: 32px 22px;
+    }
+
+    .vp-dynamic-footer {
+        padding: 42px 24px 30px;
+        border-radius: 28px 28px 0 0;
+    }
+
+    .vp-footer-brand img {
+        width: 178px;
+    }
+
+    .vp-footer-address,
+    .vp-footer-contact,
+    .vp-footer-bottom {
+        letter-spacing: 0.03em;
     }
 
     .vp-stage-chip,
