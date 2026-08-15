@@ -350,38 +350,85 @@
     filter: drop-shadow(0 0 22px rgba(0, 212, 255, 0.18));
 }
 
-.vp-dynamic-hero p {
-    max-width: 620px;
-    margin: 0 0 30px;
-    color: var(--dyn-muted);
-    font-size: 1.08rem;
-    line-height: 1.78;
+.vp-hero-capability-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    max-width: 560px;
+    margin-top: 30px;
 }
 
-.vp-live-pill-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 26px;
+.vp-hero-capability-grid::before {
+    content: "";
+    position: absolute;
+    inset: -18px;
+    z-index: -1;
+    border-radius: 28px;
+    background:
+        radial-gradient(circle at 18% 10%, rgba(0, 212, 255, 0.22), transparent 34%),
+        radial-gradient(circle at 88% 84%, rgba(30, 91, 255, 0.18), transparent 38%);
+    filter: blur(18px);
+    opacity: 0.78;
 }
 
-.vp-live-pill-row span {
+.vp-hero-capability-grid span {
+    position: relative;
+    overflow: hidden;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-height: 38px;
-    padding: 0 13px;
-    border: 1px solid rgba(255, 255, 255, 0.13);
-    border-radius: 999px;
-    color: rgba(234, 243, 255, 0.82);
-    background: rgba(255, 255, 255, 0.055);
-    backdrop-filter: blur(16px);
-    font-weight: 800;
-    font-size: 0.82rem;
+    gap: 11px;
+    min-height: 54px;
+    padding: 0 15px;
+    border: 1px solid rgba(112, 234, 255, 0.18);
+    border-radius: 18px;
+    color: rgba(234, 243, 255, 0.95);
+    background:
+        linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.035)),
+        rgba(5, 13, 24, 0.38);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        0 14px 38px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(18px);
+    font-weight: 900;
+    font-size: 0.88rem;
+    line-height: 1.22;
+    animation: vpCapabilityFloat 5.8s ease-in-out infinite;
+    animation-delay: var(--cap-delay, 0s);
 }
 
-.vp-live-pill-row i {
+.vp-hero-capability-grid span::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 0 30%, rgba(112, 234, 255, 0.24) 46%, transparent 62% 100%);
+    transform: translateX(-115%);
+    animation: vpCapabilityShine 6.5s ease-in-out infinite;
+    animation-delay: calc(var(--cap-delay, 0s) - 1s);
+}
+
+.vp-hero-capability-grid i {
+    z-index: 1;
+    display: grid;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 10px;
     color: #70eaff;
+    background: rgba(0, 212, 255, 0.11);
+    box-shadow: 0 0 22px rgba(0, 212, 255, 0.18);
+}
+
+@keyframes vpCapabilityFloat {
+    0%, 100% { transform: translateY(0); border-color: rgba(112, 234, 255, 0.18); }
+    50% { transform: translateY(-7px); border-color: rgba(112, 234, 255, 0.38); }
+}
+
+@keyframes vpCapabilityShine {
+    0%, 62% { transform: translateX(-115%); opacity: 0; }
+    74% { opacity: 1; }
+    100% { transform: translateX(115%); opacity: 0; }
 }
 
 .vp-dynamic-stage {
@@ -1097,10 +1144,14 @@
 
     .vp-dynamic-header,
     .vp-dynamic-actions,
-    .vp-dynamic-hero-buttons,
     .vp-dynamic-cta {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .vp-hero-capability-grid {
+        grid-template-columns: 1fr;
+        max-width: none;
     }
 
     .vp-dynamic-header::before {
