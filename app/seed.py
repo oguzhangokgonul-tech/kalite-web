@@ -133,6 +133,18 @@ PERMISSION_CATALOG = (
         "description": "Bakım arızalarını açar, düzenler, kapatır ve takip eder.",
     },
     {
+        "key": "vehicles.view",
+        "label": "Araçları görüntüleme",
+        "group": "Araç Yönetimi",
+        "description": "Araç envanterini, sigorta/muayene takiplerini ve işlem kayıtlarını görüntüler.",
+    },
+    {
+        "key": "vehicles.manage",
+        "label": "Araç yönetimi",
+        "group": "Araç Yönetimi",
+        "description": "Araç ekler, düzenler, siler; işlem ve akaryakıt kayıtlarını yönetir.",
+    },
+    {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
         "group": "Kalite Deneyleri",
@@ -195,6 +207,8 @@ ROLE_DEFINITIONS = (
             "documents.delete",
             "maintenance.inventory_manage",
             "maintenance.fault_manage",
+            "vehicles.view",
+            "vehicles.manage",
             "quality.parameters_manage",
             "organization.manage",
         ],
@@ -210,6 +224,7 @@ ROLE_DEFINITIONS = (
             "if.reject",
             "actions.view_all",
             "documents.view",
+            "vehicles.view",
         ],
     },
     {
@@ -224,6 +239,8 @@ ROLE_DEFINITIONS = (
             "maintenance.fault_manage",
             "documents.view",
             "quality.create",
+            "vehicles.view",
+            "vehicles.manage",
         ],
     },
     {
@@ -235,6 +252,7 @@ ROLE_DEFINITIONS = (
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "documents.view",
+            "vehicles.view",
         ],
     },
     {
@@ -244,6 +262,7 @@ ROLE_DEFINITIONS = (
         "description": "Yetkili olduğu sayfaları sadece görüntüler.",
         "permissions": [
             "documents.view",
+            "vehicles.view",
         ],
     },
 )

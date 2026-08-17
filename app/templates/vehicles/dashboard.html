@@ -1,0 +1,108 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Araç Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Araç Yönetimi", "Araç envanteri, sigorta, muayene, işlem ve akaryakıt takiplerini yönetin.", icon="bi-car-front") %}
+    {% if can_manage_vehicles %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_vehicle') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Araç Ekle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics maintenance-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-car-front"></i></span>
+      <span class="stat-label">Toplam Araç</span>
+      <strong>{{ vehicles|length }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-shield-exclamation"></i></span>
+      <span class="stat-label">7 Gün İçinde</span>
+      <strong>{{ due_soon_count }}</strong>
+    </div>
+  </div>
+
+  <section class="dashboard-table-card maintenance-section-card">
+    {% call ui.section_header("Araç Listesi", "Eklenen araçlar ve yaklaşan tarih takipleri.", class_name="maintenance-section-header") %}
+      {% if can_manage_vehicles %}
+        <a class="btn btn-sm btn-primary" href="{{ url_for('main.create_vehicle') }}">
+          <i class="bi bi-plus-lg"></i>
+          <span>Araç Ekle</span>
+        </a>
+      {% endif %}
+    {% endcall %}
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Plaka</th>
+            <th>Marka / Model</th>
+            <th>Araç Sahibi</th>
+            <th>Trafik Sigortası</th>
+            <th>Kasko</th>
+            <th>Sonraki Muayene</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for vehicle in vehicles %}
+            {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date) %}
+            {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date) %}
+            {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date) %}
+            <tr>
+              <td data-label="Plaka"><strong>{{ vehicle.plate }}</strong></td>
+              <td data-label="Marka / Model">
+                <strong>{{ vehicle.brand }}</strong>
+                <span class="maintenance-muted-line">{{ vehicle.model }}</span>
+              </td>
+              <td data-label="Araç Sahibi">{{ vehicle.owner }}</td>
+              <td data-label="Trafik Sigortası">
+                <span>{{ format_date(vehicle.traffic_insurance_due_date) }}</span>
+                <span class="badge text-bg-{{ 'secondary' if traffic.tone == 'muted' else traffic.tone }}">{{ traffic.label }}</span>
+              </td>
+              <td data-label="Kasko">
+                <span>{{ format_date(vehicle.casco_insurance_due_date) }}</span>
+                <span class="badge text-bg-{{ 'secondary' if casco.tone == 'muted' else casco.tone }}">{{ casco.label }}</span>
+              </td>
+              <td data-label="Sonraki Muayene">
+                <span>{{ format_date(vehicle.next_inspection_due_date) }}</span>
+                <span class="badge text-bg-{{ 'secondary' if inspection.tone == 'muted' else inspection.tone }}">{{ inspection.label }}</span>
+              </td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions">
+                  {% if can_manage_vehicles %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_vehicle', vehicle_id=vehicle.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                    <form action="{{ url_for('main.delete_vehicle', vehicle_id=vehicle.id) }}" method="post" onsubmit="return confirm('Araç kaydını silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-trash"></i>
+                        <span>Sil</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="7">
+                <strong>Henüz araç kaydı yok.</strong>
+                <span>Araç Ekle butonuyla ilk aracı oluşturabilirsiniz.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ vehicles|length }} araç</span>
+    </div>
+  </section>
+{% endblock %}

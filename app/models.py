@@ -769,6 +769,100 @@ class MaintenanceFault(db.Model):
     def is_completed(self):
         return self.status == "Tamamlandı"
 
+class Vehicle(db.Model):
+    __tablename__ = "vehicles"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "plate", name="uq_vehicles_company_plate"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    plate = db.Column(db.String(40), nullable=False)
+    brand = db.Column(db.String(120), nullable=False)
+    model = db.Column(db.String(120), nullable=False)
+    owner = db.Column(db.String(160), nullable=False)
+    traffic_insurance_due_date = db.Column(db.Date, nullable=True)
+    casco_insurance_due_date = db.Column(db.Date, nullable=True)
+    last_inspection_date = db.Column(db.Date, nullable=True)
+    next_inspection_due_date = db.Column(db.Date, nullable=True)
+    traffic_insurance_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+    casco_insurance_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+    next_inspection_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    operations = db.relationship(
+        "VehicleOperation",
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        order_by="VehicleOperation.operation_date.desc()",
+    )
+    fuel_entries = db.relationship(
+        "VehicleFuelEntry",
+        back_populates="vehicle",
+        cascade="all, delete-orphan",
+        order_by="VehicleFuelEntry.year.desc(), VehicleFuelEntry.month.asc()",
+    )
+
+
+class VehicleOperation(db.Model):
+    __tablename__ = "vehicle_operations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    operation_date = db.Column(db.Date, nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+    amount_tl = db.Column(db.Numeric(12, 2), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    vehicle = db.relationship("Vehicle", back_populates="operations")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+
+class VehicleFuelEntry(db.Model):
+    __tablename__ = "vehicle_fuel_entries"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "vehicle_id",
+            "year",
+            "month",
+            name="uq_vehicle_fuel_entries_company_vehicle_month",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False, index=True)
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+    amount_tl = db.Column(db.Numeric(12, 2), nullable=True)
+    fuel_liter = db.Column(db.Numeric(12, 2), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    vehicle = db.relationship("Vehicle", back_populates="fuel_entries")
+
 
 class QualityTestRecord(db.Model):
     __tablename__ = "quality_test_records"

@@ -1,0 +1,51 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, page_description, icon="bi-car-front") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.vehicle_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Araç Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="maintenance-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="maintenance-form-heading">
+      <span class="app-card-icon maintenance-card-icon"><i class="bi bi-car-front"></i></span>
+      <div>
+        <h2>Araç Bilgileri</h2>
+        <p>Plaka, marka, model ve araç sahibi bilgisini girin.</p>
+      </div>
+    </div>
+
+    <div class="maintenance-form-grid">
+      <div>
+        <label class="form-label" for="plate">Plaka</label>
+        <input class="form-control" id="plate" name="plate" value="{{ request.form.get('plate', vehicle.plate if vehicle else '') }}" maxlength="40" required>
+      </div>
+      <div>
+        <label class="form-label" for="brand">Marka</label>
+        <input class="form-control" id="brand" name="brand" value="{{ request.form.get('brand', vehicle.brand if vehicle else '') }}" maxlength="120" required>
+      </div>
+      <div>
+        <label class="form-label" for="model">Model</label>
+        <input class="form-control" id="model" name="model" value="{{ request.form.get('model', vehicle.model if vehicle else '') }}" maxlength="120" required>
+      </div>
+      <div>
+        <label class="form-label" for="owner">Araç Sahibi</label>
+        <input class="form-control" id="owner" name="owner" value="{{ request.form.get('owner', vehicle.owner if vehicle else '') }}" maxlength="160" required>
+      </div>
+    </div>
+
+    <div class="maintenance-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.vehicle_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

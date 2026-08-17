@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 import json
 from pathlib import Path
@@ -27,7 +28,11 @@ from sqlalchemy.exc import OperationalError
 
 from .extensions import db
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
-from .mail import send_action_notification_email, send_dof_notification_email
+from .mail import (
+    send_action_notification_email,
+    send_dof_notification_email,
+    send_vehicle_reminder_email,
+)
 from .models import (
     Action,
     ActionComment,
@@ -64,6 +69,9 @@ from .models import (
     RolePermission,
     User,
     UserPermission,
+    Vehicle,
+    VehicleFuelEntry,
+    VehicleOperation,
 )
 from .tenant import (
     assign_current_company,
@@ -2735,6 +2743,18 @@ def format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
 
+def format_money(value):
+    if value is None:
+        return "-"
+    return f"{float(value):,.2f} TL".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def format_quantity(value, suffix="L"):
+    if value is None:
+        return "-"
+    return f"{float(value):,.2f} {suffix}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 def format_file_size(size):
     if not size:
         return "-"
@@ -3174,6 +3194,258 @@ def document_form_context(document=None, category_slug=None):
         "statuses": DOCUMENT_STATUSES,
         "departments": DOCUMENT_DEPARTMENTS,
         "form_data": form_data,
+    }
+
+
+VEHICLE_MONTHS = (
+    (1, "Ocak"),
+    (2, "Şubat"),
+    (3, "Mart"),
+    (4, "Nisan"),
+    (5, "Mayıs"),
+    (6, "Haziran"),
+    (7, "Temmuz"),
+    (8, "Ağustos"),
+    (9, "Eylül"),
+    (10, "Ekim"),
+    (11, "Kasım"),
+    (12, "Aralık"),
+)
+
+
+def can_view_vehicles():
+    return (
+        current_user_can("vehicles.view")
+        or current_user_can("maintenance.fault_manage")
+        or can_manage_vehicles()
+    )
+
+
+def can_manage_vehicles():
+    return current_user_can("vehicles.manage") or current_user_can(
+        "maintenance.inventory_manage"
+    )
+
+
+def vehicle_day_status(target_date):
+    if not target_date:
+        return {"days": None, "label": "-", "tone": "muted", "is_due_window": False}
+    days = (target_date - date.today()).days
+    if days > 0:
+        label = f"{days} gün kaldı"
+        tone = "warning" if days <= 7 else "success"
+    elif days == 0:
+        label = "Bugün bitiyor"
+        tone = "danger"
+    else:
+        label = f"{abs(days)} gün geçti"
+        tone = "danger"
+    return {
+        "days": days,
+        "label": label,
+        "tone": tone,
+        "is_due_window": 0 <= days <= 7,
+    }
+
+
+def parse_decimal_field(field_name):
+    raw_value = request.form.get(field_name, "").strip()
+    if not raw_value:
+        return None
+    if "," in raw_value:
+        raw_value = raw_value.replace(".", "").replace(",", ".")
+    try:
+        value = Decimal(raw_value)
+    except (InvalidOperation, ValueError):
+        raise ValueError("invalid_decimal") from None
+    if value < 0:
+        raise ValueError("invalid_decimal")
+    return value
+
+
+def parse_vehicle_form():
+    plate = request.form.get("plate", "").strip().upper()
+    brand = request.form.get("brand", "").strip()
+    model = request.form.get("model", "").strip()
+    owner = request.form.get("owner", "").strip()
+
+    if not plate or not brand or not model or not owner:
+        raise ValueError("required_fields")
+
+    return {
+        "plate": plate[:40],
+        "brand": brand[:120],
+        "model": model[:120],
+        "owner": owner[:160],
+    }
+
+
+def parse_vehicle_detail_form():
+    values = parse_vehicle_form()
+    values.update(
+        {
+        "traffic_insurance_due_date": parse_optional_date("traffic_insurance_due_date"),
+        "casco_insurance_due_date": parse_optional_date("casco_insurance_due_date"),
+        "last_inspection_date": parse_optional_date("last_inspection_date"),
+        "next_inspection_due_date": parse_optional_date("next_inspection_due_date"),
+        }
+    )
+    return values
+
+
+def parse_vehicle_operation_form():
+    operation_date = parse_optional_date("operation_date")
+    description = request.form.get("description", "").strip()
+    amount_tl = parse_decimal_field("amount_tl")
+    if not operation_date or not description:
+        raise ValueError("required_fields")
+    return {
+        "operation_date": operation_date,
+        "description": description[:255],
+        "amount_tl": amount_tl,
+    }
+
+
+def vehicle_query():
+    return scoped_query(Vehicle.query, Vehicle).order_by(Vehicle.plate.asc())
+
+
+def vehicle_maintenance_users():
+    users = []
+    for user in active_users():
+        search_text = " ".join(
+            [
+                user.full_name or "",
+                user.title or "",
+                " ".join(user.role_names),
+            ]
+        ).lower()
+        if "bakım" in search_text or "bakim" in search_text:
+            users.append(user)
+    return users
+
+
+def send_vehicle_due_reminders(vehicle):
+    maintenance_users = vehicle_maintenance_users()
+    if not maintenance_users:
+        return False
+
+    sent_any = False
+    reminder_fields = (
+        (
+            "traffic_insurance_due_date",
+            "traffic_insurance_reminder_sent_at",
+            "Trafik Sigortası",
+        ),
+        (
+            "casco_insurance_due_date",
+            "casco_insurance_reminder_sent_at",
+            "Kasko Sigorta",
+        ),
+        (
+            "next_inspection_due_date",
+            "next_inspection_reminder_sent_at",
+            "Sonraki Muayene",
+        ),
+    )
+    for date_field, sent_field, title in reminder_fields:
+        due_date = getattr(vehicle, date_field)
+        status = vehicle_day_status(due_date)
+        if status["is_due_window"] and getattr(vehicle, sent_field) is None:
+            if send_vehicle_reminder_email(
+                maintenance_users,
+                vehicle,
+                title,
+                due_date,
+                status["label"],
+            ):
+                setattr(vehicle, sent_field, datetime.utcnow())
+                sent_any = True
+    return sent_any
+
+
+def reset_vehicle_reminder_flags(vehicle, previous_dates):
+    fields = (
+        ("traffic_insurance_due_date", "traffic_insurance_reminder_sent_at"),
+        ("casco_insurance_due_date", "casco_insurance_reminder_sent_at"),
+        ("next_inspection_due_date", "next_inspection_reminder_sent_at"),
+    )
+    for date_field, sent_field in fields:
+        if previous_dates.get(date_field) != getattr(vehicle, date_field):
+            setattr(vehicle, sent_field, None)
+
+
+def vehicle_dashboard_context():
+    vehicles = vehicle_query().all()
+    for vehicle in vehicles:
+        send_vehicle_due_reminders(vehicle)
+    db.session.commit()
+    due_soon_count = 0
+    for vehicle in vehicles:
+        if any(
+            vehicle_day_status(target_date)["is_due_window"]
+            for target_date in (
+                vehicle.traffic_insurance_due_date,
+                vehicle.casco_insurance_due_date,
+                vehicle.next_inspection_due_date,
+            )
+        ):
+            due_soon_count += 1
+    return {
+        "vehicles": vehicles,
+        "due_soon_count": due_soon_count,
+        "can_manage_vehicles": can_manage_vehicles(),
+        "vehicle_day_status": vehicle_day_status,
+        "format_date": format_date,
+    }
+
+
+def vehicle_detail_context(vehicle):
+    operations = list(vehicle.operations)
+    fuel_entries = {
+        (entry.year, entry.month): entry
+        for entry in scoped_query(VehicleFuelEntry.query, VehicleFuelEntry)
+        .filter_by(vehicle_id=vehicle.id)
+        .all()
+    }
+    current_year = date.today().year
+    fuel_rows = []
+    total_fuel_tl = Decimal("0")
+    total_fuel_liter = Decimal("0")
+    for month, label in VEHICLE_MONTHS:
+        entry = fuel_entries.get((current_year, month))
+        amount_tl = entry.amount_tl if entry and entry.amount_tl is not None else None
+        fuel_liter = entry.fuel_liter if entry and entry.fuel_liter is not None else None
+        if amount_tl is not None:
+            total_fuel_tl += amount_tl
+        if fuel_liter is not None:
+            total_fuel_liter += fuel_liter
+        fuel_rows.append(
+            {
+                "month": month,
+                "label": label,
+                "amount_tl": amount_tl,
+                "fuel_liter": fuel_liter,
+            }
+        )
+
+    operation_total = sum(
+        (operation.amount_tl for operation in operations if operation.amount_tl is not None),
+        Decimal("0"),
+    )
+    return {
+        "vehicle": vehicle,
+        "operations": operations,
+        "operation_total": operation_total,
+        "fuel_rows": fuel_rows,
+        "fuel_year": current_year,
+        "total_fuel_tl": total_fuel_tl,
+        "total_fuel_liter": total_fuel_liter,
+        "vehicle_day_status": vehicle_day_status,
+        "format_date": format_date,
+        "format_money": format_money,
+        "format_quantity": format_quantity,
+        "can_manage_vehicles": can_manage_vehicles(),
     }
 
 
@@ -6355,6 +6627,181 @@ def delete_document(document_id):
     if category_slug:
         return redirect(url_for("main.documents_category", slug=category_slug))
     return redirect(url_for("main.documents_dashboard"))
+
+
+@bp.route("/arac-yonetimi")
+@login_required
+def vehicle_dashboard():
+    if not can_view_vehicles():
+        abort(403)
+    return render_template("vehicles/dashboard.html", **vehicle_dashboard_context())
+
+
+@bp.route("/arac-yonetimi/arac/yeni", methods=["GET", "POST"])
+@login_required
+def create_vehicle():
+    if not can_manage_vehicles():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_vehicle_form()
+            if vehicle_query().filter_by(plate=values["plate"]).first():
+                raise ValueError("duplicate_plate")
+            vehicle = Vehicle(**values, created_by_user_id=g.current_user.id)
+            assign_current_company(vehicle)
+            db.session.add(vehicle)
+            db.session.commit()
+            flash("Araç eklendi.", "success")
+            return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
+        except ValueError as error:
+            db.session.rollback()
+            if str(error) == "duplicate_plate":
+                flash("Bu plaka zaten kayıtlı.", "danger")
+            else:
+                flash("Plaka, marka, model ve araç sahibi zorunludur.", "danger")
+
+    return render_template(
+        "vehicles/form.html",
+        page_title="Araç Ekle",
+        page_description="Araç bilgilerini girerek yeni kayıt oluşturun.",
+        form_action=url_for("main.create_vehicle"),
+        submit_label="Aracı Kaydet",
+        vehicle=None,
+    )
+
+
+@bp.route("/arac-yonetimi/arac/<int:vehicle_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_vehicle(vehicle_id):
+    if not can_manage_vehicles():
+        abort(403)
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    ensure_same_company(vehicle)
+
+    if request.method == "POST":
+        try:
+            previous_dates = {
+                "traffic_insurance_due_date": vehicle.traffic_insurance_due_date,
+                "casco_insurance_due_date": vehicle.casco_insurance_due_date,
+                "next_inspection_due_date": vehicle.next_inspection_due_date,
+            }
+            values = parse_vehicle_detail_form()
+            existing = vehicle_query().filter_by(plate=values["plate"]).first()
+            if existing is not None and existing.id != vehicle.id:
+                raise ValueError("duplicate_plate")
+            for key, value in values.items():
+                setattr(vehicle, key, value)
+            reset_vehicle_reminder_flags(vehicle, previous_dates)
+            send_vehicle_due_reminders(vehicle)
+            db.session.commit()
+            flash("Araç takip tarihleri güncellendi.", "success")
+            return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
+        except ValueError as error:
+            db.session.rollback()
+            if str(error) == "duplicate_plate":
+                flash("Bu plaka başka bir araçta kullanılıyor.", "danger")
+            elif str(error) == "required_fields":
+                flash("Plaka, marka, model ve araç sahibi zorunludur.", "danger")
+            else:
+                flash("Tarih alanlarını kontrol edin.", "danger")
+
+    return render_template("vehicles/detail.html", **vehicle_detail_context(vehicle))
+
+
+@bp.post("/arac-yonetimi/arac/<int:vehicle_id>/sil")
+@login_required
+def delete_vehicle(vehicle_id):
+    if not can_manage_vehicles():
+        abort(403)
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    ensure_same_company(vehicle)
+    db.session.delete(vehicle)
+    db.session.commit()
+    flash("Araç silindi.", "success")
+    return redirect(url_for("main.vehicle_dashboard"))
+
+
+@bp.post("/arac-yonetimi/arac/<int:vehicle_id>/islem-ekle")
+@login_required
+def create_vehicle_operation(vehicle_id):
+    if not can_manage_vehicles():
+        abort(403)
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    ensure_same_company(vehicle)
+    try:
+        values = parse_vehicle_operation_form()
+        operation = VehicleOperation(
+            **values,
+            vehicle=vehicle,
+            created_by_user_id=g.current_user.id,
+        )
+        assign_current_company(operation)
+        db.session.add(operation)
+        db.session.commit()
+        flash("Araç işlemi eklendi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        if str(error) == "invalid_decimal":
+            flash("Tutar alanını geçerli bir sayı olarak girin.", "danger")
+        else:
+            flash("İşlem tarihi ve işlem açıklaması zorunludur.", "danger")
+    return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
+
+
+@bp.post("/arac-yonetimi/islem/<int:operation_id>/sil")
+@login_required
+def delete_vehicle_operation(operation_id):
+    if not can_manage_vehicles():
+        abort(403)
+    operation = VehicleOperation.query.get_or_404(operation_id)
+    ensure_same_company(operation)
+    vehicle_id = operation.vehicle_id
+    db.session.delete(operation)
+    db.session.commit()
+    flash("Araç işlemi silindi.", "success")
+    return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle_id))
+
+
+@bp.post("/arac-yonetimi/arac/<int:vehicle_id>/akaryakit")
+@login_required
+def save_vehicle_fuel(vehicle_id):
+    if not can_manage_vehicles():
+        abort(403)
+    vehicle = Vehicle.query.get_or_404(vehicle_id)
+    ensure_same_company(vehicle)
+    year = date.today().year
+    try:
+        existing_entries = {
+            entry.month: entry
+            for entry in scoped_query(VehicleFuelEntry.query, VehicleFuelEntry)
+            .filter_by(vehicle_id=vehicle.id, year=year)
+            .all()
+        }
+        for month, _label in VEHICLE_MONTHS:
+            amount_tl = parse_decimal_field(f"fuel_amount_{month}")
+            fuel_liter = parse_decimal_field(f"fuel_liter_{month}")
+            entry = existing_entries.get(month)
+            if amount_tl is None and fuel_liter is None:
+                if entry is not None:
+                    db.session.delete(entry)
+                continue
+            if entry is None:
+                entry = VehicleFuelEntry(
+                    vehicle=vehicle,
+                    year=year,
+                    month=month,
+                )
+                assign_current_company(entry)
+                db.session.add(entry)
+            entry.amount_tl = amount_tl
+            entry.fuel_liter = fuel_liter
+        db.session.commit()
+        flash("Aylık akaryakıt tablosu güncellendi.", "success")
+    except ValueError:
+        db.session.rollback()
+        flash("Akaryakıt TL ve miktar alanlarını geçerli sayı olarak girin.", "danger")
+    return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
 
 
 @bp.route("/bakim")

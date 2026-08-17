@@ -1,0 +1,198 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ vehicle.plate }} Araç Düzenle{% endblock %}
+
+{% macro due_badge(status) %}
+  {% set tone = "secondary" if status.tone == "muted" else status.tone %}
+  <span class="badge text-bg-{{ tone }}">{{ status.label }}</span>
+{% endmacro %}
+
+{% block app_content %}
+  {% call ui.page_header(vehicle.plate ~ " Araç Düzenle", vehicle.brand ~ " " ~ vehicle.model ~ " | " ~ vehicle.owner, icon="bi-car-front") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.vehicle_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Araç Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <div class="maintenance-detail-layout">
+    <section class="maintenance-form-card">
+      <div class="maintenance-form-heading">
+        <span class="app-card-icon maintenance-card-icon"><i class="bi bi-calendar2-check"></i></span>
+        <div>
+          <h2>Sigorta ve Muayene Takibi</h2>
+          <p>Son 1 hafta kala Bakım departmanındaki kullanıcılara e-posta uyarısı gönderilir.</p>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('main.edit_vehicle', vehicle_id=vehicle.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="maintenance-form-grid">
+          {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date) %}
+          {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date) %}
+          {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date) %}
+          <div>
+            <label class="form-label" for="plate">Plaka</label>
+            <input class="form-control" id="plate" name="plate" value="{{ request.form.get('plate', vehicle.plate) }}" maxlength="40" required>
+          </div>
+          <div>
+            <label class="form-label" for="brand">Marka</label>
+            <input class="form-control" id="brand" name="brand" value="{{ request.form.get('brand', vehicle.brand) }}" maxlength="120" required>
+          </div>
+          <div>
+            <label class="form-label" for="model">Model</label>
+            <input class="form-control" id="model" name="model" value="{{ request.form.get('model', vehicle.model) }}" maxlength="120" required>
+          </div>
+          <div>
+            <label class="form-label" for="owner">Araç Sahibi</label>
+            <input class="form-control" id="owner" name="owner" value="{{ request.form.get('owner', vehicle.owner) }}" maxlength="160" required>
+          </div>
+          <div>
+            <label class="form-label" for="traffic_insurance_due_date">Trafik Sigortasına Kalan Süre</label>
+            <input class="form-control" id="traffic_insurance_due_date" name="traffic_insurance_due_date" type="date" value="{{ vehicle.traffic_insurance_due_date.isoformat() if vehicle.traffic_insurance_due_date else '' }}">
+            <div class="mt-2">{{ due_badge(traffic) }}</div>
+          </div>
+          <div>
+            <label class="form-label" for="casco_insurance_due_date">Kasko Sigorta Bitişine Kalan Süre</label>
+            <input class="form-control" id="casco_insurance_due_date" name="casco_insurance_due_date" type="date" value="{{ vehicle.casco_insurance_due_date.isoformat() if vehicle.casco_insurance_due_date else '' }}">
+            <div class="mt-2">{{ due_badge(casco) }}</div>
+          </div>
+          <div>
+            <label class="form-label" for="last_inspection_date">Son Muayene Tarihi</label>
+            <input class="form-control" id="last_inspection_date" name="last_inspection_date" type="date" value="{{ vehicle.last_inspection_date.isoformat() if vehicle.last_inspection_date else '' }}">
+          </div>
+          <div>
+            <label class="form-label" for="next_inspection_due_date">Sonraki Muayeneye Kalan Süre</label>
+            <input class="form-control" id="next_inspection_due_date" name="next_inspection_due_date" type="date" value="{{ vehicle.next_inspection_due_date.isoformat() if vehicle.next_inspection_due_date else '' }}">
+            <div class="mt-2">{{ due_badge(inspection) }}</div>
+          </div>
+        </div>
+        <div class="maintenance-form-actions">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-save"></i>
+            <span>Değişiklikleri Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <aside class="maintenance-side-stack">
+      <section class="maintenance-form-card">
+        <div class="maintenance-form-heading">
+          <span class="app-card-icon maintenance-card-icon"><i class="bi bi-receipt"></i></span>
+          <div>
+            <h2>İşlem Ekle</h2>
+            <p>Bakım, tamir, servis veya diğer araç masraflarını kaydedin.</p>
+          </div>
+        </div>
+        <form method="post" action="{{ url_for('main.create_vehicle_operation', vehicle_id=vehicle.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <label class="form-label" for="operation_date">Tarih</label>
+            <input class="form-control" id="operation_date" name="operation_date" type="date" value="{{ request.form.get('operation_date', '') }}" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="description">İşlem</label>
+            <input class="form-control" id="description" name="description" maxlength="255" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="amount_tl">Tutar (TL)</label>
+            <input class="form-control" id="amount_tl" name="amount_tl" inputmode="decimal" placeholder="Opsiyonel">
+          </div>
+          <button class="btn btn-success w-100" type="submit">
+            <i class="bi bi-plus-circle"></i>
+            <span>İşlem Ekle</span>
+          </button>
+        </form>
+      </section>
+    </aside>
+  </div>
+
+  <section class="dashboard-table-card maintenance-section-card mt-4">
+    {% call ui.section_header("Araç İşlem Geçmişi", "Eklenen işlemler ve toplam tutar.", class_name="maintenance-section-header") %}
+      <strong>{{ format_money(operation_total) }}</strong>
+    {% endcall %}
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Tarih</th>
+            <th>İşlem</th>
+            <th>Tutar (TL)</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for operation in operations %}
+            <tr>
+              <td data-label="Tarih">{{ format_date(operation.operation_date) }}</td>
+              <td data-label="İşlem">{{ operation.description }}</td>
+              <td data-label="Tutar">{{ format_money(operation.amount_tl) }}</td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions">
+                  <form action="{{ url_for('main.delete_vehicle_operation', operation_id=operation.id) }}" method="post" onsubmit="return confirm('İşlem kaydını silmek istediğinize emin misiniz?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <i class="bi bi-trash"></i>
+                      <span>Sil</span>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="4">
+                <strong>Henüz işlem kaydı yok.</strong>
+                <span>İşlem Ekle alanından kayıt oluşturabilirsiniz.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="dashboard-table-card maintenance-section-card mt-4">
+    {% call ui.section_header("Aylık Akaryakıt", fuel_year ~ " yılı TL ve akaryakıt miktarı takibi.", class_name="maintenance-section-header") %}
+      <div class="d-flex gap-3 flex-wrap">
+        <strong>{{ format_money(total_fuel_tl) }}</strong>
+        <strong>{{ format_quantity(total_fuel_liter) }}</strong>
+      </div>
+    {% endcall %}
+    <form method="post" action="{{ url_for('main.save_vehicle_fuel', vehicle_id=vehicle.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="table-responsive">
+        <table class="table dashboard-table maintenance-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Ay</th>
+              <th>Akaryakıt Tutarı (TL)</th>
+              <th>Akaryakıt Miktarı (L)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in fuel_rows %}
+              <tr>
+                <td data-label="Ay"><strong>{{ row.label }}</strong></td>
+                <td data-label="Akaryakıt Tutarı">
+                  <input class="form-control" name="fuel_amount_{{ row.month }}" inputmode="decimal" value="{{ row.amount_tl if row.amount_tl is not none else '' }}">
+                </td>
+                <td data-label="Akaryakıt Miktarı">
+                  <input class="form-control" name="fuel_liter_{{ row.month }}" inputmode="decimal" value="{{ row.fuel_liter if row.fuel_liter is not none else '' }}">
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="maintenance-form-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-save"></i>
+          <span>Akaryakıt Tablosunu Kaydet</span>
+        </button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

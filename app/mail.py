@@ -52,6 +52,16 @@ def _dof_url(dof):
         return ""
 
 
+def _vehicle_url(vehicle):
+    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
+    if public_base_url:
+        return f"{public_base_url}/arac-yonetimi/arac/{vehicle.id}/duzenle"
+    try:
+        return url_for("main.edit_vehicle", vehicle_id=vehicle.id, _external=True)
+    except RuntimeError:
+        return ""
+
+
 def _format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
@@ -116,6 +126,25 @@ def build_dof_email(dof, message):
     if dof_url:
         lines.extend(["", f"Detay: {dof_url}"])
 
+    return subject, "\n".join(lines)
+
+
+def build_vehicle_reminder_email(vehicle, reminder_title, due_date, day_label):
+    vehicle_url = _vehicle_url(vehicle)
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
+    subject = f"{subject_prefix} {vehicle.plate} {reminder_title}"
+    lines = [
+        f"{vehicle.plate} plakalı araç için {reminder_title} takibi son 1 hafta aralığına girdi.",
+        "",
+        f"Plaka: {vehicle.plate}",
+        f"Marka: {vehicle.brand}",
+        f"Model: {vehicle.model}",
+        f"Araç Sahibi: {vehicle.owner}",
+        f"Tarih: {_format_date(due_date)}",
+        f"Durum: {day_label}",
+    ]
+    if vehicle_url:
+        lines.extend(["", f"Detay: {vehicle_url}"])
     return subject, "\n".join(lines)
 
 
@@ -198,6 +227,32 @@ def send_dof_notification_email(users, dof, message):
         return False
 
     subject, body = build_dof_email(dof, message)
+    _mail_executor.submit(
+        _send_mail_safely,
+        settings,
+        recipients,
+        subject,
+        body,
+        current_app.logger,
+    )
+    return True
+
+
+def send_vehicle_reminder_email(users, vehicle, reminder_title, due_date, day_label):
+    recipients = sorted({user.email for user in users if user.email})
+    if not recipients:
+        return False
+
+    settings = _mail_settings()
+    if not _mail_enabled(settings):
+        return False
+
+    subject, body = build_vehicle_reminder_email(
+        vehicle,
+        reminder_title,
+        due_date,
+        day_label,
+    )
     _mail_executor.submit(
         _send_mail_safely,
         settings,
