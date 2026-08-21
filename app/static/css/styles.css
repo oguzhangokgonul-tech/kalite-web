@@ -8465,3 +8465,407 @@ textarea.form-control:focus {
         justify-content: flex-start;
     }
 }
+
+/* 100% viewport density pass: keep the app usable without browser zooming out. */
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.dashboard-app,
+.dashboard-main,
+.dashboard-content {
+    min-width: 0;
+}
+
+.dashboard-content {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.table-responsive,
+.dashboard-table-card,
+.dashboard-filter-card,
+.app-card,
+.maintenance-section-card,
+.dof-form-card,
+.dof-detail-card,
+.documents-recent-card,
+.quality-test-form-card,
+.quality-parameters-card,
+.company-admin-card,
+.company-form-card {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.table-responsive {
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.dashboard-table {
+    width: 100%;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+    vertical-align: middle;
+}
+
+.dashboard-action-title-cell,
+.dashboard-table td,
+.dashboard-table th {
+    min-width: 0;
+}
+
+@media (min-width: 992px) {
+    .dashboard-app {
+        grid-template-columns: 248px minmax(0, 1fr);
+    }
+
+    .dashboard-sidebar .offcanvas-body {
+        padding: 14px 12px;
+    }
+
+    .dashboard-sidebar-brand {
+        min-height: 82px;
+        margin-bottom: 12px;
+    }
+
+    .dashboard-brand-logo {
+        width: 76px;
+        height: 76px;
+    }
+
+    .dashboard-sidebar-nav {
+        gap: 4px;
+    }
+
+    .dashboard-nav-item {
+        min-height: 42px;
+        gap: 10px;
+        padding: 0 10px;
+        font-size: 0.88rem;
+    }
+
+    .dashboard-nav-item i {
+        width: 22px;
+        font-size: 1rem;
+    }
+
+    .dashboard-subnav {
+        padding-left: 30px;
+    }
+
+    .dashboard-subnav-item {
+        min-height: 32px;
+        padding-inline: 8px;
+        font-size: 0.8rem;
+    }
+
+    .dashboard-sidebar-bottom {
+        padding-top: 10px;
+    }
+
+    .sidebar-quick-link {
+        min-height: 38px;
+        margin-bottom: 8px;
+        padding-inline: 10px;
+        font-size: 0.84rem;
+    }
+
+    .assigned-count-badge,
+    .sidebar-count-badge {
+        min-width: 21px;
+        height: 21px;
+        padding-inline: 6px;
+        font-size: 0.72rem;
+    }
+
+    .dashboard-sidebar-user {
+        gap: 10px;
+        padding: 12px 4px 10px;
+    }
+
+    .dashboard-sidebar-user strong {
+        font-size: 0.86rem;
+    }
+
+    .dashboard-sidebar-user span {
+        font-size: 0.76rem;
+    }
+
+    .dashboard-avatar,
+    .dashboard-profile-avatar {
+        width: 36px;
+        height: 36px;
+        font-size: 0.84rem;
+    }
+
+    .dashboard-logout {
+        min-height: 40px;
+        padding-inline: 10px;
+        font-size: 0.86rem;
+    }
+
+    .dashboard-content {
+        padding: 22px 24px 26px;
+    }
+
+    .dashboard-page-heading {
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-page-heading h2 {
+        font-size: 1.72rem;
+    }
+
+    .dashboard-page-heading p {
+        margin-top: 4px;
+        font-size: 0.92rem;
+    }
+
+    .dashboard-page-heading .btn,
+    .btn-lg {
+        min-height: 42px;
+        padding: 0.48rem 0.85rem;
+        font-size: 0.92rem;
+    }
+
+    .dashboard-metrics {
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-stat-card {
+        grid-template-columns: 50px minmax(0, 1fr);
+        column-gap: 12px;
+        min-height: 84px;
+        padding: 15px;
+    }
+
+    .dashboard-stat-card::after {
+        right: 16px;
+        bottom: 14px;
+        width: 46px;
+        height: 18px;
+        border-right-width: 3px;
+        border-bottom-width: 3px;
+    }
+
+    .dashboard-stat-card .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 10px;
+        font-size: 1.35rem;
+    }
+
+    .dashboard-stat-card .stat-label {
+        font-size: 0.82rem;
+        line-height: 1.2;
+    }
+
+    .dashboard-stat-card strong {
+        font-size: 1.55rem;
+    }
+
+    .dashboard-filter-card {
+        padding: 16px 18px;
+        margin-bottom: 18px;
+    }
+
+    .dashboard-filter-card .form-label {
+        margin-bottom: 7px;
+        font-size: 0.82rem;
+    }
+
+    .dashboard-filter-card .form-control,
+    .dashboard-filter-card .form-select {
+        min-height: 38px;
+        font-size: 0.88rem;
+    }
+
+    .dashboard-table-card {
+        overflow: hidden;
+    }
+
+    .dashboard-table thead th {
+        padding: 12px 14px;
+        font-size: 0.82rem;
+    }
+
+    .dashboard-table tbody td {
+        padding: 13px 14px;
+        font-size: 0.88rem;
+    }
+
+    .dashboard-row-actions {
+        gap: 7px;
+    }
+
+    .dashboard-row-actions .btn {
+        min-height: 34px;
+        padding: 0.32rem 0.58rem;
+        font-size: 0.78rem;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1440px) {
+    .dashboard-app {
+        grid-template-columns: 232px minmax(0, 1fr);
+    }
+
+    .dashboard-content {
+        padding: 18px 20px 22px;
+    }
+
+    .dashboard-brand-logo {
+        width: 68px;
+        height: 68px;
+    }
+
+    .dashboard-nav-item {
+        min-height: 39px;
+        font-size: 0.83rem;
+    }
+
+    .dashboard-subnav-item {
+        font-size: 0.76rem;
+    }
+
+    .dashboard-page-heading h2 {
+        font-size: 1.55rem;
+    }
+
+    .dashboard-metrics,
+    .dof-dashboard-metrics {
+        gap: 12px;
+    }
+
+    .dashboard-stat-card {
+        min-height: 78px;
+        padding: 13px;
+    }
+
+    .dashboard-table thead th {
+        padding: 10px 11px;
+        font-size: 0.78rem;
+    }
+
+    .dashboard-table tbody td {
+        padding: 11px;
+        font-size: 0.84rem;
+    }
+
+    .assigned-table {
+        min-width: 1040px;
+    }
+
+    .assigned-page-col-module {
+        width: 108px;
+    }
+
+    .assigned-page-col-task {
+        width: 38%;
+    }
+
+    .assigned-page-col-department {
+        width: 130px;
+    }
+
+    .assigned-page-col-date,
+    .assigned-page-col-status {
+        width: 124px;
+    }
+
+    .assigned-page-col-priority {
+        width: 86px;
+    }
+
+    .assigned-page-col-actions {
+        width: 62px;
+    }
+
+    .company-admin-table {
+        min-width: 980px;
+    }
+
+    .quality-test-table {
+        min-width: 1040px;
+    }
+
+    .concrete-table {
+        min-width: 1100px;
+    }
+}
+
+@media (min-width: 992px) and (max-height: 780px) {
+    .dashboard-sidebar .offcanvas-body {
+        padding-block: 10px;
+    }
+
+    .dashboard-sidebar-brand {
+        min-height: 64px;
+        margin-bottom: 8px;
+    }
+
+    .dashboard-brand-logo {
+        width: 58px;
+        height: 58px;
+    }
+
+    .dashboard-nav-item {
+        min-height: 36px;
+    }
+
+    .dashboard-subnav-item {
+        min-height: 29px;
+    }
+
+    .sidebar-quick-link {
+        min-height: 34px;
+        margin-bottom: 6px;
+    }
+
+    .dashboard-sidebar-user {
+        padding-block: 9px 8px;
+    }
+
+    .dashboard-logout {
+        min-height: 36px;
+    }
+
+    .dashboard-content {
+        padding-top: 16px;
+        padding-bottom: 18px;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .dashboard-content {
+        padding: 20px 16px 24px;
+    }
+
+    .dashboard-page-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .dashboard-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-content {
+        padding-inline: 12px;
+    }
+
+    .dashboard-metrics {
+        grid-template-columns: 1fr;
+    }
+}
