@@ -10023,3 +10023,124 @@ textarea.form-control::placeholder {
         max-width: 150px;
     }
 }
+
+/* Softer correction after the global balance pass: keep tables readable. */
+.dashboard-page-heading h2,
+.app-page-header h2 {
+    font-weight: 760;
+}
+
+.dashboard-stat-card h3,
+.documents-summary-card h3,
+.documents-category-card h3,
+.app-card h3,
+.app-section-header h3,
+.dashboard-table thead th,
+.form-label,
+.dashboard-filter-card label,
+.app-form-label {
+    font-weight: 700;
+}
+
+.btn,
+.vp-status-badge,
+.status-pill,
+.document-status,
+.assigned-page-status,
+.dof-due-status {
+    font-weight: 700;
+}
+
+.dashboard-table a:not(.btn),
+.dashboard-action-title-cell a,
+.assigned-task-title,
+.documents-table-title,
+.maintenance-ref-link,
+.maintenance-title-cell a {
+    font-weight: 700;
+}
+
+.dashboard-table tbody td {
+    font-size: 0.8rem;
+    line-height: 1.42;
+}
+
+.dashboard-action-title-cell span,
+.dashboard-action-title-cell small,
+.assigned-task-description,
+.documents-table-meta,
+.quality-test-muted-line,
+.maintenance-title-cell span,
+.maintenance-muted-line {
+    color: #64748b;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.maintenance-table,
+.vehicle-table {
+    table-layout: auto;
+    min-width: 980px;
+}
+
+.maintenance-table th,
+.maintenance-table td,
+.vehicle-table th,
+.vehicle-table td {
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.maintenance-title-cell,
+.vehicle-table td {
+    min-width: 0;
+}
+
+.maintenance-title-cell a,
+.maintenance-title-cell span {
+    max-width: 100%;
+}
+
+.maintenance-table td[data-label="Bildiren Departman"] {
+    min-width: 132px;
+    white-space: normal;
+}
+
+.maintenance-table td[data-label="Makine"] {
+    min-width: 190px;
+}
+
+.maintenance-table td[data-label="Arıza Başlığı"] {
+    min-width: 260px;
+}
+
+@media (min-width: 992px) and (max-width: 1366px) {
+    .dashboard-page-heading h2,
+    .app-page-header h2 {
+        font-weight: 740;
+    }
+
+    .dashboard-table tbody td {
+        font-size: 0.74rem;
+        line-height: 1.42;
+    }
+
+    .dashboard-table a:not(.btn),
+    .dashboard-action-title-cell a,
+    .assigned-task-title,
+    .documents-table-title,
+    .maintenance-ref-link,
+    .maintenance-title-cell a {
+        font-size: 0.76rem;
+    }
+
+    .dashboard-action-title-cell span,
+    .dashboard-action-title-cell small,
+    .assigned-task-description,
+    .documents-table-meta,
+    .quality-test-muted-line,
+    .maintenance-title-cell span,
+    .maintenance-muted-line {
+        font-size: 0.72rem;
+    }
+}
