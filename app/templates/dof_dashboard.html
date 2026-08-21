@@ -8,11 +8,11 @@
   {% set status = namespace(text=dof.display_status) %}
   {% if dof.display_status == "Onay Akışı Bekleniyor" %}
     {% if dof.approval_step == "general_manager_deputy" %}
-      {% set status.text = "Genel Müdür Yardımcısı Onayı Bekleniyor" %}
+      {% set status.text = "G.M. Onay Süreci" %}
     {% elif dof.approval_step == "management_representative" and dof.closing_evidence %}
-      {% set status.text = "Yönetim Temsilcisi Onayı Bekleniyor" %}
+      {% set status.text = "Y.T. Onay Süreci" %}
     {% elif dof.approval_step == "management_representative" %}
-      {% set status.text = "Personel Kapatması Bekleniyor" %}
+      {% set status.text = "Aksiyon Bekleniyor" %}
     {% else %}
       {% set status.text = "Onay Bekliyor" %}
     {% endif %}
@@ -175,12 +175,12 @@
               <td class="dof-due-cell" data-label="Termin">{{ dof_due_badge(dof) }}</td>
               <td data-label="Kanıt">
                 {% if dof.files %}
-                  <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">
+                  <a class="btn btn-sm btn-soft-primary dof-evidence-count-btn" href="{{ url_for('main.dof_detail', dof_id=dof.id) }}" title="{{ dof.files|length }} görsel">
                     <i class="bi bi-images"></i>
                     <span>{{ dof.files|length }} görsel</span>
                   </a>
                 {% elif dof.evidence_original_name %}
-                  <a class="btn btn-sm btn-soft-primary" href="{{ url_for('main.download_dof_evidence_file', dof_id=dof.id) }}">
+                  <a class="btn btn-sm btn-soft-primary dof-evidence-count-btn" href="{{ url_for('main.download_dof_evidence_file', dof_id=dof.id) }}" title="Kanıt dosyasını indir">
                     <i class="bi bi-download"></i>
                     <span>İndir</span>
                   </a>

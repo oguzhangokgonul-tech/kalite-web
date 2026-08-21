@@ -2646,7 +2646,7 @@ body {
 
 .dof-dashboard-table th:nth-child(5),
 .dof-dashboard-table td:nth-child(5) {
-    width: 7%;
+    width: 6%;
 }
 
 .dof-dashboard-table th:nth-child(6),
@@ -2656,12 +2656,12 @@ body {
 
 .dof-dashboard-table th:nth-child(7),
 .dof-dashboard-table td:nth-child(7) {
-    width: 5%;
+    width: 5.5%;
 }
 
 .dof-dashboard-table th:nth-child(8),
 .dof-dashboard-table td:nth-child(8) {
-    width: 5%;
+    width: 5.5%;
 }
 
 .dof-dashboard-table th:nth-child(9),
@@ -2826,6 +2826,29 @@ body {
     box-shadow: 0 8px 18px rgba(25, 135, 84, 0.18);
     line-height: 1.15;
     white-space: normal;
+}
+
+.dof-dashboard-table .dof-evidence-count-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    min-width: 0;
+    gap: 5px;
+    padding-inline: 7px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.dof-dashboard-table .dof-evidence-count-btn i {
+    flex: 0 0 auto;
+    font-size: 0.86em;
+}
+
+.dof-dashboard-table .dof-evidence-count-btn span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .stat-primary {
@@ -9278,14 +9301,14 @@ body {
 
     .dof-dashboard-table th:nth-child(6),
     .dof-dashboard-table td:nth-child(6) {
-        width: 17%;
+        width: 16%;
     }
 
     .dof-dashboard-table th:nth-child(7),
     .dof-dashboard-table td:nth-child(7),
     .dof-dashboard-table th:nth-child(8),
     .dof-dashboard-table td:nth-child(8) {
-        width: 5%;
+        width: 5.5%;
     }
 
     .dof-dashboard-table th:nth-child(9),
