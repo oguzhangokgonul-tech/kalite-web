@@ -9508,3 +9508,518 @@ body {
         height: auto;
     }
 }
+
+/* Final typography and viewport balance pass for the internal app shell. */
+.dashboard-body {
+    color: var(--vp-text-primary);
+    font-family: Inter, Manrope, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.45;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+}
+
+.dashboard-body *,
+.dashboard-body *::before,
+.dashboard-body *::after {
+    box-sizing: border-box;
+}
+
+.dashboard-app,
+.dashboard-content,
+.dashboard-page-heading,
+.app-page-header,
+.app-page-title,
+.dashboard-filter-card,
+.dashboard-table-card,
+.app-card,
+.dashboard-table-wrapper,
+.table-responsive {
+    min-width: 0;
+}
+
+.dashboard-content {
+    color: #15233a;
+}
+
+.dashboard-page-heading,
+.app-page-header {
+    gap: 14px;
+}
+
+.dashboard-page-heading h2,
+.app-page-header h2 {
+    color: #0f1f38;
+    font-size: clamp(1.38rem, 1.08rem + 0.6vw, 1.78rem);
+    font-weight: 850;
+    line-height: 1.12;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page-heading p,
+.app-page-header p,
+.app-section-header p {
+    color: #5f6f87;
+    max-width: 82ch;
+    font-size: 0.86rem;
+    font-weight: 600;
+    line-height: 1.42;
+}
+
+.app-page-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 1.05rem;
+}
+
+.dashboard-filter-card,
+.dashboard-table-card,
+.app-card,
+.quality-parameters-card,
+.document-detail-card,
+.documents-summary-card,
+.dashboard-stat-card {
+    border-color: #dbe5f1;
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.dashboard-stat-card,
+.documents-summary-card {
+    min-width: 0;
+}
+
+.dashboard-stat-card h3,
+.documents-summary-card h3,
+.documents-category-card h3,
+.app-card h3,
+.app-section-header h3 {
+    color: #13223a;
+    font-size: 0.92rem;
+    line-height: 1.25;
+    letter-spacing: 0;
+}
+
+.dashboard-stat-card p,
+.documents-summary-card p,
+.documents-category-card p,
+.app-card p {
+    color: #63738b;
+    font-size: 0.8rem;
+    line-height: 1.35;
+}
+
+.dashboard-stat-value,
+.documents-summary-value {
+    color: #1160ff;
+    font-size: clamp(1.28rem, 1rem + 0.55vw, 1.78rem);
+    line-height: 1;
+}
+
+.form-label,
+.dashboard-filter-card label,
+.app-form-label {
+    color: #12223a;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.24;
+    letter-spacing: 0;
+}
+
+.form-control,
+.form-select,
+.input-group-text,
+textarea.form-control {
+    min-width: 0;
+    min-height: 36px;
+    color: #172033;
+    font-size: 0.82rem;
+    line-height: 1.35;
+    border-color: #cfdae8;
+    border-radius: 9px;
+}
+
+.form-control::placeholder,
+textarea.form-control::placeholder {
+    color: #8a98ab;
+}
+
+.btn {
+    min-width: 0;
+    border-radius: 9px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0;
+}
+
+.btn-sm,
+.dashboard-row-actions .btn,
+.dof-dashboard-table .dashboard-row-actions .btn {
+    font-size: 0.72rem;
+    line-height: 1.15;
+}
+
+.btn i,
+.btn svg {
+    flex: 0 0 auto;
+}
+
+.badge,
+.status-pill,
+.document-status,
+.assigned-page-status,
+.dof-due-status,
+.quality-strength-pill {
+    max-width: 100%;
+    line-height: 1.15;
+    letter-spacing: 0;
+}
+
+.vp-status-badge,
+.status-pill,
+.document-status,
+.assigned-page-status,
+.dof-due-status {
+    min-height: 25px;
+    padding: 4px 8px;
+    gap: 5px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.vp-status-badge.is-long {
+    max-width: 176px;
+}
+
+.vp-status-badge span,
+.status-pill span,
+.document-status span,
+.assigned-page-status span,
+.dof-due-status span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dashboard-table-wrapper,
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+.dashboard-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.dashboard-table thead th {
+    color: #0f1f38;
+    font-size: 0.72rem;
+    font-weight: 850;
+    line-height: 1.2;
+    letter-spacing: 0;
+    white-space: normal;
+    word-break: normal;
+}
+
+.dashboard-table tbody td {
+    color: #15233a;
+    font-size: 0.78rem;
+    line-height: 1.32;
+    vertical-align: middle;
+}
+
+.dashboard-table a:not(.btn),
+.dashboard-action-title-cell a,
+.assigned-task-title,
+.documents-table-title {
+    color: #075fe8;
+    font-size: 0.82rem;
+    font-weight: 850;
+    line-height: 1.26;
+    text-decoration-thickness: 1px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-action-title-cell span,
+.dashboard-action-title-cell small,
+.assigned-task-description,
+.documents-table-meta,
+.quality-test-muted-line {
+    color: #5f6f87;
+    font-size: 0.75rem;
+    line-height: 1.32;
+}
+
+.dashboard-row-actions {
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    min-width: 0;
+}
+
+.dashboard-row-actions .btn {
+    min-width: 0;
+    padding: 6px 8px;
+    white-space: nowrap;
+}
+
+.dashboard-table td,
+.dashboard-table th {
+    overflow-wrap: anywhere;
+}
+
+.dashboard-table td:has(.dashboard-row-actions),
+.dashboard-table th:last-child {
+    overflow-wrap: normal;
+}
+
+.assigned-table,
+.dof-dashboard-table,
+.quality-test-table,
+.concrete-table,
+.maintenance-table,
+.vehicle-table,
+.documents-table {
+    table-layout: fixed;
+}
+
+.assigned-page-col-module {
+    width: 112px;
+}
+
+.assigned-page-col-task {
+    width: 36%;
+}
+
+.assigned-page-col-department {
+    width: 140px;
+}
+
+.assigned-page-col-date,
+.assigned-page-col-status {
+    width: 126px;
+}
+
+.assigned-page-col-priority {
+    width: 92px;
+}
+
+.assigned-page-col-actions {
+    width: 64px;
+}
+
+.dof-dashboard-table .dashboard-row-actions,
+.maintenance-table .dashboard-row-actions,
+.vehicle-table .dashboard-row-actions {
+    flex-wrap: wrap;
+}
+
+.dof-dashboard-table .dof-evidence-count-btn,
+.dashboard-table .dof-evidence-count-btn {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.dof-dashboard-table .dof-evidence-count-btn span,
+.dashboard-table .dof-evidence-count-btn span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-quick-link,
+.dashboard-nav-item,
+.dashboard-subnav-item {
+    letter-spacing: 0;
+}
+
+.dashboard-nav-item {
+    color: #18304f;
+    font-size: 0.82rem;
+    font-weight: 750;
+}
+
+.dashboard-subnav-item {
+    color: #21415f;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.sidebar-quick-link {
+    color: #172b47;
+    font-size: 0.8rem;
+    font-weight: 750;
+}
+
+.dashboard-sidebar-user strong,
+.dashboard-sidebar-user span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (min-width: 992px) {
+    .dashboard-content {
+        padding: 18px 20px 22px;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1366px) {
+    .dashboard-body {
+        font-size: 12.6px;
+    }
+
+    .dashboard-app {
+        grid-template-columns: 216px minmax(0, 1fr);
+    }
+
+    .dashboard-content {
+        padding: 12px 14px 16px;
+    }
+
+    .dashboard-page-heading,
+    .app-page-header {
+        margin-bottom: 14px;
+    }
+
+    .dashboard-page-heading h2,
+    .app-page-header h2 {
+        font-size: clamp(1.26rem, 1rem + 0.45vw, 1.52rem);
+    }
+
+    .dashboard-page-heading p,
+    .app-page-header p {
+        font-size: 0.78rem;
+    }
+
+    .dashboard-filter-card {
+        padding: 12px;
+    }
+
+    .dashboard-filter-grid,
+    .maintenance-filter-grid,
+    .quality-test-filter-grid,
+    .concrete-filter-grid,
+    .assigned-filter-grid {
+        gap: 10px;
+    }
+
+    .form-control,
+    .form-select,
+    .input-group-text {
+        min-height: 34px;
+        font-size: 0.76rem;
+    }
+
+    .btn {
+        font-size: 0.75rem;
+    }
+
+    .dashboard-table thead th {
+        padding: 7px;
+        font-size: 0.68rem;
+    }
+
+    .dashboard-table tbody td {
+        padding: 7px;
+        font-size: 0.72rem;
+    }
+
+    .vp-status-badge,
+    .status-pill,
+    .document-status,
+    .assigned-page-status,
+    .dof-due-status {
+        min-height: 24px;
+        padding: 4px 7px;
+        font-size: 0.66rem;
+    }
+
+    .vp-status-badge.is-long {
+        max-width: 142px;
+    }
+
+    .dashboard-row-actions .btn {
+        padding: 5px 6px;
+        font-size: 0.65rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .dashboard-body {
+        font-size: 13.5px;
+    }
+
+    .dashboard-page-heading,
+    .app-page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .dashboard-page-heading h2,
+    .app-page-header h2 {
+        font-size: clamp(1.28rem, 5vw, 1.65rem);
+    }
+
+    .dashboard-page-heading p,
+    .app-page-header p {
+        font-size: 0.84rem;
+    }
+
+    .app-page-actions,
+    .app-section-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    .app-page-actions .btn,
+    .app-section-actions .btn {
+        width: auto;
+    }
+
+    .vp-status-badge.is-long {
+        max-width: 190px;
+    }
+}
+
+@media (max-width: 576px) {
+    .dashboard-body {
+        font-size: 12.8px;
+    }
+
+    .app-page-icon {
+        width: 38px;
+        height: 38px;
+    }
+
+    .dashboard-filter-card,
+    .dashboard-table-card,
+    .app-card {
+        border-radius: 10px;
+    }
+
+    .dashboard-stat-card h3,
+    .documents-summary-card h3,
+    .app-card h3 {
+        font-size: 0.86rem;
+    }
+
+    .dashboard-table thead th {
+        font-size: 0.66rem;
+    }
+
+    .dashboard-table tbody td {
+        font-size: 0.72rem;
+    }
+
+    .vp-status-badge.is-long {
+        max-width: 150px;
+    }
+}
