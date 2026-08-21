@@ -9480,3 +9480,31 @@ body {
         min-width: 620px;
     }
 }
+
+/* Keep the sidebar brand visible after compact density rules. */
+@media (min-width: 992px) {
+    .dashboard-sidebar-brand {
+        min-height: 92px;
+        margin-bottom: 12px;
+        padding: 12px 8px 16px;
+    }
+
+    .dashboard-brand-logo {
+        width: min(100%, 178px);
+        max-width: 178px;
+        height: auto;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1280px) {
+    .dashboard-sidebar-brand {
+        min-height: 84px;
+        padding-block: 10px 14px;
+    }
+
+    .dashboard-brand-logo {
+        width: min(100%, 164px);
+        max-width: 164px;
+        height: auto;
+    }
+}
