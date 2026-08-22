@@ -461,3 +461,76 @@ def test_tenant_health_check_passes_for_expected_schema(app, companies):
         checks = collect_tenant_health_checks()
 
     assert not tenant_health_has_failures(checks)
+
+
+def test_company_modules_default_to_enabled(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import company_module_enabled, company_module_state
+
+        g.current_company = erprefabrik
+        g.enabled_company_modules = company_module_state(erprefabrik)
+
+        assert company_module_enabled("maintenance")
+        assert company_module_enabled("quality_test_concrete")
+
+
+def test_company_module_can_be_disabled(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    with app.app_context():
+        from app.models import CompanyModule
+
+        db.session.add(
+            CompanyModule(
+                company_id=erprefabrik.id,
+                module_key="vehicles",
+                is_enabled=False,
+            )
+        )
+        db.session.commit()
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import company_module_enabled, company_module_state
+
+        g.current_company = erprefabrik
+        g.enabled_company_modules = company_module_state(erprefabrik)
+
+        assert not company_module_enabled("vehicles")
+        assert company_module_enabled("maintenance")
+
+
+def test_quality_test_parent_disables_child_modules(app, companies):
+    erprefabrik, _deneme, _passive = companies
+
+    with app.app_context():
+        from app.models import CompanyModule
+
+        db.session.add(
+            CompanyModule(
+                company_id=erprefabrik.id,
+                module_key="quality_tests",
+                is_enabled=False,
+            )
+        )
+        db.session.add(
+            CompanyModule(
+                company_id=erprefabrik.id,
+                module_key="quality_test_concrete",
+                is_enabled=True,
+            )
+        )
+        db.session.commit()
+
+    with app.test_request_context("/"):
+        from flask import g
+        from app.routes import company_module_enabled, company_module_state
+
+        g.current_company = erprefabrik
+        g.enabled_company_modules = company_module_state(erprefabrik)
+
+        assert not company_module_enabled("quality_tests")
+        assert not company_module_enabled("quality_test_concrete")

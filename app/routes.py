@@ -43,6 +43,9 @@ from .models import (
     ACTION_SUB_TASK_STATUSES,
     AppSetting,
     Company,
+    CompanyModule,
+    COMPANY_MODULE_CATALOG,
+    COMPANY_MODULE_KEYS,
     DEPARTMENTS,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
@@ -64,6 +67,7 @@ from .models import (
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
+    QUALITY_TEST_MODULE_BY_SLUG,
     QualityTestRecord,
     Role,
     RolePermission,
@@ -250,6 +254,8 @@ def load_logged_in_user():
     g.latest_notifications = []
     g.assigned_tasks_count = 0
     g.current_user_is_super_admin = False
+    g.enabled_company_modules = default_company_module_state(True)
+    g.company_module_enabled = company_module_enabled
     ensure_login_attempt_schema()
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
@@ -267,6 +273,8 @@ def load_logged_in_user():
             g.current_company = db.session.get(Company, g.current_user.company_id)
             if g.current_company is not None:
                 session["company_id"] = g.current_company.id
+        g.enabled_company_modules = company_module_state(g.current_company)
+        enforce_company_module_access()
         ensure_notification_dof_column()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
@@ -1072,6 +1080,173 @@ def super_admin_required(view):
         return view(*args, **kwargs)
 
     return wrapped_view
+
+
+QUALITY_TEST_ENDPOINTS = {
+    "main.quality_test_page",
+    "main.quality_test_parameters",
+    "main.create_quality_test_record",
+    "main.quality_test_measurement",
+}
+MODULE_ENDPOINTS = {
+    "main.organization": "organization",
+    "main.organization_legacy": "organization",
+    "main.orientation": "organization",
+    "main.create_orientation_node": "organization",
+    "main.update_orientation_node": "organization",
+    "main.move_orientation_node": "organization",
+    "main.delete_orientation_node": "organization",
+    "main.maintenance_dashboard": "maintenance",
+    "main.create_maintenance_machine": "maintenance",
+    "main.edit_maintenance_machine": "maintenance",
+    "main.delete_maintenance_machine": "maintenance",
+    "main.create_maintenance_fault": "maintenance",
+    "main.maintenance_fault_detail": "maintenance",
+    "main.edit_maintenance_fault": "maintenance",
+    "main.delete_maintenance_fault": "maintenance",
+    "main.vehicle_dashboard": "vehicles",
+    "main.create_vehicle": "vehicles",
+    "main.edit_vehicle": "vehicles",
+    "main.delete_vehicle": "vehicles",
+    "main.create_vehicle_operation": "vehicles",
+    "main.delete_vehicle_operation": "vehicles",
+    "main.save_vehicle_fuel": "vehicles",
+    "main.dof_management": "if_management",
+    "main.create_dof": "if_management",
+    "main.edit_dof_draft": "if_management",
+    "main.dof_detail": "if_management",
+    "main.approve_dof_management": "if_management",
+    "main.approve_dof_deputy": "if_management",
+    "main.reject_dof": "if_management",
+    "main.revise_dof": "if_management",
+    "main.download_dof_evidence_file": "if_management",
+    "main.download_dof_file": "if_management",
+    "main.delete_dof": "if_management",
+    "main.internal_audit": "internal_audit",
+    "main.create_internal_audit": "internal_audit",
+    "main.edit_internal_audit": "internal_audit",
+    "main.copy_internal_audit": "internal_audit",
+    "main.internal_audit_report": "internal_audit",
+    "main.internal_audit_personnel_report": "internal_audit",
+    "main.delete_internal_audit": "internal_audit",
+    "main.internal_audit_question": "internal_audit",
+    "main.previous_internal_audit_question": "internal_audit",
+    "main.save_internal_audit_answer": "internal_audit",
+    "main.open_internal_audit_nonconformity": "internal_audit",
+    "main.complete_internal_audit": "internal_audit",
+    "main.documents_dashboard": "documents",
+    "main.documents_list": "documents",
+    "main.documents_category": "documents",
+    "main.upload_document": "documents",
+    "main.document_detail": "documents",
+    "main.edit_document": "documents",
+    "main.download_document": "documents",
+    "main.preview_document": "documents",
+    "main.generate_document_preview_route": "documents",
+    "main.archive_document": "documents",
+    "main.delete_document": "documents",
+}
+
+
+def company_module_catalog():
+    return sorted(COMPANY_MODULE_CATALOG, key=lambda item: item["sort_order"])
+
+
+def default_company_module_state(enabled=True):
+    return {key: enabled for key in COMPANY_MODULE_KEYS}
+
+
+def company_module_state(company):
+    state = default_company_module_state(True)
+    if company is None:
+        return state
+
+    try:
+        settings = CompanyModule.query.filter_by(company_id=company.id).all()
+    except OperationalError:
+        db.session.rollback()
+        return state
+
+    for setting in settings:
+        if setting.module_key in state:
+            state[setting.module_key] = bool(setting.is_enabled)
+    return state
+
+
+def company_module_parent_key(module_key):
+    module = next(
+        (item for item in COMPANY_MODULE_CATALOG if item["key"] == module_key),
+        None,
+    )
+    return module.get("parent_key") if module else None
+
+
+def company_module_enabled(module_key):
+    state = getattr(g, "enabled_company_modules", None)
+    if state is None:
+        state = company_module_state(getattr(g, "current_company", None))
+        g.enabled_company_modules = state
+
+    if module_key not in COMPANY_MODULE_KEYS:
+        return True
+
+    parent_key = company_module_parent_key(module_key)
+    if parent_key and not state.get(parent_key, True):
+        return False
+    return state.get(module_key, True)
+
+
+def endpoint_required_company_module(endpoint=None):
+    endpoint = endpoint or request.endpoint
+    if endpoint in QUALITY_TEST_ENDPOINTS:
+        slug = (request.view_args or {}).get("slug")
+        if slug:
+            return QUALITY_TEST_MODULE_BY_SLUG.get(slug, "quality_tests")
+        return "quality_tests"
+    return MODULE_ENDPOINTS.get(endpoint)
+
+
+def enforce_company_module_access():
+    if g.current_user is None:
+        return
+    module_key = endpoint_required_company_module()
+    if module_key and not company_module_enabled(module_key):
+        abort(403)
+
+
+def selected_company_module_keys_from_form():
+    selected = set(request.form.getlist("enabled_modules"))
+    selected = {key for key in selected if key in COMPANY_MODULE_KEYS}
+    child_keys = {
+        item["key"]
+        for item in COMPANY_MODULE_CATALOG
+        if item.get("parent_key") == "quality_tests"
+    }
+    if "quality_tests" not in selected:
+        selected -= child_keys
+    elif selected & child_keys:
+        selected.add("quality_tests")
+    return selected
+
+
+def sync_company_modules(company, selected_keys=None):
+    selected_keys = set(COMPANY_MODULE_KEYS if selected_keys is None else selected_keys)
+    existing = {
+        item.module_key: item
+        for item in CompanyModule.query.filter_by(company_id=company.id).all()
+    }
+    for module_key in COMPANY_MODULE_KEYS:
+        setting = existing.get(module_key)
+        if setting is None:
+            setting = CompanyModule(company_id=company.id, module_key=module_key)
+            db.session.add(setting)
+        setting.is_enabled = module_key in selected_keys
+
+
+def company_module_form_state(company):
+    if request.method == "POST":
+        return {key: key in selected_company_module_keys_from_form() for key in COMPANY_MODULE_KEYS}
+    return company_module_state(company)
 
 
 LEGACY_PERMISSION_ALIASES = {
@@ -9078,6 +9253,7 @@ def create_company():
             db.session.add(company)
             db.session.flush()
             initialize_company_workspace(company)
+            sync_company_modules(company, selected_company_module_keys_from_form())
             db.session.commit()
             flash(f"{company.label} ÅŸirketi oluÅŸturuldu.", "success")
             return redirect(url_for("main.companies"))
@@ -9090,6 +9266,8 @@ def create_company():
         title="Yeni Åirket",
         description="VolkaPortal iÃ§in boÅŸ baÅŸlayacak yeni bir firma oluÅŸturun.",
         form_action=url_for("main.create_company"),
+        module_catalog=company_module_catalog(),
+        module_state=company_module_form_state(None),
         submit_label="Åirketi Kaydet",
     )
 
@@ -9103,6 +9281,7 @@ def edit_company(company_id):
     if request.method == "POST":
         try:
             parse_company_form(company)
+            sync_company_modules(company, selected_company_module_keys_from_form())
             db.session.commit()
             flash(f"{company.label} ÅŸirketi gÃ¼ncellendi.", "success")
             return redirect(url_for("main.companies"))
@@ -9115,6 +9294,8 @@ def edit_company(company_id):
         title="Åirket DÃ¼zenle",
         description=f"{company.label} kaydÄ±nÄ± gÃ¼ncelleyin.",
         form_action=url_for("main.edit_company", company_id=company.id),
+        module_catalog=company_module_catalog(),
+        module_state=company_module_form_state(company),
         submit_label="DeÄŸiÅŸiklikleri Kaydet",
     )
 

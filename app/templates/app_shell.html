@@ -45,20 +45,25 @@
             <span>Rol Yönetimi</span>
           </a>
         {% endif %}
+        {% if g.company_module_enabled('organization') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.organization', 'main.organization_legacy', 'main.orientation'] %}active{% endif %}" href="{{ url_for('main.organization') }}">
           <i class="bi bi-diagram-3"></i>
           <span>Organizasyon Şeması</span>
         </a>
+        {% endif %}
+        {% if g.company_module_enabled('maintenance') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.maintenance_dashboard', 'main.create_maintenance_machine', 'main.edit_maintenance_machine', 'main.create_maintenance_fault', 'main.maintenance_fault_detail', 'main.edit_maintenance_fault'] %}active{% endif %}" href="{{ url_for('main.maintenance_dashboard') }}">
           <i class="bi bi-wrench-adjustable"></i>
           <span>Bakım</span>
         </a>
-        {% if g.current_user.has_permission('vehicles.view') or g.current_user.has_permission('vehicles.manage') or g.current_user.has_permission('maintenance.fault_manage') or g.current_user.has_permission('maintenance.inventory_manage') %}
+        {% endif %}
+        {% if g.company_module_enabled('vehicles') and (g.current_user.has_permission('vehicles.view') or g.current_user.has_permission('vehicles.manage') or g.current_user.has_permission('maintenance.fault_manage') or g.current_user.has_permission('maintenance.inventory_manage')) %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.vehicle_dashboard', 'main.create_vehicle', 'main.edit_vehicle'] %}active{% endif %}" href="{{ url_for('main.vehicle_dashboard') }}">
             <i class="bi bi-car-front"></i>
             <span>Araç Yönetimi</span>
           </a>
         {% endif %}
+        {% if g.company_module_enabled('quality_tests') %}
         <div class="dashboard-nav-group {% if quality_tests_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if quality_tests_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#qualityTestsNav" aria-expanded="{{ 'true' if quality_tests_active else 'false' }}" aria-controls="qualityTestsNav">
             <i class="bi bi-flask"></i>
@@ -67,25 +72,41 @@
           </button>
           <div class="dashboard-subnav collapse {% if quality_tests_active %}show{% endif %}" id="qualityTestsNav">
             {% for slug, title, icon in quality_test_menu %}
+              {% set quality_module_key = {
+                'beton-deneyi': 'quality_test_concrete',
+                'metilen-deneyi': 'quality_test_methylene',
+                'su-emme-deneyi': 'quality_test_water_absorption',
+                'elek-analizi-deneyi': 'quality_test_sieve_analysis',
+                'demir-cekme-deneyi': 'quality_test_rebar_tensile'
+              }.get(slug) %}
+              {% if g.company_module_enabled(quality_module_key) %}
               <a class="dashboard-subnav-item {% if active_quality_slug == slug %}active{% endif %}" href="{{ url_for('main.quality_test_page', slug=slug) }}">
                 <i class="bi {{ icon }}"></i>
                 <span>{{ title }}</span>
               </a>
+              {% endif %}
             {% endfor %}
           </div>
         </div>
+        {% endif %}
+        {% if g.company_module_enabled('if_management') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-clipboard2-pulse"></i>
           <span>İF Yönetimi</span>
         </a>
+        {% endif %}
+        {% if g.company_module_enabled('internal_audit') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.internal_audit', 'main.create_internal_audit', 'main.edit_internal_audit', 'main.copy_internal_audit', 'main.internal_audit_report', 'main.delete_internal_audit', 'main.internal_audit_question', 'main.save_internal_audit_answer', 'main.open_internal_audit_nonconformity', 'main.complete_internal_audit'] %}active{% endif %}" href="{{ url_for('main.internal_audit') }}">
           <i class="bi bi-clipboard-check"></i>
           <span>İç Denetim Yönetimi</span>
         </a>
+        {% endif %}
+        {% if g.company_module_enabled('documents') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
           <i class="bi bi-file-earmark-text"></i>
           <span>Doküman Yönetimi</span>
         </a>
+        {% endif %}
       </nav>
       <div class="dashboard-sidebar-bottom">
         <a class="sidebar-quick-link notification-sidebar-link {% if request.endpoint == 'main.notifications' %}active{% endif %}" href="{{ url_for('main.notifications') }}">

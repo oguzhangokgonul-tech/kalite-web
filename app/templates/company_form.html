@@ -117,6 +117,38 @@
         </div>
       </div>
 
+      <div class="company-module-panel">
+        <div class="company-module-panel-header">
+          <div>
+            <h3>Mod&#252;l Kullan&#305;m&#305;</h3>
+            <p>Bu &#351;irketin kullanaca&#287;&#305; mod&#252;lleri se&#231;in. Kapal&#305; mod&#252;ller men&#252;den gizlenir ve do&#287;rudan URL ile a&#231;&#305;lamaz.</p>
+          </div>
+          <span class="company-module-note">Sadece S&#252;per Admin de&#287;i&#351;tirebilir</span>
+        </div>
+        <div class="company-module-grid">
+          {% for module in module_catalog %}
+            {% set is_child = module.parent_key %}
+            <label class="company-module-toggle {% if is_child %}company-module-toggle-child{% endif %}" for="module_{{ module.key }}">
+              <input
+                class="form-check-input"
+                id="module_{{ module.key }}"
+                name="enabled_modules"
+                type="checkbox"
+                value="{{ module.key }}"
+                data-module-key="{{ module.key }}"
+                {% if module.parent_key %}data-module-parent="{{ module.parent_key }}"{% endif %}
+                {% if module_state.get(module.key, True) %}checked{% endif %}
+              >
+              <span class="company-module-icon"><i class="bi {{ module.icon }}"></i></span>
+              <span class="company-module-copy">
+                <strong>{{ module.name }}</strong>
+                <small>{{ module.description }}</small>
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
       <div class="app-form-actions">
         <button class="btn btn-success btn-lg" type="submit">
           <i class="bi bi-save2"></i>
@@ -141,4 +173,35 @@
       <li>Yeni firma bo&#351; ba&#351;lar; mevcut Er Prefabrik verileri yeni firmaya ta&#351;&#305;nmaz.</li>
     </ol>
   </section>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const parentInput = document.querySelector('[data-module-key="quality_tests"]');
+      const childInputs = Array.from(document.querySelectorAll("[data-module-parent='quality_tests']"));
+      if (!parentInput || !childInputs.length) {
+        return;
+      }
+
+      const syncChildren = function () {
+        childInputs.forEach(function (input) {
+          input.disabled = !parentInput.checked;
+          input.closest(".company-module-toggle").classList.toggle("is-disabled", !parentInput.checked);
+          if (!parentInput.checked) {
+            input.checked = false;
+          }
+        });
+      };
+
+      parentInput.addEventListener("change", syncChildren);
+      childInputs.forEach(function (input) {
+        input.addEventListener("change", function () {
+          if (input.checked) {
+            parentInput.checked = true;
+            syncChildren();
+          }
+        });
+      });
+      syncChildren();
+    });
+  </script>
 {% endblock %}

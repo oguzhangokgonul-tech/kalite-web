@@ -44,6 +44,138 @@ class Company(db.Model):
         return f"{self.code} - {self.name}"
 
 
+COMPANY_MODULE_CATALOG = (
+    {
+        "key": "organization",
+        "name": "Organizasyon Şeması",
+        "description": "Şirket hiyerarşisi, departman başlıkları ve organizasyon haritası.",
+        "icon": "bi-diagram-3",
+        "sort_order": 10,
+        "parent_key": None,
+    },
+    {
+        "key": "maintenance",
+        "name": "Bakım",
+        "description": "Makine envanteri, arıza açma ve bakım arıza takibi.",
+        "icon": "bi-wrench-adjustable",
+        "sort_order": 20,
+        "parent_key": None,
+    },
+    {
+        "key": "vehicles",
+        "name": "Araç Yönetimi",
+        "description": "Araç envanteri, sigorta, muayene, işlem ve akaryakıt takibi.",
+        "icon": "bi-car-front",
+        "sort_order": 30,
+        "parent_key": None,
+    },
+    {
+        "key": "quality_tests",
+        "name": "Kalite Deneyleri",
+        "description": "Kalite laboratuvar deneyleri için ana modül.",
+        "icon": "bi-flask",
+        "sort_order": 40,
+        "parent_key": None,
+    },
+    {
+        "key": "quality_test_concrete",
+        "name": "Beton Deneyleri",
+        "description": "Beton numune, termin ve basınç dayanımı takibi.",
+        "icon": "bi-box-seam",
+        "sort_order": 41,
+        "parent_key": "quality_tests",
+    },
+    {
+        "key": "quality_test_methylene",
+        "name": "Metilen Deneyleri",
+        "description": "Metilen deney kayıtları.",
+        "icon": "bi-droplet",
+        "sort_order": 42,
+        "parent_key": "quality_tests",
+    },
+    {
+        "key": "quality_test_water_absorption",
+        "name": "Su Emme Deneyleri",
+        "description": "Su emme deney kayıtları.",
+        "icon": "bi-moisture",
+        "sort_order": 43,
+        "parent_key": "quality_tests",
+    },
+    {
+        "key": "quality_test_sieve_analysis",
+        "name": "Elek Analizi Deneyi",
+        "description": "Elek analizi deney kayıtları.",
+        "icon": "bi-grid-3x3-gap",
+        "sort_order": 44,
+        "parent_key": "quality_tests",
+    },
+    {
+        "key": "quality_test_rebar_tensile",
+        "name": "Demir Çekme Deneyi",
+        "description": "Demir çekme deney kayıtları.",
+        "icon": "bi-bezier2",
+        "sort_order": 45,
+        "parent_key": "quality_tests",
+    },
+    {
+        "key": "if_management",
+        "name": "İF Yönetimi",
+        "description": "İyileştirme faaliyeti kayıtları ve onay akışları.",
+        "icon": "bi-clipboard2-pulse",
+        "sort_order": 50,
+        "parent_key": None,
+    },
+    {
+        "key": "internal_audit",
+        "name": "İç Denetim Yönetimi",
+        "description": "İç denetim oluşturma, cevaplama, çıktı ve IF bağlantısı.",
+        "icon": "bi-clipboard-check",
+        "sort_order": 60,
+        "parent_key": None,
+    },
+    {
+        "key": "documents",
+        "name": "Doküman Yönetimi",
+        "description": "Doküman kategori, yayın, revizyon ve indirme yönetimi.",
+        "icon": "bi-file-earmark-text",
+        "sort_order": 70,
+        "parent_key": None,
+    },
+)
+COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
+QUALITY_TEST_MODULE_BY_SLUG = {
+    "beton-deneyi": "quality_test_concrete",
+    "metilen-deneyi": "quality_test_methylene",
+    "su-emme-deneyi": "quality_test_water_absorption",
+    "elek-analizi-deneyi": "quality_test_sieve_analysis",
+    "demir-cekme-deneyi": "quality_test_rebar_tensile",
+}
+
+
+class CompanyModule(db.Model):
+    __tablename__ = "company_modules"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "module_key", name="uq_company_modules_company_module"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    module_key = db.Column(db.String(80), nullable=False, index=True)
+    is_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship(
+        "Company",
+        backref=db.backref("module_settings", cascade="all, delete-orphan"),
+    )
+
+
 DEPARTMENTS = (
     "Üretim",
     "Kalite",
