@@ -11087,3 +11087,111 @@ textarea.form-control::placeholder {
         font-size: 0.72rem;
     }
 }
+
+/* Concrete test table: keep core sample data in the row, measurements in disclosure. */
+.concrete-table {
+    min-width: 920px;
+}
+
+.concrete-table th:nth-child(1),
+.concrete-table td:nth-child(1) {
+    width: 15%;
+}
+
+.concrete-table th:nth-child(2),
+.concrete-table td:nth-child(2) {
+    width: 22%;
+}
+
+.concrete-table th:nth-child(3),
+.concrete-table td:nth-child(3) {
+    width: 15%;
+}
+
+.concrete-table th:nth-child(4),
+.concrete-table td:nth-child(4) {
+    width: 18%;
+}
+
+.concrete-table th:nth-child(5),
+.concrete-table td:nth-child(5) {
+    width: 14%;
+}
+
+.concrete-table th:nth-child(6),
+.concrete-table td:nth-child(6) {
+    width: 16%;
+}
+
+.concrete-table .table-disclosure-title {
+    justify-content: flex-start;
+}
+
+.concrete-table .dashboard-action-title-cell span {
+    max-width: 100%;
+}
+
+.concrete-detail-row td {
+    height: auto;
+    padding: 0 12px 12px;
+    background: #fbfdff;
+    white-space: normal;
+}
+
+.concrete-table tbody tr.concrete-detail-row:hover td {
+    background: #fbfdff;
+}
+
+.concrete-measurement-detail-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(140px, 0.7fr);
+    margin: 0 0 4px 28px;
+    padding: 12px;
+    border-radius: 12px;
+}
+
+.concrete-measurement-detail-grid div {
+    min-width: 0;
+}
+
+.concrete-measurement-detail-grid .quality-strength-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 7px;
+}
+
+.concrete-measurement-detail-grid .quality-strength-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 27px;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    line-height: 1.1;
+}
+
+.concrete-measurement-detail-grid .vp-status-badge {
+    width: fit-content;
+    max-width: 100%;
+    margin-top: 7px;
+}
+
+.concrete-measurement-detail-grid .quality-test-row-actions {
+    justify-content: flex-start;
+    margin-top: 7px;
+}
+
+@media (max-width: 991.98px) {
+    .concrete-table {
+        min-width: 0;
+    }
+
+    .concrete-detail-row td {
+        padding: 0 10px 12px;
+    }
+
+    .concrete-measurement-detail-grid {
+        grid-template-columns: 1fr;
+        margin-left: 0;
+    }
+}

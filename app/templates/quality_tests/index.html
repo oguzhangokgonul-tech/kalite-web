@@ -105,7 +105,7 @@
       <span class="quality-test-record-count">{{ filtered_count }} kayıt</span>
     {% endcall %}
     <div class="table-responsive">
-      <table class="table dashboard-table quality-test-table align-middle mb-0">
+      <table class="table dashboard-table quality-test-table{% if is_concrete_test %} concrete-table{% endif %} align-middle mb-0">
         <thead>
           <tr>
             <th>Kayıt No</th>
@@ -114,11 +114,7 @@
             <th>Dökülen Yapı Elemanı</th>
             <th>Beton Sınıfı</th>
             <th>Hava Sıcaklığı</th>
-            {% if is_concrete_test %}
-              <th>Basınç Dayanımı</th>
-              <th>Ölçüm Termini</th>
-              <th class="text-end">İşlemler</th>
-            {% else %}
+            {% if not is_concrete_test %}
               <th>Oluşturan</th>
             {% endif %}
           </tr>
@@ -126,7 +122,17 @@
         <tbody>
           {% for record in records %}
             <tr>
-              <td data-label="Kayıt No"><strong>{{ record.number_label }}</strong></td>
+              <td data-label="Kayıt No">
+                {% set quality_record_extra_id = "quality_record_extra_%s"|format(record.id) %}
+                <div class="table-disclosure-title">
+                  {% if is_concrete_test %}
+                    <button class="table-disclosure-toggle collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ quality_record_extra_id }}" aria-expanded="false" aria-controls="{{ quality_record_extra_id }}" title="Ölçüm detaylarını göster">
+                      <i class="bi bi-chevron-right"></i>
+                    </button>
+                  {% endif %}
+                  <strong>{{ record.number_label }}</strong>
+                </div>
+              </td>
               <td data-label="Müşteri Adı" class="dashboard-action-title-cell">
                 <strong class="quality-test-record-title">{{ record.title }}</strong>
                 <span>{{ record.description or "Açıklama girilmemiş." }}</span>
@@ -141,43 +147,55 @@
                   -
                 {% endif %}
               </td>
-              {% if is_concrete_test %}
-                <td data-label="Basınç Dayanımı">
-                  <div class="quality-strength-values">
-                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_2_day, record.concrete_class, strength_parameters) }}">2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
-                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_7_day, record.concrete_class, strength_parameters) }}">7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
-                    <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_28_day, record.concrete_class, strength_parameters) }}">28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
-                  </div>
-                </td>
-                <td data-label="Ölçüm Termini">
-                  {% if record.current_measurement_day %}
-                    {{ ui.status_badge(record.current_measurement_label, tone=record.measurement_tone(today), icon="bi-clock-fill") }}
-                  {% else %}
-                    {{ ui.status_badge("Ölçümler Tamamlandı") }}
-                  {% endif %}
-                  <span class="quality-test-muted-line">
-                    {% if record.current_measurement_due_date %}
-                      {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}
-                    {% else %}
-                      {{ record.measurement_progress_label }}
-                    {% endif %}
-                  </span>
-                </td>
-                <td data-label="İşlemler">
-                  <div class="dashboard-row-actions quality-test-row-actions">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
-                      <i class="bi bi-speedometer2"></i>
-                      <span>Ölçüm Gir</span>
-                    </a>
-                  </div>
-                </td>
-              {% else %}
+              {% if not is_concrete_test %}
                 <td data-label="Oluşturan">{{ record.created_by.full_name if record.created_by else "-" }}</td>
               {% endif %}
             </tr>
+            {% if is_concrete_test %}
+              <tr class="concrete-detail-row">
+                <td colspan="6">
+                  <div class="collapse concrete-row-detail-panel" id="{{ quality_record_extra_id }}">
+                    <div class="concrete-detail-grid concrete-measurement-detail-grid">
+                      <div>
+                        <span>Basınç Dayanımı</span>
+                        <div class="quality-strength-values">
+                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_2_day, record.concrete_class, strength_parameters) }}">2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
+                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_7_day, record.concrete_class, strength_parameters) }}">7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
+                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_28_day, record.concrete_class, strength_parameters) }}">28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
+                        </div>
+                      </div>
+                      <div>
+                        <span>Ölçüm Termini</span>
+                        {% if record.current_measurement_day %}
+                          {{ ui.status_badge(record.current_measurement_label, tone=record.measurement_tone(today), icon="bi-clock-fill") }}
+                        {% else %}
+                          {{ ui.status_badge("Ölçümler Tamamlandı") }}
+                        {% endif %}
+                        <small>
+                          {% if record.current_measurement_due_date %}
+                            {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}
+                          {% else %}
+                            {{ record.measurement_progress_label }}
+                          {% endif %}
+                        </small>
+                      </div>
+                      <div>
+                        <span>İşlem</span>
+                        <div class="dashboard-row-actions quality-test-row-actions">
+                          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Ölçüm Gir</span>
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="{{ 9 if is_concrete_test else 7 }}">
+              <td class="dashboard-empty-row" colspan="{{ 6 if is_concrete_test else 7 }}">
                 <strong>Henüz kayıt yok.</strong>
                 <span>Yeni kayıt oluşturduğunuzda burada listelenecek.</span>
                 {% if can_create_quality_test %}
