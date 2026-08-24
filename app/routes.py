@@ -6975,7 +6975,7 @@ def save_vehicle_fuel(vehicle_id):
         flash("Aylık akaryakıt tablosu güncellendi.", "success")
     except ValueError:
         db.session.rollback()
-        flash("Akaryakıt TL ve miktar alanlarını geçerli sayı olarak girin.", "danger")
+        flash("Akaryakıt miktar alanlarını geçerli sayı olarak girin.", "danger")
     return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
 
 

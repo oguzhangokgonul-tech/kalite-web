@@ -49,12 +49,12 @@
             <input class="form-control" id="owner" name="owner" value="{{ request.form.get('owner', vehicle.owner) }}" maxlength="160" required>
           </div>
           <div>
-            <label class="form-label" for="traffic_insurance_due_date">Trafik Sigortasına Kalan Süre</label>
+            <label class="form-label" for="traffic_insurance_due_date">Trafik Sigorta Bitişi</label>
             <input class="form-control" id="traffic_insurance_due_date" name="traffic_insurance_due_date" type="date" value="{{ vehicle.traffic_insurance_due_date.isoformat() if vehicle.traffic_insurance_due_date else '' }}">
             <div class="mt-2">{{ due_badge(traffic) }}</div>
           </div>
           <div>
-            <label class="form-label" for="casco_insurance_due_date">Kasko Sigorta Bitişine Kalan Süre</label>
+            <label class="form-label" for="casco_insurance_due_date">Kasko Sigorta Bitişi</label>
             <input class="form-control" id="casco_insurance_due_date" name="casco_insurance_due_date" type="date" value="{{ vehicle.casco_insurance_due_date.isoformat() if vehicle.casco_insurance_due_date else '' }}">
             <div class="mt-2">{{ due_badge(casco) }}</div>
           </div>
@@ -63,9 +63,12 @@
             <input class="form-control" id="last_inspection_date" name="last_inspection_date" type="date" value="{{ vehicle.last_inspection_date.isoformat() if vehicle.last_inspection_date else '' }}">
           </div>
           <div>
-            <label class="form-label" for="next_inspection_due_date">Sonraki Muayeneye Kalan Süre</label>
+            <label class="form-label" for="next_inspection_due_date">Sonraki Muayene Tarihi</label>
             <input class="form-control" id="next_inspection_due_date" name="next_inspection_due_date" type="date" value="{{ vehicle.next_inspection_due_date.isoformat() if vehicle.next_inspection_due_date else '' }}">
-            <div class="mt-2">{{ due_badge(inspection) }}</div>
+            <div class="vehicle-due-summary mt-2">
+              <span>Sonraki Muayeneye Kalan Süre</span>
+              {{ due_badge(inspection) }}
+            </div>
           </div>
         </div>
         <div class="maintenance-form-actions">
@@ -155,20 +158,18 @@
   </section>
 
   <section class="dashboard-table-card maintenance-section-card mt-4">
-    {% call ui.section_header("Aylık Akaryakıt", fuel_year ~ " yılı TL ve akaryakıt miktarı takibi.", class_name="maintenance-section-header") %}
+    {% call ui.section_header("Aylık Akaryakıt", fuel_year ~ " yılı akaryakıt miktarı takibi.", class_name="maintenance-section-header") %}
       <div class="d-flex gap-3 flex-wrap">
-        <strong>{{ format_money(total_fuel_tl) }}</strong>
         <strong>{{ format_quantity(total_fuel_liter) }}</strong>
       </div>
     {% endcall %}
     <form method="post" action="{{ url_for('main.save_vehicle_fuel', vehicle_id=vehicle.id) }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="table-responsive">
-        <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <table class="table dashboard-table maintenance-table vehicle-fuel-table align-middle mb-0">
           <thead>
             <tr>
               <th>Ay</th>
-              <th>Akaryakıt Tutarı (TL)</th>
               <th>Akaryakıt Miktarı (L)</th>
             </tr>
           </thead>
@@ -176,9 +177,6 @@
             {% for row in fuel_rows %}
               <tr>
                 <td data-label="Ay"><strong>{{ row.label }}</strong></td>
-                <td data-label="Akaryakıt Tutarı">
-                  <input class="form-control" name="fuel_amount_{{ row.month }}" inputmode="decimal" value="{{ row.amount_tl if row.amount_tl is not none else '' }}">
-                </td>
                 <td data-label="Akaryakıt Miktarı">
                   <input class="form-control" name="fuel_liter_{{ row.month }}" inputmode="decimal" value="{{ row.fuel_liter if row.fuel_liter is not none else '' }}">
                 </td>

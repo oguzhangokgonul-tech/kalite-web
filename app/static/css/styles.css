@@ -10114,6 +10114,36 @@ textarea.form-control::placeholder {
     min-width: 260px;
 }
 
+.vehicle-due-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    color: #64748b;
+    font-size: 0.74rem;
+    line-height: 1.2;
+}
+
+.vehicle-due-summary > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vehicle-fuel-table {
+    min-width: 520px;
+}
+
+.vehicle-fuel-table th:first-child,
+.vehicle-fuel-table td:first-child {
+    width: 180px;
+}
+
+.vehicle-fuel-table .form-control {
+    max-width: 220px;
+}
+
 .company-module-panel {
     margin-top: 24px;
     padding: 18px;
