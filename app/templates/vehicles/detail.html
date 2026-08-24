@@ -74,13 +74,36 @@
           </div>
           <div class="vehicle-reminder-panel">
             <label class="form-label" for="reminder_user_ids">Bilgilendirilecek Personel</label>
-            <select class="form-select" id="reminder_user_ids" name="reminder_user_ids" multiple size="5">
-              {% for user in users %}
-                <option value="{{ user.id }}" {% if user.id in selected_reminder_user_ids %}selected{% endif %}>
-                  {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
-                </option>
-              {% endfor %}
-            </select>
+            <div class="dropdown vehicle-reminder-dropdown">
+              <button
+                class="form-select vehicle-reminder-toggle text-start"
+                type="button"
+                id="reminder_user_ids"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-expanded="false"
+              >
+                {% if selected_reminder_user_ids|length %}
+                  {{ selected_reminder_user_ids|length }} personel seçildi
+                {% else %}
+                  Personel seçilmedi
+                {% endif %}
+              </button>
+              <div class="dropdown-menu vehicle-reminder-menu" aria-labelledby="reminder_user_ids">
+                {% for user in users %}
+                  <label class="vehicle-reminder-option">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      name="reminder_user_ids"
+                      value="{{ user.id }}"
+                      {% if user.id in selected_reminder_user_ids %}checked{% endif %}
+                    >
+                    <span>{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
             <small class="text-muted">Birden fazla personel seçebilirsiniz. Seçim yapılmazsa Bakım departmanındaki kullanıcılara gider.</small>
           </div>
           <div>
