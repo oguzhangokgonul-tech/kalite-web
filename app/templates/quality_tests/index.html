@@ -155,37 +155,94 @@
               <tr class="concrete-detail-row">
                 <td colspan="6">
                   <div class="collapse concrete-row-detail-panel" id="{{ quality_record_extra_id }}">
-                    <div class="concrete-detail-grid concrete-measurement-detail-grid">
-                      <div>
-                        <span>Basınç Dayanımı</span>
-                        <div class="quality-strength-values">
-                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_2_day, record.concrete_class, strength_parameters) }}">2g <strong>{{ format_decimal(record.strength_2_day) }}</strong></span>
-                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_7_day, record.concrete_class, strength_parameters) }}">7g <strong>{{ format_decimal(record.strength_7_day) }}</strong></span>
-                          <span class="quality-strength-pill quality-strength-{{ strength_tone(record.strength_28_day, record.concrete_class, strength_parameters) }}">28g <strong>{{ format_decimal(record.strength_28_day) }}</strong></span>
+                    <div class="concrete-detail-panel">
+                      <div class="concrete-strength-summary">
+                        <div class="concrete-strength-group">
+                          <span class="concrete-detail-eyebrow">Basınç Dayanımı</span>
+                          <div class="concrete-strength-metrics">
+                            <div class="concrete-strength-metric quality-strength-{{ strength_tone(record.strength_2_day, record.concrete_class, strength_parameters) }}">
+                              <span>2G</span>
+                              <strong>{{ format_decimal(record.strength_2_day) }} <small>MPa</small></strong>
+                              <em>2 Gün</em>
+                            </div>
+                            <div class="concrete-strength-metric quality-strength-{{ strength_tone(record.strength_7_day, record.concrete_class, strength_parameters) }}">
+                              <span>7G</span>
+                              <strong>{{ format_decimal(record.strength_7_day) }} <small>MPa</small></strong>
+                              <em>7 Gün</em>
+                            </div>
+                            <div class="concrete-strength-metric quality-strength-{{ strength_tone(record.strength_28_day, record.concrete_class, strength_parameters) }}">
+                              <span>28G</span>
+                              <strong>{{ format_decimal(record.strength_28_day) }} <small>MPa</small></strong>
+                              <em>28 Gün</em>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="concrete-meta-summary">
+                          <div>
+                            <i class="bi bi-calendar3"></i>
+                            <span>Numune Alım Tarihi</span>
+                            <strong>{{ record.record_date.strftime("%d.%m.%Y") if record.record_date else "-" }}</strong>
+                          </div>
+                          <div>
+                            <i class="bi bi-box-seam"></i>
+                            <span>Dökülen Yapı Elemanı</span>
+                            <strong>{{ record.sample_name or "-" }}</strong>
+                          </div>
+                          <div>
+                            <i class="bi bi-circle-square"></i>
+                            <span>Beton Sınıfı</span>
+                            <strong>{{ record.concrete_class or "-" }}</strong>
+                          </div>
+                          <div>
+                            <i class="bi bi-thermometer-half"></i>
+                            <span>Hava Sıcaklığı</span>
+                            <strong>
+                              {% if record.air_temperature is not none %}
+                                {{ ("%g"|format(record.air_temperature))|replace(".", ",") }} °C
+                              {% else %}
+                                -
+                              {% endif %}
+                            </strong>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <span>Ölçüm Termini</span>
-                        {% if record.current_measurement_day %}
-                          {{ ui.status_badge(record.current_measurement_label, tone=record.measurement_tone(today), icon="bi-clock-fill") }}
-                        {% else %}
-                          {{ ui.status_badge("Ölçümler Tamamlandı") }}
-                        {% endif %}
-                        <small>
-                          {% if record.current_measurement_due_date %}
-                            {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}
-                          {% else %}
-                            {{ record.measurement_progress_label }}
-                          {% endif %}
-                        </small>
-                      </div>
-                      <div>
-                        <span>İşlem</span>
-                        <div class="dashboard-row-actions quality-test-row-actions">
-                          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
+                      <div class="concrete-detail-bottom">
+                        <div class="concrete-measurement-status-card">
+                          <div class="concrete-status-orb">
+                            <i class="bi {% if record.current_measurement_day %}bi-clock{% else %}bi-check-circle{% endif %}"></i>
+                          </div>
+                          <div>
+                            <strong>
+                              {% if record.current_measurement_day %}
+                                {{ record.current_measurement_label }}
+                              {% else %}
+                                Ölçümler Tamamlandı
+                              {% endif %}
+                            </strong>
+                            <span>
+                              {% if record.current_measurement_due_date %}
+                                {{ record.current_measurement_due_date.strftime("%d.%m.%Y") }} · {{ record.measurement_due_label(today) }}
+                              {% else %}
+                                {{ record.measurement_progress_label }}
+                              {% endif %}
+                            </span>
+                          </div>
+                          <div class="concrete-stepper">
+                            <span class="{% if record.strength_2_day is not none %}is-complete{% endif %}"><i class="bi bi-check"></i><small>2 Gün</small></span>
+                            <span class="{% if record.strength_7_day is not none %}is-complete{% endif %}"><i class="bi bi-check"></i><small>7 Gün</small></span>
+                            <span class="{% if record.strength_28_day is not none %}is-complete{% endif %}"><i class="bi bi-check"></i><small>28 Gün</small></span>
+                          </div>
+                        </div>
+                        <div class="concrete-measurement-action-card">
+                          <div>
+                            <strong>İşlem</strong>
+                            <span>Yeni ölçüm verisi girmek için aşağıdaki butonu kullanabilirsiniz.</span>
+                          </div>
+                          <a class="btn btn-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
                             <i class="bi bi-speedometer2"></i>
                             <span>Ölçüm Gir</span>
                           </a>
+                          <small><i class="bi bi-shield-check"></i> Veriler güvenle saklanır.</small>
                         </div>
                       </div>
                     </div>

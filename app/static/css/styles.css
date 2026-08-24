@@ -11195,3 +11195,335 @@ textarea.form-control::placeholder {
         margin-left: 0;
     }
 }
+
+/* Concrete record expanded panel inspired by a laboratory summary sheet. */
+.concrete-detail-panel {
+    display: grid;
+    gap: 12px;
+    margin: 0 12px 6px;
+    padding: 14px;
+    background: #ffffff;
+    border: 1px solid #dbe7f6;
+    border-radius: 16px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.concrete-strength-summary {
+    display: grid;
+    grid-template-columns: minmax(420px, 1fr) minmax(420px, 1.05fr);
+    gap: 16px;
+    align-items: stretch;
+    padding: 16px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border: 1px solid #dbe7f6;
+    border-radius: 14px;
+}
+
+.concrete-detail-eyebrow {
+    display: block;
+    margin-bottom: 12px;
+    color: #61728a;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.concrete-strength-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.concrete-strength-metric {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: center;
+    min-width: 0;
+    padding: 4px 20px 4px 0;
+    border-right: 1px solid #dfe8f4;
+}
+
+.concrete-strength-metric:last-child {
+    border-right: 0;
+}
+
+.concrete-table .concrete-strength-metric > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 46px;
+    min-height: 42px;
+    padding: 0 9px;
+    border: 1px solid currentColor;
+    border-radius: 16px;
+    font-size: 0.86rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.concrete-strength-metric strong {
+    display: block;
+    color: currentColor;
+    font-size: clamp(1.35rem, 1rem + 0.9vw, 1.9rem);
+    font-weight: 760;
+    line-height: 1;
+}
+
+.concrete-strength-metric strong small {
+    color: #51627a;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.concrete-strength-metric em {
+    grid-column: 2;
+    margin-top: 4px;
+    color: #66768e;
+    font-size: 0.76rem;
+    font-style: normal;
+    font-weight: 600;
+}
+
+.concrete-strength-metric.quality-strength-success {
+    color: #059669;
+}
+
+.concrete-strength-metric.quality-strength-warning {
+    color: #b7791f;
+}
+
+.concrete-strength-metric.quality-strength-danger {
+    color: #e11d48;
+}
+
+.concrete-strength-metric.quality-strength-muted {
+    color: #64748b;
+}
+
+.concrete-meta-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.concrete-meta-summary div {
+    min-width: 0;
+}
+
+.concrete-meta-summary i {
+    display: block;
+    margin-bottom: 7px;
+    color: #7890b5;
+    font-size: 1.2rem;
+}
+
+.concrete-meta-summary span {
+    display: block;
+    color: #66768e;
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.concrete-meta-summary strong {
+    display: block;
+    margin-top: 4px;
+    color: #10203a;
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.concrete-detail-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr);
+    gap: 12px;
+}
+
+.concrete-measurement-status-card,
+.concrete-measurement-action-card {
+    display: grid;
+    align-items: center;
+    min-width: 0;
+    padding: 16px 18px;
+    border-radius: 14px;
+}
+
+.concrete-measurement-status-card {
+    grid-template-columns: auto minmax(0, 1fr) minmax(260px, 0.82fr);
+    gap: 18px;
+    color: #087f5b;
+    background: linear-gradient(135deg, #f0fdf7 0%, #ffffff 100%);
+    border: 1px solid #b7f0d1;
+}
+
+.concrete-status-orb {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 78px;
+    height: 78px;
+    color: #10a775;
+    background: radial-gradient(circle, #ffffff 0 34%, #dbfbea 35% 100%);
+    border-radius: 999px;
+    font-size: 2rem;
+}
+
+.concrete-measurement-status-card strong,
+.concrete-measurement-action-card strong {
+    display: block;
+    color: #10203a;
+    font-size: 1rem;
+    font-weight: 760;
+    line-height: 1.25;
+}
+
+.concrete-measurement-status-card > div:nth-child(2) strong {
+    color: #087f5b;
+}
+
+.concrete-measurement-status-card > div:nth-child(2) span,
+.concrete-measurement-action-card span {
+    display: block;
+    margin-top: 5px;
+    color: #5f6f87;
+    font-size: 0.8rem;
+    font-weight: 520;
+    line-height: 1.45;
+}
+
+.concrete-stepper {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+    position: relative;
+}
+
+.concrete-stepper::before {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: 16%;
+    right: 16%;
+    height: 2px;
+    background: #b7f0d1;
+}
+
+.concrete-table .concrete-stepper span {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+    color: #7b8aa2;
+}
+
+.concrete-table .concrete-stepper i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: #9aa9bd;
+    background: #ffffff;
+    border: 2px solid #d5e0ec;
+    border-radius: 999px;
+    font-size: 1rem;
+}
+
+.concrete-stepper .is-complete i {
+    color: #10a775;
+    border-color: #35d489;
+}
+
+.concrete-stepper small {
+    color: #4e6078;
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+.concrete-measurement-action-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+    border: 1px solid #cfe0ff;
+}
+
+.concrete-measurement-action-card .btn {
+    min-height: 46px;
+    padding-inline: 22px;
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+.concrete-measurement-action-card small {
+    grid-column: 1 / -1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    justify-self: end;
+    color: #6c7d94;
+    font-size: 0.76rem;
+    font-weight: 600;
+}
+
+.concrete-measurement-action-card small i {
+    color: #3478f6;
+}
+
+@media (max-width: 1280px) {
+    .concrete-strength-summary,
+    .concrete-detail-bottom {
+        grid-template-columns: 1fr;
+    }
+
+    .concrete-measurement-status-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .concrete-stepper {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .concrete-detail-panel {
+        margin-inline: 0;
+        padding: 10px;
+    }
+
+    .concrete-strength-summary {
+        padding: 12px;
+    }
+
+    .concrete-strength-metrics,
+    .concrete-meta-summary,
+    .concrete-measurement-action-card {
+        grid-template-columns: 1fr;
+    }
+
+    .concrete-strength-metric {
+        border-right: 0;
+        border-bottom: 1px solid #dfe8f4;
+        padding: 8px 0 12px;
+    }
+
+    .concrete-strength-metric:last-child {
+        border-bottom: 0;
+    }
+
+    .concrete-measurement-status-card {
+        grid-template-columns: 1fr;
+    }
+
+    .concrete-status-orb {
+        width: 64px;
+        height: 64px;
+    }
+
+    .concrete-measurement-action-card small {
+        justify-self: start;
+    }
+}
