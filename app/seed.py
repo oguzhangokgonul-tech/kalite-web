@@ -20,6 +20,12 @@ PERMISSION_CATALOG = (
         "legacy_field": "can_manage_users",
     },
     {
+        "key": "users.delete",
+        "label": "Kullanıcı silme",
+        "group": "Sistem",
+        "description": "Kullanıcılar sayfasından personel kayıtlarını sistemden kaldırır.",
+    },
+    {
         "key": "actions.create",
         "label": "Aksiyon açma",
         "group": "Aksiyon",

@@ -9129,7 +9129,11 @@ def download_latest_closure_evidence_file(action_id):
 @permission_required("can_manage_users")
 def users():
     user_list = active_users()
-    return render_template("users.html", users=user_list)
+    return render_template(
+        "users.html",
+        users=user_list,
+        can_delete_users=current_user_can("users.delete"),
+    )
 
 
 def apply_role_form_to_user(user):
@@ -9221,6 +9225,33 @@ def edit_user(user_id):
         can_manage_roles=is_super_admin(),
         user_extra_permission_keys=user_extra_permission_keys,
     )
+
+
+@bp.post("/users/<int:user_id>/delete")
+@login_required
+@permission_required("users.delete")
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == g.current_user.id:
+        flash("Kendi kullanıcı hesabınızı silemezsiniz.", "danger")
+        return redirect(url_for("main.users"))
+    if user.username == "superadmin":
+        flash("Süper Admin kullanıcısı silinemez.", "danger")
+        return redirect(url_for("main.users"))
+
+    company_id = current_company_id()
+    if company_id and user.company_id != company_id:
+        abort(404)
+    if not getattr(g, "current_user_is_super_admin", False) and user.company_id != company_id:
+        abort(404)
+
+    original_username = user.username
+    user.is_active = False
+    user.username = f"silindi_{user.id}_{user.username}"[:80]
+    user.email = None
+    db.session.commit()
+    flash(f"{original_username} kullanıcısı sistemden kaldırıldı.", "success")
+    return redirect(url_for("main.users"))
 
 
 @bp.route("/roles", methods=["GET", "POST"])
