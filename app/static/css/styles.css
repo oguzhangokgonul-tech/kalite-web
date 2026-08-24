@@ -10210,6 +10210,146 @@ textarea.form-control::placeholder {
     max-width: 220px;
 }
 
+/* Desktop hover sidebar: compact by default, expanded while hovered/focused. */
+@media (min-width: 992px) {
+    .dashboard-app {
+        grid-template-columns: 76px minmax(0, 1fr);
+        transition: grid-template-columns 180ms ease;
+    }
+
+    .dashboard-app:has(.dashboard-sidebar:hover),
+    .dashboard-app:has(.dashboard-sidebar:focus-within) {
+        grid-template-columns: 248px minmax(0, 1fr);
+    }
+
+    .dashboard-sidebar {
+        width: 76px;
+        overflow: visible;
+        transition: width 180ms ease, box-shadow 180ms ease;
+    }
+
+    .dashboard-sidebar:hover,
+    .dashboard-sidebar:focus-within {
+        width: 248px;
+    }
+
+    .dashboard-sidebar .offcanvas-body {
+        padding: 14px 10px;
+        overflow-x: hidden;
+    }
+
+    .dashboard-sidebar-brand {
+        justify-content: center;
+        min-height: 74px;
+        padding: 10px 0 14px;
+    }
+
+    .dashboard-brand-logo {
+        width: 42px;
+        max-width: 42px;
+        transition: width 180ms ease, max-width 180ms ease, filter 180ms ease;
+    }
+
+    .dashboard-sidebar:hover .dashboard-sidebar-brand,
+    .dashboard-sidebar:focus-within .dashboard-sidebar-brand {
+        justify-content: flex-start;
+        min-height: 92px;
+        padding: 12px 8px 16px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-brand-logo,
+    .dashboard-sidebar:focus-within .dashboard-brand-logo {
+        width: min(100%, 178px);
+        max-width: 178px;
+    }
+
+    .dashboard-nav-item,
+    .sidebar-quick-link,
+    .dashboard-logout {
+        justify-content: center;
+        gap: 0;
+        padding-inline: 0;
+    }
+
+    .dashboard-nav-item i,
+    .sidebar-quick-link i,
+    .dashboard-logout i {
+        flex: 0 0 auto;
+        margin: 0;
+    }
+
+    .dashboard-nav-item span,
+    .dashboard-subnav,
+    .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge),
+    .dashboard-logout span,
+    .dashboard-sidebar-user > div:not(.dashboard-avatar),
+    .dashboard-nav-chevron {
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        pointer-events: none;
+        transition: max-width 160ms ease, opacity 120ms ease;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item,
+    .dashboard-sidebar:focus-within .dashboard-nav-item,
+    .dashboard-sidebar:hover .sidebar-quick-link,
+    .dashboard-sidebar:focus-within .sidebar-quick-link,
+    .dashboard-sidebar:hover .dashboard-logout,
+    .dashboard-sidebar:focus-within .dashboard-logout {
+        justify-content: flex-start;
+        gap: 10px;
+        padding-inline: 10px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item span,
+    .dashboard-sidebar:focus-within .dashboard-nav-item span,
+    .dashboard-sidebar:hover .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge),
+    .dashboard-sidebar:focus-within .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge),
+    .dashboard-sidebar:hover .dashboard-logout span,
+    .dashboard-sidebar:focus-within .dashboard-logout span,
+    .dashboard-sidebar:hover .dashboard-sidebar-user > div:not(.dashboard-avatar),
+    .dashboard-sidebar:focus-within .dashboard-sidebar-user > div:not(.dashboard-avatar),
+    .dashboard-sidebar:hover .dashboard-nav-chevron,
+    .dashboard-sidebar:focus-within .dashboard-nav-chevron {
+        max-width: 180px;
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav,
+    .dashboard-sidebar:focus-within .dashboard-subnav {
+        max-width: none;
+        opacity: 1;
+        overflow: visible;
+        pointer-events: auto;
+    }
+
+    .dashboard-sidebar-user {
+        justify-content: center;
+        padding-inline: 0;
+    }
+
+    .dashboard-sidebar:hover .dashboard-sidebar-user,
+    .dashboard-sidebar:focus-within .dashboard-sidebar-user {
+        justify-content: flex-start;
+        padding-inline: 4px;
+    }
+
+    .assigned-count-badge,
+    .sidebar-count-badge {
+        margin-left: 0;
+    }
+
+    .dashboard-sidebar:hover .assigned-count-badge,
+    .dashboard-sidebar:focus-within .assigned-count-badge,
+    .dashboard-sidebar:hover .sidebar-count-badge,
+    .dashboard-sidebar:focus-within .sidebar-count-badge {
+        margin-left: auto;
+    }
+}
+
 .company-module-panel {
     margin-top: 24px;
     padding: 18px;
