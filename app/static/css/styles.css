@@ -10440,6 +10440,250 @@ textarea.form-control::placeholder {
     }
 }
 
+/* Refined expanded sidebar navigation. Keeps the compact hover behavior intact. */
+@media (min-width: 992px) {
+    .dashboard-app:has(.dashboard-sidebar:hover),
+    .dashboard-app:has(.dashboard-sidebar:focus-within) {
+        grid-template-columns: 300px minmax(0, 1fr);
+    }
+
+    .dashboard-sidebar:hover,
+    .dashboard-sidebar:focus-within {
+        width: 300px;
+        box-shadow: 14px 0 34px rgba(15, 35, 64, 0.08);
+    }
+
+    .dashboard-sidebar:hover .offcanvas-body,
+    .dashboard-sidebar:focus-within .offcanvas-body {
+        padding: 18px 14px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-sidebar-nav,
+    .dashboard-sidebar:focus-within .dashboard-sidebar-nav {
+        gap: 9px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item,
+    .dashboard-sidebar:focus-within .dashboard-nav-item,
+    .dashboard-sidebar:hover .sidebar-quick-link,
+    .dashboard-sidebar:focus-within .sidebar-quick-link {
+        position: relative;
+        min-height: 54px;
+        gap: 18px;
+        padding: 0 16px;
+        color: #11243f;
+        font-size: 1.02rem;
+        font-weight: 650;
+        letter-spacing: 0;
+        border-radius: 14px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item span,
+    .dashboard-sidebar:focus-within .dashboard-nav-item span,
+    .dashboard-sidebar:hover .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge),
+    .dashboard-sidebar:focus-within .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge) {
+        max-width: 210px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item i:first-child,
+    .dashboard-sidebar:focus-within .dashboard-nav-item i:first-child,
+    .dashboard-sidebar:hover .sidebar-quick-link i:first-child,
+    .dashboard-sidebar:focus-within .sidebar-quick-link i:first-child {
+        width: 28px;
+        font-size: 1.36rem;
+        color: #172d4f;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item:hover,
+    .dashboard-sidebar:focus-within .dashboard-nav-item:hover,
+    .dashboard-sidebar:hover .dashboard-nav-item.active,
+    .dashboard-sidebar:focus-within .dashboard-nav-item.active,
+    .dashboard-sidebar:hover .sidebar-quick-link:hover,
+    .dashboard-sidebar:focus-within .sidebar-quick-link:hover,
+    .dashboard-sidebar:hover .sidebar-quick-link.active,
+    .dashboard-sidebar:focus-within .sidebar-quick-link.active {
+        color: #0a66ff;
+        background: linear-gradient(90deg, #edf5ff 0%, #f8fbff 100%);
+        border-color: #b8d3ff;
+        box-shadow: inset 4px 0 0 #1773ff;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-house-door,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-house-door {
+        color: #1d6fff;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-people,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-people {
+        color: #21365d;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-buildings,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-buildings,
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-diagram-3,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-diagram-3 {
+        color: #15866f;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-shield-lock,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-shield-lock,
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-car-front,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-car-front {
+        color: #5642b6;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-wrench-adjustable,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-wrench-adjustable {
+        color: #c97906;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-flask,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-flask,
+    .dashboard-sidebar:hover .dashboard-subnav-item .bi-box-seam,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-box-seam {
+        color: #1169ff;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-shield-check,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-shield-check {
+        color: #0f7c8a;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-clipboard-check,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-clipboard-check {
+        color: #5d46b4;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-file-earmark-text,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-file-earmark-text {
+        color: #1970d9;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-chevron,
+    .dashboard-sidebar:focus-within .dashboard-nav-chevron {
+        width: auto !important;
+        margin-left: auto;
+        font-size: 0.9rem !important;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav,
+    .dashboard-sidebar:focus-within .dashboard-subnav {
+        margin: 8px 0 6px 48px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.86);
+        border: 1px solid #cbd8ea;
+        border-radius: 16px;
+        box-shadow: 0 14px 30px rgba(15, 35, 64, 0.05);
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav-item,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item {
+        min-height: 46px;
+        gap: 16px;
+        padding: 0 12px;
+        color: #1c2f4e;
+        font-size: 0.98rem;
+        font-weight: 620;
+        border-radius: 12px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav-item i,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item i {
+        width: 24px;
+        font-size: 1.22rem;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav-item:hover,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item:hover,
+    .dashboard-sidebar:hover .dashboard-subnav-item.active,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item.active {
+        color: #0a66ff;
+        background: linear-gradient(90deg, #eaf3ff 0%, #f5f9ff 100%);
+        border-color: #d7e7ff;
+        box-shadow: inset 4px 0 0 #1773ff;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav-item .bi-droplet,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-droplet,
+    .dashboard-sidebar:hover .dashboard-subnav-item .bi-moisture,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-moisture {
+        color: #596477;
+    }
+
+    .dashboard-sidebar:hover .dashboard-subnav-item .bi-grid-3x3-gap,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-grid-3x3-gap,
+    .dashboard-sidebar:hover .dashboard-subnav-item .bi-bezier2,
+    .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-bezier2 {
+        color: #667085;
+    }
+
+    .dashboard-sidebar:hover .dashboard-sidebar-bottom,
+    .dashboard-sidebar:focus-within .dashboard-sidebar-bottom {
+        gap: 10px;
+        padding-top: 18px;
+    }
+
+    .dashboard-sidebar:hover .sidebar-quick-link,
+    .dashboard-sidebar:focus-within .sidebar-quick-link {
+        min-height: 50px;
+        margin-bottom: 0;
+    }
+
+    .dashboard-sidebar:hover .notification-sidebar-link i:first-child,
+    .dashboard-sidebar:focus-within .notification-sidebar-link i:first-child {
+        color: #c97906;
+    }
+
+    .dashboard-sidebar:hover .assigned-sidebar-link i:first-child,
+    .dashboard-sidebar:focus-within .assigned-sidebar-link i:first-child {
+        color: #137988;
+    }
+
+    .dashboard-sidebar:hover .assigned-count-badge,
+    .dashboard-sidebar:focus-within .assigned-count-badge,
+    .dashboard-sidebar:hover .sidebar-count-badge,
+    .dashboard-sidebar:focus-within .sidebar-count-badge {
+        min-width: 30px;
+        height: 30px;
+        padding: 0 9px;
+        border-radius: 11px;
+        font-size: 0.86rem;
+        box-shadow: 0 10px 18px rgba(13, 110, 253, 0.18);
+    }
+}
+
+@media (max-width: 991.98px) {
+    .dashboard-nav-item,
+    .sidebar-quick-link {
+        min-height: 52px;
+        gap: 16px;
+        color: #11243f;
+        font-size: 1rem;
+        font-weight: 650;
+        border-radius: 14px;
+    }
+
+    .dashboard-nav-item i:first-child,
+    .sidebar-quick-link i:first-child {
+        width: 28px;
+        font-size: 1.28rem;
+    }
+
+    .dashboard-subnav {
+        margin: 8px 0 8px 46px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #cbd8ea;
+        border-radius: 16px;
+    }
+
+    .dashboard-subnav-item {
+        min-height: 44px;
+        gap: 14px;
+        border-radius: 12px;
+    }
+}
+
 .company-module-panel {
     margin-top: 24px;
     padding: 18px;

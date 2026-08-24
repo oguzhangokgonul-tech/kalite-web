@@ -91,7 +91,7 @@
         {% endif %}
         {% if g.company_module_enabled('if_management') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
-          <i class="bi bi-clipboard2-pulse"></i>
+          <i class="bi bi-shield-check"></i>
           <span>İF Yönetimi</span>
         </a>
         {% endif %}
