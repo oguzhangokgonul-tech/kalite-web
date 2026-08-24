@@ -148,7 +148,6 @@
         <thead>
           <tr>
             <th>İF Kaydı</th>
-            <th>Uygunsuzluğun Açıklaması</th>
             <th>Departman</th>
             <th>Sorumlu</th>
             <th>Durum</th>
@@ -163,26 +162,13 @@
               <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
                 {% set dof_extra_id = "dof_extra_%s"|format(dof.id) %}
                 <div class="table-disclosure-title">
-                  {% if dof.nonconformity_description or dof.created_by %}
+                  {% if dof.title or dof.nonconformity_description or dof.created_by %}
                     <button class="table-disclosure-toggle collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ dof_extra_id }}" aria-expanded="false" aria-controls="{{ dof_extra_id }}" title="Açıklamayı göster">
                       <i class="bi bi-chevron-right"></i>
                     </button>
                   {% endif %}
                   <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
                 </div>
-              </td>
-              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">
-                <div class="table-disclosure-title">
-                  <span class="dof-title-text">{{ dof.title or "-" }}</span>
-                </div>
-                {% if dof.nonconformity_description or dof.created_by %}
-                  <div class="collapse table-disclosure-body" id="{{ dof_extra_id }}">
-                    {% if dof.nonconformity_description %}
-                      <p>{{ dof.nonconformity_description }}</p>
-                    {% endif %}
-                    {{ dof_created_by_line(dof) }}
-                  </div>
-                {% endif %}
               </td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
               <td class="dof-responsible-cell" data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof_responsible_name(dof.responsible) }}</td>
@@ -230,9 +216,26 @@
                 </div>
               </td>
             </tr>
+            {% if dof.title or dof.nonconformity_description or dof.created_by %}
+              <tr class="dof-disclosure-row">
+                <td colspan="7">
+                  <div class="collapse dof-row-disclosure-panel" id="{{ dof_extra_id }}">
+                    <div class="dof-row-disclosure-content">
+                      {% if dof.title %}
+                        <strong>{{ dof.title }}</strong>
+                      {% endif %}
+                      {% if dof.nonconformity_description %}
+                        <p>{{ dof.nonconformity_description }}</p>
+                      {% endif %}
+                      {{ dof_created_by_line(dof) }}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="8">
+              <td class="dashboard-empty-row" colspan="7">
                 <strong>Henüz İF kaydı yok.</strong>
                 <span>Yeni İF kaydı eklendiğinde burada listelenecek.</span>
               </td>
