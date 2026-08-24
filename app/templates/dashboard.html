@@ -118,7 +118,7 @@
 
   <div class="dashboard-table-card">
     <div class="table-responsive">
-      <table class="table dashboard-table align-middle mb-0">
+      <table class="table dashboard-table action-dashboard-table align-middle mb-0">
         <thead>
           <tr>
             <th>Aksiyon başlığı</th>
@@ -135,15 +135,27 @@
           {% for action in actions %}
             <tr>
               <td class="dashboard-action-title-cell">
-                <a href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
-                {% if action.description %}
-                  <span>{{ action.description }}</span>
-                {% endif %}
-                {% if action.sub_action_total %}
-                  <span class="sub-action-inline-progress">
-                    Alt aksiyon: {{ action.sub_action_completed_count }}/{{ action.sub_action_total }} tamamlandı
-                    <small>%{{ action.sub_action_progress_percent }}</small>
-                  </span>
+                {% set action_extra_id = "action_extra_%s"|format(action.id) %}
+                <div class="table-disclosure-title">
+                  {% if action.description or action.sub_action_total %}
+                    <button class="table-disclosure-toggle collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ action_extra_id }}" aria-expanded="false" aria-controls="{{ action_extra_id }}" title="Açıklamayı göster">
+                      <i class="bi bi-chevron-right"></i>
+                    </button>
+                  {% endif %}
+                  <a href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
+                </div>
+                {% if action.description or action.sub_action_total %}
+                  <div class="collapse table-disclosure-body" id="{{ action_extra_id }}">
+                    {% if action.description %}
+                      <p>{{ action.description }}</p>
+                    {% endif %}
+                    {% if action.sub_action_total %}
+                      <span class="sub-action-inline-progress">
+                        Alt aksiyon: {{ action.sub_action_completed_count }}/{{ action.sub_action_total }} tamamlandı
+                        <small>%{{ action.sub_action_progress_percent }}</small>
+                      </span>
+                    {% endif %}
+                  </div>
                 {% endif %}
               </td>
               <td>{{ action.department }}</td>

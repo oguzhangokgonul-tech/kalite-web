@@ -165,8 +165,23 @@
                 <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
               </td>
               <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">
-                <span class="dof-title-text">{{ dof.title or "-" }}</span>
-                {{ dof_created_by_line(dof) }}
+                {% set dof_extra_id = "dof_extra_%s"|format(dof.id) %}
+                <div class="table-disclosure-title">
+                  {% if dof.nonconformity_description or dof.created_by %}
+                    <button class="table-disclosure-toggle collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ dof_extra_id }}" aria-expanded="false" aria-controls="{{ dof_extra_id }}" title="Açıklamayı göster">
+                      <i class="bi bi-chevron-right"></i>
+                    </button>
+                  {% endif %}
+                  <span class="dof-title-text">{{ dof.title or "-" }}</span>
+                </div>
+                {% if dof.nonconformity_description or dof.created_by %}
+                  <div class="collapse table-disclosure-body" id="{{ dof_extra_id }}">
+                    {% if dof.nonconformity_description %}
+                      <p>{{ dof.nonconformity_description }}</p>
+                    {% endif %}
+                    {{ dof_created_by_line(dof) }}
+                  </div>
+                {% endif %}
               </td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
               <td class="dof-responsible-cell" data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof_responsible_name(dof.responsible) }}</td>

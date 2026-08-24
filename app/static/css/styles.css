@@ -2557,7 +2557,7 @@ body {
     color: #334155;
     font-size: 0.92rem;
     line-height: 1.45;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
     white-space: normal;
 }
 
@@ -2631,7 +2631,7 @@ body {
 
 .dof-dashboard-table th:nth-child(2),
 .dof-dashboard-table td:nth-child(2) {
-    width: 21%;
+    width: 25%;
 }
 
 .dof-dashboard-table th:nth-child(3),
@@ -2651,7 +2651,7 @@ body {
 
 .dof-dashboard-table th:nth-child(6),
 .dof-dashboard-table td:nth-child(6) {
-    width: 15%;
+    width: 13%;
 }
 
 .dof-dashboard-table th:nth-child(7),
@@ -2666,7 +2666,7 @@ body {
 
 .dof-dashboard-table th:nth-child(9),
 .dof-dashboard-table td:nth-child(9) {
-    width: 14%;
+    width: 12%;
 }
 
 .dof-dashboard-table .dof-responsible-cell {
@@ -9758,6 +9758,73 @@ textarea.form-control::placeholder {
     line-height: 1.32;
 }
 
+.table-disclosure-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.table-disclosure-title > a,
+.table-disclosure-title > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-disclosure-toggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    color: #64748b;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    line-height: 1;
+    transition: color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.table-disclosure-toggle:hover {
+    color: #075fe8;
+    background: #eaf3ff;
+}
+
+.table-disclosure-toggle i {
+    font-size: 0.78rem;
+    transition: transform 140ms ease;
+}
+
+.table-disclosure-toggle:not(.collapsed) i {
+    transform: rotate(90deg);
+}
+
+.table-disclosure-body {
+    margin: 8px 0 0 28px;
+    padding: 8px 10px;
+    color: #53657d;
+    background: #f8fbff;
+    border: 1px solid #dbe7f6;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    line-height: 1.42;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.table-disclosure-body p {
+    margin: 0;
+}
+
+.table-disclosure-body p + .sub-action-inline-progress,
+.table-disclosure-body p + .dof-meta-line {
+    margin-top: 7px;
+}
+
 .dashboard-row-actions {
     align-items: center;
     justify-content: flex-end;
@@ -9769,6 +9836,20 @@ textarea.form-control::placeholder {
     min-width: 0;
     padding: 6px 8px;
     white-space: nowrap;
+}
+
+.action-dashboard-table .dashboard-action-title-cell {
+    min-width: 260px;
+}
+
+.action-dashboard-table th:first-child,
+.action-dashboard-table td:first-child {
+    width: 44%;
+}
+
+.action-dashboard-table th:last-child,
+.action-dashboard-table td:last-child {
+    min-width: 132px;
 }
 
 .dashboard-table td,
