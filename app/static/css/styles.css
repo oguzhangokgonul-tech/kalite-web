@@ -10131,6 +10131,21 @@ textarea.form-control::placeholder {
     white-space: nowrap;
 }
 
+.vehicle-reminder-panel {
+    grid-column: span 2;
+}
+
+.vehicle-reminder-panel .form-select {
+    min-height: 132px;
+}
+
+.vehicle-reminder-panel small {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
 .vehicle-fuel-table {
     min-width: 520px;
 }

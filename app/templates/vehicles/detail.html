@@ -22,16 +22,18 @@
         <span class="app-card-icon maintenance-card-icon"><i class="bi bi-calendar2-check"></i></span>
         <div>
           <h2>Sigorta ve Muayene Takibi</h2>
-          <p>Son 1 hafta kala Bakım departmanındaki kullanıcılara e-posta uyarısı gönderilir.</p>
+          <p>Seçilen gün kadar kala bilgilendirilecek personele e-posta uyarısı gönderilir.</p>
         </div>
       </div>
 
       <form method="post" action="{{ url_for('main.edit_vehicle', vehicle_id=vehicle.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="maintenance-form-grid">
-          {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date) %}
-          {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date) %}
-          {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date) %}
+          {% set reminder_days = vehicle.reminder_days_before or 7 %}
+          {% set selected_reminder_user_ids = vehicle.reminder_recipients | map(attribute="id") | list %}
+          {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date, reminder_days) %}
+          {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date, reminder_days) %}
+          {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date, reminder_days) %}
           <div>
             <label class="form-label" for="plate">Plaka</label>
             <input class="form-control" id="plate" name="plate" value="{{ request.form.get('plate', vehicle.plate) }}" maxlength="40" required>
@@ -69,6 +71,25 @@
               <span>Sonraki Muayeneye Kalan Süre</span>
               {{ due_badge(inspection) }}
             </div>
+          </div>
+          <div class="vehicle-reminder-panel">
+            <label class="form-label" for="reminder_user_ids">Bilgilendirilecek Personel</label>
+            <select class="form-select" id="reminder_user_ids" name="reminder_user_ids" multiple size="5">
+              {% for user in users %}
+                <option value="{{ user.id }}" {% if user.id in selected_reminder_user_ids %}selected{% endif %}>
+                  {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <small class="text-muted">Birden fazla personel seçebilirsiniz. Seçim yapılmazsa Bakım departmanındaki kullanıcılara gider.</small>
+          </div>
+          <div>
+            <label class="form-label" for="reminder_days_before">Gün Kala</label>
+            <select class="form-select" id="reminder_days_before" name="reminder_days_before">
+              {% for day in reminder_day_options %}
+                <option value="{{ day }}" {% if day == reminder_days %}selected{% endif %}>{{ day }} gün</option>
+              {% endfor %}
+            </select>
           </div>
         </div>
         <div class="maintenance-form-actions">

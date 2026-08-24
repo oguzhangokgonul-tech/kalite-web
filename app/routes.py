@@ -3402,13 +3402,18 @@ def can_manage_vehicles():
     )
 
 
-def vehicle_day_status(target_date):
+def vehicle_day_status(target_date, days_before=7):
     if not target_date:
         return {"days": None, "label": "-", "tone": "muted", "is_due_window": False}
+    try:
+        days_before = int(days_before)
+    except (TypeError, ValueError):
+        days_before = 7
+    days_before = min(max(days_before, 1), 30)
     days = (target_date - date.today()).days
     if days > 0:
         label = f"{days} gün kaldı"
-        tone = "warning" if days <= 7 else "success"
+        tone = "warning" if days <= days_before else "success"
     elif days == 0:
         label = "Bugün bitiyor"
         tone = "danger"
@@ -3419,7 +3424,7 @@ def vehicle_day_status(target_date):
         "days": days,
         "label": label,
         "tone": tone,
-        "is_due_window": 0 <= days <= 7,
+        "is_due_window": 0 <= days <= days_before,
     }
 
 
@@ -3457,12 +3462,31 @@ def parse_vehicle_form():
 
 def parse_vehicle_detail_form():
     values = parse_vehicle_form()
+    try:
+        reminder_days_before = int(request.form.get("reminder_days_before", "7"))
+    except ValueError:
+        raise ValueError("invalid_reminder_days") from None
+    if reminder_days_before < 1 or reminder_days_before > 30:
+        raise ValueError("invalid_reminder_days")
+
+    active_user_ids = {user.id for user in active_users()}
+    reminder_user_ids = []
+    for raw_user_id in request.form.getlist("reminder_user_ids"):
+        try:
+            user_id = int(raw_user_id)
+        except ValueError:
+            continue
+        if user_id in active_user_ids and user_id not in reminder_user_ids:
+            reminder_user_ids.append(user_id)
+
     values.update(
         {
         "traffic_insurance_due_date": parse_optional_date("traffic_insurance_due_date"),
         "casco_insurance_due_date": parse_optional_date("casco_insurance_due_date"),
         "last_inspection_date": parse_optional_date("last_inspection_date"),
         "next_inspection_due_date": parse_optional_date("next_inspection_due_date"),
+        "reminder_days_before": reminder_days_before,
+        "reminder_user_ids": reminder_user_ids,
         }
     )
     return values
@@ -3501,11 +3525,12 @@ def vehicle_maintenance_users():
 
 
 def send_vehicle_due_reminders(vehicle):
-    maintenance_users = vehicle_maintenance_users()
-    if not maintenance_users:
+    reminder_users = list(vehicle.reminder_recipients) or vehicle_maintenance_users()
+    if not reminder_users:
         return False
 
     sent_any = False
+    days_before = vehicle.reminder_days_before or 7
     reminder_fields = (
         (
             "traffic_insurance_due_date",
@@ -3525,14 +3550,15 @@ def send_vehicle_due_reminders(vehicle):
     )
     for date_field, sent_field, title in reminder_fields:
         due_date = getattr(vehicle, date_field)
-        status = vehicle_day_status(due_date)
+        status = vehicle_day_status(due_date, days_before)
         if status["is_due_window"] and getattr(vehicle, sent_field) is None:
             if send_vehicle_reminder_email(
-                maintenance_users,
+                reminder_users,
                 vehicle,
                 title,
                 due_date,
                 status["label"],
+                days_before,
             ):
                 setattr(vehicle, sent_field, datetime.utcnow())
                 sent_any = True
@@ -3545,6 +3571,10 @@ def reset_vehicle_reminder_flags(vehicle, previous_dates):
         ("casco_insurance_due_date", "casco_insurance_reminder_sent_at"),
         ("next_inspection_due_date", "next_inspection_reminder_sent_at"),
     )
+    if previous_dates.get("reminder_days_before") != vehicle.reminder_days_before:
+        for _date_field, sent_field in fields:
+            setattr(vehicle, sent_field, None)
+        return
     for date_field, sent_field in fields:
         if previous_dates.get(date_field) != getattr(vehicle, date_field):
             setattr(vehicle, sent_field, None)
@@ -3558,7 +3588,7 @@ def vehicle_dashboard_context():
     due_soon_count = 0
     for vehicle in vehicles:
         if any(
-            vehicle_day_status(target_date)["is_due_window"]
+            vehicle_day_status(target_date, vehicle.reminder_days_before or 7)["is_due_window"]
             for target_date in (
                 vehicle.traffic_insurance_due_date,
                 vehicle.casco_insurance_due_date,
@@ -3621,6 +3651,8 @@ def vehicle_detail_context(vehicle):
         "format_money": format_money,
         "format_quantity": format_quantity,
         "can_manage_vehicles": can_manage_vehicles(),
+        "users": active_users(),
+        "reminder_day_options": range(1, 31),
     }
 
 
@@ -6860,14 +6892,26 @@ def edit_vehicle(vehicle_id):
                 "traffic_insurance_due_date": vehicle.traffic_insurance_due_date,
                 "casco_insurance_due_date": vehicle.casco_insurance_due_date,
                 "next_inspection_due_date": vehicle.next_inspection_due_date,
+                "reminder_days_before": vehicle.reminder_days_before,
             }
+            previous_reminder_user_ids = {user.id for user in vehicle.reminder_recipients}
             values = parse_vehicle_detail_form()
+            reminder_user_ids = values.pop("reminder_user_ids")
             existing = vehicle_query().filter_by(plate=values["plate"]).first()
             if existing is not None and existing.id != vehicle.id:
                 raise ValueError("duplicate_plate")
             for key, value in values.items():
                 setattr(vehicle, key, value)
             reset_vehicle_reminder_flags(vehicle, previous_dates)
+            if previous_reminder_user_ids != set(reminder_user_ids):
+                vehicle.traffic_insurance_reminder_sent_at = None
+                vehicle.casco_insurance_reminder_sent_at = None
+                vehicle.next_inspection_reminder_sent_at = None
+            vehicle.reminder_recipients = (
+                User.query.filter(User.id.in_(reminder_user_ids)).all()
+                if reminder_user_ids
+                else []
+            )
             send_vehicle_due_reminders(vehicle)
             db.session.commit()
             flash("Araç takip tarihleri güncellendi.", "success")

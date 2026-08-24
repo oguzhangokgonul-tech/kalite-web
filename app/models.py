@@ -11,6 +11,12 @@ user_roles = db.Table(
     db.Column("role_id", db.Integer, db.ForeignKey("roles.id"), primary_key=True),
 )
 
+vehicle_reminder_recipients = db.Table(
+    "vehicle_reminder_recipients",
+    db.Column("vehicle_id", db.Integer, db.ForeignKey("vehicles.id"), primary_key=True),
+    db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
+)
+
 
 class UserPermission(db.Model):
     __tablename__ = "user_permissions"
@@ -920,6 +926,7 @@ class Vehicle(db.Model):
     traffic_insurance_reminder_sent_at = db.Column(db.DateTime, nullable=True)
     casco_insurance_reminder_sent_at = db.Column(db.DateTime, nullable=True)
     next_inspection_reminder_sent_at = db.Column(db.DateTime, nullable=True)
+    reminder_days_before = db.Column(db.Integer, nullable=False, default=7, server_default="7")
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
@@ -941,6 +948,11 @@ class Vehicle(db.Model):
         back_populates="vehicle",
         cascade="all, delete-orphan",
         order_by="VehicleFuelEntry.year.desc(), VehicleFuelEntry.month.asc()",
+    )
+    reminder_recipients = db.relationship(
+        "User",
+        secondary=vehicle_reminder_recipients,
+        lazy="select",
     )
 
 

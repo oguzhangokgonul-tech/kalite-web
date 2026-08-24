@@ -129,12 +129,12 @@ def build_dof_email(dof, message):
     return subject, "\n".join(lines)
 
 
-def build_vehicle_reminder_email(vehicle, reminder_title, due_date, day_label):
+def build_vehicle_reminder_email(vehicle, reminder_title, due_date, day_label, days_before=7):
     vehicle_url = _vehicle_url(vehicle)
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {vehicle.plate} {reminder_title}"
     lines = [
-        f"{vehicle.plate} plakalı araç için {reminder_title} takibi son 1 hafta aralığına girdi.",
+        f"{vehicle.plate} plakalı araç için {reminder_title} süresine son {days_before} gün kalmıştır, lütfen bakımları tamamlayınız.",
         "",
         f"Plaka: {vehicle.plate}",
         f"Marka: {vehicle.brand}",
@@ -238,7 +238,14 @@ def send_dof_notification_email(users, dof, message):
     return True
 
 
-def send_vehicle_reminder_email(users, vehicle, reminder_title, due_date, day_label):
+def send_vehicle_reminder_email(
+    users,
+    vehicle,
+    reminder_title,
+    due_date,
+    day_label,
+    days_before=7,
+):
     recipients = sorted({user.email for user in users if user.email})
     if not recipients:
         return False
@@ -252,6 +259,7 @@ def send_vehicle_reminder_email(users, vehicle, reminder_title, due_date, day_la
         reminder_title,
         due_date,
         day_label,
+        days_before,
     )
     _mail_executor.submit(
         _send_mail_safely,

@@ -50,9 +50,10 @@
         </thead>
         <tbody>
           {% for vehicle in vehicles %}
-            {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date) %}
-            {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date) %}
-            {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date) %}
+            {% set reminder_days = vehicle.reminder_days_before or 7 %}
+            {% set traffic = vehicle_day_status(vehicle.traffic_insurance_due_date, reminder_days) %}
+            {% set casco = vehicle_day_status(vehicle.casco_insurance_due_date, reminder_days) %}
+            {% set inspection = vehicle_day_status(vehicle.next_inspection_due_date, reminder_days) %}
             <tr>
               <td data-label="Plaka"><strong>{{ vehicle.plate }}</strong></td>
               <td data-label="Marka / Model">
