@@ -11445,17 +11445,32 @@ textarea.form-control::placeholder {
 }
 
 .concrete-measurement-action-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.42fr);
+    gap: 16px;
     background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
     border: 1px solid #cfe0ff;
 }
 
+.concrete-action-buttons {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
 .concrete-measurement-action-card .btn {
+    justify-content: center;
     min-height: 46px;
-    padding-inline: 22px;
-    font-size: 0.88rem;
+    width: 100%;
+    padding-inline: 16px;
+    font-size: 0.82rem;
+    font-weight: 760;
     white-space: nowrap;
+}
+
+.concrete-measurement-action-card .btn-outline-secondary {
+    color: #10203a;
+    background: #ffffff;
+    border-color: #b9c8dc;
 }
 
 .concrete-measurement-action-card small {
@@ -11471,6 +11486,16 @@ textarea.form-control::placeholder {
 
 .concrete-measurement-action-card small i {
     color: #3478f6;
+}
+
+.concrete-measurement-action-card > div:first-child span {
+    color: #43546c;
+    font-size: 0.8rem;
+    font-weight: 570;
+}
+
+.quality-measurement-edit-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 @media (max-width: 1280px) {
@@ -11500,7 +11525,8 @@ textarea.form-control::placeholder {
 
     .concrete-strength-metrics,
     .concrete-meta-summary,
-    .concrete-measurement-action-card {
+    .concrete-measurement-action-card,
+    .quality-measurement-edit-grid {
         grid-template-columns: 1fr;
     }
 

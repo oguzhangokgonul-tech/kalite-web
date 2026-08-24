@@ -6542,6 +6542,56 @@ def quality_test_measurement(slug, record_id):
     )
 
 
+@bp.route("/kalite-deneyleri/<slug>/<int:record_id>/olcum-duzenle", methods=["GET", "POST"])
+@login_required
+def edit_quality_test_measurements(slug, record_id):
+    quality_test = quality_test_by_slug(slug)
+    if quality_test is None or not is_concrete_quality_test(slug):
+        abort(404)
+    if not can_create_quality_test_record():
+        abort(403)
+
+    record = scoped_query(QualityTestRecord.query, QualityTestRecord).filter_by(
+        id=record_id,
+        test_type=slug,
+    ).first_or_404()
+
+    if request.method == "POST":
+        try:
+            changed = False
+            for day in (2, 7, 28):
+                field_name = f"strength_{day}_day"
+                timestamp_name = f"strength_{day}_recorded_at"
+                previous_value = getattr(record, field_name)
+                next_value = parse_optional_quality_decimal(field_name)
+                if previous_value != next_value:
+                    setattr(record, field_name, next_value)
+                    setattr(record, timestamp_name, datetime.utcnow() if next_value is not None else None)
+                    changed = True
+            record.status = "Tamamlandı" if record.current_measurement_day is None else "Devam Ediyor"
+            if changed:
+                db.session.commit()
+                flash("Ölçüm sonuçları güncellendi.", "success")
+            else:
+                flash("Ölçüm sonuçlarında değişiklik yapılmadı.", "info")
+            return redirect(url_for("main.quality_test_page", slug=slug))
+        except ValueError as error:
+            db.session.rollback()
+            if str(error) == "invalid_parameter":
+                flash("Ölçüm sonuçları için sayısal değer girin veya silmek için alanı boş bırakın.", "danger")
+            else:
+                flash("Ölçüm sonuçları güncellenemedi.", "danger")
+
+    return render_template(
+        "quality_tests/measurement_edit.html",
+        quality_test=quality_test,
+        record=record,
+        today=date.today(),
+        format_decimal=format_quality_decimal,
+        form_action=url_for("main.edit_quality_test_measurements", slug=slug, record_id=record.id),
+    )
+
+
 @bp.route("/documents")
 @login_required
 def documents_dashboard():

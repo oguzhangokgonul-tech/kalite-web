@@ -1,0 +1,65 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Ölçüm Sonuçlarını Düzenle{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Ölçüm Sonuçlarını Düzenle", record.number_label ~ " · " ~ record.title, icon="bi-pencil-square") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>{{ quality_test.title }}</span>
+    </a>
+  {% endcall %}
+
+  <div class="quality-measurement-layout">
+    <form class="quality-test-form-card" method="post" action="{{ form_action }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="quality-test-form-header">
+        <span class="app-card-icon"><i class="bi bi-sliders"></i></span>
+        <div>
+          <h3>2 / 7 / 28 Günlük Basınç Dayanımı</h3>
+          <p>Değeri değiştirebilir veya ölçümü silmek için alanı boş bırakabilirsiniz.</p>
+        </div>
+      </div>
+
+      <div class="app-form-grid quality-measurement-edit-grid">
+        <div>
+          <label class="form-label" for="strength_2_day">2 Günlük Basınç Dayanımı</label>
+          <input class="form-control" id="strength_2_day" name="strength_2_day" inputmode="decimal" value="{{ format_decimal(record.strength_2_day) }}" placeholder="Boş bırakılırsa silinir">
+          <small class="form-text text-secondary">{{ record.strength_2_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_2_recorded_at else "Henüz ölçüm yok" }}</small>
+        </div>
+        <div>
+          <label class="form-label" for="strength_7_day">7 Günlük Basınç Dayanımı</label>
+          <input class="form-control" id="strength_7_day" name="strength_7_day" inputmode="decimal" value="{{ format_decimal(record.strength_7_day) }}" placeholder="Boş bırakılırsa silinir">
+          <small class="form-text text-secondary">{{ record.strength_7_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_7_recorded_at else "Henüz ölçüm yok" }}</small>
+        </div>
+        <div>
+          <label class="form-label" for="strength_28_day">28 Günlük Basınç Dayanımı</label>
+          <input class="form-control" id="strength_28_day" name="strength_28_day" inputmode="decimal" value="{{ format_decimal(record.strength_28_day) }}" placeholder="Boş bırakılırsa silinir">
+          <small class="form-text text-secondary">{{ record.strength_28_recorded_at.strftime("%d.%m.%Y %H:%M") if record.strength_28_recorded_at else "Henüz ölçüm yok" }}</small>
+        </div>
+      </div>
+
+      <div class="quality-test-form-actions">
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_test_page', slug=quality_test.slug) }}">Vazgeç</a>
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-check2-circle"></i>
+          <span>Değişiklikleri Kaydet</span>
+        </button>
+      </div>
+    </form>
+
+    <aside class="quality-measurement-summary">
+      <section class="quality-measurement-card">
+        <span>Numune Bilgisi</span>
+        <strong>{{ record.sample_name or "-" }}</strong>
+        <small>{{ record.concrete_class or "-" }} · {{ record.record_date.strftime("%d.%m.%Y") if record.record_date else "-" }}</small>
+      </section>
+      <section class="quality-measurement-card">
+        <span>Ölçüm Durumu</span>
+        <strong>{{ record.current_measurement_label }}</strong>
+        <small>{{ record.measurement_progress_label }}</small>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

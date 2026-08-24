@@ -236,12 +236,19 @@
                         <div class="concrete-measurement-action-card">
                           <div>
                             <strong>İşlem</strong>
-                            <span>Yeni ölçüm verisi girmek için aşağıdaki butonu kullanabilirsiniz.</span>
+                            <span>Ölçüm verisi girmek için aşağıdaki butonları kullanabilirsiniz.</span>
+                            <span>Ölçüm sonuçlarını düzenleyebilir veya silebilirsiniz.</span>
                           </div>
-                          <a class="btn btn-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
-                            <i class="bi bi-speedometer2"></i>
-                            <span>Ölçüm Gir</span>
-                          </a>
+                          <div class="concrete-action-buttons">
+                            <a class="btn btn-primary" href="{{ url_for('main.quality_test_measurement', slug=quality_test.slug, record_id=record.id) }}">
+                              <i class="bi bi-speedometer2"></i>
+                              <span>Ölçüm Gir</span>
+                            </a>
+                            <a class="btn btn-outline-secondary" href="{{ url_for('main.edit_quality_test_measurements', slug=quality_test.slug, record_id=record.id) }}">
+                              <i class="bi bi-pencil"></i>
+                              <span>Düzenle</span>
+                            </a>
+                          </div>
                           <small><i class="bi bi-shield-check"></i> Veriler güvenle saklanır.</small>
                         </div>
                       </div>
