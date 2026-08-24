@@ -162,7 +162,7 @@
               <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
                 {% set dof_extra_id = "dof_extra_%s"|format(dof.id) %}
                 <div class="table-disclosure-title">
-                  {% if dof.title or dof.nonconformity_description or dof.created_by %}
+                  {% if dof.title or dof.created_by %}
                     <button class="table-disclosure-toggle collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ dof_extra_id }}" aria-expanded="false" aria-controls="{{ dof_extra_id }}" title="Açıklamayı göster">
                       <i class="bi bi-chevron-right"></i>
                     </button>
@@ -216,16 +216,13 @@
                 </div>
               </td>
             </tr>
-            {% if dof.title or dof.nonconformity_description or dof.created_by %}
+            {% if dof.title or dof.created_by %}
               <tr class="dof-disclosure-row">
                 <td colspan="7">
                   <div class="collapse dof-row-disclosure-panel" id="{{ dof_extra_id }}">
                     <div class="dof-row-disclosure-content">
                       {% if dof.title %}
                         <strong>{{ dof.title }}</strong>
-                      {% endif %}
-                      {% if dof.nonconformity_description %}
-                        <p>{{ dof.nonconformity_description }}</p>
                       {% endif %}
                       {{ dof_created_by_line(dof) }}
                     </div>
