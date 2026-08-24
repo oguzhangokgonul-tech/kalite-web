@@ -10444,23 +10444,23 @@ textarea.form-control::placeholder {
 @media (min-width: 992px) {
     .dashboard-app:has(.dashboard-sidebar:hover),
     .dashboard-app:has(.dashboard-sidebar:focus-within) {
-        grid-template-columns: 300px minmax(0, 1fr);
+        grid-template-columns: 262px minmax(0, 1fr);
     }
 
     .dashboard-sidebar:hover,
     .dashboard-sidebar:focus-within {
-        width: 300px;
-        box-shadow: 14px 0 34px rgba(15, 35, 64, 0.08);
+        width: 262px;
+        box-shadow: 12px 0 28px rgba(15, 35, 64, 0.07);
     }
 
     .dashboard-sidebar:hover .offcanvas-body,
     .dashboard-sidebar:focus-within .offcanvas-body {
-        padding: 18px 14px;
+        padding: 15px 12px;
     }
 
     .dashboard-sidebar:hover .dashboard-sidebar-nav,
     .dashboard-sidebar:focus-within .dashboard-sidebar-nav {
-        gap: 9px;
+        gap: 5px;
     }
 
     .dashboard-sidebar:hover .dashboard-nav-item,
@@ -10468,29 +10468,29 @@ textarea.form-control::placeholder {
     .dashboard-sidebar:hover .sidebar-quick-link,
     .dashboard-sidebar:focus-within .sidebar-quick-link {
         position: relative;
-        min-height: 54px;
-        gap: 18px;
-        padding: 0 16px;
+        min-height: 43px;
+        gap: 12px;
+        padding: 0 13px;
         color: #11243f;
-        font-size: 1.02rem;
-        font-weight: 650;
+        font-size: 0.9rem;
+        font-weight: 670;
         letter-spacing: 0;
-        border-radius: 14px;
+        border-radius: 11px;
     }
 
     .dashboard-sidebar:hover .dashboard-nav-item span,
     .dashboard-sidebar:focus-within .dashboard-nav-item span,
     .dashboard-sidebar:hover .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge),
     .dashboard-sidebar:focus-within .sidebar-quick-link span:not(.assigned-count-badge):not(.sidebar-count-badge) {
-        max-width: 210px;
+        max-width: 168px;
     }
 
     .dashboard-sidebar:hover .dashboard-nav-item i:first-child,
     .dashboard-sidebar:focus-within .dashboard-nav-item i:first-child,
     .dashboard-sidebar:hover .sidebar-quick-link i:first-child,
     .dashboard-sidebar:focus-within .sidebar-quick-link i:first-child {
-        width: 28px;
-        font-size: 1.36rem;
+        width: 23px;
+        font-size: 1.08rem;
         color: #172d4f;
     }
 
@@ -10568,29 +10568,29 @@ textarea.form-control::placeholder {
 
     .dashboard-sidebar:hover .dashboard-subnav,
     .dashboard-sidebar:focus-within .dashboard-subnav {
-        margin: 8px 0 6px 48px;
-        padding: 8px;
+        margin: 5px 0 4px 36px;
+        padding: 6px;
         background: rgba(255, 255, 255, 0.86);
         border: 1px solid #cbd8ea;
-        border-radius: 16px;
-        box-shadow: 0 14px 30px rgba(15, 35, 64, 0.05);
+        border-radius: 12px;
+        box-shadow: 0 10px 22px rgba(15, 35, 64, 0.04);
     }
 
     .dashboard-sidebar:hover .dashboard-subnav-item,
     .dashboard-sidebar:focus-within .dashboard-subnav-item {
-        min-height: 46px;
-        gap: 16px;
-        padding: 0 12px;
+        min-height: 36px;
+        gap: 10px;
+        padding: 0 10px;
         color: #1c2f4e;
-        font-size: 0.98rem;
-        font-weight: 620;
-        border-radius: 12px;
+        font-size: 0.82rem;
+        font-weight: 660;
+        border-radius: 9px;
     }
 
     .dashboard-sidebar:hover .dashboard-subnav-item i,
     .dashboard-sidebar:focus-within .dashboard-subnav-item i {
-        width: 24px;
-        font-size: 1.22rem;
+        width: 19px;
+        font-size: 0.98rem;
     }
 
     .dashboard-sidebar:hover .dashboard-subnav-item:hover,
@@ -10619,13 +10619,13 @@ textarea.form-control::placeholder {
 
     .dashboard-sidebar:hover .dashboard-sidebar-bottom,
     .dashboard-sidebar:focus-within .dashboard-sidebar-bottom {
-        gap: 10px;
-        padding-top: 18px;
+        gap: 5px;
+        padding-top: 12px;
     }
 
     .dashboard-sidebar:hover .sidebar-quick-link,
     .dashboard-sidebar:focus-within .sidebar-quick-link {
-        min-height: 50px;
+        min-height: 42px;
         margin-bottom: 0;
     }
 
@@ -10643,11 +10643,11 @@ textarea.form-control::placeholder {
     .dashboard-sidebar:focus-within .assigned-count-badge,
     .dashboard-sidebar:hover .sidebar-count-badge,
     .dashboard-sidebar:focus-within .sidebar-count-badge {
-        min-width: 30px;
-        height: 30px;
-        padding: 0 9px;
-        border-radius: 11px;
-        font-size: 0.86rem;
+        min-width: 25px;
+        height: 25px;
+        padding: 0 7px;
+        border-radius: 9px;
+        font-size: 0.76rem;
         box-shadow: 0 10px 18px rgba(13, 110, 253, 0.18);
     }
 }
