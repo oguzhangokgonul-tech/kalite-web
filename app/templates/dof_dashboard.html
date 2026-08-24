@@ -151,7 +151,6 @@
             <th>Uygunsuzluğun Açıklaması</th>
             <th>Departman</th>
             <th>Sorumlu</th>
-            <th>Öncelik</th>
             <th>Durum</th>
             <th>Termin</th>
             <th>Kanıt</th>
@@ -162,9 +161,6 @@
           {% for dof in dofs %}
             <tr>
               <td class="dashboard-action-title-cell" data-label="İF Kaydı" title="{{ dof.dof_no }}">
-                <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
-              </td>
-              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">
                 {% set dof_extra_id = "dof_extra_%s"|format(dof.id) %}
                 <div class="table-disclosure-title">
                   {% if dof.nonconformity_description or dof.created_by %}
@@ -172,6 +168,11 @@
                       <i class="bi bi-chevron-right"></i>
                     </button>
                   {% endif %}
+                  <a href="{{ url_for('main.dof_detail', dof_id=dof.id) }}">{{ dof_short_no(dof.dof_no) }}</a>
+                </div>
+              </td>
+              <td class="dof-nonconformity-cell" data-label="Uygunsuzluğun Açıklaması" title="{{ dof.title or '-' }}">
+                <div class="table-disclosure-title">
                   <span class="dof-title-text">{{ dof.title or "-" }}</span>
                 </div>
                 {% if dof.nonconformity_description or dof.created_by %}
@@ -185,7 +186,6 @@
               </td>
               <td data-label="Departman" title="{{ dof.department or '-' }}">{{ dof.department or "-" }}</td>
               <td class="dof-responsible-cell" data-label="Sorumlu" title="{{ dof.responsible.full_name if dof.responsible else '-' }}">{{ dof_responsible_name(dof.responsible) }}</td>
-              <td data-label="Öncelik" title="{{ dof.priority or '-' }}">{{ dof.priority or "-" }}</td>
               <td data-label="Durum" title="{{ dof.display_status }}">{{ dof_status_badge(dof) }}</td>
               <td class="dof-due-cell" data-label="Termin">{{ dof_due_badge(dof) }}</td>
               <td data-label="Kanıt">
@@ -232,7 +232,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="9">
+              <td class="dashboard-empty-row" colspan="8">
                 <strong>Henüz İF kaydı yok.</strong>
                 <span>Yeni İF kaydı eklendiğinde burada listelenecek.</span>
               </td>
