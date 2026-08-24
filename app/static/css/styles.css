@@ -10473,7 +10473,7 @@ textarea.form-control::placeholder {
         padding: 0 13px;
         color: #11243f;
         font-size: 0.9rem;
-        font-weight: 670;
+        font-weight: 560;
         letter-spacing: 0;
         border-radius: 11px;
     }
@@ -10537,8 +10537,8 @@ textarea.form-control::placeholder {
         color: #c97906;
     }
 
-    .dashboard-sidebar:hover .dashboard-nav-item .bi-flask,
-    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-flask,
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-beaker,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-beaker,
     .dashboard-sidebar:hover .dashboard-subnav-item .bi-box-seam,
     .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-box-seam {
         color: #1169ff;
@@ -10583,7 +10583,7 @@ textarea.form-control::placeholder {
         padding: 0 10px;
         color: #1c2f4e;
         font-size: 0.82rem;
-        font-weight: 660;
+        font-weight: 540;
         border-radius: 9px;
     }
 
@@ -10659,7 +10659,7 @@ textarea.form-control::placeholder {
         gap: 16px;
         color: #11243f;
         font-size: 1rem;
-        font-weight: 650;
+        font-weight: 560;
         border-radius: 14px;
     }
 
