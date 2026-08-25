@@ -68,9 +68,14 @@ from .models import (
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
     QUALITY_TEST_MODULE_BY_SLUG,
+    DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
     Role,
     RolePermission,
+    SUGGESTION_STATUSES,
+    Suggestion,
+    SuggestionScore,
+    SuggestionScoreParameter,
     User,
     UserPermission,
     Vehicle,
@@ -1111,6 +1116,15 @@ MODULE_ENDPOINTS = {
     "main.create_vehicle_operation": "vehicles",
     "main.delete_vehicle_operation": "vehicles",
     "main.save_vehicle_fuel": "vehicles",
+    "main.suggestions_dashboard": "suggestions",
+    "main.create_suggestion": "suggestions",
+    "main.edit_suggestion": "suggestions",
+    "main.suggestion_detail": "suggestions",
+    "main.delete_suggestion": "suggestions",
+    "main.download_suggestion_attachment": "suggestions",
+    "main.suggestion_parameters": "suggestions",
+    "main.delete_suggestion_parameter": "suggestions",
+    "main.complaints_dashboard": "suggestions",
     "main.dof_management": "if_management",
     "main.create_dof": "if_management",
     "main.edit_dof_draft": "if_management",
@@ -7073,6 +7087,341 @@ def save_vehicle_fuel(vehicle_id):
         db.session.rollback()
         flash("Akaryakıt miktar alanlarını geçerli sayı olarak girin.", "danger")
     return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
+
+
+def can_manage_suggestion_parameters():
+    return (
+        getattr(g, "current_user_is_super_admin", False)
+        or is_management_representative()
+        or current_user_can("quality.parameters_manage")
+    )
+
+
+def suggestion_query():
+    return scoped_query(Suggestion.query, Suggestion).order_by(
+        Suggestion.created_at.desc(),
+    )
+
+
+def suggestion_parameter_query(include_inactive=False):
+    query = scoped_query(SuggestionScoreParameter.query, SuggestionScoreParameter)
+    if not include_inactive:
+        query = query.filter_by(is_active=True)
+    return query.order_by(
+        SuggestionScoreParameter.sort_order.asc(),
+        SuggestionScoreParameter.id.asc(),
+    )
+
+
+def ensure_default_suggestion_parameters():
+    company_id = current_company_id()
+    existing_count = suggestion_parameter_query(include_inactive=True).count()
+    if existing_count:
+        return
+    for name, score, sort_order in DEFAULT_SUGGESTION_SCORE_PARAMETERS:
+        parameter = SuggestionScoreParameter(
+            company_id=company_id,
+            name=name,
+            score=score,
+            sort_order=sort_order,
+            is_active=True,
+        )
+        db.session.add(parameter)
+    db.session.flush()
+
+
+def reserve_suggestion_number():
+    max_number = (
+        company_scoped_counter_query(
+            db.session.query(db.func.max(db.func.coalesce(Suggestion.suggestion_number, Suggestion.id))),
+            Suggestion,
+        )
+        .scalar()
+        or 0
+    )
+    setting_key = company_counter_key("next_suggestion_number")
+    setting = db.session.get(AppSetting, setting_key)
+    if setting is None:
+        setting = AppSetting(key=setting_key, value=str(max_number + 1))
+        db.session.add(setting)
+
+    next_number = int(setting.value)
+    if next_number <= max_number:
+        next_number = max_number + 1
+    setting.value = str(next_number + 1)
+    return next_number
+
+
+def parse_suggestion_form():
+    suggestion_date = parse_optional_date("suggestion_date") or date.today()
+    evaluation_month = request.form.get("evaluation_month", "").strip()
+    department = request.form.get("department", "").strip()
+    owner_name = request.form.get("owner_name", "").strip()
+    definition = request.form.get("definition", "").strip()
+    status = request.form.get("status", "Değerlendirmede").strip()
+
+    if not owner_name or not definition:
+        raise ValueError("required_fields")
+    if department and department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if status not in SUGGESTION_STATUSES:
+        raise ValueError("invalid_status")
+
+    return {
+        "suggestion_date": suggestion_date,
+        "evaluation_month": evaluation_month or None,
+        "department": department or None,
+        "owner_name": owner_name,
+        "definition": definition,
+        "status": status,
+        "unit_comment": request.form.get("unit_comment", "").strip() or None,
+        "qdms_no": request.form.get("qdms_no", "").strip() or None,
+        "action_responsible": request.form.get("action_responsible", "").strip() or None,
+        "action_status": request.form.get("action_status", "").strip() or None,
+        "detail": request.form.get("detail", "").strip() or None,
+    }
+
+
+def save_suggestion_attachment(suggestion):
+    uploaded_file = request.files.get("attachment")
+    if not uploaded_file or not uploaded_file.filename:
+        return
+    if suggestion.attachment_stored_name:
+        delete_stored_upload(suggestion.attachment_stored_name)
+    safe_name, stored_name, mime_type = store_uploaded_file(
+        uploaded_file,
+        folder="suggestions",
+        company_id=suggestion.company_id or current_company_id(),
+    )
+    suggestion.attachment_original_name = safe_name
+    suggestion.attachment_stored_name = stored_name
+    suggestion.attachment_mime_type = mime_type
+
+
+def apply_suggestion_scores(suggestion):
+    selected_parameter_ids = {
+        int(parameter_id)
+        for parameter_id in request.form.getlist("score_parameter_ids")
+        if parameter_id.isdigit()
+    }
+    parameters = suggestion_parameter_query().all()
+    existing_scores = {score.parameter_id: score for score in suggestion.scores}
+    for parameter in parameters:
+        score = existing_scores.get(parameter.id)
+        if score is None:
+            score = SuggestionScore(
+                suggestion=suggestion,
+                parameter_id=parameter.id,
+                parameter_name=parameter.name,
+            )
+            assign_current_company(score)
+            db.session.add(score)
+        score.parameter_name = parameter.name
+        score.score_value = parameter.score
+        score.is_selected = parameter.id in selected_parameter_ids
+
+
+def suggestion_form_context(suggestion=None):
+    ensure_default_suggestion_parameters()
+    return {
+        "suggestion": suggestion,
+        "departments": DEPARTMENTS,
+        "statuses": SUGGESTION_STATUSES,
+        "parameters": suggestion_parameter_query().all(),
+        "selected_parameter_ids": {
+            score.parameter_id
+            for score in (suggestion.scores if suggestion else [])
+            if score.is_selected
+        },
+    }
+
+
+@bp.route("/oneri-sikayet/oneri")
+@login_required
+def suggestions_dashboard():
+    ensure_default_suggestion_parameters()
+    db.session.commit()
+    suggestions = suggestion_query().all()
+    total_score = sum(item.total_score for item in suggestions)
+    return render_template(
+        "suggestions/dashboard.html",
+        suggestions=suggestions,
+        total_score=total_score,
+        can_manage_parameters=can_manage_suggestion_parameters(),
+    )
+
+
+@bp.route("/oneri-sikayet/oneri/yeni", methods=["GET", "POST"])
+@login_required
+def create_suggestion():
+    ensure_default_suggestion_parameters()
+    if request.method == "POST":
+        try:
+            suggestion = Suggestion(
+                **parse_suggestion_form(),
+                suggestion_number=reserve_suggestion_number(),
+                created_by_user_id=g.current_user.id,
+            )
+            assign_current_company(suggestion)
+            db.session.add(suggestion)
+            db.session.flush()
+            save_suggestion_attachment(suggestion)
+            apply_suggestion_scores(suggestion)
+            db.session.commit()
+            flash("Öneri kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "invalid_file_type":
+                flash("Ek dosya türü desteklenmiyor.", "danger")
+            elif error_key == "invalid_department":
+                flash("Geçerli bir bölüm seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir öneri durumu seçin.", "danger")
+            else:
+                flash("Öneri sahibi ve öneri tanımı zorunludur.", "danger")
+
+    return render_template(
+        "suggestions/form.html",
+        page_title="Yeni Öneri Kaydı",
+        form_action=url_for("main.create_suggestion"),
+        submit_label="Öneriyi Kaydet",
+        **suggestion_form_context(),
+    )
+
+
+@bp.route("/oneri-sikayet/oneri/<int:suggestion_id>")
+@login_required
+def suggestion_detail(suggestion_id):
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    return render_template("suggestions/detail.html", suggestion=suggestion)
+
+
+@bp.route("/oneri-sikayet/oneri/<int:suggestion_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_suggestion(suggestion_id):
+    ensure_default_suggestion_parameters()
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    if request.method == "POST":
+        try:
+            for key, value in parse_suggestion_form().items():
+                setattr(suggestion, key, value)
+            save_suggestion_attachment(suggestion)
+            apply_suggestion_scores(suggestion)
+            db.session.commit()
+            flash("Öneri kaydı güncellendi.", "success")
+            return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "invalid_file_type":
+                flash("Ek dosya türü desteklenmiyor.", "danger")
+            elif error_key == "invalid_department":
+                flash("Geçerli bir bölüm seçin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir öneri durumu seçin.", "danger")
+            else:
+                flash("Öneri sahibi ve öneri tanımı zorunludur.", "danger")
+
+    return render_template(
+        "suggestions/form.html",
+        page_title=f"{suggestion.number_label} Düzenle",
+        form_action=url_for("main.edit_suggestion", suggestion_id=suggestion.id),
+        submit_label="Değişiklikleri Kaydet",
+        **suggestion_form_context(suggestion),
+    )
+
+
+@bp.post("/oneri-sikayet/oneri/<int:suggestion_id>/sil")
+@login_required
+def delete_suggestion(suggestion_id):
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    if suggestion.attachment_stored_name:
+        delete_stored_upload(suggestion.attachment_stored_name)
+    db.session.delete(suggestion)
+    db.session.commit()
+    flash("Öneri kaydı silindi.", "success")
+    return redirect(url_for("main.suggestions_dashboard"))
+
+
+@bp.get("/oneri-sikayet/oneri/<int:suggestion_id>/ek/indir")
+@login_required
+def download_suggestion_attachment(suggestion_id):
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    if not suggestion.attachment_stored_name:
+        flash("Bu öneriye ait ek dosya bulunamadı.", "warning")
+        return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
+    return send_stored_upload(
+        suggestion.attachment_stored_name,
+        as_attachment=True,
+        download_name=suggestion.attachment_original_name,
+    )
+
+
+@bp.route("/oneri-sikayet/oneri/parametreler", methods=["GET", "POST"])
+@login_required
+def suggestion_parameters():
+    if not can_manage_suggestion_parameters():
+        abort(403)
+    ensure_default_suggestion_parameters()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        score = request.form.get("score", "").strip()
+        sort_order = request.form.get("sort_order", "").strip()
+        if not name:
+            flash("Parametre adı zorunludur.", "danger")
+            return redirect(url_for("main.suggestion_parameters"))
+        try:
+            parameter = SuggestionScoreParameter(
+                name=name,
+                score=int(score),
+                sort_order=int(sort_order or 0),
+                is_active=True,
+            )
+        except ValueError:
+            flash("Puan ve sıralama alanları sayı olmalıdır.", "danger")
+            return redirect(url_for("main.suggestion_parameters"))
+        assign_current_company(parameter)
+        db.session.add(parameter)
+        try:
+            db.session.commit()
+            flash("Puan parametresi eklendi.", "success")
+        except Exception:
+            db.session.rollback()
+            flash("Bu parametre adı zaten kullanılıyor olabilir.", "danger")
+        return redirect(url_for("main.suggestion_parameters"))
+
+    return render_template(
+        "suggestions/parameters.html",
+        parameters=suggestion_parameter_query(include_inactive=True).all(),
+    )
+
+
+@bp.post("/oneri-sikayet/oneri/parametre/<int:parameter_id>/sil")
+@login_required
+def delete_suggestion_parameter(parameter_id):
+    if not can_manage_suggestion_parameters():
+        abort(403)
+    parameter = SuggestionScoreParameter.query.get_or_404(parameter_id)
+    ensure_same_company(parameter)
+    if SuggestionScore.query.filter_by(parameter_id=parameter.id).first():
+        parameter.is_active = False
+    else:
+        db.session.delete(parameter)
+    db.session.commit()
+    flash("Puan parametresi kaldırıldı.", "success")
+    return redirect(url_for("main.suggestion_parameters"))
+
+
+@bp.route("/oneri-sikayet/sikayet")
+@login_required
+def complaints_dashboard():
+    return render_template("suggestions/complaints.html")
 
 
 @bp.route("/bakim")

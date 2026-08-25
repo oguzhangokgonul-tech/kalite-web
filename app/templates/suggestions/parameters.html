@@ -1,0 +1,76 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Öneri Parametreleri{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Öneri Parametreleri", "Puanlama kriterlerini + veya - değerlerle yönetin.", icon="bi-sliders") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Öneri Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <section class="maintenance-form-card">
+    {{ ui.card_header("Yeni Parametre", "Kriter adını ve puanını girin. Negatif puanlar - işaretiyle yazılabilir.", icon="bi-plus-circle") }}
+    <form class="maintenance-form-grid" method="post" action="{{ url_for('main.suggestion_parameters') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="form-label" for="name">Parametre Adı</label>
+        <input class="form-control" id="name" name="name" required maxlength="160" placeholder="Örn. Önerinin Kritikliği">
+      </div>
+      <div>
+        <label class="form-label" for="score">Puan</label>
+        <input class="form-control" id="score" name="score" type="number" required placeholder="+15 / -5">
+      </div>
+      <div>
+        <label class="form-label" for="sort_order">Sıralama</label>
+        <input class="form-control" id="sort_order" name="sort_order" type="number" value="0">
+      </div>
+      <div class="d-flex align-items-end">
+        <button class="btn btn-primary w-100" type="submit">
+          <i class="bi bi-plus-lg"></i>
+          <span>Ekle</span>
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <section class="dashboard-table-card maintenance-section-card mt-4">
+    {{ ui.section_header("Mevcut Parametreler", "Pasife alınan parametreler yeni kayıtlarda görünmez.", class_name="maintenance-section-header") }}
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Parametre</th>
+            <th>Puan</th>
+            <th>Sıralama</th>
+            <th>Durum</th>
+            <th class="text-end">İşlem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for parameter in parameters %}
+            <tr>
+              <td>{{ parameter.name }}</td>
+              <td><strong class="{% if parameter.score < 0 %}text-danger{% else %}text-success{% endif %}">{{ parameter.score }}</strong></td>
+              <td>{{ parameter.sort_order }}</td>
+              <td>{{ ui.status_badge("Aktif" if parameter.is_active else "Pasif") }}</td>
+              <td>
+                {% if parameter.is_active %}
+                  <form class="dashboard-row-actions justify-content-end" method="post" action="{{ url_for('main.delete_suggestion_parameter', parameter_id=parameter.id) }}" onsubmit="return confirm('Parametreyi kaldırmak istediğinize emin misiniz?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <i class="bi bi-trash"></i>
+                      <span>Kaldır</span>
+                    </button>
+                  </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

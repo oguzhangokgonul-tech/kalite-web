@@ -76,6 +76,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "suggestions",
+        "name": "Öneri & Şikayet",
+        "description": "Öneri değerlendirme ve şikayet kayıtları için ana modül.",
+        "icon": "bi-chat-dots",
+        "sort_order": 35,
+        "parent_key": None,
+    },
+    {
         "key": "quality_tests",
         "name": "Kalite Deneyleri",
         "description": "Kalite laboratuvar deneyleri için ana modül.",
@@ -215,6 +223,27 @@ QUALITY_TEST_PREFIXES = {
     "elek-analizi-deneyi": "ELE",
     "demir-cekme-deneyi": "DEM",
 }
+SUGGESTION_STATUSES = (
+    "Değerlendirmede",
+    "Kabul Edildi",
+    "Aksiyon Açıldı",
+    "Reddedildi",
+    "Tamamlandı",
+)
+DEFAULT_SUGGESTION_SCORE_PARAMETERS = (
+    ("Önerinin Kritikliği", 15, 10),
+    ("Maliyet/Malzeme Azaltımı", 15, 20),
+    ("Zaman Tasarrufu", 15, 30),
+    ("İSG Risklerinin Ortadan Kaldırılması", 10, 40),
+    ("5S Temizlik Düzen", 10, 50),
+    ("Enerji Tasarrufu", 5, 60),
+    ("Atık Azaltımı", 5, 70),
+    ("Enerji Kullanım Artışı", -5, 80),
+    ("Atık Oluşum Artışı", -5, 90),
+    ("Yatırım İhtiyacı", -10, 100),
+    ("Birim Üründe Maliyet Arttırımı", -15, 110),
+    ("Hayata Geçirilebilirlik", -20, 120),
+)
 
 DOF_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
 DOF_SOURCES = (
@@ -1116,6 +1145,120 @@ class QualityTestRecord(db.Model):
         if delta == 0:
             return "Bugün ölçülmeli"
         return f"{delta} gün kaldı"
+
+
+class SuggestionScoreParameter(db.Model):
+    __tablename__ = "suggestion_score_parameters"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "name",
+            name="uq_suggestion_score_parameters_company_name",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    score = db.Column(db.Integer, nullable=False, default=0)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+
+class Suggestion(db.Model):
+    __tablename__ = "suggestions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "suggestion_number",
+            name="uq_suggestions_company_number",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    suggestion_number = db.Column(db.Integer, nullable=True)
+    suggestion_date = db.Column(db.Date, nullable=True)
+    evaluation_month = db.Column(db.String(20), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    owner_name = db.Column(db.String(160), nullable=False)
+    definition = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(40), nullable=False, default="Değerlendirmede")
+    unit_comment = db.Column(db.Text, nullable=True)
+    qdms_no = db.Column(db.String(80), nullable=True)
+    action_responsible = db.Column(db.String(160), nullable=True)
+    action_status = db.Column(db.String(80), nullable=True)
+    detail = db.Column(db.Text, nullable=True)
+    attachment_original_name = db.Column(db.String(255), nullable=True)
+    attachment_stored_name = db.Column(db.String(255), nullable=True)
+    attachment_mime_type = db.Column(db.String(120), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    scores = db.relationship(
+        "SuggestionScore",
+        back_populates="suggestion",
+        cascade="all, delete-orphan",
+        order_by="SuggestionScore.id.asc()",
+    )
+
+    @property
+    def number_label(self):
+        source_date = self.suggestion_date or self.created_at
+        year = source_date.year if source_date else date.today().year
+        return f"ONR-{year}-{(self.suggestion_number or self.id):04d}"
+
+    @property
+    def total_score(self):
+        return sum(score.score_value or 0 for score in self.scores if score.is_selected)
+
+
+class SuggestionScore(db.Model):
+    __tablename__ = "suggestion_scores"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "suggestion_id",
+            "parameter_id",
+            name="uq_suggestion_scores_suggestion_parameter",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey("suggestions.id"), nullable=False, index=True)
+    parameter_id = db.Column(
+        db.Integer,
+        db.ForeignKey("suggestion_score_parameters.id"),
+        nullable=True,
+        index=True,
+    )
+    parameter_name = db.Column(db.String(160), nullable=False)
+    score_value = db.Column(db.Integer, nullable=False, default=0)
+    is_selected = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    suggestion = db.relationship("Suggestion", back_populates="scores")
+    parameter = db.relationship("SuggestionScoreParameter")
 
 
 class InternalAudit(db.Model):

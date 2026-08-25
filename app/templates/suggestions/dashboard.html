@@ -1,0 +1,107 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Öneri Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Öneri Yönetimi", "Öneri değerlendirme kayıtlarını ve puanlarını takip edin.", icon="bi-lightbulb") %}
+    <div class="d-flex gap-2 flex-wrap">
+      {% if can_manage_parameters %}
+        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.suggestion_parameters') }}">
+          <i class="bi bi-sliders"></i>
+          <span>Parametreler</span>
+        </a>
+      {% endif %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_suggestion') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Öneri</span>
+      </a>
+    </div>
+  {% endcall %}
+
+  <div class="dashboard-metrics maintenance-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-lightbulb"></i></span>
+      <span class="stat-label">Toplam Öneri</span>
+      <strong>{{ suggestions|length }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-calculator"></i></span>
+      <span class="stat-label">Toplam Puan</span>
+      <strong>{{ total_score }}</strong>
+    </div>
+  </div>
+
+  <section class="dashboard-table-card maintenance-section-card">
+    {% call ui.section_header("Öneri Değerlendirme Formları", "FRM.32 yapısına göre oluşturulan kayıtlar.", class_name="maintenance-section-header") %}
+      <a class="btn btn-sm btn-primary" href="{{ url_for('main.create_suggestion') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Öneri</span>
+      </a>
+    {% endcall %}
+    <div class="table-responsive">
+      <table class="table dashboard-table maintenance-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Öneri No</th>
+            <th>Öneri Sahibi</th>
+            <th>Bölüm</th>
+            <th>Öneri Tanımı</th>
+            <th>Durum</th>
+            <th>Puan</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for suggestion in suggestions %}
+            <tr>
+              <td data-label="Öneri No">
+                <a class="maintenance-ref-link" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}">{{ suggestion.number_label }}</a>
+                <span class="maintenance-muted-line">{{ format_date(suggestion.suggestion_date) }}</span>
+              </td>
+              <td data-label="Öneri Sahibi">{{ suggestion.owner_name }}</td>
+              <td data-label="Bölüm">{{ suggestion.department or "-" }}</td>
+              <td data-label="Öneri Tanımı" class="maintenance-title-cell">
+                <a href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}">{{ suggestion.definition|truncate(90) }}</a>
+                <span>{{ suggestion.unit_comment|truncate(90) if suggestion.unit_comment else "Yorum girilmemiş." }}</span>
+              </td>
+              <td data-label="Durum">{{ ui.status_badge(suggestion.status) }}</td>
+              <td data-label="Puan">
+                <span class="suggestion-score-pill {% if suggestion.total_score < 0 %}is-negative{% endif %}">{{ suggestion.total_score }}</span>
+              </td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
+                    <i class="bi bi-pencil-square"></i>
+                    <span>Düzenle</span>
+                  </a>
+                  <form action="{{ url_for('main.delete_suggestion', suggestion_id=suggestion.id) }}" method="post" onsubmit="return confirm('Öneri kaydını silmek istediğinize emin misiniz?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <i class="bi bi-trash"></i>
+                      <span>Sil</span>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="7">
+                <strong>Henüz öneri kaydı yok.</strong>
+                <span>Yeni Öneri butonuyla ilk değerlendirme kaydını oluşturabilirsiniz.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ suggestions|length }} öneri</span>
+    </div>
+  </section>
+{% endblock %}

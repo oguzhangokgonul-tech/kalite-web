@@ -10333,6 +10333,119 @@ textarea.form-control::placeholder {
     max-width: 220px;
 }
 
+.grid-span-2 {
+    grid-column: span 2;
+}
+
+.suggestion-form-card {
+    gap: 22px;
+}
+
+.suggestion-score-panel {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    background: #f8fbff;
+    border: 1px solid #dce7f5;
+    border-radius: 14px;
+}
+
+.suggestion-score-panel h3 {
+    margin: 0;
+    color: #10233f;
+    font-size: 1rem;
+    font-weight: 680;
+}
+
+.suggestion-score-panel p {
+    margin: 4px 0 0;
+    color: #66768d;
+    font-size: 0.84rem;
+}
+
+.suggestion-score-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 10px;
+}
+
+.suggestion-score-option {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    margin: 0;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #d8e4f2;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.suggestion-score-option:hover {
+    border-color: #a9c7ff;
+    box-shadow: 0 10px 22px rgba(13, 110, 253, 0.08);
+}
+
+.suggestion-score-option span {
+    min-width: 0;
+    color: #17233a;
+    font-size: 0.88rem;
+    font-weight: 560;
+}
+
+.suggestion-score-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 30px;
+    padding: 0 12px;
+    color: #067647;
+    background: #dcfae6;
+    border: 1px solid #abefc6;
+    border-radius: 999px;
+    font-size: 0.88rem;
+    font-weight: 720;
+}
+
+.suggestion-score-pill.is-negative {
+    color: #b42318;
+    background: #fee4e2;
+    border-color: #fecdca;
+}
+
+.suggestion-score-list {
+    display: grid;
+    gap: 8px;
+}
+
+.suggestion-score-list > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 10px;
+    color: #66768d;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.84rem;
+}
+
+.suggestion-score-list > div.is-selected {
+    color: #10233f;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+@media (max-width: 640px) {
+    .grid-span-2 {
+        grid-column: span 1;
+    }
+}
+
 /* Desktop hover sidebar: compact by default, expanded while hovered/focused. */
 @media (min-width: 992px) {
     .dashboard-app {

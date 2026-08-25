@@ -1,0 +1,87 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ suggestion.number_label }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(suggestion.number_label, "Öneri değerlendirme kaydı detayı.", icon="bi-lightbulb") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Öneri Yönetimi</span>
+    </a>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
+      <i class="bi bi-pencil-square"></i>
+      <span>Düzenle</span>
+    </a>
+  {% endcall %}
+
+  <div class="maintenance-detail-grid">
+    <div class="maintenance-info-card">
+      <span class="maintenance-info-icon"><i class="bi bi-person"></i></span>
+      <small>Öneri Sahibi</small>
+      <strong>{{ suggestion.owner_name }}</strong>
+    </div>
+    <div class="maintenance-info-card">
+      <span class="maintenance-info-icon"><i class="bi bi-building"></i></span>
+      <small>Bölüm</small>
+      <strong>{{ suggestion.department or "-" }}</strong>
+    </div>
+    <div class="maintenance-info-card">
+      <span class="maintenance-info-icon"><i class="bi bi-calendar3"></i></span>
+      <small>Öneri Tarihi</small>
+      <strong>{{ format_date(suggestion.suggestion_date) }}</strong>
+    </div>
+    <div class="maintenance-info-card">
+      <span class="maintenance-info-icon"><i class="bi bi-calculator"></i></span>
+      <small>Öneri Puanı</small>
+      <strong>{{ suggestion.total_score }}</strong>
+    </div>
+  </div>
+
+  <div class="maintenance-detail-layout">
+    <section class="maintenance-detail-card">
+      {{ ui.card_header("Öneri Tanımı", "FRM.32 formundaki öneri açıklaması.", icon="bi-chat-left-text") }}
+      <p class="maintenance-detail-text">{{ suggestion.definition }}</p>
+      <hr>
+      <h3 class="h6">İlgili Birim(lerin) Yorumu</h3>
+      <p class="maintenance-detail-text">{{ suggestion.unit_comment or "Yorum girilmemiş." }}</p>
+      <hr>
+      <h3 class="h6">Detay</h3>
+      <p class="maintenance-detail-text">{{ suggestion.detail or "Detay girilmemiş." }}</p>
+    </section>
+
+    <aside class="maintenance-side-stack">
+      <section class="maintenance-form-card">
+        {{ ui.card_header("Durum", None, icon="bi-flag") }}
+        {{ ui.status_badge(suggestion.status) }}
+        <div class="mt-3 small text-muted">
+          QDMS No: <strong>{{ suggestion.qdms_no or "-" }}</strong><br>
+          Aksiyon Sorumlusu: <strong>{{ suggestion.action_responsible or "-" }}</strong><br>
+          Aksiyon Durumu: <strong>{{ suggestion.action_status or "-" }}</strong>
+        </div>
+      </section>
+      <section class="maintenance-form-card">
+        {{ ui.card_header("Puanlama", None, icon="bi-list-check") }}
+        <div class="suggestion-score-list">
+          {% for score in suggestion.scores %}
+            <div class="{% if score.is_selected %}is-selected{% endif %}">
+              <span>{{ score.parameter_name }}</span>
+              <strong>{{ score.score_value }}</strong>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+      <section class="maintenance-form-card">
+        {{ ui.card_header("Ek", None, icon="bi-paperclip") }}
+        {% if suggestion.attachment_stored_name %}
+          <a class="btn btn-outline-primary w-100" href="{{ url_for('main.download_suggestion_attachment', suggestion_id=suggestion.id) }}">
+            <i class="bi bi-download"></i>
+            <span>{{ suggestion.attachment_original_name }}</span>
+          </a>
+        {% else %}
+          <p class="text-muted mb-0">Ek dosya yüklenmemiş.</p>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
+{% endblock %}

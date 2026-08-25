@@ -86,7 +86,11 @@
     "Pasif": ["muted", "bi-circle-fill"],
     "PASİF": ["muted", "bi-ban"],
     "HURDA": ["muted", "bi-archive"],
-    "Kayıtlı": ["muted", "bi-circle-fill"]
+    "Kayıtlı": ["muted", "bi-circle-fill"],
+    "Değerlendirmede": ["amber", "bi-clock-fill"],
+    "Kabul Edildi": ["success", "bi-check-circle-fill"],
+    "Aksiyon Açıldı": ["blue", "bi-lightning-charge-fill"],
+    "Reddedildi": ["danger", "bi-x-circle-fill"]
   } %}
   {% set fallback = status_map.get(status_label, ["muted", "bi-circle-fill"]) %}
   {% set resolved_tone = tone or fallback[0] %}

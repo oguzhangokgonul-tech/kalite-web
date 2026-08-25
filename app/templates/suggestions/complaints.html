@@ -1,0 +1,18 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Şikayet Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Şikayet Yönetimi", "Şikayet süreci için hazırlık alanı.", icon="bi-chat-left-text") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
+      <i class="bi bi-lightbulb"></i>
+      <span>Öneriler</span>
+    </a>
+  {% endcall %}
+
+  <section class="maintenance-form-card">
+    {{ ui.card_header("Şikayet Modülü", "Bu bölüm şimdilik boş bırakıldı.", icon="bi-info-circle") }}
+    <p class="mb-0 text-muted">Şikayet formu ve akışı daha sonra birlikte tasarlanabilir.</p>
+  </section>
+{% endblock %}

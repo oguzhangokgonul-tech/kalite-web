@@ -7,6 +7,7 @@
 
 {% block content %}
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
+  {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.complaints_dashboard'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -86,6 +87,25 @@
               </a>
               {% endif %}
             {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if g.company_module_enabled('suggestions') %}
+        <div class="dashboard-nav-group {% if suggestion_module_active %}active{% endif %}">
+          <button class="dashboard-nav-item dashboard-nav-toggle {% if suggestion_module_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#suggestionsNav" aria-expanded="{{ 'true' if suggestion_module_active else 'false' }}" aria-controls="suggestionsNav">
+            <i class="bi bi-chat-dots"></i>
+            <span>Öneri &amp; Şikayet</span>
+            <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
+          </button>
+          <div class="dashboard-subnav collapse {% if suggestion_module_active %}show{% endif %}" id="suggestionsNav">
+            <a class="dashboard-subnav-item {% if request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter'] %}active{% endif %}" href="{{ url_for('main.suggestions_dashboard') }}">
+              <i class="bi bi-lightbulb"></i>
+              <span>Öneri</span>
+            </a>
+            <a class="dashboard-subnav-item {% if request.endpoint == 'main.complaints_dashboard' %}active{% endif %}" href="{{ url_for('main.complaints_dashboard') }}">
+              <i class="bi bi-chat-left-text"></i>
+              <span>Şikayet</span>
+            </a>
           </div>
         </div>
         {% endif %}
