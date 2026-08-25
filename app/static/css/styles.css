@@ -8024,6 +8024,39 @@ textarea.form-control:focus {
     box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.11);
 }
 
+.login-remember-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    margin: -2px 0 0;
+    color: #c7d2e0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+}
+
+.login-remember-option .form-check-input {
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    background-color: rgba(2, 10, 24, 0.38);
+    border-color: rgba(148, 163, 184, 0.48);
+    box-shadow: none;
+    cursor: pointer;
+}
+
+.login-remember-option .form-check-input:checked {
+    background-color: #0d8dff;
+    border-color: #00d4ff;
+}
+
+.login-remember-option .form-check-input:focus {
+    border-color: rgba(0, 212, 255, 0.72);
+    box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.12);
+}
+
 .login-page .login-button {
     display: inline-flex;
     align-items: center;

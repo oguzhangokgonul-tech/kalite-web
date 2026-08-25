@@ -20,7 +20,7 @@ if IS_PRODUCTION and not SECRET_KEY:
 class Config:
     APP_ENV = APP_ENV
     SITE_NAME = os.environ.get("SITE_NAME", "VolkaPortal")
-    ASSET_VERSION = os.environ.get("ASSET_VERSION", "20260824-sidebar-nav-light")
+    ASSET_VERSION = os.environ.get("ASSET_VERSION", "20260825-remember-me")
     SECRET_KEY = SECRET_KEY or "dev-only-change-me"
     DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(
@@ -41,7 +41,8 @@ class Config:
         f".{TENANT_BASE_DOMAIN}" if IS_PRODUCTION and TENANT_BASE_DOMAIN else None
     )
     SESSION_COOKIE_SECURE = IS_PRODUCTION
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    REMEMBER_ME_DAYS = int(os.environ.get("REMEMBER_ME_DAYS", "30"))
+    PERMANENT_SESSION_LIFETIME = timedelta(days=REMEMBER_ME_DAYS)
     SESSION_REFRESH_EACH_REQUEST = True
     LOGIN_MAX_FAILED_ATTEMPTS = int(os.environ.get("LOGIN_MAX_FAILED_ATTEMPTS", "5"))
     LOGIN_LOCKOUT_MINUTES = int(os.environ.get("LOGIN_LOCKOUT_MINUTES", "10"))

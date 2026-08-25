@@ -5395,6 +5395,7 @@ def login():
     if request.method == "POST":
         identity = normalize_login_identity(request.form.get("identity"))
         password = request.form.get("password", "")
+        remember_me = request.form.get("remember_me") == "1"
         ip_address = login_client_ip()
         tenant_company = getattr(g, "tenant_company", None)
 
@@ -5428,6 +5429,7 @@ def login():
             log_login_attempt(identity, ip_address, True, "success")
             db.session.commit()
             session.clear()
+            session.permanent = remember_me
             session["user_id"] = user.id
             if company is not None:
                 session["company_id"] = company.id
