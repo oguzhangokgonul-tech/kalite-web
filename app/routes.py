@@ -288,6 +288,7 @@ def load_logged_in_user():
         ensure_document_schema()
         ensure_maintenance_schema()
         ensure_quality_test_schema()
+        ensure_suggestion_schema()
         try:
             notification_query = scoped_query(
                 Notification.query,
@@ -1048,6 +1049,191 @@ def ensure_quality_test_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("Kalite deneyleri şeması kontrol edilemedi.")
+
+
+def ensure_suggestion_schema():
+    if current_app.extensions.get("suggestion_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "suggestion_score_parameters" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE suggestion_score_parameters (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            name VARCHAR(160) NOT NULL,
+                            score INTEGER NOT NULL DEFAULT 0,
+                            sort_order INTEGER NOT NULL DEFAULT 0,
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(company_id, name),
+                            FOREIGN KEY(company_id) REFERENCES companies (id)
+                        )
+                        """
+                    )
+                )
+                tables.add("suggestion_score_parameters")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("suggestion_score_parameters")
+                }
+                parameter_columns = {
+                    "company_id": "ALTER TABLE suggestion_score_parameters ADD COLUMN company_id INTEGER",
+                    "name": "ALTER TABLE suggestion_score_parameters ADD COLUMN name VARCHAR(160) NOT NULL DEFAULT ''",
+                    "score": "ALTER TABLE suggestion_score_parameters ADD COLUMN score INTEGER NOT NULL DEFAULT 0",
+                    "sort_order": "ALTER TABLE suggestion_score_parameters ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+                    "is_active": "ALTER TABLE suggestion_score_parameters ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+                    "created_at": "ALTER TABLE suggestion_score_parameters ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE suggestion_score_parameters ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in parameter_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "suggestions" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE suggestions (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            suggestion_number INTEGER,
+                            suggestion_date DATE,
+                            evaluation_month VARCHAR(20),
+                            department VARCHAR(80),
+                            owner_name VARCHAR(160) NOT NULL,
+                            definition TEXT NOT NULL,
+                            status VARCHAR(40) NOT NULL DEFAULT 'Değerlendirmede',
+                            unit_comment TEXT,
+                            qdms_no VARCHAR(80),
+                            action_responsible VARCHAR(160),
+                            action_status VARCHAR(80),
+                            detail TEXT,
+                            attachment_original_name VARCHAR(255),
+                            attachment_stored_name VARCHAR(255),
+                            attachment_mime_type VARCHAR(120),
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(company_id, suggestion_number),
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+                tables.add("suggestions")
+            else:
+                columns = {column["name"] for column in inspector.get_columns("suggestions")}
+                suggestion_columns = {
+                    "company_id": "ALTER TABLE suggestions ADD COLUMN company_id INTEGER",
+                    "suggestion_number": "ALTER TABLE suggestions ADD COLUMN suggestion_number INTEGER",
+                    "suggestion_date": "ALTER TABLE suggestions ADD COLUMN suggestion_date DATE",
+                    "evaluation_month": "ALTER TABLE suggestions ADD COLUMN evaluation_month VARCHAR(20)",
+                    "department": "ALTER TABLE suggestions ADD COLUMN department VARCHAR(80)",
+                    "owner_name": "ALTER TABLE suggestions ADD COLUMN owner_name VARCHAR(160) NOT NULL DEFAULT ''",
+                    "definition": "ALTER TABLE suggestions ADD COLUMN definition TEXT NOT NULL DEFAULT ''",
+                    "status": "ALTER TABLE suggestions ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Değerlendirmede'",
+                    "unit_comment": "ALTER TABLE suggestions ADD COLUMN unit_comment TEXT",
+                    "qdms_no": "ALTER TABLE suggestions ADD COLUMN qdms_no VARCHAR(80)",
+                    "action_responsible": "ALTER TABLE suggestions ADD COLUMN action_responsible VARCHAR(160)",
+                    "action_status": "ALTER TABLE suggestions ADD COLUMN action_status VARCHAR(80)",
+                    "detail": "ALTER TABLE suggestions ADD COLUMN detail TEXT",
+                    "attachment_original_name": "ALTER TABLE suggestions ADD COLUMN attachment_original_name VARCHAR(255)",
+                    "attachment_stored_name": "ALTER TABLE suggestions ADD COLUMN attachment_stored_name VARCHAR(255)",
+                    "attachment_mime_type": "ALTER TABLE suggestions ADD COLUMN attachment_mime_type VARCHAR(120)",
+                    "created_by_user_id": "ALTER TABLE suggestions ADD COLUMN created_by_user_id INTEGER",
+                    "created_at": "ALTER TABLE suggestions ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE suggestions ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in suggestion_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "suggestion_scores" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE suggestion_scores (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            suggestion_id INTEGER NOT NULL,
+                            parameter_id INTEGER,
+                            parameter_name VARCHAR(160) NOT NULL,
+                            score_value INTEGER NOT NULL DEFAULT 0,
+                            is_selected BOOLEAN NOT NULL DEFAULT 0,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(suggestion_id, parameter_id),
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(suggestion_id) REFERENCES suggestions (id),
+                            FOREIGN KEY(parameter_id) REFERENCES suggestion_score_parameters (id)
+                        )
+                        """
+                    )
+                )
+                tables.add("suggestion_scores")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("suggestion_scores")
+                }
+                score_columns = {
+                    "company_id": "ALTER TABLE suggestion_scores ADD COLUMN company_id INTEGER",
+                    "suggestion_id": "ALTER TABLE suggestion_scores ADD COLUMN suggestion_id INTEGER NOT NULL DEFAULT 0",
+                    "parameter_id": "ALTER TABLE suggestion_scores ADD COLUMN parameter_id INTEGER",
+                    "parameter_name": "ALTER TABLE suggestion_scores ADD COLUMN parameter_name VARCHAR(160) NOT NULL DEFAULT ''",
+                    "score_value": "ALTER TABLE suggestion_scores ADD COLUMN score_value INTEGER NOT NULL DEFAULT 0",
+                    "is_selected": "ALTER TABLE suggestion_scores ADD COLUMN is_selected BOOLEAN NOT NULL DEFAULT 0",
+                    "created_at": "ALTER TABLE suggestion_scores ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE suggestion_scores ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in score_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_score_parameters_company_id "
+                    "ON suggestion_score_parameters (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestions_company_id "
+                    "ON suggestions (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_scores_company_id "
+                    "ON suggestion_scores (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_scores_suggestion_id "
+                    "ON suggestion_scores (suggestion_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_scores_parameter_id "
+                    "ON suggestion_scores (parameter_id)"
+                )
+            )
+
+        current_app.extensions["suggestion_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Öneri ve şikayet şeması kontrol edilemedi.")
 
 
 def login_required(view):
