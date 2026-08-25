@@ -7117,6 +7117,7 @@ def ensure_default_suggestion_parameters():
     company_id = current_company_id()
     existing_count = suggestion_parameter_query(include_inactive=True).count()
     if existing_count:
+        normalize_suggestion_parameter_order()
         return
     for name, score, sort_order in DEFAULT_SUGGESTION_SCORE_PARAMETERS:
         parameter = SuggestionScoreParameter(
@@ -7128,6 +7129,17 @@ def ensure_default_suggestion_parameters():
         )
         db.session.add(parameter)
     db.session.flush()
+
+
+def normalize_suggestion_parameter_order():
+    parameters = suggestion_parameter_query(include_inactive=True).all()
+    changed = False
+    for index, parameter in enumerate(parameters, start=1):
+        if parameter.sort_order != index:
+            parameter.sort_order = index
+            changed = True
+    if changed:
+        db.session.flush()
 
 
 def reserve_suggestion_number():
@@ -7152,34 +7164,40 @@ def reserve_suggestion_number():
     return next_number
 
 
-def parse_suggestion_form():
+def build_suggestion_qdms_no(suggestion_number, suggestion_date=None):
+    source_date = suggestion_date or date.today()
+    return f"QDMS-{source_date.year}-{suggestion_number:04d}"
+
+
+def parse_suggestion_form(include_defaults=True):
     suggestion_date = parse_optional_date("suggestion_date") or date.today()
-    evaluation_month = request.form.get("evaluation_month", "").strip()
     department = request.form.get("department", "").strip()
     owner_name = request.form.get("owner_name", "").strip()
     definition = request.form.get("definition", "").strip()
-    status = request.form.get("status", "Değerlendirmede").strip()
 
     if not owner_name or not definition:
         raise ValueError("required_fields")
     if department and department not in DEPARTMENTS:
         raise ValueError("invalid_department")
-    if status not in SUGGESTION_STATUSES:
-        raise ValueError("invalid_status")
 
-    return {
+    data = {
         "suggestion_date": suggestion_date,
-        "evaluation_month": evaluation_month or None,
         "department": department or None,
         "owner_name": owner_name,
         "definition": definition,
-        "status": status,
-        "unit_comment": request.form.get("unit_comment", "").strip() or None,
-        "qdms_no": request.form.get("qdms_no", "").strip() or None,
-        "action_responsible": request.form.get("action_responsible", "").strip() or None,
-        "action_status": request.form.get("action_status", "").strip() or None,
-        "detail": request.form.get("detail", "").strip() or None,
     }
+    if include_defaults:
+        data.update(
+            {
+                "evaluation_month": None,
+                "status": "Değerlendirmede",
+                "unit_comment": None,
+                "action_responsible": None,
+                "action_status": None,
+                "detail": None,
+            }
+        )
+    return data
 
 
 def save_suggestion_attachment(suggestion):
@@ -7257,16 +7275,20 @@ def create_suggestion():
     ensure_default_suggestion_parameters()
     if request.method == "POST":
         try:
+            suggestion_number = reserve_suggestion_number()
             suggestion = Suggestion(
                 **parse_suggestion_form(),
-                suggestion_number=reserve_suggestion_number(),
+                suggestion_number=suggestion_number,
+                qdms_no=build_suggestion_qdms_no(
+                    suggestion_number,
+                    parse_optional_date("suggestion_date") or date.today(),
+                ),
                 created_by_user_id=g.current_user.id,
             )
             assign_current_company(suggestion)
             db.session.add(suggestion)
             db.session.flush()
             save_suggestion_attachment(suggestion)
-            apply_suggestion_scores(suggestion)
             db.session.commit()
             flash("Öneri kaydı oluşturuldu.", "success")
             return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
@@ -7307,10 +7329,14 @@ def edit_suggestion(suggestion_id):
     ensure_same_company(suggestion)
     if request.method == "POST":
         try:
-            for key, value in parse_suggestion_form().items():
+            for key, value in parse_suggestion_form(include_defaults=False).items():
                 setattr(suggestion, key, value)
+            if not suggestion.qdms_no:
+                suggestion.qdms_no = build_suggestion_qdms_no(
+                    suggestion.suggestion_number or suggestion.id,
+                    suggestion.suggestion_date,
+                )
             save_suggestion_attachment(suggestion)
-            apply_suggestion_scores(suggestion)
             db.session.commit()
             flash("Öneri kaydı güncellendi.", "success")
             return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
@@ -7369,6 +7395,7 @@ def suggestion_parameters():
     if not can_manage_suggestion_parameters():
         abort(403)
     ensure_default_suggestion_parameters()
+    db.session.commit()
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         score = request.form.get("score", "").strip()
@@ -7377,10 +7404,16 @@ def suggestion_parameters():
             flash("Parametre adı zorunludur.", "danger")
             return redirect(url_for("main.suggestion_parameters"))
         try:
+            next_sort_order = (
+                suggestion_parameter_query(include_inactive=True)
+                .with_entities(db.func.max(SuggestionScoreParameter.sort_order))
+                .scalar()
+                or 0
+            ) + 1
             parameter = SuggestionScoreParameter(
                 name=name,
                 score=int(score),
-                sort_order=int(sort_order or 0),
+                sort_order=int(sort_order or next_sort_order),
                 is_active=True,
             )
         except ValueError:

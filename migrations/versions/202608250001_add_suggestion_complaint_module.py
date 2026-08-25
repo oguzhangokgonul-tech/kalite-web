@@ -16,18 +16,18 @@ depends_on = None
 
 
 DEFAULT_PARAMETERS = (
-    ("Önerinin Kritikliği", 15, 10),
-    ("Maliyet/Malzeme Azaltımı", 15, 20),
-    ("Zaman Tasarrufu", 15, 30),
-    ("İSG Risklerinin Ortadan Kaldırılması", 10, 40),
-    ("5S Temizlik Düzen", 10, 50),
-    ("Enerji Tasarrufu", 5, 60),
-    ("Atık Azaltımı", 5, 70),
-    ("Enerji Kullanım Artışı", -5, 80),
-    ("Atık Oluşum Artışı", -5, 90),
-    ("Yatırım İhtiyacı", -10, 100),
-    ("Birim Üründe Maliyet Arttırımı", -15, 110),
-    ("Hayata Geçirilebilirlik", -20, 120),
+    ("Önerinin Kritikliği", 15, 1),
+    ("Maliyet/Malzeme Azaltımı", 15, 2),
+    ("Zaman Tasarrufu", 15, 3),
+    ("İSG Risklerinin Ortadan Kaldırılması", 10, 4),
+    ("5S Temizlik Düzen", 10, 5),
+    ("Enerji Tasarrufu", 5, 6),
+    ("Atık Azaltımı", 5, 7),
+    ("Enerji Kullanım Artışı", -5, 8),
+    ("Atık Oluşum Artışı", -5, 9),
+    ("Yatırım İhtiyacı", -10, 10),
+    ("Birim Üründe Maliyet Arttırımı", -15, 11),
+    ("Hayata Geçirilebilirlik", -20, 12),
 )
 
 

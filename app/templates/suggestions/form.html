@@ -17,7 +17,7 @@
       <span class="app-card-icon maintenance-card-icon"><i class="bi bi-file-earmark-check"></i></span>
       <div>
         <h3>Öneri Bilgileri</h3>
-        <p>Excel formundaki ana alanlar ve değerlendirme puanları.</p>
+        <p>Öneri kaydı için temel bilgileri girin. QDMS No sistem tarafından otomatik atanır.</p>
       </div>
     </div>
 
@@ -25,10 +25,6 @@
       <div>
         <label class="form-label" for="suggestion_date">Öneri Tarihi</label>
         <input class="form-control" id="suggestion_date" name="suggestion_date" type="date" value="{{ request.form.get('suggestion_date', suggestion.suggestion_date.isoformat() if suggestion and suggestion.suggestion_date else '') }}">
-      </div>
-      <div>
-        <label class="form-label" for="evaluation_month">Değerlendirme Ayı</label>
-        <input class="form-control" id="evaluation_month" name="evaluation_month" type="month" value="{{ request.form.get('evaluation_month', suggestion.evaluation_month if suggestion else '') }}">
       </div>
       <div>
         <label class="form-label" for="department">Öneri Veren Bölüm</label>
@@ -40,42 +36,13 @@
           {% endfor %}
         </select>
       </div>
-      <div>
+      <div class="grid-span-2">
         <label class="form-label" for="owner_name">Öneri Sahibi</label>
         <input class="form-control" id="owner_name" name="owner_name" value="{{ request.form.get('owner_name', suggestion.owner_name if suggestion else g.current_user.full_name) }}" maxlength="160" required>
       </div>
-      <div>
-        <label class="form-label" for="status">Öneri Durumu</label>
-        {% set selected_status = request.form.get('status', suggestion.status if suggestion else 'Değerlendirmede') %}
-        <select class="form-select" id="status" name="status">
-          {% for status in statuses %}
-            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="qdms_no">QDMS No</label>
-        <input class="form-control" id="qdms_no" name="qdms_no" value="{{ request.form.get('qdms_no', suggestion.qdms_no if suggestion else '') }}" maxlength="80">
-      </div>
-      <div>
-        <label class="form-label" for="action_responsible">Aksiyon Sorumlusu</label>
-        <input class="form-control" id="action_responsible" name="action_responsible" value="{{ request.form.get('action_responsible', suggestion.action_responsible if suggestion else '') }}" maxlength="160">
-      </div>
-      <div>
-        <label class="form-label" for="action_status">Aksiyon Durumu</label>
-        <input class="form-control" id="action_status" name="action_status" value="{{ request.form.get('action_status', suggestion.action_status if suggestion else '') }}" maxlength="80">
-      </div>
       <div class="grid-span-2">
         <label class="form-label" for="definition">Öneri Tanımı</label>
-        <textarea class="form-control" id="definition" name="definition" rows="4" required>{{ request.form.get('definition', suggestion.definition if suggestion else '') }}</textarea>
-      </div>
-      <div class="grid-span-2">
-        <label class="form-label" for="unit_comment">İlgili Birim(lerin) Yorumu</label>
-        <textarea class="form-control" id="unit_comment" name="unit_comment" rows="3">{{ request.form.get('unit_comment', suggestion.unit_comment if suggestion else '') }}</textarea>
-      </div>
-      <div class="grid-span-2">
-        <label class="form-label" for="detail">Detay</label>
-        <textarea class="form-control" id="detail" name="detail" rows="3">{{ request.form.get('detail', suggestion.detail if suggestion else '') }}</textarea>
+        <textarea class="form-control" id="definition" name="definition" rows="5" required>{{ request.form.get('definition', suggestion.definition if suggestion else '') }}</textarea>
       </div>
       <div class="grid-span-2">
         <label class="form-label" for="attachment">Ek</label>
@@ -83,22 +50,6 @@
         {% if suggestion and suggestion.attachment_stored_name %}
           <small class="text-muted">Mevcut ek: {{ suggestion.attachment_original_name }}</small>
         {% endif %}
-      </div>
-    </div>
-
-    <div class="suggestion-score-panel">
-      <div>
-        <h3>Puanlama</h3>
-        <p>Seçilen kriterlerin + veya - puanları otomatik toplanır.</p>
-      </div>
-      <div class="suggestion-score-grid">
-        {% for parameter in parameters %}
-          <label class="suggestion-score-option">
-            <input class="form-check-input" type="checkbox" name="score_parameter_ids" value="{{ parameter.id }}" {% if parameter.id in selected_parameter_ids %}checked{% endif %}>
-            <span>{{ parameter.name }}</span>
-            <strong class="{% if parameter.score < 0 %}text-danger{% else %}text-success{% endif %}">{{ parameter.score }}</strong>
-          </label>
-        {% endfor %}
       </div>
     </div>
 
