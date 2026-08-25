@@ -7452,6 +7452,7 @@ def suggestions_dashboard():
         suggestions=suggestions,
         total_score=total_score,
         can_manage_parameters=can_manage_suggestion_parameters(),
+        format_date=format_date,
     )
 
 
@@ -7504,7 +7505,11 @@ def create_suggestion():
 def suggestion_detail(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
-    return render_template("suggestions/detail.html", suggestion=suggestion)
+    return render_template(
+        "suggestions/detail.html",
+        suggestion=suggestion,
+        format_date=format_date,
+    )
 
 
 @bp.route("/oneri-sikayet/oneri/<int:suggestion_id>/duzenle", methods=["GET", "POST"])
