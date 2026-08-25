@@ -10570,8 +10570,8 @@ textarea.form-control::placeholder {
         color: #c97906;
     }
 
-    .dashboard-sidebar:hover .dashboard-nav-item .bi-beaker,
-    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-beaker,
+    .dashboard-sidebar:hover .dashboard-nav-item .bi-box-seam,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .bi-box-seam,
     .dashboard-sidebar:hover .dashboard-subnav-item .bi-box-seam,
     .dashboard-sidebar:focus-within .dashboard-subnav-item .bi-box-seam {
         color: #1169ff;
