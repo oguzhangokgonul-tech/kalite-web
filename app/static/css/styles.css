@@ -894,6 +894,78 @@ body {
     display: inline-flex;
 }
 
+.documents-recent-table {
+    min-width: 1220px;
+}
+
+.documents-recent-table th,
+.documents-recent-table td {
+    padding: 14px 16px;
+}
+
+.documents-recent-table th:nth-child(1),
+.documents-recent-table td:nth-child(1) {
+    width: 80px;
+}
+
+.documents-recent-table th:nth-child(2),
+.documents-recent-table td:nth-child(2) {
+    width: 130px;
+}
+
+.documents-recent-table th:nth-child(3),
+.documents-recent-table td:nth-child(3) {
+    width: 26%;
+}
+
+.documents-recent-table th:nth-child(4),
+.documents-recent-table td:nth-child(4) {
+    width: 160px;
+}
+
+.documents-recent-table th:nth-child(5),
+.documents-recent-table td:nth-child(5) {
+    width: 86px;
+    text-align: center;
+}
+
+.documents-recent-table th:nth-child(6),
+.documents-recent-table td:nth-child(6),
+.documents-recent-table th:nth-child(7),
+.documents-recent-table td:nth-child(7) {
+    width: 130px;
+}
+
+.documents-recent-table th:nth-child(8),
+.documents-recent-table td:nth-child(8) {
+    width: 120px;
+}
+
+.documents-recent-table th:nth-child(9),
+.documents-recent-table td:nth-child(9) {
+    width: 160px;
+}
+
+.documents-recent-table th:nth-child(10),
+.documents-recent-table td:nth-child(10) {
+    width: 154px;
+}
+
+.documents-recent-table .documents-row-actions {
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.documents-recent-table .documents-row-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+}
+
 .document-status-success {
     color: #15803d;
     background: #dcfce7;
@@ -1427,6 +1499,19 @@ body {
     }
 
     .documents-list-table .documents-row-actions {
+        justify-content: flex-start;
+    }
+
+    .documents-recent-table {
+        min-width: 0;
+    }
+
+    .documents-recent-table th,
+    .documents-recent-table td {
+        text-align: left !important;
+    }
+
+    .documents-recent-table .documents-row-actions {
         justify-content: flex-start;
     }
 }

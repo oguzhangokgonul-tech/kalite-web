@@ -9,8 +9,9 @@
 
 {% macro document_file_badge(document) %}
   {% set meta = document_file_meta(document) %}
-  <span class="document-file-type document-file-icon-only document-file-type-{{ meta.tone }}" title="{{ meta.label }}" aria-label="{{ meta.label }}">
+  <span class="documents-file-tile document-file-type-{{ meta.tone }}" title="{{ meta.label }}" aria-label="{{ meta.label }}">
     <i class="bi bi-{{ meta.icon }}"></i>
+    <small>{{ meta.label }}</small>
   </span>
 {% endmacro %}
 
@@ -92,7 +93,7 @@
       </a>
     {% endcall %}
     <div class="table-responsive">
-      <table class="table documents-table align-middle mb-0">
+      <table class="table documents-table documents-recent-table align-middle mb-0">
         <thead>
           <tr>
             <th>Tip</th>
@@ -119,12 +120,22 @@
                   <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.title }}</a>
                 {% endif %}
               </td>
-              <td data-label="Kategori">{{ document.category.display_name }}</td>
-              <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
-              <td data-label="Yayın Tarihi">{{ format_date(document.publish_date) }}</td>
-              <td data-label="Son Revizyon">{{ format_date(document.revision_date) }}</td>
+              <td data-label="Kategori">
+                <span class="documents-category-pill">
+                  <i class="bi bi-circle-fill"></i>
+                  {{ document.category.display_name }}
+                </span>
+              </td>
+              <td data-label="Revizyon"><span class="documents-revision-pill">{{ document.revision_no or "-" }}</span></td>
+              <td data-label="Yayın Tarihi"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.publish_date) }}</span></td>
+              <td data-label="Son Revizyon"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.revision_date) }}</span></td>
               <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
-              <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
+              <td data-label="Yükleyen">
+                <span class="documents-uploader-cell">
+                  <span>{{ (document.uploader.full_name if document.uploader else "VP")[:2]|upper }}</span>
+                  <strong>{{ document.uploader.full_name if document.uploader else "-" }}</strong>
+                </span>
+              </td>
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
                   {% if document_can_preview(document) %}
