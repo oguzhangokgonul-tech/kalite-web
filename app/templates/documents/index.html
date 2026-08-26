@@ -67,9 +67,9 @@
 
   <section class="documents-section">
     <h3>Doküman Kategorileri</h3>
-    <div class="documents-category-grid">
+    <div class="documents-category-grid documents-category-flow">
       {% for card in category_cards %}
-        <a class="documents-category-card documents-category-{{ card.category.color or 'blue' }}" href="{{ url_for('main.documents_category', slug=card.category.slug) }}">
+        <a class="documents-category-card documents-category-flow-card documents-category-{{ card.category.color or 'blue' }}" href="{{ url_for('main.documents_category', slug=card.category.slug) }}" style="--flow-step: '{{ '%02d'|format(loop.index) }}';">
           <span class="documents-category-icon">
             <i class="bi bi-{{ card.category.icon or 'folder' }}"></i>
           </span>

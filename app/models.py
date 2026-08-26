@@ -282,7 +282,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "kalite-el-kitabi",
         "sort_order": 1,
         "color": "blue",
-        "icon": "folder",
+        "icon": "book",
     },
     {
         "code": "02",
@@ -290,7 +290,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "prosesler",
         "sort_order": 2,
         "color": "green",
-        "icon": "folder",
+        "icon": "diagram-3",
     },
     {
         "code": "03",
@@ -298,7 +298,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "prosedurler",
         "sort_order": 3,
         "color": "orange",
-        "icon": "folder",
+        "icon": "file-earmark-text",
     },
     {
         "code": "04",
@@ -306,7 +306,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "talimatlar",
         "sort_order": 4,
         "color": "red",
-        "icon": "folder",
+        "icon": "clipboard-check",
     },
     {
         "code": "05",
@@ -314,7 +314,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "formlar",
         "sort_order": 5,
         "color": "purple",
-        "icon": "file-earmark-text",
+        "icon": "file-earmark-ruled",
     },
     {
         "code": "06",
@@ -322,7 +322,7 @@ DOCUMENT_CATEGORY_DEFAULTS = (
         "slug": "listeler",
         "sort_order": 6,
         "color": "cyan",
-        "icon": "file-earmark-spreadsheet",
+        "icon": "list-check",
     },
     {
         "code": "07",
