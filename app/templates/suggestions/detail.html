@@ -50,6 +50,7 @@
             </div>
           </div>
 
+          {% if can_evaluate_current_suggestion %}
           <form class="suggestion-evaluation-form-v2" method="post" action="{{ url_for('main.evaluate_suggestion', suggestion_id=suggestion.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="suggestion-evaluator-note">
@@ -93,6 +94,13 @@
               </button>
             </div>
           </form>
+          {% else %}
+            <div class="suggestion-evaluation-locked">
+              <i class="bi bi-lock"></i>
+              <strong>Değerlendirme şu anda sizin için açık değil.</strong>
+              <span>Öneri yönetim temsilcisi onayından sonra, yetkili değerlendiriciler tarafından puanlanabilir.</span>
+            </div>
+          {% endif %}
         </section>
       </main>
 

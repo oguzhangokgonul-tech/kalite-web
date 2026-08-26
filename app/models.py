@@ -224,7 +224,9 @@ QUALITY_TEST_PREFIXES = {
     "demir-cekme-deneyi": "DEM",
 }
 SUGGESTION_STATUSES = (
+    "Yönetim Temsilcisi Onayı Bekleniyor",
     "Değerlendirmede",
+    "Değerlendirme Tamamlandı",
     "Kabul Edildi",
     "Aksiyon Açıldı",
     "Reddedildi",

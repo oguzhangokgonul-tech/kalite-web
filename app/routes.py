@@ -1375,10 +1375,12 @@ MODULE_ENDPOINTS = {
     "main.edit_suggestion": "suggestions",
     "main.suggestion_detail": "suggestions",
     "main.evaluate_suggestion": "suggestions",
+    "main.approve_suggestion": "suggestions",
     "main.delete_suggestion": "suggestions",
     "main.download_suggestion_attachment": "suggestions",
     "main.suggestion_parameters": "suggestions",
     "main.delete_suggestion_parameter": "suggestions",
+    "main.suggestion_evaluators": "suggestions",
     "main.complaints_dashboard": "suggestions",
     "main.dof_management": "if_management",
     "main.create_dof": "if_management",
@@ -7352,10 +7354,62 @@ def can_manage_suggestion_parameters():
     )
 
 
-def suggestion_query():
-    return scoped_query(Suggestion.query, Suggestion).order_by(
-        Suggestion.created_at.desc(),
+SUGGESTION_EVALUATE_PERMISSION = "suggestions.evaluate"
+SUGGESTION_PENDING_APPROVAL_STATUS = "Yönetim Temsilcisi Onayı Bekleniyor"
+SUGGESTION_IN_EVALUATION_STATUS = "Değerlendirmede"
+SUGGESTION_COMPLETED_STATUS = "Değerlendirme Tamamlandı"
+
+
+def can_manage_suggestion_evaluators():
+    return getattr(g, "current_user_is_super_admin", False) or is_management_representative()
+
+
+def suggestion_evaluator_users():
+    return [
+        user
+        for user in active_users()
+        if has_permission(user, SUGGESTION_EVALUATE_PERMISSION)
+    ]
+
+
+def can_evaluate_suggestion(suggestion):
+    if suggestion.status != SUGGESTION_IN_EVALUATION_STATUS:
+        return False
+    return (
+        getattr(g, "current_user_is_super_admin", False)
+        or is_management_representative()
+        or current_user_can(SUGGESTION_EVALUATE_PERMISSION)
     )
+
+
+def suggestion_user_completed_evaluation(suggestion, user_id):
+    return any(evaluation.evaluator_user_id == user_id for evaluation in suggestion.evaluations)
+
+
+def refresh_suggestion_evaluation_status(suggestion):
+    if suggestion.status not in {SUGGESTION_IN_EVALUATION_STATUS, SUGGESTION_COMPLETED_STATUS}:
+        return
+    required_users = suggestion_evaluator_users()
+    if not required_users:
+        suggestion.status = SUGGESTION_IN_EVALUATION_STATUS
+        return
+    completed_user_ids = {
+        evaluation.evaluator_user_id
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_user_id
+    }
+    required_user_ids = {user.id for user in required_users}
+    if required_user_ids.issubset(completed_user_ids):
+        suggestion.status = SUGGESTION_COMPLETED_STATUS
+    else:
+        suggestion.status = SUGGESTION_IN_EVALUATION_STATUS
+
+
+def suggestion_query():
+    query = scoped_query(Suggestion.query, Suggestion)
+    if not can_manage_suggestion_evaluators():
+        query = query.filter(Suggestion.status != SUGGESTION_PENDING_APPROVAL_STATUS)
+    return query.order_by(Suggestion.created_at.desc())
 
 
 def suggestion_parameter_query(include_inactive=False):
@@ -7445,7 +7499,7 @@ def parse_suggestion_form(include_defaults=True):
         data.update(
             {
                 "evaluation_month": None,
-                "status": "Değerlendirmede",
+                "status": SUGGESTION_PENDING_APPROVAL_STATUS,
                 "unit_comment": None,
                 "action_responsible": None,
                 "action_status": None,
@@ -7576,6 +7630,10 @@ def suggestion_form_context(suggestion=None):
 @login_required
 def suggestions_dashboard():
     ensure_default_suggestion_parameters()
+    for suggestion in scoped_query(Suggestion.query, Suggestion).filter(
+        Suggestion.status.in_([SUGGESTION_IN_EVALUATION_STATUS, SUGGESTION_COMPLETED_STATUS])
+    ):
+        refresh_suggestion_evaluation_status(suggestion)
     db.session.commit()
     suggestions = suggestion_query().all()
     total_score = sum(item.total_score for item in suggestions)
@@ -7584,6 +7642,9 @@ def suggestions_dashboard():
         suggestions=suggestions,
         total_score=total_score,
         can_manage_parameters=can_manage_suggestion_parameters(),
+        can_manage_evaluators=can_manage_suggestion_evaluators(),
+        can_evaluate_suggestion=can_evaluate_suggestion,
+        can_approve_suggestions=can_manage_suggestion_evaluators(),
         format_date=format_date,
     )
 
@@ -7658,6 +7719,7 @@ def suggestion_detail(suggestion_id):
         evaluation_summary=suggestion_evaluation_summary(suggestion),
         current_user_evaluations=current_user_evaluations,
         current_user_comment=current_user_comment,
+        can_evaluate_current_suggestion=can_evaluate_suggestion(suggestion),
         format_date=format_date,
     )
 
@@ -7668,8 +7730,11 @@ def evaluate_suggestion(suggestion_id):
     ensure_default_suggestion_parameters()
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    if not can_evaluate_suggestion(suggestion):
+        abort(403)
     try:
         save_suggestion_evaluation(suggestion)
+        refresh_suggestion_evaluation_status(suggestion)
         db.session.commit()
         flash("Öneri değerlendirmesi kaydedildi.", "success")
     except ValueError as error:
@@ -7684,6 +7749,21 @@ def evaluate_suggestion(suggestion_id):
         else:
             flash("Puanlar 1 ile 10 arasında olmalıdır.", "danger")
     return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
+
+
+@bp.post("/oneri-sikayet/oneri/<int:suggestion_id>/onayla")
+@login_required
+def approve_suggestion(suggestion_id):
+    if not can_manage_suggestion_evaluators():
+        abort(403)
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    if suggestion.status == SUGGESTION_PENDING_APPROVAL_STATUS:
+        suggestion.status = SUGGESTION_IN_EVALUATION_STATUS
+        refresh_suggestion_evaluation_status(suggestion)
+        db.session.commit()
+        flash("Öneri değerlendirmeye açıldı.", "success")
+    return redirect(url_for("main.suggestions_dashboard"))
 
 
 @bp.route("/oneri-sikayet/oneri/<int:suggestion_id>/duzenle", methods=["GET", "POST"])
@@ -7723,6 +7803,52 @@ def edit_suggestion(suggestion_id):
         form_action=url_for("main.edit_suggestion", suggestion_id=suggestion.id),
         submit_label="Değişiklikleri Kaydet",
         **suggestion_form_context(suggestion),
+    )
+
+
+@bp.route("/oneri-sikayet/oneri/yetkililer", methods=["GET", "POST"])
+@login_required
+def suggestion_evaluators():
+    if not can_manage_suggestion_evaluators():
+        abort(403)
+    users = active_users()
+    if request.method == "POST":
+        selected_user_ids = {
+            int(user_id)
+            for user_id in request.form.getlist("evaluator_user_ids")
+            if user_id.isdigit()
+        }
+        for user in users:
+            existing_permissions = {
+                permission.permission_key: permission
+                for permission in user.extra_permissions
+            }
+            is_selected = user.id in selected_user_ids
+            has_existing = SUGGESTION_EVALUATE_PERMISSION in existing_permissions
+            if is_selected and not has_existing:
+                user.extra_permissions.append(
+                    UserPermission(permission_key=SUGGESTION_EVALUATE_PERMISSION)
+                )
+            elif not is_selected and has_existing:
+                user.extra_permissions.remove(existing_permissions[SUGGESTION_EVALUATE_PERMISSION])
+
+        for suggestion in scoped_query(Suggestion.query, Suggestion).filter(
+            Suggestion.status.in_([SUGGESTION_IN_EVALUATION_STATUS, SUGGESTION_COMPLETED_STATUS])
+        ):
+            refresh_suggestion_evaluation_status(suggestion)
+        db.session.commit()
+        flash("Öneri değerlendirme yetkilileri güncellendi.", "success")
+        return redirect(url_for("main.suggestion_evaluators"))
+
+    selected_user_ids = {
+        user.id
+        for user in users
+        if has_permission(user, SUGGESTION_EVALUATE_PERMISSION)
+    }
+    return render_template(
+        "suggestions/evaluators.html",
+        users=users,
+        selected_user_ids=selected_user_ids,
     )
 
 

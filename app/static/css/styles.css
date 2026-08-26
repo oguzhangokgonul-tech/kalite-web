@@ -10905,6 +10905,98 @@ textarea.form-control::placeholder {
     white-space: nowrap;
 }
 
+.suggestion-evaluation-locked {
+    align-items: center;
+    background: rgba(248, 251, 255, 0.86);
+    border: 1px dashed #bfdbfe;
+    border-radius: 18px;
+    color: #435779;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+    margin: 24px 0 0 34px;
+    min-height: 180px;
+    padding: 28px;
+    position: relative;
+    text-align: center;
+    z-index: 1;
+}
+
+.suggestion-evaluation-locked i {
+    align-items: center;
+    background: #eff6ff;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    color: #0d6efd;
+    display: inline-flex;
+    font-size: 1.5rem;
+    height: 54px;
+    justify-content: center;
+    width: 54px;
+}
+
+.suggestion-evaluation-locked strong {
+    color: #07163a;
+    font-size: 1rem;
+}
+
+.suggestion-evaluation-locked span {
+    max-width: 520px;
+}
+
+.suggestion-evaluator-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.suggestion-evaluator-option {
+    align-items: center;
+    background: #f8fbff;
+    border: 1px solid #dbe7f6;
+    border-radius: 14px;
+    cursor: pointer;
+    display: grid;
+    gap: 12px;
+    grid-template-columns: auto 42px minmax(0, 1fr);
+    padding: 12px;
+}
+
+.suggestion-evaluator-option:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+}
+
+.suggestion-evaluator-avatar {
+    align-items: center;
+    background: linear-gradient(145deg, #0d6efd, #22d3ee);
+    border-radius: 50%;
+    color: #fff;
+    display: inline-flex;
+    font-size: 0.95rem;
+    font-weight: 700;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+}
+
+.suggestion-evaluator-option strong,
+.suggestion-evaluator-option small {
+    display: block;
+}
+
+.suggestion-evaluator-option strong {
+    color: #10233f;
+    font-size: 0.93rem;
+    font-weight: 650;
+}
+
+.suggestion-evaluator-option small {
+    color: #66768d;
+    font-size: 0.8rem;
+    margin-top: 2px;
+}
+
 .suggestion-file-card,
 .suggestion-empty-upload-card {
     align-items: center;
@@ -10957,7 +11049,8 @@ textarea.form-control::placeholder {
 
     .suggestion-card-heading,
     .suggestion-definition-text,
-    .suggestion-evaluation-form-v2 {
+    .suggestion-evaluation-form-v2,
+    .suggestion-evaluation-locked {
         margin-left: 0;
     }
 

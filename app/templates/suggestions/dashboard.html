@@ -12,6 +12,12 @@
           <span>Parametreler</span>
         </a>
       {% endif %}
+      {% if can_manage_evaluators %}
+        <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.suggestion_evaluators') }}">
+          <i class="bi bi-person-check"></i>
+          <span>Yetkililer</span>
+        </a>
+      {% endif %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_suggestion') }}">
         <i class="bi bi-plus-lg"></i>
         <span>Yeni Öneri</span>
@@ -71,14 +77,20 @@
               </td>
               <td data-label="İşlemler">
                 <div class="dashboard-row-actions">
-                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}">
-                    <i class="bi bi-eye"></i>
-                    <span>Detay</span>
-                  </a>
-                  <a class="btn btn-sm btn-success" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}#degerlendirme">
-                    <i class="bi bi-clipboard-check"></i>
-                    <span>Değerlendir</span>
-                  </a>
+                  {% if suggestion.status == "Yönetim Temsilcisi Onayı Bekleniyor" and can_approve_suggestions %}
+                    <form action="{{ url_for('main.approve_suggestion', suggestion_id=suggestion.id) }}" method="post">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-success" type="submit">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Onayla</span>
+                      </button>
+                    </form>
+                  {% elif can_evaluate_suggestion(suggestion) %}
+                    <a class="btn btn-sm btn-success" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}#degerlendirme">
+                      <i class="bi bi-clipboard-check"></i>
+                      <span>Değerlendir</span>
+                    </a>
+                  {% endif %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
                     <i class="bi bi-pencil-square"></i>
                     <span>Düzenle</span>

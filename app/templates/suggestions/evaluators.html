@@ -1,0 +1,51 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Öneri Yetkilileri{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Öneri Yetkilileri", "Öneri değerlendirmesi yapacak personelleri seçin.", icon="bi-person-check") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Öneri Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="maintenance-form-card" method="post" action="{{ url_for('main.suggestion_evaluators') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="maintenance-form-heading">
+      <span class="app-card-icon maintenance-card-icon"><i class="bi bi-people"></i></span>
+      <div>
+        <h3>Değerlendirme Yetkilileri</h3>
+        <p>İşaretlenen tüm personeller değerlendirme yapmadan önerinin durumu tamamlandıya dönmez.</p>
+      </div>
+    </div>
+
+    <div class="suggestion-evaluator-grid">
+      {% for user in users %}
+        <label class="suggestion-evaluator-option">
+          <input
+            class="form-check-input"
+            type="checkbox"
+            name="evaluator_user_ids"
+            value="{{ user.id }}"
+            {% if user.id in selected_user_ids %}checked{% endif %}
+          >
+          <span class="suggestion-evaluator-avatar">{{ user.full_name[:1] }}</span>
+          <span>
+            <strong>{{ user.full_name }}</strong>
+            <small>{{ user.title or user.username }}</small>
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <div class="maintenance-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.suggestions_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-success" type="submit">
+        <i class="bi bi-check2-circle"></i>
+        <span>Yetkilileri Kaydet</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}
