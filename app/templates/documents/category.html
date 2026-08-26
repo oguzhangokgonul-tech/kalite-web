@@ -9,9 +9,8 @@
 
 {% macro document_file_badge(document) %}
   {% set meta = document_file_meta(document) %}
-  <span class="document-file-type document-file-type-{{ meta.tone }}">
+  <span class="document-file-type document-file-icon-only document-file-type-{{ meta.tone }}" title="{{ meta.label }}" aria-label="{{ meta.label }}">
     <i class="bi bi-{{ meta.icon }}"></i>
-    <span>{{ meta.label }}</span>
   </span>
 {% endmacro %}
 

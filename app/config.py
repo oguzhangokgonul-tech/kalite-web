@@ -20,7 +20,7 @@ if IS_PRODUCTION and not SECRET_KEY:
 class Config:
     APP_ENV = APP_ENV
     SITE_NAME = os.environ.get("SITE_NAME", "VolkaPortal")
-    ASSET_VERSION = os.environ.get("ASSET_VERSION", "20260826-suggestion-evaluator-summary")
+    ASSET_VERSION = os.environ.get("ASSET_VERSION", "20260826-document-type-icons")
     SECRET_KEY = SECRET_KEY or "dev-only-change-me"
     DATA_DIR = str(DATA_DIR)
     SQLALCHEMY_DATABASE_URI = os.environ.get(
