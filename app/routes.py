@@ -7495,10 +7495,10 @@ def apply_suggestion_scores(suggestion):
 
 
 def save_suggestion_evaluation(suggestion):
-    evaluator_department = request.form.get("evaluator_department", "").strip()
+    evaluator_label = (g.current_user.full_name or g.current_user.username or "").strip()
     comment = request.form.get("evaluation_comment", "").strip()
-    if not evaluator_department or evaluator_department not in DEPARTMENTS:
-        raise ValueError("invalid_department")
+    if not evaluator_label:
+        raise ValueError("missing_evaluator")
 
     parameters = suggestion_parameter_query().all()
     parameter_by_id = {parameter.id: parameter for parameter in parameters}
@@ -7521,14 +7521,14 @@ def save_suggestion_evaluation(suggestion):
             SuggestionEvaluation.query.filter_by(
                 suggestion_id=suggestion.id,
                 parameter_id=parameter.id,
-                evaluator_department=evaluator_department,
+                evaluator_department=evaluator_label,
             ).first()
         )
         if evaluation is None:
             evaluation = SuggestionEvaluation(
                 suggestion=suggestion,
                 parameter_id=parameter.id,
-                evaluator_department=evaluator_department,
+                evaluator_department=evaluator_label,
             )
             assign_current_company(evaluation)
             db.session.add(evaluation)
@@ -7641,7 +7641,6 @@ def suggestion_detail(suggestion_id):
     return render_template(
         "suggestions/detail.html",
         suggestion=suggestion,
-        departments=DEPARTMENTS,
         parameters=suggestion_parameter_query().all(),
         evaluation_summary=suggestion_evaluation_summary(suggestion),
         format_date=format_date,
@@ -7661,8 +7660,8 @@ def evaluate_suggestion(suggestion_id):
     except ValueError as error:
         db.session.rollback()
         error_key = str(error)
-        if error_key == "invalid_department":
-            flash("Değerlendirme için geçerli bir departman seçin.", "danger")
+        if error_key == "missing_evaluator":
+            flash("Degerlendiren kullanici bilgisi bulunamadi.", "danger")
         elif error_key == "missing_parameters":
             flash("Aktif puanlama parametresi bulunamadı.", "danger")
         elif error_key == "missing_rating":

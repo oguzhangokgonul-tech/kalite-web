@@ -75,6 +75,10 @@
                     <i class="bi bi-eye"></i>
                     <span>Detay</span>
                   </a>
+                  <a class="btn btn-sm btn-success" href="{{ url_for('main.suggestion_detail', suggestion_id=suggestion.id) }}#degerlendirme">
+                    <i class="bi bi-clipboard-check"></i>
+                    <span>Değerlendir</span>
+                  </a>
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
                     <i class="bi bi-pencil-square"></i>
                     <span>Düzenle</span>

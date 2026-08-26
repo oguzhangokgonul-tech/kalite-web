@@ -45,19 +45,12 @@
 
       <hr>
 
-      {{ ui.card_header("Departman Değerlendirmesi", "Her parametre için 1-10 arası puan verilir; verilen puan parametre çarpanıyla çarpılır.", icon="bi-clipboard-data") }}
-      <form class="suggestion-evaluation-form" method="post" action="{{ url_for('main.evaluate_suggestion', suggestion_id=suggestion.id) }}">
+      {{ ui.card_header("Öneri Değerlendirmesi", "Her parametre için 1-10 arası puan verilir; verilen puan parametre çarpanıyla çarpılır.", icon="bi-clipboard-data") }}
+      <form id="degerlendirme" class="suggestion-evaluation-form" method="post" action="{{ url_for('main.evaluate_suggestion', suggestion_id=suggestion.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="maintenance-form-grid">
-          <div class="grid-span-2">
-            <label class="form-label" for="evaluator_department">Değerlendiren Departman</label>
-            <select class="form-select" id="evaluator_department" name="evaluator_department" required>
-              <option value="">Departman seçin</option>
-              {% for department in departments %}
-                <option value="{{ department }}">{{ department }}</option>
-              {% endfor %}
-            </select>
-          </div>
+        <div class="suggestion-evaluator-note">
+          <i class="bi bi-person-check"></i>
+          <span>Değerlendiren: <strong>{{ g.current_user.full_name }}</strong></span>
         </div>
 
         <div class="suggestion-rating-grid">
