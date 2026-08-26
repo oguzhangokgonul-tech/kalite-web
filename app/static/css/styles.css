@@ -10523,6 +10523,435 @@ textarea.form-control::placeholder {
     font-weight: 650;
 }
 
+.suggestion-detail-page {
+    display: grid;
+    gap: 18px;
+}
+
+.suggestion-hero-card,
+.suggestion-definition-card,
+.suggestion-evaluation-card,
+.suggestion-side-card {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 88% 12%, rgba(14, 165, 233, 0.12), transparent 24%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.94));
+    border: 1px solid rgba(191, 219, 254, 0.85);
+    border-radius: 20px;
+    box-shadow: 0 16px 42px rgba(15, 23, 42, 0.08);
+}
+
+.suggestion-hero-card {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    min-height: 118px;
+    padding: 24px 28px;
+}
+
+.suggestion-hero-card::after,
+.suggestion-definition-card::after,
+.suggestion-evaluation-card::after,
+.suggestion-side-card::after {
+    background-image:
+        linear-gradient(90deg, rgba(34, 211, 238, 0.25) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(37, 99, 235, 0.14) 1px, transparent 1px);
+    background-size: 42px 42px;
+    content: "";
+    inset: 0;
+    opacity: 0.18;
+    pointer-events: none;
+    position: absolute;
+}
+
+.suggestion-hero-main,
+.suggestion-hero-actions,
+.suggestion-card-heading,
+.suggestion-side-title {
+    align-items: center;
+    display: flex;
+    gap: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.suggestion-hero-icon {
+    align-items: center;
+    background: linear-gradient(145deg, #eff6ff, #ffffff);
+    border: 1px solid #dbeafe;
+    border-radius: 18px;
+    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.18);
+    color: #0d6efd;
+    display: inline-flex;
+    font-size: 1.55rem;
+    height: 64px;
+    justify-content: center;
+    width: 64px;
+}
+
+.suggestion-hero-title-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.suggestion-hero-title-row h2 {
+    color: #07163a;
+    font-size: clamp(1.6rem, 2.1vw, 2.4rem);
+    font-weight: 760;
+    letter-spacing: 0;
+    margin: 0;
+}
+
+.suggestion-hero-main p,
+.suggestion-card-heading p,
+.suggestion-side-card p {
+    color: #587096;
+    margin: 0;
+}
+
+.suggestion-detail-layout-v2 {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+}
+
+.suggestion-detail-main-v2 {
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+}
+
+.suggestion-definition-card,
+.suggestion-evaluation-card,
+.suggestion-side-card {
+    padding: 24px;
+}
+
+.suggestion-card-accent {
+    background: linear-gradient(180deg, #0d6efd, #22d3ee);
+    border-radius: 999px;
+    bottom: 22px;
+    left: 22px;
+    position: absolute;
+    top: 22px;
+    width: 5px;
+}
+
+.suggestion-card-icon {
+    align-items: center;
+    background: #eef6ff;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+    color: #0d6efd;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 1.18rem;
+    height: 48px;
+    justify-content: center;
+    width: 48px;
+}
+
+.suggestion-card-heading {
+    margin-left: 34px;
+}
+
+.suggestion-card-heading h3,
+.suggestion-side-title h3 {
+    color: #07163a;
+    font-size: 1.14rem;
+    font-weight: 720;
+    margin: 0;
+}
+
+.suggestion-definition-text {
+    color: #203452;
+    font-size: 0.98rem;
+    line-height: 1.7;
+    margin: 18px 0 0 34px;
+    position: relative;
+    z-index: 1;
+}
+
+.suggestion-evaluation-card {
+    min-height: 520px;
+}
+
+.suggestion-evaluation-bg {
+    align-items: center;
+    background: linear-gradient(145deg, rgba(37, 99, 235, 0.14), rgba(34, 211, 238, 0.12));
+    border: 1px solid rgba(147, 197, 253, 0.42);
+    border-radius: 28px;
+    color: rgba(13, 110, 253, 0.28);
+    display: flex;
+    font-size: 4.8rem;
+    height: 132px;
+    justify-content: center;
+    position: absolute;
+    right: 70px;
+    top: 46px;
+    transform: rotate(-8deg);
+    width: 132px;
+}
+
+.suggestion-evaluation-form-v2 {
+    display: grid;
+    gap: 16px;
+    margin-left: 34px;
+    margin-top: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.suggestion-rating-grid-v2 {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.suggestion-rating-card {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid #dbe7f6;
+    border-radius: 16px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 14px;
+}
+
+.suggestion-rating-card .form-select {
+    grid-column: 1 / -1;
+    min-height: 38px;
+}
+
+.suggestion-rating-icon {
+    align-items: center;
+    background: linear-gradient(145deg, #eff6ff, #ffffff);
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    color: #0d6efd;
+    display: inline-flex;
+    height: 42px;
+    justify-content: center;
+    width: 42px;
+}
+
+.suggestion-rating-copy {
+    min-width: 0;
+}
+
+.suggestion-rating-copy strong,
+.suggestion-rating-copy span {
+    display: block;
+}
+
+.suggestion-rating-copy strong {
+    color: #07163a;
+    font-size: 0.9rem;
+    font-weight: 680;
+    line-height: 1.25;
+}
+
+.suggestion-rating-copy span {
+    color: #4b6390;
+    font-size: 0.8rem;
+    margin-top: 7px;
+}
+
+.suggestion-comment-card {
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid #dbe7f6;
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.suggestion-comment-label {
+    align-items: center;
+    color: #07163a;
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.suggestion-comment-label .suggestion-rating-icon {
+    height: 36px;
+    width: 36px;
+}
+
+.suggestion-char-note {
+    color: #64748b;
+    display: block;
+    font-size: 0.78rem;
+    margin-top: 8px;
+    text-align: right;
+}
+
+.suggestion-submit-row {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.suggestion-submit-row .btn {
+    min-width: 260px;
+    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.24);
+}
+
+.suggestion-detail-side-v2 {
+    display: grid;
+    gap: 18px;
+    align-content: start;
+}
+
+.suggestion-side-title {
+    margin-bottom: 18px;
+}
+
+.suggestion-side-title.has-arrow {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+}
+
+.suggestion-side-title.has-arrow > .bi-chevron-right {
+    color: #2563eb;
+}
+
+.suggestion-score-ring {
+    align-items: center;
+    background:
+        radial-gradient(circle, #ffffff 54%, transparent 56%),
+        conic-gradient(#0d6efd var(--score-angle), #bfdbfe 0);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    height: 168px;
+    justify-content: center;
+    margin: 8px auto 18px;
+    position: relative;
+    width: 168px;
+    z-index: 1;
+}
+
+.suggestion-score-ring strong {
+    color: #07163a;
+    font-size: 2rem;
+    font-weight: 760;
+}
+
+.suggestion-score-ring span {
+    color: #435779;
+    font-size: 0.82rem;
+    font-weight: 650;
+}
+
+.suggestion-score-list-v2,
+.suggestion-evaluation-list-v2 {
+    display: grid;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.suggestion-score-list-v2 > div,
+.suggestion-evaluation-list-v2 > div {
+    background: rgba(248, 251, 255, 0.9);
+    border: 1px solid #dbe7f6;
+    border-radius: 14px;
+    padding: 12px;
+}
+
+.suggestion-score-list-v2 > div {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+}
+
+.suggestion-score-list-v2 span,
+.suggestion-evaluation-list-v2 span,
+.suggestion-evaluation-list-v2 small {
+    color: #587096;
+    font-size: 0.82rem;
+}
+
+.suggestion-score-list-v2 strong,
+.suggestion-evaluation-list-v2 strong {
+    color: #07163a;
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.suggestion-file-card,
+.suggestion-empty-upload-card {
+    align-items: center;
+    background: rgba(248, 251, 255, 0.88);
+    border: 1px dashed #bcd4f6;
+    border-radius: 18px;
+    color: #0d6efd;
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+    min-height: 150px;
+    padding: 20px;
+    position: relative;
+    text-align: center;
+    text-decoration: none;
+    z-index: 1;
+}
+
+.suggestion-file-card i,
+.suggestion-empty-upload-card i {
+    font-size: 2rem;
+}
+
+.suggestion-file-card span,
+.suggestion-empty-upload-card strong {
+    color: #0d6efd;
+    font-weight: 700;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.suggestion-file-card small,
+.suggestion-empty-upload-card span {
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+@media (max-width: 1180px) {
+    .suggestion-detail-layout-v2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .suggestion-hero-card,
+    .suggestion-hero-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .suggestion-card-heading,
+    .suggestion-definition-text,
+    .suggestion-evaluation-form-v2 {
+        margin-left: 0;
+    }
+
+    .suggestion-card-accent,
+    .suggestion-evaluation-bg {
+        display: none;
+    }
+
+    .suggestion-submit-row .btn {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
 @media (max-width: 640px) {
     .grid-span-2 {
         grid-column: span 1;

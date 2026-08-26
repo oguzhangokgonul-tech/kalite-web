@@ -7638,11 +7638,26 @@ def suggestion_detail(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
     ensure_default_suggestion_parameters()
+    current_user_evaluations = {
+        evaluation.parameter_id: evaluation
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_user_id == g.current_user.id
+    }
+    current_user_comment = next(
+        (
+            evaluation.comment
+            for evaluation in current_user_evaluations.values()
+            if evaluation.comment
+        ),
+        "",
+    )
     return render_template(
         "suggestions/detail.html",
         suggestion=suggestion,
         parameters=suggestion_parameter_query().all(),
         evaluation_summary=suggestion_evaluation_summary(suggestion),
+        current_user_evaluations=current_user_evaluations,
+        current_user_comment=current_user_comment,
         format_date=format_date,
     )
 
