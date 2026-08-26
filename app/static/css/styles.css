@@ -10885,6 +10885,26 @@ textarea.form-control::placeholder {
     font-weight: 700;
 }
 
+.suggestion-score-list-done > div {
+    align-items: center;
+    display: grid;
+    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.suggestion-score-list-done strong {
+    align-items: center;
+    background: #dcfae6;
+    border: 1px solid #abefc6;
+    border-radius: 999px;
+    color: #067647;
+    display: inline-flex;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 5px 9px;
+    white-space: nowrap;
+}
+
 .suggestion-file-card,
 .suggestion-empty-upload-card {
     align-items: center;

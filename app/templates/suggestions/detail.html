@@ -13,30 +13,28 @@
             <h2>{{ suggestion.number_label }}</h2>
             {{ ui.status_badge(suggestion.status) }}
           </div>
-          <p>?neri de?erlendirme kayd? detay?.</p>
         </div>
       </div>
       <div class="suggestion-hero-actions">
         <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
           <i class="bi bi-arrow-left"></i>
-          <span>?neri Y?netimi</span>
+          <span>Öneri Yönetimi</span>
         </a>
         <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
           <i class="bi bi-pencil-square"></i>
-          <span>D?zenle</span>
+          <span>Düzenle</span>
         </a>
       </div>
     </section>
 
-    <div class="suggestion-detail-layout-v2">
+    <div class="suggestion-detail-layout-v2 suggestion-detail-layout-compact">
       <main class="suggestion-detail-main-v2">
         <section class="suggestion-definition-card">
           <div class="suggestion-card-accent"></div>
           <div class="suggestion-card-heading">
             <span class="suggestion-card-icon"><i class="bi bi-chat-left-text"></i></span>
             <div>
-              <h3>?neri Tan?m?</h3>
-              <p>FRM.32 formundaki ?neri a??klamas?.</p>
+              <h3>Öneri Tanımı</h3>
             </div>
           </div>
           <p class="suggestion-definition-text">{{ suggestion.definition }}</p>
@@ -48,8 +46,7 @@
           <div class="suggestion-card-heading">
             <span class="suggestion-card-icon"><i class="bi bi-clipboard-data"></i></span>
             <div>
-              <h3>?neri De?erlendirmesi</h3>
-              <p>Her parametre i?in 1-10 aras? puan verilir; verilen puan parametre ?arpan?yla ?arp?l?r.</p>
+              <h3>Öneri Değerlendirmesi</h3>
             </div>
           </div>
 
@@ -57,7 +54,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="suggestion-evaluator-note">
               <i class="bi bi-person-check"></i>
-              <span>De?erlendiren: <strong>{{ g.current_user.full_name }}</strong></span>
+              <span>Değerlendiren: <strong>{{ g.current_user.full_name }}</strong></span>
             </div>
 
             <div class="suggestion-rating-grid-v2">
@@ -68,10 +65,10 @@
                   <span class="suggestion-rating-icon"><i class="bi {{ icons[loop.index0 % icons|length] }}"></i></span>
                   <div class="suggestion-rating-copy">
                     <strong>{{ parameter.name }}</strong>
-                    <span>?arpan: {{ parameter.score }}</span>
+                    <span>Çarpan: {{ parameter.score }}</span>
                   </div>
-                  <select class="form-select" name="rating_{{ parameter.id }}" aria-label="{{ parameter.name }} puan?">
-                    <option value="">Puan se?</option>
+                  <select class="form-select" name="rating_{{ parameter.id }}" aria-label="{{ parameter.name }} puanı">
+                    <option value="">Puan seç</option>
                     {% for rating in range(1, 11) %}
                       <option value="{{ rating }}" {% if existing and existing.rating == rating %}selected{% endif %}>{{ rating }}</option>
                     {% endfor %}
@@ -83,16 +80,16 @@
             <div class="suggestion-comment-card">
               <div class="suggestion-comment-label">
                 <span class="suggestion-rating-icon"><i class="bi bi-chat-square-text"></i></span>
-                <strong>De?erlendirme Yorumu</strong>
+                <strong>Değerlendirme Yorumu</strong>
               </div>
-              <textarea class="form-control" id="evaluation_comment" name="evaluation_comment" rows="4" maxlength="1000" placeholder="?sterseniz de?erlendirme notu ekleyin.">{{ current_user_comment }}</textarea>
+              <textarea class="form-control" id="evaluation_comment" name="evaluation_comment" rows="4" maxlength="1000" placeholder="İsterseniz değerlendirme notu ekleyin.">{{ current_user_comment }}</textarea>
               <span class="suggestion-char-note">Maks. 1000 karakter</span>
             </div>
 
             <div class="suggestion-submit-row">
               <button class="btn btn-success btn-lg" type="submit">
                 <i class="bi bi-check2-circle"></i>
-                <span>De?erlendirmeyi Kaydet</span>
+                <span>Değerlendirmeyi Kaydet</span>
               </button>
             </div>
           </form>
@@ -103,44 +100,23 @@
         <section class="suggestion-side-card suggestion-score-summary-card">
           <div class="suggestion-side-title">
             <span class="suggestion-card-icon"><i class="bi bi-graph-up-arrow"></i></span>
-            <h3>Puan ?zeti</h3>
+            <h3>Puan Özeti</h3>
           </div>
           <div class="suggestion-score-ring" style="--score-angle: {{ 360 if suggestion.total_score > 360 else (suggestion.total_score if suggestion.total_score > 0 else 0) }}deg;">
             <strong>{{ suggestion.total_score if suggestion.total_score else "-" }}</strong>
             <span>Toplam Puan</span>
           </div>
           {% if evaluation_summary %}
-            <div class="suggestion-score-list-v2">
+            <div class="suggestion-score-list-v2 suggestion-score-list-done">
               {% for item in evaluation_summary %}
                 <div>
                   <span>{{ item.department }}</span>
-                  <strong>{{ item.total }}</strong>
+                  <strong>Değerlendirme Yaptı</strong>
                 </div>
               {% endfor %}
             </div>
           {% else %}
-            <p>Hen?z de?erlendirme yap?lmad?.</p>
-          {% endif %}
-        </section>
-
-        <section class="suggestion-side-card">
-          <div class="suggestion-side-title has-arrow">
-            <span class="suggestion-card-icon"><i class="bi bi-list-check"></i></span>
-            <h3>Parametre Detay?</h3>
-            <i class="bi bi-chevron-right"></i>
-          </div>
-          {% if suggestion.evaluations %}
-            <div class="suggestion-evaluation-list-v2">
-              {% for evaluation in suggestion.evaluations %}
-                <div>
-                  <span>{{ evaluation.evaluator_department }}</span>
-                  <strong>{{ evaluation.parameter_name }}</strong>
-                  <small>{{ evaluation.rating }} x {{ evaluation.parameter_multiplier }} = {{ evaluation.weighted_score }}</small>
-                </div>
-              {% endfor %}
-            </div>
-          {% else %}
-            <p>Puanlama detay? olu?mad?.</p>
+            <p>Henüz değerlendirme yapılmadı.</p>
           {% endif %}
         </section>
 
@@ -153,13 +129,13 @@
             <a class="suggestion-file-card" href="{{ url_for('main.download_suggestion_attachment', suggestion_id=suggestion.id) }}">
               <i class="bi bi-file-earmark-arrow-down"></i>
               <span>{{ suggestion.attachment_original_name }}</span>
-              <small>?ndir</small>
+              <small>İndir</small>
             </a>
           {% else %}
             <div class="suggestion-empty-upload-card">
               <i class="bi bi-cloud-upload"></i>
               <strong>Ek dosya yok</strong>
-              <span>Dosya eklemek i?in d?zenle ekran?n? kullanabilirsiniz.</span>
+              <span>Dosya eklemek için düzenle ekranını kullanabilirsiniz.</span>
             </div>
           {% endif %}
         </section>
