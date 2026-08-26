@@ -33,7 +33,7 @@
     </div>
     <div class="maintenance-info-card">
       <span class="maintenance-info-icon"><i class="bi bi-calculator"></i></span>
-      <small>Öneri Puanı</small>
+      <small>Toplam Puan</small>
       <strong>{{ suggestion.total_score }}</strong>
     </div>
   </div>
@@ -42,12 +42,51 @@
     <section class="maintenance-detail-card">
       {{ ui.card_header("Öneri Tanımı", "FRM.32 formundaki öneri açıklaması.", icon="bi-chat-left-text") }}
       <p class="maintenance-detail-text">{{ suggestion.definition }}</p>
+
       <hr>
-      <h3 class="h6">İlgili Birim(lerin) Yorumu</h3>
-      <p class="maintenance-detail-text">{{ suggestion.unit_comment or "Yorum girilmemiş." }}</p>
-      <hr>
-      <h3 class="h6">Detay</h3>
-      <p class="maintenance-detail-text">{{ suggestion.detail or "Detay girilmemiş." }}</p>
+
+      {{ ui.card_header("Departman Değerlendirmesi", "Her parametre için 1-10 arası puan verilir; verilen puan parametre çarpanıyla çarpılır.", icon="bi-clipboard-data") }}
+      <form class="suggestion-evaluation-form" method="post" action="{{ url_for('main.evaluate_suggestion', suggestion_id=suggestion.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="maintenance-form-grid">
+          <div class="grid-span-2">
+            <label class="form-label" for="evaluator_department">Değerlendiren Departman</label>
+            <select class="form-select" id="evaluator_department" name="evaluator_department" required>
+              <option value="">Departman seçin</option>
+              {% for department in departments %}
+                <option value="{{ department }}">{{ department }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="suggestion-rating-grid">
+          {% for parameter in parameters %}
+            <div class="suggestion-rating-item">
+              <div>
+                <strong>{{ parameter.name }}</strong>
+                <span>Çarpan: {{ parameter.score }}</span>
+              </div>
+              <select class="form-select" name="rating_{{ parameter.id }}" aria-label="{{ parameter.name }} puanı">
+                <option value="">Puan seç</option>
+                {% for rating in range(1, 11) %}
+                  <option value="{{ rating }}">{{ rating }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          {% endfor %}
+        </div>
+
+        <label class="form-label mt-3" for="evaluation_comment">Değerlendirme Yorumu</label>
+        <textarea class="form-control" id="evaluation_comment" name="evaluation_comment" rows="3" placeholder="İsterseniz değerlendirme notu ekleyin."></textarea>
+
+        <div class="maintenance-form-actions">
+          <button class="btn btn-success" type="submit">
+            <i class="bi bi-check2-circle"></i>
+            <span>Değerlendirmeyi Kaydet</span>
+          </button>
+        </div>
+      </form>
     </section>
 
     <aside class="maintenance-side-stack">
@@ -55,22 +94,43 @@
         {{ ui.card_header("Durum", None, icon="bi-flag") }}
         {{ ui.status_badge(suggestion.status) }}
         <div class="mt-3 small text-muted">
-          QDMS No: <strong>{{ suggestion.qdms_no or "-" }}</strong><br>
-          Aksiyon Sorumlusu: <strong>{{ suggestion.action_responsible or "-" }}</strong><br>
-          Aksiyon Durumu: <strong>{{ suggestion.action_status or "-" }}</strong>
+          QDMS No: <strong>{{ suggestion.qdms_no or "-" }}</strong>
         </div>
       </section>
+
       <section class="maintenance-form-card">
-        {{ ui.card_header("Puanlama", None, icon="bi-list-check") }}
-        <div class="suggestion-score-list">
-          {% for score in suggestion.scores %}
-            <div class="{% if score.is_selected %}is-selected{% endif %}">
-              <span>{{ score.parameter_name }}</span>
-              <strong>{{ score.score_value }}</strong>
-            </div>
-          {% endfor %}
-        </div>
+        {{ ui.card_header("Puan Özeti", None, icon="bi-bar-chart") }}
+        {% if evaluation_summary %}
+          <div class="suggestion-score-list">
+            {% for item in evaluation_summary %}
+              <div class="is-selected">
+                <span>{{ item.department }}</span>
+                <strong>{{ item.total }}</strong>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Henüz departman değerlendirmesi yapılmadı.</p>
+        {% endif %}
       </section>
+
+      <section class="maintenance-form-card">
+        {{ ui.card_header("Parametre Detayı", None, icon="bi-list-check") }}
+        {% if suggestion.evaluations %}
+          <div class="suggestion-evaluation-list">
+            {% for evaluation in suggestion.evaluations %}
+              <div>
+                <span>{{ evaluation.evaluator_department }}</span>
+                <strong>{{ evaluation.parameter_name }}</strong>
+                <small>{{ evaluation.rating }} x {{ evaluation.parameter_multiplier }} = {{ evaluation.weighted_score }}</small>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Puanlama detayı oluşmadı.</p>
+        {% endif %}
+      </section>
+
       <section class="maintenance-form-card">
         {{ ui.card_header("Ek", None, icon="bi-paperclip") }}
         {% if suggestion.attachment_stored_name %}

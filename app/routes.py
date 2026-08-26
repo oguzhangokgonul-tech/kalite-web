@@ -74,6 +74,7 @@ from .models import (
     RolePermission,
     SUGGESTION_STATUSES,
     Suggestion,
+    SuggestionEvaluation,
     SuggestionScore,
     SuggestionScoreParameter,
     User,
@@ -1199,6 +1200,55 @@ def ensure_suggestion_schema():
                     if column_name not in columns:
                         connection.execute(text(statement))
 
+            if "suggestion_evaluations" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE suggestion_evaluations (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            suggestion_id INTEGER NOT NULL,
+                            parameter_id INTEGER NOT NULL,
+                            parameter_name VARCHAR(160) NOT NULL,
+                            parameter_multiplier INTEGER NOT NULL DEFAULT 0,
+                            evaluator_department VARCHAR(80) NOT NULL,
+                            evaluator_user_id INTEGER,
+                            rating INTEGER NOT NULL DEFAULT 0,
+                            comment TEXT,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(suggestion_id, parameter_id, evaluator_department),
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(suggestion_id) REFERENCES suggestions (id),
+                            FOREIGN KEY(parameter_id) REFERENCES suggestion_score_parameters (id),
+                            FOREIGN KEY(evaluator_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+                tables.add("suggestion_evaluations")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("suggestion_evaluations")
+                }
+                evaluation_columns = {
+                    "company_id": "ALTER TABLE suggestion_evaluations ADD COLUMN company_id INTEGER",
+                    "suggestion_id": "ALTER TABLE suggestion_evaluations ADD COLUMN suggestion_id INTEGER NOT NULL DEFAULT 0",
+                    "parameter_id": "ALTER TABLE suggestion_evaluations ADD COLUMN parameter_id INTEGER NOT NULL DEFAULT 0",
+                    "parameter_name": "ALTER TABLE suggestion_evaluations ADD COLUMN parameter_name VARCHAR(160) NOT NULL DEFAULT ''",
+                    "parameter_multiplier": "ALTER TABLE suggestion_evaluations ADD COLUMN parameter_multiplier INTEGER NOT NULL DEFAULT 0",
+                    "evaluator_department": "ALTER TABLE suggestion_evaluations ADD COLUMN evaluator_department VARCHAR(80) NOT NULL DEFAULT ''",
+                    "evaluator_user_id": "ALTER TABLE suggestion_evaluations ADD COLUMN evaluator_user_id INTEGER",
+                    "rating": "ALTER TABLE suggestion_evaluations ADD COLUMN rating INTEGER NOT NULL DEFAULT 0",
+                    "comment": "ALTER TABLE suggestion_evaluations ADD COLUMN comment TEXT",
+                    "created_at": "ALTER TABLE suggestion_evaluations ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE suggestion_evaluations ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in evaluation_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
             connection.execute(
                 text(
                     "CREATE INDEX IF NOT EXISTS ix_suggestion_score_parameters_company_id "
@@ -1227,6 +1277,24 @@ def ensure_suggestion_schema():
                 text(
                     "CREATE INDEX IF NOT EXISTS ix_suggestion_scores_parameter_id "
                     "ON suggestion_scores (parameter_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_evaluations_company_id "
+                    "ON suggestion_evaluations (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_evaluations_suggestion_id "
+                    "ON suggestion_evaluations (suggestion_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_suggestion_evaluations_parameter_id "
+                    "ON suggestion_evaluations (parameter_id)"
                 )
             )
 
@@ -1306,6 +1374,7 @@ MODULE_ENDPOINTS = {
     "main.create_suggestion": "suggestions",
     "main.edit_suggestion": "suggestions",
     "main.suggestion_detail": "suggestions",
+    "main.evaluate_suggestion": "suggestions",
     "main.delete_suggestion": "suggestions",
     "main.download_suggestion_attachment": "suggestions",
     "main.suggestion_parameters": "suggestions",
@@ -7425,6 +7494,69 @@ def apply_suggestion_scores(suggestion):
         score.is_selected = parameter.id in selected_parameter_ids
 
 
+def save_suggestion_evaluation(suggestion):
+    evaluator_department = request.form.get("evaluator_department", "").strip()
+    comment = request.form.get("evaluation_comment", "").strip()
+    if not evaluator_department or evaluator_department not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+
+    parameters = suggestion_parameter_query().all()
+    parameter_by_id = {parameter.id: parameter for parameter in parameters}
+    if not parameter_by_id:
+        raise ValueError("missing_parameters")
+
+    changed = False
+    for parameter_id, parameter in parameter_by_id.items():
+        raw_rating = request.form.get(f"rating_{parameter_id}", "").strip()
+        if not raw_rating:
+            continue
+        try:
+            rating = int(raw_rating)
+        except ValueError as exc:
+            raise ValueError("invalid_rating") from exc
+        if rating < 1 or rating > 10:
+            raise ValueError("invalid_rating")
+
+        evaluation = (
+            SuggestionEvaluation.query.filter_by(
+                suggestion_id=suggestion.id,
+                parameter_id=parameter.id,
+                evaluator_department=evaluator_department,
+            ).first()
+        )
+        if evaluation is None:
+            evaluation = SuggestionEvaluation(
+                suggestion=suggestion,
+                parameter_id=parameter.id,
+                evaluator_department=evaluator_department,
+            )
+            assign_current_company(evaluation)
+            db.session.add(evaluation)
+        evaluation.parameter_name = parameter.name
+        evaluation.parameter_multiplier = parameter.score
+        evaluation.evaluator_user_id = g.current_user.id
+        evaluation.rating = rating
+        evaluation.comment = comment or None
+        changed = True
+
+    if not changed:
+        raise ValueError("missing_rating")
+
+
+def suggestion_evaluation_summary(suggestion):
+    grouped = {}
+    for evaluation in suggestion.evaluations:
+        grouped.setdefault(evaluation.evaluator_department, []).append(evaluation)
+    return [
+        {
+            "department": department,
+            "evaluations": evaluations,
+            "total": sum(evaluation.weighted_score for evaluation in evaluations),
+        }
+        for department, evaluations in sorted(grouped.items())
+    ]
+
+
 def suggestion_form_context(suggestion=None):
     ensure_default_suggestion_parameters()
     return {
@@ -7505,11 +7637,39 @@ def create_suggestion():
 def suggestion_detail(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    ensure_default_suggestion_parameters()
     return render_template(
         "suggestions/detail.html",
         suggestion=suggestion,
+        departments=DEPARTMENTS,
+        parameters=suggestion_parameter_query().all(),
+        evaluation_summary=suggestion_evaluation_summary(suggestion),
         format_date=format_date,
     )
+
+
+@bp.post("/oneri-sikayet/oneri/<int:suggestion_id>/degerlendir")
+@login_required
+def evaluate_suggestion(suggestion_id):
+    ensure_default_suggestion_parameters()
+    suggestion = Suggestion.query.get_or_404(suggestion_id)
+    ensure_same_company(suggestion)
+    try:
+        save_suggestion_evaluation(suggestion)
+        db.session.commit()
+        flash("Öneri değerlendirmesi kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        error_key = str(error)
+        if error_key == "invalid_department":
+            flash("Değerlendirme için geçerli bir departman seçin.", "danger")
+        elif error_key == "missing_parameters":
+            flash("Aktif puanlama parametresi bulunamadı.", "danger")
+        elif error_key == "missing_rating":
+            flash("En az bir parametre için 1-10 arası puan seçin.", "danger")
+        else:
+            flash("Puanlar 1 ile 10 arasında olmalıdır.", "danger")
+    return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
 
 
 @bp.route("/oneri-sikayet/oneri/<int:suggestion_id>/duzenle", methods=["GET", "POST"])

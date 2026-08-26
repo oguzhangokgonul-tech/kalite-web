@@ -10440,9 +10440,79 @@ textarea.form-control::placeholder {
     border-color: #bfdbfe;
 }
 
+.suggestion-evaluation-form {
+    display: grid;
+    gap: 14px;
+}
+
+.suggestion-rating-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 10px;
+}
+
+.suggestion-rating-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 108px;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f8fbff;
+    border: 1px solid #dce7f5;
+    border-radius: 12px;
+}
+
+.suggestion-rating-item strong,
+.suggestion-rating-item span,
+.suggestion-evaluation-list span,
+.suggestion-evaluation-list strong,
+.suggestion-evaluation-list small {
+    display: block;
+}
+
+.suggestion-rating-item strong {
+    color: #10233f;
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.suggestion-rating-item span,
+.suggestion-evaluation-list small {
+    color: #66768d;
+    font-size: 0.78rem;
+}
+
+.suggestion-evaluation-list {
+    display: grid;
+    gap: 8px;
+}
+
+.suggestion-evaluation-list > div {
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.suggestion-evaluation-list span {
+    color: #2563eb;
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.suggestion-evaluation-list strong {
+    color: #10233f;
+    font-size: 0.84rem;
+    font-weight: 650;
+}
+
 @media (max-width: 640px) {
     .grid-span-2 {
         grid-column: span 1;
+    }
+
+    .suggestion-rating-item {
+        grid-template-columns: 1fr;
     }
 }
 

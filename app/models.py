@@ -1215,6 +1215,12 @@ class Suggestion(db.Model):
         cascade="all, delete-orphan",
         order_by="SuggestionScore.id.asc()",
     )
+    evaluations = db.relationship(
+        "SuggestionEvaluation",
+        back_populates="suggestion",
+        cascade="all, delete-orphan",
+        order_by="SuggestionEvaluation.id.asc()",
+    )
 
     @property
     def number_label(self):
@@ -1224,6 +1230,8 @@ class Suggestion(db.Model):
 
     @property
     def total_score(self):
+        if self.evaluations:
+            return sum(evaluation.weighted_score for evaluation in self.evaluations)
         return sum(score.score_value or 0 for score in self.scores if score.is_selected)
 
 
@@ -1259,6 +1267,49 @@ class SuggestionScore(db.Model):
 
     suggestion = db.relationship("Suggestion", back_populates="scores")
     parameter = db.relationship("SuggestionScoreParameter")
+
+
+class SuggestionEvaluation(db.Model):
+    __tablename__ = "suggestion_evaluations"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "suggestion_id",
+            "parameter_id",
+            "evaluator_department",
+            name="uq_suggestion_evaluations_department_parameter",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey("suggestions.id"), nullable=False, index=True)
+    parameter_id = db.Column(
+        db.Integer,
+        db.ForeignKey("suggestion_score_parameters.id"),
+        nullable=False,
+        index=True,
+    )
+    parameter_name = db.Column(db.String(160), nullable=False)
+    parameter_multiplier = db.Column(db.Integer, nullable=False, default=0)
+    evaluator_department = db.Column(db.String(80), nullable=False)
+    evaluator_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    rating = db.Column(db.Integer, nullable=False, default=0)
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    suggestion = db.relationship("Suggestion", back_populates="evaluations")
+    parameter = db.relationship("SuggestionScoreParameter")
+    evaluator = db.relationship("User", foreign_keys=[evaluator_user_id])
+
+    @property
+    def weighted_score(self):
+        return (self.parameter_multiplier or 0) * (self.rating or 0)
 
 
 class InternalAudit(db.Model):
