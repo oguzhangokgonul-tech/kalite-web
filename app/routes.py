@@ -7611,6 +7611,31 @@ def suggestion_evaluation_summary(suggestion):
     ]
 
 
+def suggestion_evaluator_summary(suggestion):
+    completed_user_ids = {
+        evaluation.evaluator_user_id
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_user_id
+    }
+    completed_labels = {
+        evaluation.evaluator_department
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_department
+    }
+    summary = []
+    for user in suggestion_evaluator_users():
+        name = (user.full_name or user.username or "").strip()
+        if not name:
+            continue
+        summary.append(
+            {
+                "name": name,
+                "completed": user.id in completed_user_ids or name in completed_labels,
+            }
+        )
+    return sorted(summary, key=lambda item: (item["completed"], item["name"].casefold()))
+
+
 def suggestion_form_context(suggestion=None):
     ensure_default_suggestion_parameters()
     return {
@@ -7717,6 +7742,7 @@ def suggestion_detail(suggestion_id):
         suggestion=suggestion,
         parameters=suggestion_parameter_query().all(),
         evaluation_summary=suggestion_evaluation_summary(suggestion),
+        evaluator_summary=suggestion_evaluator_summary(suggestion),
         current_user_evaluations=current_user_evaluations,
         current_user_comment=current_user_comment,
         can_evaluate_current_suggestion=can_evaluate_suggestion(suggestion),

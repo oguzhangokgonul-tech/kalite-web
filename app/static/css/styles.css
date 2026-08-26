@@ -10901,8 +10901,15 @@ textarea.form-control::placeholder {
     display: inline-flex;
     font-size: 0.78rem;
     font-weight: 700;
+    gap: 5px;
     padding: 5px 9px;
     white-space: nowrap;
+}
+
+.suggestion-score-list-done > div.is-waiting strong {
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #b45309;
 }
 
 .suggestion-evaluation-locked {

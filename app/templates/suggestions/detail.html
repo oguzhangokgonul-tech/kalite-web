@@ -114,17 +114,21 @@
             <strong>{{ suggestion.total_score if suggestion.total_score else "-" }}</strong>
             <span>Toplam Puan</span>
           </div>
-          {% if evaluation_summary %}
+          {% if evaluator_summary %}
             <div class="suggestion-score-list-v2 suggestion-score-list-done">
-              {% for item in evaluation_summary %}
-                <div>
-                  <span>{{ item.department }}</span>
-                  <strong>Değerlendirme Yaptı</strong>
+              {% for item in evaluator_summary %}
+                <div class="{% if not item.completed %}is-waiting{% endif %}">
+                  <span>{{ item.name }}</span>
+                  {% if item.completed %}
+                    <strong><i class="bi bi-check2-circle"></i> Değerlendirme Yaptı</strong>
+                  {% else %}
+                    <strong><i class="bi bi-clock"></i> Değerlendirme Bekliyor</strong>
+                  {% endif %}
                 </div>
               {% endfor %}
             </div>
           {% else %}
-            <p>Henüz değerlendirme yapılmadı.</p>
+            <p>Henüz değerlendirme yetkilisi seçilmedi.</p>
           {% endif %}
         </section>
 
