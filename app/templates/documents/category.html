@@ -9,77 +9,58 @@
 
 {% macro document_file_badge(document) %}
   {% set meta = document_file_meta(document) %}
-  <span class="document-file-type document-file-icon-only document-file-type-{{ meta.tone }}" title="{{ meta.label }}" aria-label="{{ meta.label }}">
+  <span class="documents-file-tile document-file-type-{{ meta.tone }}" title="{{ meta.label }}" aria-label="{{ meta.label }}">
     <i class="bi bi-{{ meta.icon }}"></i>
+    <small>{{ meta.label }}</small>
   </span>
 {% endmacro %}
 
 {% block app_content %}
-  {% set breadcrumb %}
-    <p>{{ page_description }}</p>
-      <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
-        <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
-        <i class="bi bi-chevron-right"></i>
-        <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
-        <i class="bi bi-chevron-right"></i>
-        <span>{{ page_title }}</span>
-      </nav>
-  {% endset %}
-  {% call ui.page_header(page_title, breadcrumb, class_name="documents-page-heading", icon="bi-folder", subtitle_is_html=True) %}
-    {% if can_manage_documents %}
-      <a class="btn btn-primary btn-lg" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
-        <i class="bi bi-plus-lg"></i>
-        <span>{% if category %}Bu kategoriye doküman yükle{% else %}Yeni Doküman Yükle{% endif %}</span>
-      </a>
-    {% endif %}
-  {% endcall %}
-
-  <form class="dashboard-filter-card documents-filter-card" method="get">
-    <div class="documents-filter-grid">
-      <div>
-        <label class="form-label" for="search">Arama</label>
-        <div class="dashboard-search-control">
-          <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Doküman adı, kodu veya açıklama">
+  <section class="documents-table-card documents-list-card">
+    <div class="documents-list-header">
+      <div class="documents-list-title">
+        <span class="documents-list-icon"><i class="bi bi-file-earmark-text"></i></span>
+        <div>
+          <h2>{{ page_title if category else "Doküman Listesi" }}</h2>
+          <p>Toplam {{ documents|length }} kayıt bulundu</p>
         </div>
       </div>
-      <div>
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          <option value="">Tümü</option>
+
+      <form class="documents-list-tools" method="get">
+        <div class="dashboard-search-control documents-list-search">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Doküman, kod veya açıklama ara...">
+        </div>
+        <select class="form-select documents-list-select" id="status" name="status" aria-label="Durum filtresi">
+          <option value="">Tüm durumlar</option>
           {% for status in statuses %}
             <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div>
-        <label class="form-label" for="department">Departman</label>
-        <select class="form-select" id="department" name="department">
-          <option value="">Tümü</option>
+        <select class="form-select documents-list-select" id="department" name="department" aria-label="Departman filtresi">
+          <option value="">Tüm departmanlar</option>
           {% for department in departments %}
             <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="dashboard-filter-actions">
-        <button class="btn btn-primary" type="submit">
+        <button class="btn btn-outline-primary documents-filter-button" type="submit">
           <i class="bi bi-funnel"></i>
           <span>Filtrele</span>
         </button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_list') }}">
+        <a class="btn btn-outline-secondary documents-clear-button" href="{{ url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_list') }}" aria-label="Temizle">
           <i class="bi bi-arrow-clockwise"></i>
-          <span>Temizle</span>
         </a>
-      </div>
+        {% if can_manage_documents %}
+          <a class="btn btn-primary documents-new-button" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
+            <i class="bi bi-plus-lg"></i>
+            <span>Yeni Doküman</span>
+          </a>
+        {% endif %}
+      </form>
     </div>
-  </form>
 
-  <section class="documents-table-card">
-    {% call ui.section_header("Doküman Listesi", class_name="documents-card-header") %}
-      <span>Toplam {{ documents|length }} kayıt</span>
-    {% endcall %}
-    <div class="table-responsive">
-      <table class="table documents-table align-middle mb-0">
+    <div class="table-responsive documents-list-table-wrap">
+      <table class="table documents-table documents-list-table align-middle mb-0">
         <thead>
           <tr>
             <th>Tip</th>
@@ -110,13 +91,28 @@
                   <span>{{ document.description }}</span>
                 {% endif %}
               </td>
-              <td data-label="Kategori">{{ document.category.display_name }}</td>
-              <td data-label="Revizyon">{{ document.revision_no or "-" }}</td>
-              <td data-label="Yayın Tarihi">{{ format_date(document.publish_date) }}</td>
-              <td data-label="Son Revizyon">{{ format_date(document.revision_date) }}</td>
+              <td data-label="Kategori">
+                <span class="documents-category-pill">
+                  <i class="bi bi-circle-fill"></i>
+                  {{ document.category.display_name }}
+                </span>
+              </td>
+              <td data-label="Revizyon"><span class="documents-revision-pill">{{ document.revision_no or "-" }}</span></td>
+              <td data-label="Yayın Tarihi"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.publish_date) }}</span></td>
+              <td data-label="Son Revizyon"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.revision_date) }}</span></td>
               <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
-              <td data-label="Departman">{{ document.department or "-" }}</td>
-              <td data-label="Yükleyen">{{ document.uploader.full_name if document.uploader else "-" }}</td>
+              <td data-label="Departman">
+                <span class="documents-department-cell">
+                  <i class="bi bi-building"></i>
+                  {{ document.department or "-" }}
+                </span>
+              </td>
+              <td data-label="Yükleyen">
+                <span class="documents-uploader-cell">
+                  <span>{{ (document.uploader.full_name if document.uploader else "VP")[:2]|upper }}</span>
+                  <strong>{{ document.uploader.full_name if document.uploader else "-" }}</strong>
+                </span>
+              </td>
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
                   {% if document_can_preview(document) %}
