@@ -201,6 +201,8 @@ DEPARTMENTS = (
     "Muhasebe",
     "Satın alma",
     "Depo",
+    "Sevkiyat",
+    "Hakediş",
     "İnsan Kaynakları",
     "Şantiye",
     "Montaj",
