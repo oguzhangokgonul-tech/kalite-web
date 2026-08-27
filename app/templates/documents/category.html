@@ -127,39 +127,39 @@
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
                   {% if document_can_preview(document) %}
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener" aria-label="Önizle">
+                    <a class="btn btn-sm documents-action-btn documents-action-preview" href="{{ url_for('main.preview_document', document_id=document.id) }}" target="_blank" rel="noopener" aria-label="Gözden Geçir" title="Gözden Geçir">
                       <i class="bi bi-eye"></i>
                     </a>
                   {% endif %}
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Detay">
+                  <a class="btn btn-sm documents-action-btn documents-action-info" href="{{ url_for('main.document_detail', document_id=document.id) }}" aria-label="Bilgilendir" title="Bilgilendir">
                     <i class="bi bi-info-circle"></i>
                   </a>
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
+                  <a class="btn btn-sm documents-action-btn documents-action-download" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir" title="İndir">
                     <i class="bi bi-download"></i>
                   </a>
                   {% if document.status != "Arşiv" %}
-                    <a class="btn btn-sm btn-outline-warning" href="{{ url_for('main.request_document_revision', document_id=document.id) }}" aria-label="Revizyon Talep Et" title="Revizyon Talep Et">
-                      <i class="bi bi-arrow-repeat"></i>
+                    <a class="btn btn-sm documents-action-btn documents-action-request" href="{{ url_for('main.request_document_revision', document_id=document.id) }}" aria-label="Revizyon Talep Et" title="Revizyon Talep Et">
+                      <i class="bi bi-chat-dots"></i>
                     </a>
                   {% endif %}
                   {% if can_manage_documents and document.status != "Arşiv" %}
-                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.revise_document', document_id=document.id) }}" aria-label="Dokümana Revizyon Yap" title="Dokümana Revizyon Yap">
-                      <i class="bi bi-file-earmark-arrow-up"></i>
-                    </a>
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}" aria-label="Düzenle">
+                    <a class="btn btn-sm documents-action-btn documents-action-revise" href="{{ url_for('main.revise_document', document_id=document.id) }}" aria-label="Dokümana Revizyon Yap" title="Dokümana Revizyon Yap">
                       <i class="bi bi-pencil"></i>
+                    </a>
+                    <a class="btn btn-sm documents-action-btn documents-action-edit" href="{{ url_for('main.edit_document', document_id=document.id) }}" aria-label="Düzenle" title="Düzenle">
+                      <i class="bi bi-pencil-square"></i>
                     </a>
                   {% endif %}
                   {% if can_delete_document(document) %}
                     <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm btn-outline-secondary" type="submit" aria-label="Arşivle">
+                      <button class="btn btn-sm documents-action-btn documents-action-archive" type="submit" aria-label="Arşivle" title="Arşivle">
                         <i class="bi bi-archive"></i>
                       </button>
                     </form>
                     <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm btn-outline-danger" type="submit" aria-label="Sil">
+                      <button class="btn btn-sm documents-action-btn documents-action-delete" type="submit" aria-label="Sil" title="Sil">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
