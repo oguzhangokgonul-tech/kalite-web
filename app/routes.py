@@ -3754,7 +3754,18 @@ def filtered_document_query(category=None, filters=None):
                 DocumentCategory.name.ilike(search_value),
             )
         )
-    return query.order_by(Document.created_at.desc(), Document.id.desc())
+    return query
+
+
+def document_code_sort_key(document):
+    code = (document.document_code or "").strip()
+    number_groups = re.findall(r"\d+", code)
+    code_number = int(number_groups[-1]) if number_groups else 10**9
+    return (code_number, normalize_for_role(code), document.id or 0)
+
+
+def sort_documents_by_code(documents):
+    return sorted(documents, key=document_code_sort_key)
 
 
 def ordered_document_categories():
@@ -3794,7 +3805,7 @@ def document_category_cards(categories, documents):
 
 def documents_dashboard_context():
     categories = ordered_document_categories()
-    documents = document_query().order_by(Document.created_at.desc(), Document.id.desc()).all()
+    documents = sort_documents_by_code(document_query().all())
     status_counts = {
         status: sum(1 for document in documents if document.status == status)
         for status in DOCUMENT_STATUSES
@@ -3820,7 +3831,7 @@ def documents_dashboard_context():
 
 def documents_category_context(category):
     filters = document_filters()
-    documents = filtered_document_query(category, filters).all()
+    documents = sort_documents_by_code(filtered_document_query(category, filters).all())
     return {
         "category": category,
         "page_title": category.display_name if category else "Tüm Dokümanlar",
