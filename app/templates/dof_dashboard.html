@@ -92,6 +92,9 @@
   </div>
 
   <form class="dashboard-filter-card" method="get">
+    {% if filters.sort %}
+      <input type="hidden" name="sort" value="{{ filters.sort }}">
+    {% endif %}
     <div class="dashboard-filter-grid">
       <div>
         <label class="form-label" for="search">Arama</label>
@@ -151,7 +154,19 @@
             <th>Departman</th>
             <th>Sorumlu</th>
             <th>Durum</th>
-            <th>Termin</th>
+            <th>
+              <span class="if-sortable-heading">
+                <span>Termin</span>
+                <a
+                  class="if-due-sort-link {% if filters.sort == 'due_nearest' %}active{% endif %}"
+                  href="{{ url_for('main.dof_management', search=filters.search, department=filters.department, responsible_id=filters.responsible_id, status=filters.status, sort='due_nearest') }}"
+                  title="En yakin termine gore sirala"
+                  aria-label="En yakin termine gore sirala"
+                >
+                  <i class="bi bi-sort-down"></i>
+                </a>
+              </span>
+            </th>
             <th>Kanıt</th>
             <th class="text-end">İşlemler</th>
           </tr>

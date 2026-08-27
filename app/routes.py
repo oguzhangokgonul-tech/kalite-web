@@ -4997,6 +4997,7 @@ def dof_filters():
         "department": request.args.get("department", "").strip(),
         "responsible_id": request.args.get("responsible_id", "").strip(),
         "status": request.args.get("status", "").strip(),
+        "sort": request.args.get("sort", "").strip(),
     }
 
 
@@ -6221,6 +6222,15 @@ def dof_dashboard_context():
     )
     filters = dof_filters()
     dofs = filtered_dofs(all_dofs, filters)
+    if filters.get("sort") == "due_nearest":
+        dofs = sorted(
+            dofs,
+            key=lambda dof: (
+                dof.due_date is None,
+                dof.due_date or date.max,
+                dof.id,
+            ),
+        )
     total_count = len(all_dofs)
     draft_count = sum(1 for dof in all_dofs if dof.display_status == "Taslak")
     approval_count = sum(
