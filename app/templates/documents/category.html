@@ -72,7 +72,6 @@
             <th>Son Revizyon</th>
             <th>Durum</th>
             <th>Departman</th>
-            <th>Yükleyen</th>
             <th class="text-end">İşlemler</th>
           </tr>
         </thead>
@@ -105,12 +104,6 @@
                 <span class="documents-department-cell">
                   <i class="bi bi-building"></i>
                   {{ document.department or "-" }}
-                </span>
-              </td>
-              <td data-label="Yükleyen">
-                <span class="documents-uploader-cell">
-                  <span>{{ (document.uploader.full_name if document.uploader else "VP")[:2]|upper }}</span>
-                  <strong>{{ document.uploader.full_name if document.uploader else "-" }}</strong>
                 </span>
               </td>
               <td data-label="İşlemler">
@@ -150,7 +143,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="documents-empty-row" colspan="11">
+              <td class="documents-empty-row" colspan="10">
                 <strong>Bu filtrelerle eşleşen doküman bulunamadı.</strong>
                 <span>Doküman yüklendiğinde bu listede görünecek.</span>
               </td>

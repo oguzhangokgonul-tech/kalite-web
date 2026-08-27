@@ -104,7 +104,6 @@
             <th>Yayın Tarihi</th>
             <th>Son Revizyon</th>
             <th>Durum</th>
-            <th>Yükleyen</th>
             <th class="text-end">İşlemler</th>
           </tr>
         </thead>
@@ -130,12 +129,6 @@
               <td data-label="Yayın Tarihi"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.publish_date) }}</span></td>
               <td data-label="Son Revizyon"><span class="documents-date-cell"><i class="bi bi-calendar3"></i>{{ format_date(document.revision_date) }}</span></td>
               <td data-label="Durum">{{ document_status_badge(document.status) }}</td>
-              <td data-label="Yükleyen">
-                <span class="documents-uploader-cell">
-                  <span>{{ (document.uploader.full_name if document.uploader else "VP")[:2]|upper }}</span>
-                  <strong>{{ document.uploader.full_name if document.uploader else "-" }}</strong>
-                </span>
-              </td>
               <td data-label="İşlemler">
                 <div class="documents-row-actions">
                   {% if document_can_preview(document) %}
@@ -176,7 +169,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="documents-empty-row" colspan="10">
+              <td class="documents-empty-row" colspan="9">
                 <strong>Henüz doküman yüklenmedi.</strong>
                 <span>Yeni doküman yüklendiğinde burada listelenecek.</span>
               </td>

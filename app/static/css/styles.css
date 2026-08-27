@@ -696,7 +696,7 @@ body {
 }
 
 .documents-list-table {
-    min-width: 1440px;
+    min-width: 1320px;
 }
 
 .documents-list-table th,
@@ -764,12 +764,7 @@ body {
 
 .documents-list-table th:nth-child(10),
 .documents-list-table td:nth-child(10) {
-    width: 150px;
-}
-
-.documents-list-table th:nth-child(11),
-.documents-list-table td:nth-child(11) {
-    width: 172px;
+    width: 220px;
     text-align: right;
 }
 
@@ -799,8 +794,7 @@ body {
 
 .documents-category-pill,
 .documents-date-cell,
-.documents-department-cell,
-.documents-uploader-cell {
+.documents-department-cell {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
@@ -851,30 +845,6 @@ body {
     border-radius: 8px;
 }
 
-.documents-uploader-cell span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    flex: 0 0 auto;
-    color: #ffffff;
-    background: #2563eb;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 760;
-}
-
-.documents-uploader-cell strong {
-    min-width: 0;
-    overflow: hidden;
-    color: #263653;
-    font-size: 0.82rem;
-    font-weight: 650;
-    line-height: 1.15;
-    text-overflow: ellipsis;
-}
-
 .documents-list-table .documents-row-actions {
     justify-content: flex-end;
     gap: 8px;
@@ -884,8 +854,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 40px;
+    height: 38px;
     padding: 0;
     border-radius: 8px;
 }
@@ -895,7 +865,7 @@ body {
 }
 
 .documents-recent-table {
-    min-width: 1220px;
+    min-width: 1100px;
 }
 
 .documents-recent-table th,
@@ -943,12 +913,8 @@ body {
 
 .documents-recent-table th:nth-child(9),
 .documents-recent-table td:nth-child(9) {
-    width: 160px;
-}
-
-.documents-recent-table th:nth-child(10),
-.documents-recent-table td:nth-child(10) {
-    width: 154px;
+    width: 190px;
+    text-align: right;
 }
 
 .documents-recent-table .documents-row-actions {
@@ -960,8 +926,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 36px;
     padding: 0;
     border-radius: 8px;
 }
