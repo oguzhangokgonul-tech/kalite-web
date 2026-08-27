@@ -5048,6 +5048,25 @@ def filtered_dofs(dofs, filters):
     return result
 
 
+def dof_due_priority_sort_key(dof):
+    is_completed = (
+        dof.approval_step == "completed"
+        or dof.status == "TamamlandÄ±"
+        or dof.display_status == "TamamlandÄ±"
+    )
+    if is_completed:
+        return (3, 0, date.max, dof.id)
+
+    delay_days = dof.delay_days or 0
+    if delay_days > 0:
+        return (0, -delay_days, dof.due_date or date.min, dof.id)
+
+    if dof.due_date:
+        return (1, 0, dof.due_date, dof.id)
+
+    return (2, 0, date.max, dof.id)
+
+
 def delete_uploaded_file(action):
     if not action.file_stored_name:
         return
@@ -6223,14 +6242,7 @@ def dof_dashboard_context():
     filters = dof_filters()
     dofs = filtered_dofs(all_dofs, filters)
     if filters.get("sort") == "due_nearest":
-        dofs = sorted(
-            dofs,
-            key=lambda dof: (
-                dof.due_date is None,
-                dof.due_date or date.max,
-                dof.id,
-            ),
-        )
+        dofs = sorted(dofs, key=dof_due_priority_sort_key)
     total_count = len(all_dofs)
     draft_count = sum(1 for dof in all_dofs if dof.display_status == "Taslak")
     approval_count = sum(
