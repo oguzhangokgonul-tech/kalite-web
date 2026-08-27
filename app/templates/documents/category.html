@@ -16,6 +16,24 @@
 {% endmacro %}
 
 {% block app_content %}
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      {% if category %}
+        <i class="bi bi-chevron-right"></i>
+        <span>{{ category.display_name }}</span>
+      {% endif %}
+    </nav>
+  {% endset %}
+  {% call ui.page_header(page_title if category else "Doküman Listesi", breadcrumb, class_name="documents-page-heading documents-category-heading", icon="bi-folder2-open", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Geri Dön</span>
+    </a>
+  {% endcall %}
+
   <section class="documents-table-card documents-list-card">
     <div class="documents-list-header">
       <div class="documents-list-title">
