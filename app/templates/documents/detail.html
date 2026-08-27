@@ -52,7 +52,11 @@
           </button>
           <div class="dropdown-menu dropdown-menu-end">
             <a class="dropdown-item" href="{{ url_for('main.download_document', document_id=document.id) }}">Orijinal dosyayı indir</a>
-            {% if can_manage_documents %}
+            {% if document.status != "Arşiv" %}
+              <a class="dropdown-item" href="{{ url_for('main.request_document_revision', document_id=document.id) }}">Revizyon Talep Et</a>
+            {% endif %}
+            {% if can_manage_documents and document.status != "Arşiv" %}
+              <a class="dropdown-item" href="{{ url_for('main.revise_document', document_id=document.id) }}">Dokümana Revizyon Yap</a>
               <a class="dropdown-item" href="{{ url_for('main.edit_document', document_id=document.id) }}">Düzenle</a>
               <form action="{{ url_for('main.generate_document_preview_route', document_id=document.id) }}" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -122,35 +126,43 @@
         </div>
       </div>
 
-      {% if can_manage_documents or can_delete_document %}
-        <div class="documents-side-card">
-          <h3>İşlemler</h3>
-          <div class="documents-side-actions">
-            {% if can_manage_documents %}
-              <a class="btn btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}">
-                <i class="bi bi-pencil"></i>
-                <span>Düzenle</span>
-              </a>
-            {% endif %}
-            {% if can_delete_document %}
-              <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-secondary" type="submit">
-                  <i class="bi bi-archive"></i>
-                  <span>Arşivle</span>
-                </button>
-              </form>
-              <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-danger" type="submit">
-                  <i class="bi bi-trash"></i>
-                  <span>Sil</span>
-                </button>
-              </form>
-            {% endif %}
-          </div>
+      <div class="documents-side-card">
+        <h3>İşlemler</h3>
+        <div class="documents-side-actions">
+          {% if can_manage_documents and document.status != "Arşiv" %}
+            <a class="btn btn-success" href="{{ url_for('main.revise_document', document_id=document.id) }}">
+              <i class="bi bi-file-earmark-arrow-up"></i>
+              <span>Dokümana Revizyon Yap</span>
+            </a>
+            <a class="btn btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}">
+              <i class="bi bi-pencil"></i>
+              <span>Düzenle</span>
+            </a>
+          {% endif %}
+          {% if document.status != "Arşiv" %}
+            <a class="btn btn-outline-warning" href="{{ url_for('main.request_document_revision', document_id=document.id) }}">
+              <i class="bi bi-arrow-repeat"></i>
+              <span>Revizyon Talep Et</span>
+            </a>
+          {% endif %}
+          {% if can_delete_document %}
+            <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-secondary" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Arşivle</span>
+              </button>
+            </form>
+            <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger" type="submit">
+                <i class="bi bi-trash"></i>
+                <span>Sil</span>
+              </button>
+            </form>
+          {% endif %}
         </div>
-      {% endif %}
+      </div>
 
       <div class="documents-side-card">
         <h3>Açıklama</h3>

@@ -1,0 +1,67 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Dokümana Revizyon Yap{% endblock %}
+
+{% block app_content %}
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.document_code }}</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Revizyon Yap</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header("Dokümana Revizyon Yap", breadcrumb, class_name="documents-page-heading", icon="bi-file-earmark-arrow-up", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Dokümana Dön</span>
+    </a>
+  {% endcall %}
+
+  <form class="documents-form-card" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="documents-revision-target">
+      <span class="documents-list-icon"><i class="bi bi-file-earmark-text"></i></span>
+      <div>
+        <strong>{{ document.document_code }} {{ document.title }}</strong>
+        <span>Mevcut revizyon: {{ document.revision_no or "-" }} · Son revizyon: {{ format_date(document.revision_date) }}</span>
+      </div>
+    </div>
+
+    <div class="documents-form-grid mt-4">
+      <div>
+        <label class="form-label" for="revision_no">Yeni Revizyon No</label>
+        <input class="form-control" id="revision_no" name="revision_no" value="{{ document.revision_no or '' }}" placeholder="Örn. 5">
+      </div>
+      <div>
+        <label class="form-label" for="revision_date">Revizyon Tarihi</label>
+        <input class="form-control" id="revision_date" name="revision_date" type="date" value="{{ today.isoformat() }}">
+      </div>
+    </div>
+
+    <div class="documents-upload-box mt-4">
+      <input id="document_files" name="document_files" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+      <label for="document_files">
+        <i class="bi bi-cloud-arrow-up"></i>
+        <strong>Yeni revizyon dosyasını seçin veya buraya sürükleyin</strong>
+        <span>PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG, JPEG desteklenir. Maks. 25 MB.</span>
+        <small>Kaydettiğinizde mevcut dosya otomatik arşive alınır.</small>
+      </label>
+    </div>
+
+    <div class="documents-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+        <i class="bi bi-x-lg"></i>
+        <span>Vazgeç</span>
+      </a>
+      <button class="btn btn-success" type="submit">
+        <i class="bi bi-check2-circle"></i>
+        <span>Revizyonu Yayınla</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

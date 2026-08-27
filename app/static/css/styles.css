@@ -864,6 +864,74 @@ body {
     display: inline-flex;
 }
 
+.documents-revision-target {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+}
+
+.documents-revision-target strong,
+.documents-revision-target span {
+    display: block;
+}
+
+.documents-revision-target strong {
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 750;
+}
+
+.documents-revision-target span {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 0.86rem;
+}
+
+.documents-revision-file-list {
+    display: grid;
+    gap: 10px;
+}
+
+.documents-revision-file {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    color: #17335f;
+    text-decoration: none;
+    background: #f8fbff;
+    border: 1px solid #d8e6f8;
+    border-radius: 10px;
+}
+
+.documents-revision-file:hover {
+    color: #0d6efd;
+    border-color: #9fc6ff;
+}
+
+.documents-revision-file span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.documents-revision-file small {
+    color: #64748b;
+    font-size: 0.78rem;
+}
+
+.documents-revision-approval .form-label {
+    color: #334155;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
 .documents-recent-table {
     min-width: 1100px;
 }

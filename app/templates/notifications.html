@@ -34,6 +34,11 @@
               <div class="text-secondary small mt-1">{{ notification.action.number_label }} {{ notification.action.title }}</div>
             {% elif notification.dof %}
               <div class="text-secondary small mt-1">{{ notification.dof.dof_no }}</div>
+            {% elif notification.document_revision_request %}
+              <div class="text-secondary small mt-1">
+                {{ notification.document_revision_request.document.document_code }}
+                {{ notification.document_revision_request.document.title }}
+              </div>
             {% endif %}
           </a>
         {% endfor %}

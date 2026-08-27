@@ -31,6 +31,7 @@ from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import (
     send_action_notification_email,
     send_dof_notification_email,
+    send_document_revision_request_email,
     send_vehicle_reminder_email,
 )
 from .models import (
@@ -54,6 +55,8 @@ from .models import (
     DOF_SOURCES,
     Document,
     DocumentCategory,
+    DocumentRevisionRequest,
+    DocumentRevisionRequestFile,
     Dof,
     DofComment,
     DofFile,
@@ -799,6 +802,96 @@ def ensure_document_schema():
                 for column_name, statement in document_columns.items():
                     if column_name not in columns:
                         connection.execute(text(statement))
+
+            if "document_revision_requests" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE document_revision_requests (
+                            id INTEGER PRIMARY KEY,
+                            company_id INTEGER,
+                            document_id INTEGER NOT NULL,
+                            requested_by_user_id INTEGER NOT NULL,
+                            approved_by_user_id INTEGER,
+                            status VARCHAR(60) NOT NULL DEFAULT 'Yönetim Temsilcisi Onayı Bekleniyor',
+                            explanation TEXT NOT NULL,
+                            approval_note TEXT,
+                            approved_at DATETIME,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                tables.add("document_revision_requests")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("document_revision_requests")
+                }
+                revision_request_columns = {
+                    "company_id": "ALTER TABLE document_revision_requests ADD COLUMN company_id INTEGER",
+                    "document_id": "ALTER TABLE document_revision_requests ADD COLUMN document_id INTEGER NOT NULL DEFAULT 0",
+                    "requested_by_user_id": "ALTER TABLE document_revision_requests ADD COLUMN requested_by_user_id INTEGER NOT NULL DEFAULT 0",
+                    "approved_by_user_id": "ALTER TABLE document_revision_requests ADD COLUMN approved_by_user_id INTEGER",
+                    "status": "ALTER TABLE document_revision_requests ADD COLUMN status VARCHAR(60) NOT NULL DEFAULT 'Yönetim Temsilcisi Onayı Bekleniyor'",
+                    "explanation": "ALTER TABLE document_revision_requests ADD COLUMN explanation TEXT NOT NULL DEFAULT ''",
+                    "approval_note": "ALTER TABLE document_revision_requests ADD COLUMN approval_note TEXT",
+                    "approved_at": "ALTER TABLE document_revision_requests ADD COLUMN approved_at DATETIME",
+                    "created_at": "ALTER TABLE document_revision_requests ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "updated_at": "ALTER TABLE document_revision_requests ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in revision_request_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "document_revision_request_files" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE document_revision_request_files (
+                            id INTEGER PRIMARY KEY,
+                            company_id INTEGER,
+                            revision_request_id INTEGER NOT NULL,
+                            file_name VARCHAR(255) NOT NULL,
+                            original_file_name VARCHAR(255) NOT NULL,
+                            file_path VARCHAR(500) NOT NULL,
+                            file_type VARCHAR(20),
+                            file_size INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                tables.add("document_revision_request_files")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("document_revision_request_files")
+                }
+                revision_file_columns = {
+                    "company_id": "ALTER TABLE document_revision_request_files ADD COLUMN company_id INTEGER",
+                    "revision_request_id": "ALTER TABLE document_revision_request_files ADD COLUMN revision_request_id INTEGER NOT NULL DEFAULT 0",
+                    "file_name": "ALTER TABLE document_revision_request_files ADD COLUMN file_name VARCHAR(255) NOT NULL DEFAULT ''",
+                    "original_file_name": "ALTER TABLE document_revision_request_files ADD COLUMN original_file_name VARCHAR(255) NOT NULL DEFAULT ''",
+                    "file_path": "ALTER TABLE document_revision_request_files ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
+                    "file_type": "ALTER TABLE document_revision_request_files ADD COLUMN file_type VARCHAR(20)",
+                    "file_size": "ALTER TABLE document_revision_request_files ADD COLUMN file_size INTEGER",
+                    "created_at": "ALTER TABLE document_revision_request_files ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in revision_file_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            if "notifications" in tables:
+                columns = {column["name"] for column in inspector.get_columns("notifications")}
+                if "document_revision_request_id" not in columns:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE notifications "
+                            "ADD COLUMN document_revision_request_id INTEGER"
+                        )
+                    )
         current_app.extensions["document_schema_checked"] = True
         ensure_document_categories()
     except OperationalError:
@@ -1411,6 +1504,11 @@ MODULE_ENDPOINTS = {
     "main.upload_document": "documents",
     "main.document_detail": "documents",
     "main.edit_document": "documents",
+    "main.request_document_revision": "documents",
+    "main.document_revision_request_detail": "documents",
+    "main.download_document_revision_request_file": "documents",
+    "main.approve_document_revision_request": "documents",
+    "main.revise_document": "documents",
     "main.download_document": "documents",
     "main.preview_document": "documents",
     "main.generate_document_preview_route": "documents",
@@ -3225,6 +3323,17 @@ def can_delete_document(document=None):
     return current_user_can("documents.delete")
 
 
+DOCUMENT_REVISION_PENDING_STATUS = "Yönetim Temsilcisi Onayı Bekleniyor"
+DOCUMENT_REVISION_APPROVED_STATUS = "Onaylandı"
+DOCUMENT_REVISION_REJECTED_STATUS = "Reddedildi"
+
+
+def document_management_representatives():
+    return unique_users(
+        user for user in active_users() if is_management_representative(user)
+    )
+
+
 def document_status_tone(status):
     return {
         "Yayında": "success",
@@ -3488,6 +3597,119 @@ def save_document_upload(uploaded_file, category):
         "file_type": extension,
         "file_size": upload_path.stat().st_size,
     }
+
+
+def save_document_revision_request_file(uploaded_file, revision_request):
+    if not document_allowed_file(uploaded_file):
+        raise ValueError("invalid_document_file_type")
+
+    original_name = secure_filename(uploaded_file.filename)
+    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    if not original_name:
+        original_name = f"revizyon-talebi.{extension}"
+    stored_name = f"document-revision-request-{uuid4().hex}.{extension}"
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        Path("documents") / "revision_requests",
+    )
+    uploaded_file.save(upload_path)
+
+    if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("document_file_too_large")
+
+    request_file = DocumentRevisionRequestFile(
+        revision_request=revision_request,
+        file_name=stored_name,
+        original_file_name=original_name,
+        file_path=str(relative_path).replace("\\", "/"),
+        file_type=extension,
+        file_size=upload_path.stat().st_size,
+    )
+    assign_current_company(request_file)
+    return request_file
+
+
+def delete_document_revision_request_file(request_file):
+    if request_file.file_path:
+        delete_stored_upload(request_file.file_path)
+
+
+def notify_document_revision_request(users, revision_request, message, exclude_user_id=None):
+    target_users = unique_users(users)
+    for user in target_users:
+        if exclude_user_id and user.id == exclude_user_id:
+            continue
+        db.session.add(
+            Notification(
+                user_id=user.id,
+                company_id=revision_request.company_id,
+                document_revision_request=revision_request,
+                message=message,
+            )
+        )
+    send_document_revision_request_email(target_users, revision_request, message)
+
+
+def archive_current_document_version(document, actor=None):
+    archive_document_record = Document(
+        company_id=document.company_id,
+        category_id=document.category_id,
+        category=document.category,
+        document_code=document.document_code,
+        title=f"{document.title} - Arşiv",
+        revision_no=document.revision_no,
+        publish_date=document.publish_date,
+        revision_date=document.revision_date,
+        department=document.department,
+        description=document.description,
+        status="Arşiv",
+        file_name=document.file_name,
+        original_file_name=document.original_file_name,
+        file_path=document.file_path,
+        file_type=document.file_type,
+        file_size=document.file_size,
+        preview_file_name=document.preview_file_name,
+        preview_file_path=document.preview_file_path,
+        preview_status=document.preview_status,
+        preview_error=document.preview_error,
+        preview_generated_at=document.preview_generated_at,
+        uploaded_by=document.uploaded_by,
+        archived_at=datetime.utcnow(),
+    )
+    db.session.add(archive_document_record)
+    return archive_document_record
+
+
+def apply_document_revision(document, uploaded_file, revision_no=None, revision_date=None):
+    file_values = save_document_upload(uploaded_file, document.category)
+    archive_current_document_version(document, actor=g.current_user)
+    for key, value in file_values.items():
+        setattr(document, key, value)
+    document.preview_file_name = None
+    document.preview_file_path = None
+    document.preview_status = None
+    document.preview_error = None
+    document.preview_generated_at = None
+    if revision_no is not None:
+        document.revision_no = revision_no[:40] or document.revision_no
+    document.revision_date = revision_date or date.today()
+    document.status = "Yayında"
+    document.archived_at = None
+    document.uploaded_by = g.current_user.id
+    generate_document_preview(document)
+    return file_values
+
+
+def document_revision_error_message(error_key):
+    return {
+        "invalid_document_file_type": "Sadece PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG veya JPEG yükleyebilirsiniz.",
+        "document_file_too_large": "Dosya en fazla 25 MB olabilir.",
+        "document_file_required": "Revizyon için yeni doküman dosyası seçin.",
+        "required_fields": "Açıklama alanı zorunludur.",
+        "text_too_long": "Açıklama alanı en fazla 2000 karakter olabilir.",
+        "invalid_date": "Revizyon tarihini geçerli biçimde girin.",
+    }.get(error_key, "Revizyon işlemini kontrol edin.")
 
 
 def delete_document_file(document):
@@ -5802,6 +6024,15 @@ def open_notification(notification_id):
         return redirect(url_for("main.action_detail", action_id=notification.action.id))
     if notification.dof and can_view_dof(notification.dof):
         return redirect(url_for("main.dof_detail", dof_id=notification.dof.id))
+    if notification.document_revision_request:
+        revision_request = notification.document_revision_request
+        if can_manage_documents() or revision_request.requested_by_user_id == g.current_user.id:
+            return redirect(
+                url_for(
+                    "main.document_revision_request_detail",
+                    request_id=revision_request.id,
+                )
+            )
     return redirect(url_for("main.notifications"))
 
 
@@ -7074,6 +7305,205 @@ def edit_document(document_id):
     return render_template(
         "documents/edit.html",
         **document_form_context(document=document),
+    )
+
+
+@bp.route("/documents/<int:document_id>/revision-request", methods=["GET", "POST"])
+@login_required
+def request_document_revision(document_id):
+    if not can_view_documents():
+        abort(403)
+    document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
+    if document.status == "Arşiv":
+        flash("Arşiv dokümanları için revizyon talebi açılamaz.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+
+    if request.method == "POST":
+        explanation = request.form.get("explanation", "").strip()
+        saved_files = []
+        try:
+            if not explanation:
+                raise ValueError("required_fields")
+            if len(explanation) > 2000:
+                raise ValueError("text_too_long")
+
+            revision_request = DocumentRevisionRequest(
+                document=document,
+                requested_by_user_id=g.current_user.id,
+                status=DOCUMENT_REVISION_PENDING_STATUS,
+                explanation=explanation,
+            )
+            assign_current_company(revision_request)
+            db.session.add(revision_request)
+            db.session.flush()
+
+            for uploaded_file in document_uploads():
+                request_file = save_document_revision_request_file(
+                    uploaded_file,
+                    revision_request,
+                )
+                db.session.add(request_file)
+                saved_files.append(request_file)
+
+            document.status = "Revizyon Bekleyen"
+            message = (
+                f"{g.current_user.full_name} kullanıcısı "
+                f"{document.document_code} için revizyon talep etti."
+            )
+            notify_document_revision_request(
+                document_management_representatives(),
+                revision_request,
+                message,
+                exclude_user_id=g.current_user.id,
+            )
+            db.session.commit()
+            flash("Revizyon talebiniz Yönetim Temsilcisi onayına gönderildi.", "success")
+            return redirect(url_for("main.document_detail", document_id=document.id))
+        except ValueError as error:
+            db.session.rollback()
+            for request_file in saved_files:
+                delete_document_revision_request_file(request_file)
+            flash(document_revision_error_message(str(error)), "danger")
+
+    return render_template(
+        "documents/revision_request.html",
+        document=document,
+        format_date=format_date,
+    )
+
+
+@bp.get("/documents/revision-requests/<int:request_id>")
+@login_required
+def document_revision_request_detail(request_id):
+    revision_request = scoped_query(
+        DocumentRevisionRequest.query,
+        DocumentRevisionRequest,
+    ).filter_by(id=request_id).first_or_404()
+    ensure_same_company(revision_request)
+    if not can_manage_documents() and revision_request.requested_by_user_id != g.current_user.id:
+        abort(403)
+    ensure_same_company(revision_request.document)
+    return render_template(
+        "documents/revision_request_detail.html",
+        revision_request=revision_request,
+        document=revision_request.document,
+        format_date=format_date,
+        format_file_size=format_file_size,
+        today=date.today,
+        can_manage_documents=can_manage_documents(),
+    )
+
+
+@bp.get("/documents/revision-requests/files/<int:file_id>/download")
+@login_required
+def download_document_revision_request_file(file_id):
+    request_file = scoped_query(
+        DocumentRevisionRequestFile.query,
+        DocumentRevisionRequestFile,
+    ).filter_by(id=file_id).first_or_404()
+    ensure_same_company(request_file)
+    revision_request = request_file.revision_request
+    if not can_manage_documents() and revision_request.requested_by_user_id != g.current_user.id:
+        abort(403)
+    return send_stored_upload(
+        request_file.file_path,
+        as_attachment=True,
+        download_name=request_file.original_file_name,
+    )
+
+
+@bp.post("/documents/revision-requests/<int:request_id>/approve")
+@login_required
+def approve_document_revision_request(request_id):
+    if not can_manage_documents():
+        abort(403)
+    revision_request = scoped_query(
+        DocumentRevisionRequest.query,
+        DocumentRevisionRequest,
+    ).filter_by(id=request_id).first_or_404()
+    ensure_same_company(revision_request)
+    document = revision_request.document
+    ensure_same_company(document)
+    uploaded_files = document_uploads()
+    saved_file_values = None
+    try:
+        if not uploaded_files:
+            raise ValueError("document_file_required")
+        revision_no = request.form.get("revision_no", "").strip()
+        revision_date = parse_optional_date("revision_date") or date.today()
+        approval_note = request.form.get("approval_note", "").strip()
+
+        saved_file_values = apply_document_revision(
+            document,
+            uploaded_files[0],
+            revision_no=revision_no,
+            revision_date=revision_date,
+        )
+        revision_request.status = DOCUMENT_REVISION_APPROVED_STATUS
+        revision_request.approved_by_user_id = g.current_user.id
+        revision_request.approved_at = datetime.utcnow()
+        revision_request.approval_note = approval_note or None
+        message = (
+            f"{document.document_code} revizyon talebiniz "
+            f"{g.current_user.full_name} tarafından onaylandı ve yeni dosya yayınlandı."
+        )
+        notify_document_revision_request(
+            [revision_request.requested_by],
+            revision_request,
+            message,
+            exclude_user_id=g.current_user.id,
+        )
+        db.session.commit()
+        flash("Revizyon onaylandı, eski dosya arşive alındı ve yeni doküman yayınlandı.", "success")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+    except ValueError as error:
+        db.session.rollback()
+        if saved_file_values:
+            delete_stored_upload(saved_file_values["file_path"])
+        flash(document_revision_error_message(str(error)), "danger")
+    return redirect(url_for("main.document_revision_request_detail", request_id=request_id))
+
+
+@bp.route("/documents/<int:document_id>/revise", methods=["GET", "POST"])
+@login_required
+def revise_document(document_id):
+    document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
+    if not can_manage_documents():
+        abort(403)
+    if document.status == "Arşiv":
+        flash("Arşiv dokümanlarına doğrudan revizyon yapılamaz.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+
+    if request.method == "POST":
+        saved_file_values = None
+        try:
+            uploaded_files = document_uploads()
+            if not uploaded_files:
+                raise ValueError("document_file_required")
+            revision_no = request.form.get("revision_no", "").strip()
+            revision_date = parse_optional_date("revision_date") or date.today()
+            saved_file_values = apply_document_revision(
+                document,
+                uploaded_files[0],
+                revision_no=revision_no,
+                revision_date=revision_date,
+            )
+            db.session.commit()
+            flash("Dokümana revizyon yapıldı. Eski dosya arşive alındı.", "success")
+            return redirect(url_for("main.document_detail", document_id=document.id))
+        except ValueError as error:
+            db.session.rollback()
+            if saved_file_values:
+                delete_stored_upload(saved_file_values["file_path"])
+            flash(document_revision_error_message(str(error)), "danger")
+
+    return render_template(
+        "documents/revise.html",
+        document=document,
+        today=date.today(),
+        format_date=format_date,
     )
 
 

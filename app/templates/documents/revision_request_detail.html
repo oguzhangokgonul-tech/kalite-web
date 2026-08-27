@@ -1,0 +1,104 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Revizyon Talebi{% endblock %}
+
+{% block app_content %}
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.document_code }}</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Revizyon Talebi</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header("Doküman Revizyon Talebi", breadcrumb, class_name="documents-page-heading", icon="bi-arrow-repeat", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Dokümana Dön</span>
+    </a>
+  {% endcall %}
+
+  <div class="documents-detail-layout">
+    <section class="documents-main-card">
+      <div class="documents-revision-target">
+        <span class="documents-list-icon"><i class="bi bi-file-earmark-text"></i></span>
+        <div>
+          <strong>{{ document.document_code }} {{ document.title }}</strong>
+          <span>Talep eden: {{ revision_request.requested_by.full_name if revision_request.requested_by else "-" }} · {{ revision_request.created_at.strftime("%d.%m.%Y %H:%M") }}</span>
+        </div>
+        <div class="ms-auto">{{ ui.status_badge(revision_request.status) }}</div>
+      </div>
+
+      <div class="documents-side-card mt-4">
+        <h3>Talep Açıklaması</h3>
+        <p>{{ revision_request.explanation }}</p>
+      </div>
+
+      <div class="documents-side-card">
+        <h3>Talep Ekleri</h3>
+        {% if revision_request.files %}
+          <div class="documents-revision-file-list">
+            {% for file in revision_request.files %}
+              <a class="documents-revision-file" href="{{ url_for('main.download_document_revision_request_file', file_id=file.id) }}">
+                <i class="bi bi-paperclip"></i>
+                <span>{{ file.original_file_name }}</span>
+                <small>{{ format_file_size(file.file_size) }}</small>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p>Bu talebe ek dosya eklenmemiş.</p>
+        {% endif %}
+      </div>
+    </section>
+
+    <aside class="documents-side-panel">
+      {% if can_manage_documents and revision_request.status != "Onaylandı" %}
+        <form class="documents-side-card documents-revision-approval" method="post" action="{{ url_for('main.approve_document_revision_request', request_id=revision_request.id) }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <h3>Yeni Dokümanı Yayınla</h3>
+          <p>Onay verdiğinizde mevcut dosya arşive alınır, yeni dosya yayına geçer.</p>
+
+          <label class="form-label" for="revision_no">Yeni Revizyon No</label>
+          <input class="form-control" id="revision_no" name="revision_no" value="{{ document.revision_no or '' }}" placeholder="Örn. 5">
+
+          <label class="form-label mt-3" for="revision_date">Revizyon Tarihi</label>
+          <input class="form-control" id="revision_date" name="revision_date" type="date" value="{{ today().isoformat() if today is defined else '' }}">
+
+          <label class="form-label mt-3" for="approval_note">Onay Notu</label>
+          <textarea class="form-control" id="approval_note" name="approval_note" rows="3" maxlength="1000" placeholder="Opsiyonel not"></textarea>
+
+          <label class="form-label mt-3" for="document_files">Yeni Doküman Dosyası *</label>
+          <input class="form-control" id="document_files" name="document_files" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+
+          <button class="btn btn-success w-100 mt-4" type="submit">
+            <i class="bi bi-check2-circle"></i>
+            <span>Onayla ve Yayınla</span>
+          </button>
+        </form>
+      {% endif %}
+
+      <div class="documents-side-card documents-info-card">
+        <h3>Doküman Bilgileri</h3>
+        <div class="documents-info-list">
+          <div>
+            <span><i class="bi bi-folder"></i> Kategori</span>
+            <strong>{{ document.category.display_name }}</strong>
+          </div>
+          <div>
+            <span><i class="bi bi-tag"></i> Revizyon</span>
+            <strong>{{ document.revision_no or "-" }}</strong>
+          </div>
+          <div>
+            <span><i class="bi bi-check2-circle"></i> Durum</span>
+            <strong>{{ ui.status_badge(document.status) }}</strong>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+{% endblock %}

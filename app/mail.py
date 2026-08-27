@@ -62,6 +62,20 @@ def _vehicle_url(vehicle):
         return ""
 
 
+def _document_revision_request_url(revision_request):
+    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
+    if public_base_url:
+        return f"{public_base_url}/documents/revision-requests/{revision_request.id}"
+    try:
+        return url_for(
+            "main.document_revision_request_detail",
+            request_id=revision_request.id,
+            _external=True,
+        )
+    except RuntimeError:
+        return ""
+
+
 def _format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
@@ -145,6 +159,30 @@ def build_vehicle_reminder_email(vehicle, reminder_title, due_date, day_label, d
     ]
     if vehicle_url:
         lines.extend(["", f"Detay: {vehicle_url}"])
+    return subject, "\n".join(lines)
+
+
+def build_document_revision_request_email(revision_request, message):
+    request_url = _document_revision_request_url(revision_request)
+    document = revision_request.document
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
+    subject = f"{subject_prefix} Doküman revizyon talebi"
+    if document:
+        subject = f"{subject}: {document.document_code}"
+
+    lines = [
+        message,
+        "",
+        f"Doküman Kodu: {document.document_code if document else '-'}",
+        f"Doküman Adı: {document.title if document else '-'}",
+        f"Talep Eden: {revision_request.requested_by.full_name if revision_request.requested_by else '-'}",
+        f"Durum: {revision_request.status}",
+        "",
+        "Talep Açıklaması:",
+        revision_request.explanation or "-",
+    ]
+    if request_url:
+        lines.extend(["", f"Detay: {request_url}"])
     return subject, "\n".join(lines)
 
 
@@ -261,6 +299,27 @@ def send_vehicle_reminder_email(
         day_label,
         days_before,
     )
+    _mail_executor.submit(
+        _send_mail_safely,
+        settings,
+        recipients,
+        subject,
+        body,
+        current_app.logger,
+    )
+    return True
+
+
+def send_document_revision_request_email(users, revision_request, message):
+    recipients = sorted({user.email for user in users if user.email})
+    if not recipients:
+        return False
+
+    settings = _mail_settings()
+    if not _mail_enabled(settings):
+        return False
+
+    subject, body = build_document_revision_request_email(revision_request, message)
     _mail_executor.submit(
         _send_mail_safely,
         settings,

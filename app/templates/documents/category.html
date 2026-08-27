@@ -137,7 +137,15 @@
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
                     <i class="bi bi-download"></i>
                   </a>
-                  {% if can_manage_documents %}
+                  {% if document.status != "Arşiv" %}
+                    <a class="btn btn-sm btn-outline-warning" href="{{ url_for('main.request_document_revision', document_id=document.id) }}" aria-label="Revizyon Talep Et" title="Revizyon Talep Et">
+                      <i class="bi bi-arrow-repeat"></i>
+                    </a>
+                  {% endif %}
+                  {% if can_manage_documents and document.status != "Arşiv" %}
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.revise_document', document_id=document.id) }}" aria-label="Dokümana Revizyon Yap" title="Dokümana Revizyon Yap">
+                      <i class="bi bi-file-earmark-arrow-up"></i>
+                    </a>
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document', document_id=document.id) }}" aria-label="Düzenle">
                       <i class="bi bi-pencil"></i>
                     </a>

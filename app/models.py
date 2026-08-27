@@ -850,6 +850,64 @@ class Document(db.Model):
 
     category = db.relationship("DocumentCategory", back_populates="documents")
     uploader = db.relationship("User", foreign_keys=[uploaded_by])
+    revision_requests = db.relationship(
+        "DocumentRevisionRequest",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="DocumentRevisionRequest.created_at.desc()",
+    )
+
+
+class DocumentRevisionRequest(db.Model):
+    __tablename__ = "document_revision_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=False, index=True)
+    requested_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    status = db.Column(db.String(60), nullable=False, default="Yönetim Temsilcisi Onayı Bekleniyor")
+    explanation = db.Column(db.Text, nullable=False)
+    approval_note = db.Column(db.Text, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    document = db.relationship("Document", back_populates="revision_requests")
+    requested_by = db.relationship("User", foreign_keys=[requested_by_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+    files = db.relationship(
+        "DocumentRevisionRequestFile",
+        back_populates="revision_request",
+        cascade="all, delete-orphan",
+        order_by="DocumentRevisionRequestFile.created_at.asc()",
+    )
+
+
+class DocumentRevisionRequestFile(db.Model):
+    __tablename__ = "document_revision_request_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    revision_request_id = db.Column(
+        db.Integer,
+        db.ForeignKey("document_revision_requests.id"),
+        nullable=False,
+        index=True,
+    )
+    file_name = db.Column(db.String(255), nullable=False)
+    original_file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(20), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    revision_request = db.relationship("DocumentRevisionRequest", back_populates="files")
 
 
 class MaintenanceMachine(db.Model):
@@ -1528,6 +1586,11 @@ class Notification(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
     dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    document_revision_request_id = db.Column(
+        db.Integer,
+        db.ForeignKey("document_revision_requests.id"),
+        nullable=True,
+    )
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
@@ -1535,6 +1598,7 @@ class Notification(db.Model):
     user = db.relationship("User")
     action = db.relationship("Action", back_populates="notifications")
     dof = db.relationship("Dof", back_populates="notifications")
+    document_revision_request = db.relationship("DocumentRevisionRequest")
 
 
 class AppSetting(db.Model):

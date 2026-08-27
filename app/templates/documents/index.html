@@ -142,13 +142,19 @@
                   <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.download_document', document_id=document.id) }}" aria-label="İndir">
                     <i class="bi bi-download"></i>
                   </a>
+                  {% if document.status != "Arşiv" %}
+                    <a class="btn btn-sm btn-outline-warning" href="{{ url_for('main.request_document_revision', document_id=document.id) }}" aria-label="Revizyon Talep Et" title="Revizyon Talep Et">
+                      <i class="bi bi-arrow-repeat"></i>
+                    </a>
+                  {% endif %}
                   {% if can_manage_documents or can_delete_document(document) %}
                     <div class="dropdown">
                       <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Diğer işlemler">
                         <i class="bi bi-three-dots-vertical"></i>
                       </button>
                       <div class="dropdown-menu dropdown-menu-end">
-                        {% if can_manage_documents %}
+                        {% if can_manage_documents and document.status != "Arşiv" %}
+                          <a class="dropdown-item" href="{{ url_for('main.revise_document', document_id=document.id) }}">Dokümana Revizyon Yap</a>
                           <a class="dropdown-item" href="{{ url_for('main.edit_document', document_id=document.id) }}">Düzenle</a>
                         {% endif %}
                         {% if can_delete_document(document) %}

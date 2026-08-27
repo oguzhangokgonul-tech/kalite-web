@@ -122,7 +122,7 @@
         </a>
         {% endif %}
         {% if g.company_module_enabled('documents') %}
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.request_document_revision', 'main.document_revision_request_detail', 'main.download_document_revision_request_file', 'main.approve_document_revision_request', 'main.revise_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
           <i class="bi bi-file-earmark-text"></i>
           <span>Doküman Yönetimi</span>
         </a>

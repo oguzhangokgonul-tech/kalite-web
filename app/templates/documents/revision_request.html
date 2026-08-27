@@ -1,0 +1,61 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Revizyon Talep Et{% endblock %}
+
+{% block app_content %}
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.document_code }}</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Revizyon Talep Et</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header("Revizyon Talep Et", breadcrumb, class_name="documents-page-heading", icon="bi-arrow-repeat", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Dokümana Dön</span>
+    </a>
+  {% endcall %}
+
+  <form class="documents-form-card" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="documents-revision-target">
+      <span class="documents-list-icon"><i class="bi bi-file-earmark-text"></i></span>
+      <div>
+        <strong>{{ document.document_code }} {{ document.title }}</strong>
+        <span>{{ document.category.display_name }} · Revizyon: {{ document.revision_no or "-" }} · Son revizyon: {{ format_date(document.revision_date) }}</span>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <label class="form-label" for="explanation">Revizyon Açıklaması *</label>
+      <textarea class="form-control" id="explanation" name="explanation" rows="6" maxlength="2000" required placeholder="Revizyon talebinizin nedenini ve beklediğiniz değişikliği yazın."></textarea>
+    </div>
+
+    <div class="documents-upload-box mt-4">
+      <input id="document_files" name="document_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+      <label for="document_files">
+        <i class="bi bi-cloud-arrow-up"></i>
+        <strong>Opsiyonel ek dosya seçin veya buraya sürükleyin</strong>
+        <span>Görsel, Word, Excel, PDF ve PowerPoint dosyaları desteklenir. Maks. 25 MB.</span>
+        <small>Talebi açıklayan ekran görüntüsü veya önerilen dosyayı ekleyebilirsiniz.</small>
+      </label>
+    </div>
+
+    <div class="documents-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+        <i class="bi bi-x-lg"></i>
+        <span>Vazgeç</span>
+      </a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-send"></i>
+        <span>Talebi Gönder</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}
