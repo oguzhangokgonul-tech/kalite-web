@@ -1,0 +1,156 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Kalibrasyon Planı{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Kalibrasyon Planı", "Cihaz, ekipman ve gelecek kalibrasyon doğrulama tarihlerini takip edin.", icon="bi-rulers") %}
+    {% if can_manage_calibration %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_calibration_record') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Kalibrasyon Ekle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-rulers"></i></span>
+      <span class="stat-label">Toplam Kayıt</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-clock-history"></i></span>
+      <span class="stat-label">30 Gün İçinde</span>
+      <strong>{{ due_soon_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+      <span class="stat-label">Geciken</span>
+      <strong>{{ delayed_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="maintenance-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Cihaz, kod, seri no veya sertifika ara">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="location">Bulunduğu Yer</label>
+        <select class="form-select" id="location" name="location">
+          <option value="">Tümü</option>
+          {% for location in locations %}
+            <option value="{{ location }}" {% if filters.location == location %}selected{% endif %}>{{ location }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="dashboard-table-card">
+    {% call ui.section_header("Kalibrasyon Kayıtları", "PL.12 kalibrasyon planından aktarılan cihaz ve ekipman kayıtları.") %}
+      {% if can_manage_calibration %}
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_calibration_record') }}">
+          <i class="bi bi-plus-lg"></i>
+          <span>Yeni Kayıt</span>
+        </a>
+      {% endif %}
+    {% endcall %}
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Cihaz Kodu</th>
+            <th>Cihaz / Ekipman</th>
+            <th>İmalatçı</th>
+            <th>Marka / Model</th>
+            <th>Seri No</th>
+            <th>Sertifika No</th>
+            <th>Son Kalibrasyon</th>
+            <th>Gelecek Kalibrasyon</th>
+            <th>Kalan Süre</th>
+            <th>Durum</th>
+            {% if can_manage_calibration %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in records %}
+            {% set due = calibration_day_status(record.next_calibration_date) %}
+            <tr class="{% if not record.is_active %}maintenance-row-passive{% endif %}">
+              <td data-label="Cihaz Kodu"><strong>{{ record.device_code }}</strong></td>
+              <td data-label="Cihaz / Ekipman">
+                <strong>{{ record.device_name }}</strong>
+                {% if record.measurement_range or record.deviation_range %}
+                  <span class="maintenance-muted-line">{{ record.measurement_range or "-" }}{% if record.deviation_range %} / {{ record.deviation_range }}{% endif %}</span>
+                {% endif %}
+              </td>
+              <td data-label="İmalatçı">{{ record.manufacturer or "-" }}</td>
+              <td data-label="Marka / Model">{{ record.brand_model or "-" }}</td>
+              <td data-label="Seri No">{{ record.serial_no or "-" }}</td>
+              <td data-label="Sertifika No">{{ record.certificate_no or "-" }}</td>
+              <td data-label="Son Kalibrasyon">{{ format_date(record.calibration_date) if record.calibration_date else "-" }}</td>
+              <td data-label="Gelecek Kalibrasyon">{{ format_date(record.next_calibration_date) if record.next_calibration_date else "-" }}</td>
+              <td data-label="Kalan Süre">
+                <span class="badge rounded-pill text-bg-{{ 'secondary' if due.tone == 'muted' else due.tone }}">{{ due.label }}</span>
+              </td>
+              <td data-label="Durum">{{ ui.status_badge(calibration_status_label(record), tone=calibration_status_tone(record)) }}</td>
+              {% if can_manage_calibration %}
+                <td data-label="İşlemler">
+                  <div class="dashboard-row-actions justify-content-end">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_calibration_record', record_id=record.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                    <form action="{{ url_for('main.delete_calibration_record', record_id=record.id) }}" method="post" onsubmit="return confirm('Kalibrasyon kaydını silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-trash"></i>
+                        <span>Sil</span>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 11 if can_manage_calibration else 10 }}">
+                <strong>Henüz kalibrasyon kaydı yok.</strong>
+                <span>Yeni kayıt eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ total_count }} kayıt</span>
+    </div>
+  </section>
+{% endblock %}

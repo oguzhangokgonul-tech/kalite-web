@@ -1,0 +1,122 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% macro value_for(name, fallback="") -%}
+  {%- if form_data -%}
+    {{ form_data.get(name, fallback) }}
+  {%- elif record -%}
+    {{ record|attr(name) or fallback }}
+  {%- else -%}
+    {{ fallback }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro date_value(name) -%}
+  {%- if form_data -%}
+    {{ form_data.get(name, "") }}
+  {%- elif record and record|attr(name) -%}
+    {{ (record|attr(name)).isoformat() }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, page_description, icon="bi-rulers") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.calibration_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Kalibrasyon Planı</span>
+    </a>
+  {% endcall %}
+
+  <form class="maintenance-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="maintenance-form-heading">
+      <span class="app-card-icon maintenance-card-icon"><i class="bi bi-rulers"></i></span>
+      <div>
+        <h2>Kalibrasyon Bilgileri</h2>
+        <p>Cihaz kodu, sertifika ve gelecek doğrulama tarihini girin.</p>
+      </div>
+    </div>
+
+    <div class="maintenance-form-grid">
+      <div>
+        <label class="form-label" for="device_code">Cihaz Kodu</label>
+        <input class="form-control" id="device_code" name="device_code" value="{{ value_for('device_code') }}" maxlength="80" required>
+      </div>
+      <div>
+        <label class="form-label" for="device_name">Cihaz / Ekipman</label>
+        <input class="form-control" id="device_name" name="device_name" value="{{ value_for('device_name') }}" maxlength="220" required>
+      </div>
+      <div>
+        <label class="form-label" for="manufacturer">İmalatçı Adı</label>
+        <input class="form-control" id="manufacturer" name="manufacturer" value="{{ value_for('manufacturer') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="brand_model">Tip / Marka / Model</label>
+        <input class="form-control" id="brand_model" name="brand_model" value="{{ value_for('brand_model') }}" maxlength="180">
+      </div>
+      <div>
+        <label class="form-label" for="serial_no">Seri Numarası</label>
+        <input class="form-control" id="serial_no" name="serial_no" value="{{ value_for('serial_no') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="measurement_range">Ölçme Aralığı</label>
+        <input class="form-control" id="measurement_range" name="measurement_range" value="{{ value_for('measurement_range') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="deviation_range">Sapma Aralığı</label>
+        <input class="form-control" id="deviation_range" name="deviation_range" value="{{ value_for('deviation_range') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="location">Bulunduğu Yer</label>
+        <input class="form-control" id="location" name="location" value="{{ value_for('location') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="certificate_no">Sertifika Numarası</label>
+        <input class="form-control" id="certificate_no" name="certificate_no" value="{{ value_for('certificate_no') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="calibration_date">Kalibrasyon Doğrulama Tarihi</label>
+        <input class="form-control" id="calibration_date" name="calibration_date" type="date" value="{{ date_value('calibration_date') }}">
+      </div>
+      <div>
+        <label class="form-label" for="calibration_interval">Kalibrasyon Doğrulama Aralığı</label>
+        <input class="form-control" id="calibration_interval" name="calibration_interval" value="{{ value_for('calibration_interval', '1 YIL') }}" maxlength="80">
+      </div>
+      <div>
+        <label class="form-label" for="next_calibration_date">Gelecek Kalibrasyon Doğrulama Tarihi</label>
+        <input class="form-control" id="next_calibration_date" name="next_calibration_date" type="date" value="{{ date_value('next_calibration_date') }}">
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          {% set selected_status = value_for('status', 'UYGUN')|trim %}
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <label class="form-label" for="notes">Notlar</label>
+      <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="2000" placeholder="Ek açıklama veya takip notu yazın.">{{ value_for('notes') }}</textarea>
+    </div>
+
+    {% if record %}
+      <div class="form-check form-switch mt-4">
+        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if record.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Kayıt aktif</label>
+      </div>
+    {% endif %}
+
+    <div class="maintenance-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

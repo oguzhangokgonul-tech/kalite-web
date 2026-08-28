@@ -64,6 +64,12 @@
             <span>Araç Yönetimi</span>
           </a>
         {% endif %}
+        {% if g.company_module_enabled('calibration') %}
+          <a class="dashboard-nav-item {% if request.endpoint in ['main.calibration_dashboard', 'main.create_calibration_record', 'main.edit_calibration_record'] %}active{% endif %}" href="{{ url_for('main.calibration_dashboard') }}">
+            <i class="bi bi-rulers"></i>
+            <span>Kalibrasyon Planı</span>
+          </a>
+        {% endif %}
         {% if g.company_module_enabled('quality_tests') %}
         <div class="dashboard-nav-group {% if quality_tests_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if quality_tests_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#qualityTestsNav" aria-expanded="{{ 'true' if quality_tests_active else 'false' }}" aria-controls="qualityTestsNav">

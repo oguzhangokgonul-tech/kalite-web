@@ -43,6 +43,7 @@ from .models import (
     ACTION_SUB_TASK_PRIORITIES,
     ACTION_SUB_TASK_STATUSES,
     AppSetting,
+    CalibrationRecord,
     Company,
     CompanyModule,
     COMPANY_MODULE_CATALOG,
@@ -299,6 +300,7 @@ def load_logged_in_user():
         ensure_action_sub_task_schema()
         ensure_document_schema()
         ensure_maintenance_schema()
+        ensure_calibration_schema()
         ensure_quality_test_schema()
         ensure_suggestion_schema()
         try:
@@ -1066,6 +1068,99 @@ def ensure_maintenance_schema():
         current_app.logger.exception("Bakım yönetimi şeması kontrol edilemedi.")
 
 
+def ensure_calibration_schema():
+    if current_app.extensions.get("calibration_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "calibration_records" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE calibration_records (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            device_code VARCHAR(80) NOT NULL,
+                            device_name VARCHAR(220) NOT NULL,
+                            manufacturer VARCHAR(160),
+                            brand_model VARCHAR(180),
+                            serial_no VARCHAR(160),
+                            measurement_range VARCHAR(160),
+                            deviation_range VARCHAR(160),
+                            location VARCHAR(160),
+                            certificate_no VARCHAR(160),
+                            calibration_date DATE,
+                            calibration_interval VARCHAR(80),
+                            next_calibration_date DATE,
+                            status VARCHAR(40) NOT NULL DEFAULT 'UYGUN',
+                            notes TEXT,
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("calibration_records")
+                }
+                record_columns = {
+                    "company_id": "ALTER TABLE calibration_records ADD COLUMN company_id INTEGER",
+                    "device_code": "ALTER TABLE calibration_records ADD COLUMN device_code VARCHAR(80) NOT NULL DEFAULT ''",
+                    "device_name": "ALTER TABLE calibration_records ADD COLUMN device_name VARCHAR(220) NOT NULL DEFAULT ''",
+                    "manufacturer": "ALTER TABLE calibration_records ADD COLUMN manufacturer VARCHAR(160)",
+                    "brand_model": "ALTER TABLE calibration_records ADD COLUMN brand_model VARCHAR(180)",
+                    "serial_no": "ALTER TABLE calibration_records ADD COLUMN serial_no VARCHAR(160)",
+                    "measurement_range": "ALTER TABLE calibration_records ADD COLUMN measurement_range VARCHAR(160)",
+                    "deviation_range": "ALTER TABLE calibration_records ADD COLUMN deviation_range VARCHAR(160)",
+                    "location": "ALTER TABLE calibration_records ADD COLUMN location VARCHAR(160)",
+                    "certificate_no": "ALTER TABLE calibration_records ADD COLUMN certificate_no VARCHAR(160)",
+                    "calibration_date": "ALTER TABLE calibration_records ADD COLUMN calibration_date DATE",
+                    "calibration_interval": "ALTER TABLE calibration_records ADD COLUMN calibration_interval VARCHAR(80)",
+                    "next_calibration_date": "ALTER TABLE calibration_records ADD COLUMN next_calibration_date DATE",
+                    "status": "ALTER TABLE calibration_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'UYGUN'",
+                    "notes": "ALTER TABLE calibration_records ADD COLUMN notes TEXT",
+                    "is_active": "ALTER TABLE calibration_records ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+                    "created_by_user_id": "ALTER TABLE calibration_records ADD COLUMN created_by_user_id INTEGER",
+                    "created_at": "ALTER TABLE calibration_records ADD COLUMN created_at DATETIME",
+                    "updated_at": "ALTER TABLE calibration_records ADD COLUMN updated_at DATETIME",
+                }
+                for column_name, statement in record_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_calibration_records_company_id "
+                    "ON calibration_records (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_calibration_records_device_code "
+                    "ON calibration_records (device_code)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_calibration_records_next_date "
+                    "ON calibration_records (next_calibration_date)"
+                )
+            )
+        current_app.extensions["calibration_schema_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Kalibrasyon planı şeması kontrol edilemedi.")
+
+
 def ensure_quality_test_schema():
     if current_app.extensions.get("quality_test_schema_checked"):
         return
@@ -1473,6 +1568,10 @@ MODULE_ENDPOINTS = {
     "main.create_vehicle_operation": "vehicles",
     "main.delete_vehicle_operation": "vehicles",
     "main.save_vehicle_fuel": "vehicles",
+    "main.calibration_dashboard": "calibration",
+    "main.create_calibration_record": "calibration",
+    "main.edit_calibration_record": "calibration",
+    "main.delete_calibration_record": "calibration",
     "main.suggestions_dashboard": "suggestions",
     "main.create_suggestion": "suggestions",
     "main.edit_suggestion": "suggestions",
@@ -3918,6 +4017,156 @@ def can_manage_vehicles():
     return current_user_can("vehicles.manage") or current_user_can(
         "maintenance.inventory_manage"
     )
+
+
+def can_view_calibration():
+    return g.current_user is not None
+
+
+def can_manage_calibration():
+    return current_user_can("calibration.manage")
+
+
+def calibration_day_status(target_date):
+    if not target_date:
+        return {"days": None, "label": "-", "tone": "muted"}
+    days = (target_date - date.today()).days
+    if days > 30:
+        return {"days": days, "label": f"{days} gün kaldı", "tone": "success"}
+    if days >= 0:
+        return {"days": days, "label": f"{days} gün kaldı", "tone": "warning"}
+    return {"days": days, "label": f"{abs(days)} gün geçti", "tone": "danger"}
+
+
+def calibration_status_label(record):
+    due_status = calibration_day_status(record.next_calibration_date)
+    if due_status["days"] is not None and due_status["days"] < 0:
+        return "GECİKTİ"
+    return record.status or "UYGUN"
+
+
+def calibration_status_tone(record):
+    label = calibration_status_label(record)
+    if label == "GECİKTİ":
+        return "danger"
+    if label == "PASİF":
+        return "muted"
+    return "success" if label == "UYGUN" else "warning"
+
+
+def calibration_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "location": request.args.get("location", "").strip(),
+        "status": request.args.get("status", "").strip(),
+    }
+
+
+def calibration_query():
+    return scoped_query(CalibrationRecord.query, CalibrationRecord).order_by(
+        CalibrationRecord.device_code.asc(),
+        CalibrationRecord.id.asc(),
+    )
+
+
+def filtered_calibration_records(filters):
+    query = calibration_query()
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                CalibrationRecord.device_code.ilike(search_value),
+                CalibrationRecord.device_name.ilike(search_value),
+                CalibrationRecord.manufacturer.ilike(search_value),
+                CalibrationRecord.brand_model.ilike(search_value),
+                CalibrationRecord.serial_no.ilike(search_value),
+                CalibrationRecord.certificate_no.ilike(search_value),
+            )
+        )
+    if filters["location"]:
+        query = query.filter(CalibrationRecord.location == filters["location"])
+    if filters["status"]:
+        if filters["status"] == "GECİKTİ":
+            query = query.filter(CalibrationRecord.next_calibration_date < date.today())
+        else:
+            query = query.filter(CalibrationRecord.status == filters["status"])
+    return query.all()
+
+
+def parse_calibration_record_form():
+    values = {
+        "device_code": request.form.get("device_code", "").strip().upper(),
+        "device_name": request.form.get("device_name", "").strip(),
+        "manufacturer": request.form.get("manufacturer", "").strip(),
+        "brand_model": request.form.get("brand_model", "").strip(),
+        "serial_no": request.form.get("serial_no", "").strip(),
+        "measurement_range": request.form.get("measurement_range", "").strip(),
+        "deviation_range": request.form.get("deviation_range", "").strip(),
+        "location": request.form.get("location", "").strip(),
+        "certificate_no": request.form.get("certificate_no", "").strip(),
+        "calibration_date": parse_optional_date("calibration_date"),
+        "calibration_interval": request.form.get("calibration_interval", "").strip(),
+        "next_calibration_date": parse_optional_date("next_calibration_date"),
+        "status": request.form.get("status", "UYGUN").strip() or "UYGUN",
+        "notes": request.form.get("notes", "").strip(),
+    }
+    if not values["device_code"] or not values["device_name"]:
+        raise ValueError("required_fields")
+    if values["status"] not in {"UYGUN", "KONTROL", "PASİF"}:
+        raise ValueError("invalid_status")
+    limits = {
+        "device_code": 80,
+        "device_name": 220,
+        "manufacturer": 160,
+        "brand_model": 180,
+        "serial_no": 160,
+        "measurement_range": 160,
+        "deviation_range": 160,
+        "location": 160,
+        "certificate_no": 160,
+        "calibration_interval": 80,
+        "notes": 2000,
+    }
+    if any(len(values[key] or "") > limit for key, limit in limits.items()):
+        raise ValueError("text_too_long")
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def calibration_dashboard_context():
+    filters = calibration_filters()
+    records = filtered_calibration_records(filters)
+    all_records = calibration_query().all()
+    locations = sorted({record.location for record in all_records if record.location})
+    today = date.today()
+    delayed_count = sum(
+        1
+        for record in all_records
+        if record.next_calibration_date and record.next_calibration_date < today
+    )
+    due_soon_count = sum(
+        1
+        for record in all_records
+        if record.next_calibration_date
+        and 0 <= (record.next_calibration_date - today).days <= 30
+    )
+    return {
+        "records": records,
+        "total_count": len(all_records),
+        "filtered_count": len(records),
+        "delayed_count": delayed_count,
+        "due_soon_count": due_soon_count,
+        "locations": locations,
+        "statuses": ("UYGUN", "KONTROL", "GECİKTİ", "PASİF"),
+        "filters": filters,
+        "can_manage_calibration": can_manage_calibration(),
+        "calibration_day_status": calibration_day_status,
+        "calibration_status_label": calibration_status_label,
+        "calibration_status_tone": calibration_status_tone,
+        "format_date": format_date,
+    }
 
 
 def vehicle_day_status(target_date, days_before=7):
@@ -8490,6 +8739,132 @@ def delete_suggestion_parameter(parameter_id):
 @login_required
 def complaints_dashboard():
     return render_template("suggestions/complaints.html")
+
+
+@bp.route("/kalibrasyon")
+@login_required
+def calibration_dashboard():
+    if not can_view_calibration():
+        abort(403)
+    return render_template(
+        "calibration/dashboard.html",
+        **calibration_dashboard_context(),
+    )
+
+
+@bp.route("/kalibrasyon/yeni", methods=["GET", "POST"])
+@login_required
+def create_calibration_record():
+    if not can_manage_calibration():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_calibration_record_form()
+            if scoped_query(CalibrationRecord.query, CalibrationRecord).filter_by(
+                device_code=values["device_code"]
+            ).first():
+                raise ValueError("duplicate_code")
+            record = CalibrationRecord(
+                **values,
+                is_active=True,
+                created_by_user_id=g.current_user.id,
+            )
+            assign_current_company(record)
+            db.session.add(record)
+            db.session.commit()
+            flash("Kalibrasyon kaydı eklendi.", "success")
+            return redirect(url_for("main.calibration_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Cihaz kodu ve cihaz adı zorunludur.", "danger")
+            elif error_key == "duplicate_code":
+                flash("Bu cihaz kodu zaten kayıtlı.", "danger")
+            elif error_key == "invalid_date":
+                flash("Geçerli bir tarih girin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir durum seçin.", "danger")
+            elif error_key == "text_too_long":
+                flash("Formdaki metinlerden biri çok uzun.", "danger")
+            else:
+                flash("Kalibrasyon kaydı oluşturulamadı.", "danger")
+
+    return render_template(
+        "calibration/form.html",
+        page_title="Kalibrasyon Ekle",
+        page_description="Yeni cihaz, ekipman ve kalibrasyon bilgisi ekleyin.",
+        form_action=url_for("main.create_calibration_record"),
+        submit_label="Kalibrasyonu Kaydet",
+        record=None,
+        statuses=("UYGUN", "KONTROL", "PASİF"),
+        form_data=request.form,
+    )
+
+
+@bp.route("/kalibrasyon/<int:record_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_calibration_record(record_id):
+    if not can_manage_calibration():
+        abort(403)
+
+    record = CalibrationRecord.query.get_or_404(record_id)
+    ensure_same_company(record)
+    if request.method == "POST":
+        try:
+            values = parse_calibration_record_form()
+            existing = scoped_query(CalibrationRecord.query, CalibrationRecord).filter_by(
+                device_code=values["device_code"]
+            ).first()
+            if existing is not None and existing.id != record.id:
+                raise ValueError("duplicate_code")
+            for key, value in values.items():
+                setattr(record, key, value)
+            record.is_active = request.form.get("is_active") == "on"
+            db.session.commit()
+            flash("Kalibrasyon kaydı güncellendi.", "success")
+            return redirect(url_for("main.calibration_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            error_key = str(error)
+            if error_key == "required_fields":
+                flash("Cihaz kodu ve cihaz adı zorunludur.", "danger")
+            elif error_key == "duplicate_code":
+                flash("Bu cihaz kodu başka bir kayıtta kullanılıyor.", "danger")
+            elif error_key == "invalid_date":
+                flash("Geçerli bir tarih girin.", "danger")
+            elif error_key == "invalid_status":
+                flash("Geçerli bir durum seçin.", "danger")
+            elif error_key == "text_too_long":
+                flash("Formdaki metinlerden biri çok uzun.", "danger")
+            else:
+                flash("Kalibrasyon kaydı güncellenemedi.", "danger")
+
+    return render_template(
+        "calibration/form.html",
+        page_title="Kalibrasyon Düzenle",
+        page_description="Cihaz, sertifika ve gelecek kalibrasyon bilgilerini güncelleyin.",
+        form_action=url_for("main.edit_calibration_record", record_id=record.id),
+        submit_label="Değişiklikleri Kaydet",
+        record=record,
+        statuses=("UYGUN", "KONTROL", "PASİF"),
+        form_data=request.form,
+    )
+
+
+@bp.post("/kalibrasyon/<int:record_id>/sil")
+@login_required
+def delete_calibration_record(record_id):
+    if not can_manage_calibration():
+        abort(403)
+
+    record = CalibrationRecord.query.get_or_404(record_id)
+    ensure_same_company(record)
+    db.session.delete(record)
+    db.session.commit()
+    flash("Kalibrasyon kaydı silindi.", "success")
+    return redirect(url_for("main.calibration_dashboard"))
 
 
 @bp.route("/bakim")

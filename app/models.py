@@ -76,6 +76,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "calibration",
+        "name": "Kalibrasyon Planı",
+        "description": "Cihaz, ekipman, sertifika ve gelecek kalibrasyon tarihlerini takip eder.",
+        "icon": "bi-rulers",
+        "sort_order": 32,
+        "parent_key": None,
+    },
+    {
         "key": "suggestions",
         "name": "Öneri & Şikayet",
         "description": "Öneri değerlendirme ve şikayet kayıtları için ana modül.",
@@ -997,6 +1005,45 @@ class MaintenanceFault(db.Model):
     @property
     def is_completed(self):
         return self.status == "Tamamlandı"
+
+class CalibrationRecord(db.Model):
+    __tablename__ = "calibration_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "device_code",
+            name="uq_calibration_records_company_device_code",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    device_code = db.Column(db.String(80), nullable=False)
+    device_name = db.Column(db.String(220), nullable=False)
+    manufacturer = db.Column(db.String(160), nullable=True)
+    brand_model = db.Column(db.String(180), nullable=True)
+    serial_no = db.Column(db.String(160), nullable=True)
+    measurement_range = db.Column(db.String(160), nullable=True)
+    deviation_range = db.Column(db.String(160), nullable=True)
+    location = db.Column(db.String(160), nullable=True)
+    certificate_no = db.Column(db.String(160), nullable=True)
+    calibration_date = db.Column(db.Date, nullable=True)
+    calibration_interval = db.Column(db.String(80), nullable=True)
+    next_calibration_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="UYGUN")
+    notes = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
 
 class Vehicle(db.Model):
     __tablename__ = "vehicles"

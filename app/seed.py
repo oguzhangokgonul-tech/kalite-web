@@ -151,6 +151,12 @@ PERMISSION_CATALOG = (
         "description": "Araç ekler, düzenler, siler; işlem ve akaryakıt kayıtlarını yönetir.",
     },
     {
+        "key": "calibration.manage",
+        "label": "Kalibrasyon planı yönetimi",
+        "group": "Kalibrasyon Planı",
+        "description": "Kalibrasyon kayıtlarını ekler, düzenler ve siler.",
+    },
+    {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
         "group": "Kalite Deneyleri",
@@ -215,6 +221,7 @@ ROLE_DEFINITIONS = (
             "maintenance.fault_manage",
             "vehicles.view",
             "vehicles.manage",
+            "calibration.manage",
             "quality.parameters_manage",
             "organization.manage",
         ],
