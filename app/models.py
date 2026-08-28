@@ -1115,6 +1115,7 @@ class QualityTestRecord(db.Model):
     test_type = db.Column(db.String(80), nullable=False)
     record_number = db.Column(db.Integer, nullable=True)
     title = db.Column(db.String(180), nullable=False)
+    project_number = db.Column(db.String(80), nullable=True)
     record_date = db.Column(db.Date, nullable=True)
     customer = db.Column(db.String(180), nullable=True)
     sample_name = db.Column(db.String(180), nullable=True)

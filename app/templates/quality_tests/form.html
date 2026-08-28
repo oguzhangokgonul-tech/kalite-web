@@ -26,6 +26,10 @@
     </div>
 
     <div class="app-form-grid">
+      <div>
+        <label class="form-label" for="project_number">Proje Numarası</label>
+        <input class="form-control" id="project_number" name="project_number" value="{{ field_value('project_number') }}" placeholder="Proje numarasını yazın">
+      </div>
       <div class="app-form-full">
         <label class="form-label" for="title">Müşteri Adı <span class="text-danger">*</span></label>
         <input class="form-control" id="title" name="title" value="{{ field_value('title') }}" required placeholder="Müşteri adını yazın">

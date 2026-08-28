@@ -1083,6 +1083,7 @@ def ensure_quality_test_schema():
                             test_type VARCHAR(80) NOT NULL,
                             record_number INTEGER,
                             title VARCHAR(180) NOT NULL,
+                            project_number VARCHAR(80),
                             record_date DATE,
                             customer VARCHAR(180),
                             sample_name VARCHAR(180),
@@ -1113,6 +1114,7 @@ def ensure_quality_test_schema():
                     "test_type": "ALTER TABLE quality_test_records ADD COLUMN test_type VARCHAR(80) NOT NULL DEFAULT ''",
                     "record_number": "ALTER TABLE quality_test_records ADD COLUMN record_number INTEGER",
                     "title": "ALTER TABLE quality_test_records ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+                    "project_number": "ALTER TABLE quality_test_records ADD COLUMN project_number VARCHAR(80)",
                     "record_date": "ALTER TABLE quality_test_records ADD COLUMN record_date DATE",
                     "customer": "ALTER TABLE quality_test_records ADD COLUMN customer VARCHAR(180)",
                     "sample_name": "ALTER TABLE quality_test_records ADD COLUMN sample_name VARCHAR(180)",
@@ -2439,6 +2441,7 @@ def quality_test_records_context(quality_test):
         query = query.filter(
             or_(
                 QualityTestRecord.title.ilike(search_value),
+                QualityTestRecord.project_number.ilike(search_value),
                 QualityTestRecord.customer.ilike(search_value),
                 QualityTestRecord.sample_name.ilike(search_value),
                 QualityTestRecord.concrete_class.ilike(search_value),
@@ -2498,6 +2501,7 @@ def quality_test_records_context(quality_test):
 
 
 def parse_quality_test_record_form():
+    project_number = request.form.get("project_number", "").strip()
     title = request.form.get("title", "").strip()
     record_date = parse_optional_date("record_date")
     sample_name = request.form.get("sample_name", "").strip()
@@ -2523,6 +2527,7 @@ def parse_quality_test_record_form():
         len(value) > limit
         for value, limit in (
             (title, 180),
+            (project_number, 80),
             (sample_name, 180),
             (concrete_class, 40),
             (description, 2000),
@@ -2532,6 +2537,7 @@ def parse_quality_test_record_form():
 
     return {
         "title": title,
+        "project_number": project_number or None,
         "record_date": record_date,
         "customer": None,
         "sample_name": sample_name or None,

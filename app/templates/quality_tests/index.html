@@ -135,6 +135,9 @@
               </td>
               <td data-label="Müşteri Adı" class="dashboard-action-title-cell">
                 <strong class="quality-test-record-title">{{ record.title }}</strong>
+                {% if record.project_number %}
+                  <span>Proje No: {{ record.project_number }}</span>
+                {% endif %}
                 <span>{{ record.description or "Açıklama girilmemiş." }}</span>
               </td>
               <td data-label="Numune Alım Tarihi">{{ record.record_date.strftime("%d.%m.%Y") if record.record_date else "-" }}</td>
