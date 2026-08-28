@@ -4152,12 +4152,25 @@ def calibration_dashboard_context():
         if record.next_calibration_date
         and 0 <= (record.next_calibration_date - today).days <= 30
     )
+    approaching_count = sum(
+        1
+        for record in all_records
+        if record.next_calibration_date
+        and 31 <= (record.next_calibration_date - today).days <= 60
+    )
+    suitable_count = sum(
+        1
+        for record in all_records
+        if calibration_status_label(record) == "UYGUN"
+    )
     return {
         "records": records,
         "total_count": len(all_records),
         "filtered_count": len(records),
         "delayed_count": delayed_count,
         "due_soon_count": due_soon_count,
+        "approaching_count": approaching_count,
+        "suitable_count": suitable_count,
         "locations": locations,
         "statuses": ("UYGUN", "KONTROL", "GECİKTİ", "PASİF"),
         "filters": filters,

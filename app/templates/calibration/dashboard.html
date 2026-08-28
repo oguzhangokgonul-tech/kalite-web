@@ -4,84 +4,77 @@
 {% block title %}Kalibrasyon Planı{% endblock %}
 
 {% block app_content %}
-  {% call ui.page_header("Kalibrasyon Planı", "Cihaz, ekipman ve gelecek kalibrasyon doğrulama tarihlerini takip edin.", icon="bi-rulers") %}
-    {% if can_manage_calibration %}
-      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_calibration_record') }}">
-        <i class="bi bi-plus-lg"></i>
-        <span>Kalibrasyon Ekle</span>
-      </a>
-    {% endif %}
-  {% endcall %}
-
-  <div class="dashboard-metrics">
-    <div class="dashboard-stat-card stat-primary">
-      <span class="stat-icon"><i class="bi bi-rulers"></i></span>
-      <span class="stat-label">Toplam Kayıt</span>
-      <strong>{{ total_count }}</strong>
-    </div>
-    <div class="dashboard-stat-card stat-warning">
-      <span class="stat-icon"><i class="bi bi-clock-history"></i></span>
-      <span class="stat-label">30 Gün İçinde</span>
-      <strong>{{ due_soon_count }}</strong>
-    </div>
-    <div class="dashboard-stat-card stat-danger">
-      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
-      <span class="stat-label">Geciken</span>
-      <strong>{{ delayed_count }}</strong>
-    </div>
-  </div>
-
-  <form class="dashboard-filter-card" method="get">
-    <div class="maintenance-filter-grid">
-      <div>
-        <label class="form-label" for="search">Arama</label>
-        <div class="dashboard-search-control">
-          <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Cihaz, kod, seri no veya sertifika ara">
-        </div>
+  <section class="calibration-page-card">
+    <form class="calibration-toolbar" method="get">
+      <div class="calibration-title-block">
+        <h2>Kalibrasyon Cihazları</h2>
+        <p>Tüm kalibrasyon cihazlarınızı görüntüleyin, durumlarını takip edin ve yönetin.</p>
       </div>
-      <div>
-        <label class="form-label" for="location">Bulunduğu Yer</label>
-        <select class="form-select" id="location" name="location">
-          <option value="">Tümü</option>
+      <div class="calibration-toolbar-actions">
+        <div class="dashboard-search-control calibration-search">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Cihaz, marka, seri no ara...">
+        </div>
+        <select class="form-select calibration-filter-select" id="location" name="location" aria-label="Bulunduğu yer">
+          <option value="">Tüm yerler</option>
           {% for location in locations %}
             <option value="{{ location }}" {% if filters.location == location %}selected{% endif %}>{{ location }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div>
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          <option value="">Tümü</option>
+        <select class="form-select calibration-filter-select" id="status" name="status" aria-label="Durum">
+          <option value="">Tüm durumlar</option>
           {% for status in statuses %}
             <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
           {% endfor %}
         </select>
-      </div>
-      <div class="dashboard-filter-actions">
         <button class="btn btn-primary" type="submit">
           <i class="bi bi-funnel"></i>
           <span>Filtrele</span>
         </button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_dashboard') }}">
-          <i class="bi bi-arrow-clockwise"></i>
-          <span>Temizle</span>
-        </a>
+        {% if filters.search or filters.location or filters.status %}
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_dashboard') }}">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>Temizle</span>
+          </a>
+        {% endif %}
+        {% if can_manage_calibration %}
+          <a class="btn btn-primary calibration-add-button" href="{{ url_for('main.create_calibration_record') }}">
+            <i class="bi bi-plus-lg"></i>
+            <span>Yeni Cihaz Ekle</span>
+          </a>
+        {% endif %}
+      </div>
+    </form>
+
+    <div class="dashboard-metrics calibration-metrics">
+      <div class="dashboard-stat-card stat-primary">
+        <span class="stat-icon"><i class="bi bi-device-ssd"></i></span>
+        <span class="stat-label">Toplam Cihaz</span>
+        <strong>{{ total_count }}</strong>
+        <small>Tüm kayıtlı cihazlar</small>
+      </div>
+      <div class="dashboard-stat-card stat-warning">
+        <span class="stat-icon"><i class="bi bi-calendar-event"></i></span>
+        <span class="stat-label">Yakında Kalibrasyon</span>
+        <strong>{{ due_soon_count }}</strong>
+        <small>30 gün içinde</small>
+      </div>
+      <div class="dashboard-stat-card stat-info">
+        <span class="stat-icon"><i class="bi bi-clock"></i></span>
+        <span class="stat-label">Süresi Yaklaşan</span>
+        <strong>{{ approaching_count }}</strong>
+        <small>31-60 gün içinde</small>
+      </div>
+      <div class="dashboard-stat-card stat-success">
+        <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
+        <span class="stat-label">Uygun Cihazlar</span>
+        <strong>{{ suitable_count }}</strong>
+        <small>Süresi uygun cihazlar</small>
       </div>
     </div>
-  </form>
 
-  <section class="dashboard-table-card">
-    {% call ui.section_header("Kalibrasyon Kayıtları", "PL.12 kalibrasyon planından aktarılan cihaz ve ekipman kayıtları.") %}
-      {% if can_manage_calibration %}
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_calibration_record') }}">
-          <i class="bi bi-plus-lg"></i>
-          <span>Yeni Kayıt</span>
-        </a>
-      {% endif %}
-    {% endcall %}
-    <div class="table-responsive">
-      <table class="table dashboard-table align-middle mb-0">
+    <div class="calibration-table-shell">
+      <table class="table dashboard-table calibration-table align-middle mb-0">
         <thead>
           <tr>
             <th>Cihaz Kodu</th>
@@ -105,9 +98,9 @@
             <tr class="{% if not record.is_active %}maintenance-row-passive{% endif %}">
               <td data-label="Cihaz Kodu"><strong>{{ record.device_code }}</strong></td>
               <td data-label="Cihaz / Ekipman">
-                <strong>{{ record.device_name }}</strong>
+                <strong class="calibration-device-name">{{ record.device_name }}</strong>
                 {% if record.measurement_range or record.deviation_range %}
-                  <span class="maintenance-muted-line">{{ record.measurement_range or "-" }}{% if record.deviation_range %} / {{ record.deviation_range }}{% endif %}</span>
+                  <span class="calibration-device-meta">{{ record.measurement_range or "-" }}{% if record.deviation_range %} / {{ record.deviation_range }}{% endif %}</span>
                 {% endif %}
               </td>
               <td data-label="İmalatçı">{{ record.manufacturer or "-" }}</td>
@@ -117,7 +110,7 @@
               <td data-label="Son Kalibrasyon">{{ format_date(record.calibration_date) if record.calibration_date else "-" }}</td>
               <td data-label="Gelecek Kalibrasyon">{{ format_date(record.next_calibration_date) if record.next_calibration_date else "-" }}</td>
               <td data-label="Kalan Süre">
-                <span class="badge rounded-pill text-bg-{{ 'secondary' if due.tone == 'muted' else due.tone }}">{{ due.label }}</span>
+                <span class="calibration-due-pill calibration-due-{{ due.tone }}">{{ due.label }}</span>
               </td>
               <td data-label="Durum">{{ ui.status_badge(calibration_status_label(record), tone=calibration_status_tone(record)) }}</td>
               {% if can_manage_calibration %}
@@ -149,7 +142,7 @@
         </tbody>
       </table>
     </div>
-    <div class="dashboard-table-footer">
+    <div class="calibration-table-footer">
       <span>Toplam {{ filtered_count }} / {{ total_count }} kayıt</span>
     </div>
   </section>
