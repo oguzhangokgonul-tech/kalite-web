@@ -4,211 +4,199 @@
 {% block title %}Görevlerim{% endblock %}
 {% block topbar_title %}Görevlerim{% endblock %}
 
-{% macro task_status_badge(task) %}
-  {{ ui.status_badge(task.status) }}
+{% macro module_badge(task) %}
+  {% if task.module_key == "internal_audit" %}
+    {% set module_class = "audit" %}
+    {% set module_icon = "clipboard-check" %}
+  {% elif task.module_key == "dof" %}
+    {% set module_class = "if" %}
+    {% set module_icon = "file-earmark-text" %}
+  {% elif task.module_key == "maintenance" %}
+    {% set module_class = "maintenance" %}
+    {% set module_icon = "wrench-adjustable" %}
+  {% else %}
+    {% set module_class = "action" %}
+    {% set module_icon = "lightning-charge" %}
+  {% endif %}
+  <span class="assigned-page-module-badge assigned-page-module-{{ module_class }}">
+    <i class="bi bi-{{ module_icon }}"></i>
+    <span>{{ task.module_label }}</span>
+  </span>
 {% endmacro %}
 
-{% macro priority_badge(task) %}
-  {% if task.priority == "Kritik" %}
-    {% set priority_class = "critical" %}
-  {% elif task.priority == "Yüksek" %}
-    {% set priority_class = "high" %}
-  {% elif task.priority == "Düşük" %}
-    {% set priority_class = "low" %}
-  {% else %}
-    {% set priority_class = "medium" %}
-  {% endif %}
-  <span class="assigned-page-priority assigned-page-priority-{{ priority_class }}">
-    {% if priority_class == "critical" or priority_class == "high" %}
-      <i class="bi bi-chevron-up"></i>
-    {% elif priority_class == "medium" %}
-      <i class="bi bi-circle-fill"></i>
-    {% else %}
-      <i class="bi bi-chevron-down"></i>
-    {% endif %}
-    {{ task.priority }}
-  </span>
+{% macro summary_card(label, value, icon, tone) %}
+  <div class="assigned-summary-card assigned-summary-{{ tone }}">
+    <span class="assigned-summary-icon"><i class="bi bi-{{ icon }}"></i></span>
+    <span class="assigned-summary-label">{{ label }}</span>
+    <strong>{{ value }}</strong>
+  </div>
 {% endmacro %}
 
 {% block app_content %}
   <div class="assigned-page-shell">
-  {% call ui.page_header("Görevlerim", "Bekleyen İşlerim", class_name="assigned-page-heading", icon="bi-person-check") %}
-    <div class="dropdown assigned-scope-dropdown">
-      <button class="btn btn-outline-primary btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="bi bi-person-check"></i>
-        <span>{{ "Benim Oluşturduklarım" if filters.scope == "created" else "Görevlerim" }}</span>
-      </button>
-      <div class="dropdown-menu dropdown-menu-end">
-        <a class="dropdown-item {% if filters.scope == 'assigned' %}active{% endif %}" href="{{ assigned_url(filters, scope='assigned', page=1) }}">
+    {% call ui.page_header("Görevlerim", "Bekleyen İşlerim", class_name="assigned-page-heading", icon="bi-person-check") %}
+      <div class="dropdown assigned-scope-dropdown">
+        <button class="btn btn-outline-primary btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
           <i class="bi bi-person-check"></i>
-          <span>Görevlerim</span>
-        </a>
-        <a class="dropdown-item {% if filters.scope == 'created' %}active{% endif %}" href="{{ assigned_url(filters, scope='created', page=1) }}">
-          <i class="bi bi-bookmark-plus"></i>
-          <span>Benim Oluşturduklarım</span>
-        </a>
-      </div>
-    </div>
-  {% endcall %}
-
-  <form class="dashboard-filter-card assigned-filter-card" method="get">
-    <input type="hidden" name="scope" value="{{ filters.scope }}">
-    <input type="hidden" name="tab" value="{{ filters.tab }}">
-    <div class="assigned-filter-grid">
-      <div>
-        <label class="form-label" for="search">Arama</label>
-        <div class="dashboard-search-control">
-          <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Aksiyon, açıklama, referans ara...">
+          <span>{{ "Benim Oluşturduklarım" if filters.scope == "created" else "Görevlerim" }}</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end">
+          <a class="dropdown-item {% if filters.scope == 'assigned' %}active{% endif %}" href="{{ assigned_url(filters, scope='assigned', page=1) }}">
+            <i class="bi bi-person-check"></i>
+            <span>Görevlerim</span>
+          </a>
+          <a class="dropdown-item {% if filters.scope == 'created' %}active{% endif %}" href="{{ assigned_url(filters, scope='created', page=1) }}">
+            <i class="bi bi-bookmark-plus"></i>
+            <span>Benim Oluşturduklarım</span>
+          </a>
         </div>
       </div>
-      <div>
-        <label class="form-label" for="department">Departman</label>
-        <select class="form-select" id="department" name="department">
-          <option value="">Tümü</option>
-          {% for department in departments %}
-            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="module">Modül</label>
-        <select class="form-select" id="module" name="module">
-          {% for value, label in module_options %}
-            <option value="{{ value }}" {% if filters.module == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="status">Durum</label>
-        <select class="form-select" id="status" name="status">
-          {% for value, label in status_options %}
-            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="form-label" for="due_start">Termin başlangıç</label>
-        <input class="form-control" id="due_start" name="due_start" type="date" value="{{ filters.due_start }}">
-      </div>
-      <div>
-        <label class="form-label" for="due_end">Termin bitiş</label>
-        <input class="form-control" id="due_end" name="due_end" type="date" value="{{ filters.due_end }}">
-      </div>
-      <div class="dashboard-filter-actions assigned-filter-actions">
-        <button class="btn btn-primary" type="submit">
-          <i class="bi bi-funnel"></i>
-          <span>Filtrele</span>
-        </button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('main.assigned_tasks') }}">
-          <i class="bi bi-arrow-clockwise"></i>
-          <span>Temizle</span>
-        </a>
-      </div>
+    {% endcall %}
+
+    <div class="assigned-summary-grid" aria-label="Görev özeti">
+      {{ summary_card("Aktif İş", open_count, "list-task", "primary") }}
+      {{ summary_card("Onay / Taslak", pending_count, "hourglass-split", "warning") }}
+      {{ summary_card("Geciken", delayed_count, "exclamation-circle", "danger") }}
+      {{ summary_card("Tamamlanan", completed_count, "check2-circle", "success") }}
     </div>
-  </form>
 
-  <div class="assigned-tabs-card">
-    {% for tab_key, tab_label in tabs %}
-      <a class="assigned-tab {% if filters.tab == tab_key %}active{% endif %}" href="{{ assigned_url(filters, tab=tab_key, module='', page=1) }}">
-        {{ tab_label }}
-      </a>
-    {% endfor %}
-  </div>
+    <form class="dashboard-filter-card assigned-filter-card" method="get">
+      <input type="hidden" name="scope" value="{{ filters.scope }}">
+      <input type="hidden" name="tab" value="{{ filters.tab }}">
+      <div class="assigned-filter-grid">
+        <div>
+          <label class="form-label" for="search">Arama</label>
+          <div class="dashboard-search-control">
+            <i class="bi bi-search"></i>
+            <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Görev, açıklama veya referans ara...">
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="department">Departman</label>
+          <select class="form-select" id="department" name="department">
+            <option value="">Tümü</option>
+            {% for department in departments %}
+              <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="module">Modül</label>
+          <select class="form-select" id="module" name="module">
+            {% for value, label in module_options %}
+              <option value="{{ value }}" {% if filters.module == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="status">Durum</label>
+          <select class="form-select" id="status" name="status">
+            {% for value, label in status_options %}
+              <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="due_start">Başlangıç</label>
+          <input class="form-control" id="due_start" name="due_start" type="date" value="{{ filters.due_start }}">
+        </div>
+        <div>
+          <label class="form-label" for="due_end">Bitiş</label>
+          <input class="form-control" id="due_end" name="due_end" type="date" value="{{ filters.due_end }}">
+        </div>
+        <div class="dashboard-filter-actions assigned-filter-actions">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-funnel"></i>
+            <span>Filtrele</span>
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('main.assigned_tasks') }}">
+            <i class="bi bi-arrow-clockwise"></i>
+            <span>Temizle</span>
+          </a>
+        </div>
+      </div>
+    </form>
 
-  <div class="dashboard-table-card assigned-table-card">
-    <div class="table-responsive assigned-table-wrapper">
-      <table class="table dashboard-table assigned-table align-middle mb-0">
-        <colgroup>
-          <col class="assigned-page-col-module">
-          <col class="assigned-page-col-task">
-          <col class="assigned-page-col-department">
-          <col class="assigned-page-col-date">
-          <col class="assigned-page-col-status">
-          <col class="assigned-page-col-priority">
-          <col class="assigned-page-col-actions">
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Modül</th>
-            <th>Aksiyon / Görev</th>
-            <th>Departman</th>
-            <th>Termin</th>
-            <th>Durum</th>
-            <th>Öncelik</th>
-            <th class="text-end">İşlemler</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for task in tasks %}
-            {% if task.module_key == "internal_audit" %}
-              {% set module_class = "audit" %}
-              {% set module_icon = "clipboard-check" %}
-            {% elif task.module_key == "dof" %}
-              {% set module_class = "if" %}
-              {% set module_icon = "file-earmark-text" %}
-            {% elif task.module_key == "maintenance" %}
-              {% set module_class = "maintenance" %}
-              {% set module_icon = "wrench-adjustable" %}
-            {% else %}
-              {% set module_class = "action" %}
-              {% set module_icon = "lightning-charge" %}
-            {% endif %}
-            <tr class="assigned-page-row assigned-page-row-{{ module_class }}">
-              <td data-label="Modül">
-                <span class="assigned-page-module-badge assigned-page-module-{{ module_class }}">
-                  <i class="bi bi-{{ module_icon }}"></i>
-                  <span>{{ task.module_label }}</span>
-                </span>
-              </td>
-              <td class="dashboard-action-title-cell assigned-task-cell" data-label="Aksiyon / Görev">
-                <a href="{{ task.detail_url }}">{{ task.title }}</a>
-                {% if task.description %}
-                  <span>{{ task.description }}</span>
-                {% endif %}
-                <small>Ref: {{ task.reference_no }}</small>
-              </td>
-              <td data-label="Departman">{{ task.department }}</td>
-              <td data-label="Termin">
-                <span class="assigned-due-date">
-                  <i class="bi bi-calendar3"></i>
-                  {{ task.due_label }}
-                </span>
-                <small class="assigned-due-meta assigned-due-{{ task.due_tone }}">{{ task.due_text }}</small>
-              </td>
-              <td data-label="Durum">{{ task_status_badge(task) }}</td>
-              <td data-label="Öncelik">{{ priority_badge(task) }}</td>
-              <td data-label="İşlemler">
-                <div class="dashboard-row-actions assigned-row-actions">
-                  <a class="assigned-detail-button" href="{{ task.detail_url }}" aria-label="Detay">
-                    <i class="bi bi-chevron-right"></i>
-                  </a>
-                </div>
-              </td>
-            </tr>
-          {% else %}
+    <div class="assigned-tabs-card">
+      {% for tab_key, tab_label in tabs %}
+        <a class="assigned-tab {% if filters.tab == tab_key %}active{% endif %}" href="{{ assigned_url(filters, tab=tab_key, module='', page=1) }}">
+          {{ tab_label }}
+        </a>
+      {% endfor %}
+    </div>
+
+    <div class="dashboard-table-card assigned-table-card">
+      <div class="table-responsive assigned-table-wrapper">
+        <table class="table dashboard-table assigned-table assigned-table-simple align-middle mb-0">
+          <colgroup>
+            <col class="assigned-page-col-module">
+            <col class="assigned-page-col-task">
+            <col class="assigned-page-col-date">
+            <col class="assigned-page-col-status">
+            <col class="assigned-page-col-actions">
+          </colgroup>
+          <thead>
             <tr>
-              <td class="dashboard-empty-row" colspan="7">
-                <strong>Bu filtrelerle eşleşen iş bulunamadı.</strong>
-                <span>Size atanmış veya oluşturduğunuz kayıtlar burada listelenecek.</span>
-              </td>
+              <th>Modül</th>
+              <th>Görev</th>
+              <th>Tarih</th>
+              <th>Durum</th>
+              <th class="text-end">İşlem</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div class="dashboard-table-footer assigned-table-footer">
-      <span>Toplam {{ total_count }} kayıt</span>
-      <div class="assigned-pagination">
-        <a class="btn btn-sm btn-outline-secondary {% if page <= 1 %}disabled{% endif %}" href="{{ assigned_url(filters, page=page - 1, per_page=per_page) }}" aria-label="Önceki sayfa">
-          <i class="bi bi-chevron-left"></i>
-        </a>
-        <span class="assigned-page-number">{{ page }}</span>
-        <a class="btn btn-sm btn-outline-secondary {% if page >= total_pages %}disabled{% endif %}" href="{{ assigned_url(filters, page=page + 1, per_page=per_page) }}" aria-label="Sonraki sayfa">
-          <i class="bi bi-chevron-right"></i>
-        </a>
+          </thead>
+          <tbody>
+            {% for task in tasks %}
+              <tr class="assigned-page-row assigned-page-row-{{ task.module_key }}">
+                <td data-label="Modül">{{ module_badge(task) }}</td>
+                <td class="dashboard-action-title-cell assigned-task-cell" data-label="Görev">
+                  <a class="assigned-task-title" href="{{ task.detail_url }}">{{ task.title }}</a>
+                  {% if task.description %}
+                    <span class="assigned-task-description">{{ task.description }}</span>
+                  {% endif %}
+                  <div class="assigned-task-meta">
+                    <small>Ref: {{ task.reference_no }}</small>
+                    <small>{{ task.department }}</small>
+                  </div>
+                </td>
+                <td data-label="{{ task.date_label }}">
+                  <span class="assigned-due-date">
+                    <i class="bi bi-calendar3"></i>
+                    {{ task.due_label }}
+                  </span>
+                  <small class="assigned-due-meta assigned-due-{{ task.due_tone }}">{{ task.due_text }}</small>
+                </td>
+                <td data-label="Durum">{{ ui.status_badge(task.status) }}</td>
+                <td data-label="İşlem">
+                  <div class="dashboard-row-actions assigned-row-actions">
+                    <a class="assigned-detail-button" href="{{ task.detail_url }}" aria-label="Detay">
+                      <i class="bi bi-chevron-right"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td class="dashboard-empty-row" colspan="5">
+                  <strong>Bu filtrelerle eşleşen iş bulunamadı.</strong>
+                  <span>Size atanmış veya oluşturduğunuz kayıtlar burada listelenecek.</span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="dashboard-table-footer assigned-table-footer">
+        <span>Toplam {{ total_count }} kayıt</span>
+        <div class="assigned-pagination">
+          <a class="btn btn-sm btn-outline-secondary {% if page <= 1 %}disabled{% endif %}" href="{{ assigned_url(filters, page=page - 1, per_page=per_page) }}" aria-label="Önceki sayfa">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+          <span class="assigned-page-number">{{ page }}</span>
+          <a class="btn btn-sm btn-outline-secondary {% if page >= total_pages %}disabled{% endif %}" href="{{ assigned_url(filters, page=page + 1, per_page=per_page) }}" aria-label="Sonraki sayfa">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </div>
       </div>
     </div>
-  </div>
   </div>
 {% endblock %}

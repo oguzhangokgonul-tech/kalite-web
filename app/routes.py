@@ -233,20 +233,28 @@ def assigned_tasks_badge_count():
 
     user_id = g.current_user.id
     return (
-        scoped_query(Action.query, Action).filter_by(responsible_user_id=user_id).count()
+        scoped_query(Action.query, Action)
+        .filter_by(responsible_user_id=user_id, is_completed=False)
+        .count()
         + scoped_query(ActionSubTask.query, ActionSubTask)
         .filter_by(responsible_id=user_id)
+        .filter(ActionSubTask.status.notin_(["TamamlandÄ±", "Ä°ptal Edildi"]))
         .count()
-        + scoped_query(Dof.query, Dof).filter_by(responsible_id=user_id).count()
+        + scoped_query(Dof.query, Dof)
+        .filter_by(responsible_id=user_id)
+        .filter(Dof.status != "TamamlandÄ±", Dof.approval_step != "completed")
+        .count()
         + scoped_query(MaintenanceFault.query, MaintenanceFault)
         .filter_by(responsible_user_id=user_id)
+        .filter(MaintenanceFault.status.notin_(["TamamlandÄ±", "Ä°ptal Edildi"]))
         .count()
         + scoped_query(InternalAudit.query, InternalAudit)
         .filter(
             or_(
                 InternalAudit.auditor_id == user_id,
                 InternalAudit.audited_user_id == user_id,
-            )
+            ),
+            InternalAudit.status != "TamamlandÄ±",
         ).count()
     )
 
@@ -6406,6 +6414,9 @@ def audit_task_status(audit):
 
 
 def internal_audit_detail_url(audit):
+    if not current_user_can("internal_audit.manage"):
+        return url_for("main.internal_audit_personnel_report", audit_id=audit.id)
+
     question = internal_audit_open_question(audit)
     if question:
         return url_for(
@@ -6433,8 +6444,13 @@ def assigned_task_row(
     detail_url,
     created_at=None,
     sort_id=0,
+    date_label="Termin",
+    due_is_deadline=True,
 ):
-    due_state = due_meta(due_date, status_key == "completed")
+    if due_is_deadline:
+        due_state = due_meta(due_date, status_key == "completed")
+    else:
+        due_state = {"text": status, "tone": status_tone(status, status_key)}
     return {
         "module_key": module_key,
         "module_label": module_label,
@@ -6445,9 +6461,11 @@ def assigned_task_row(
         "reference_no": reference_no,
         "department": department or "-",
         "due_date": due_date,
+        "date_label": date_label,
         "due_label": format_date(due_date),
         "due_text": due_state["text"],
         "due_tone": due_state["tone"],
+        "due_is_deadline": due_is_deadline,
         "status": status,
         "status_key": status_key,
         "status_tone": status_tone(status, status_key),
@@ -6458,6 +6476,26 @@ def assigned_task_row(
         "sort_date": due_date or date.max,
         "sort_id": sort_id,
     }
+
+
+def assigned_task_sort_key(task):
+    fallback = task["due_date"] or task["created_at"]
+    if isinstance(fallback, datetime):
+        fallback = fallback.date()
+    fallback = fallback or date.max
+
+    if task["status_key"] in {"completed", "cancelled"}:
+        return (4, date.max, task["sort_id"])
+
+    if task["due_is_deadline"] and task["due_date"]:
+        remaining_days = (task["due_date"] - date.today()).days
+        if remaining_days < 0:
+            return (0, remaining_days, task["sort_id"])
+        if remaining_days == 0:
+            return (1, task["due_date"], task["sort_id"])
+        return (2, task["due_date"], task["sort_id"])
+
+    return (3, fallback, task["sort_id"])
 
 
 def assigned_action_tasks(scope):
@@ -6665,6 +6703,8 @@ def assigned_maintenance_tasks(scope):
                 detail_url=url_for("main.maintenance_fault_detail", fault_id=fault.id),
                 created_at=fault.created_at,
                 sort_id=fault.id,
+                date_label="Açılış",
+                due_is_deadline=False,
             )
         )
     return rows
@@ -6762,12 +6802,17 @@ def assigned_tasks_context():
     if filters["tab"] not in {"all", "actions", "audits", "dofs", "maintenance"}:
         filters["tab"] = "all"
 
-    all_tasks = sorted(
-        assigned_all_tasks(filters["scope"]),
-        key=lambda task: (task["sort_date"], task["sort_id"]),
-    )
+    all_tasks = sorted(assigned_all_tasks(filters["scope"]), key=assigned_task_sort_key)
     tasks = filtered_assigned_tasks(all_tasks, filters)
     total_count = len(tasks)
+    open_count = sum(
+        1 for task in tasks if task["status_key"] not in {"completed", "cancelled"}
+    )
+    delayed_count = sum(1 for task in tasks if task["due_tone"] == "danger")
+    pending_count = sum(
+        1 for task in tasks if task["status_key"] in {"pending", "revision", "draft"}
+    )
+    completed_count = sum(1 for task in tasks if task["status_key"] == "completed")
     page = request.args.get("page", 1, type=int) or 1
     per_page = request.args.get("per_page", 10, type=int) or 10
     per_page = max(5, min(per_page, 50))
@@ -6785,6 +6830,10 @@ def assigned_tasks_context():
         "tasks": paged_tasks,
         "total_count": total_count,
         "all_count": len(all_tasks),
+        "open_count": open_count,
+        "delayed_count": delayed_count,
+        "pending_count": pending_count,
+        "completed_count": completed_count,
         "filters": filters,
         "departments": departments,
         "module_options": [

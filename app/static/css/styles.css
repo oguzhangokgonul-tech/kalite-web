@@ -13153,3 +13153,152 @@ textarea.form-control::placeholder {
         justify-self: start;
     }
 }
+
+/* Assigned tasks refresh: keep this after general table sizing overrides. */
+.assigned-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin: 0 0 18px;
+}
+
+.assigned-summary-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    grid-template-areas:
+        "icon label"
+        "icon value";
+    align-items: center;
+    gap: 2px 12px;
+    min-height: 82px;
+    padding: 16px;
+    background: #ffffff;
+    border: 1px solid #e1eaf5;
+    border-radius: 14px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.assigned-summary-icon {
+    grid-area: icon;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    font-size: 1.05rem;
+}
+
+.assigned-summary-label {
+    grid-area: label;
+    color: #607086;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.assigned-summary-card strong {
+    grid-area: value;
+    color: #10203a;
+    font-size: 1.35rem;
+    font-weight: 760;
+    line-height: 1;
+}
+
+.assigned-summary-primary .assigned-summary-icon {
+    color: #0d6efd;
+    background: #eef5ff;
+}
+
+.assigned-summary-warning .assigned-summary-icon {
+    color: #b76b00;
+    background: #fff5db;
+}
+
+.assigned-summary-danger .assigned-summary-icon {
+    color: #dc3545;
+    background: #fdecef;
+}
+
+.assigned-summary-success .assigned-summary-icon {
+    color: #087443;
+    background: #e3f8ec;
+}
+
+.assigned-table-simple {
+    min-width: 900px;
+    table-layout: fixed;
+}
+
+.assigned-table-simple .assigned-page-col-module {
+    width: 132px;
+}
+
+.assigned-table-simple .assigned-page-col-task {
+    width: auto;
+}
+
+.assigned-table-simple .assigned-page-col-date {
+    width: 152px;
+}
+
+.assigned-table-simple .assigned-page-col-status {
+    width: 190px;
+}
+
+.assigned-table-simple .assigned-page-col-actions {
+    width: 76px;
+}
+
+.assigned-table-simple .assigned-task-cell {
+    min-width: 0;
+}
+
+.assigned-table-simple .assigned-task-title {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.assigned-table-simple .assigned-task-description {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    margin-top: 3px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.assigned-table-simple .assigned-task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 7px;
+}
+
+.assigned-table-simple .assigned-task-meta small {
+    margin-top: 0;
+}
+
+.assigned-table-simple .assigned-page-status,
+.assigned-table-simple .vp-status-badge {
+    max-width: 180px;
+}
+
+@media (max-width: 1280px) {
+    .assigned-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .assigned-table-simple {
+        min-width: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .assigned-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
