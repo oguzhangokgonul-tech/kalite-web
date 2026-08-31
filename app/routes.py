@@ -36,6 +36,7 @@ from .mail import (
     send_document_revision_request_email,
     send_vehicle_reminder_email,
 )
+from .personnel_seed import PERSONNEL_CONTACT_DEFAULTS
 from .models import (
     Action,
     ActionComment,
@@ -1318,21 +1319,26 @@ def seed_personnel_contacts_from_excel():
     if query.first():
         return
 
+    rows = []
     excel_path = find_personnel_contact_excel()
-    if excel_path is None:
-        return
+    if excel_path is not None:
+        try:
+            rows = xlsx_first_sheet_rows(excel_path)[1:]
+        except (KeyError, ValueError, OSError, zipfile.BadZipFile, ET.ParseError):
+            current_app.logger.exception("Personel iletişim listesi Excel dosyası okunamadı.")
 
-    try:
-        rows = xlsx_first_sheet_rows(excel_path)
-    except (KeyError, ValueError, OSError, zipfile.BadZipFile, ET.ParseError):
-        current_app.logger.exception("Personel iletişim listesi Excel dosyası okunamadı.")
-        return
+    if not rows:
+        rows = [
+            (item["full_name"], item["phone"], item["department"])
+            for item in PERSONNEL_CONTACT_DEFAULTS
+        ]
+
 
     created = 0
-    for row in rows[1:]:
+    for row in rows:
         full_name = (row[0] if len(row) > 0 else "").strip()
-        phone = (row[3] if len(row) > 3 else "").strip()
-        department = (row[6] if len(row) > 6 else "").strip()
+        phone = (row[3] if len(row) > 3 else row[1] if len(row) > 1 else "").strip()
+        department = (row[6] if len(row) > 6 else row[2] if len(row) > 2 else "").strip()
         if not full_name:
             continue
         contact = PersonnelContact(
