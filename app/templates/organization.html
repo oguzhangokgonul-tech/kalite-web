@@ -65,6 +65,12 @@
                 <option value="department">Departman</option>
               </select>
             </div>
+            <div class="mb-3" data-personnel-contact-field>
+              <label class="form-label" for="org-personnel-contact">Personel Listesi</label>
+              <select class="form-select" id="org-personnel-contact" name="personnel_contact_id" {% if not can_edit %}disabled{% endif %}>
+                <option value="">Serbest kişi</option>
+              </select>
+            </div>
             <div class="mb-3">
               <label class="form-label" for="org-name" data-name-label>İsim Soyisim</label>
               <input class="form-control" id="org-name" name="name" maxlength="160" {% if not can_edit %}disabled{% endif %}>
@@ -99,6 +105,7 @@
   <script>
     (() => {
       let nodes = {{ nodes|tojson }};
+      const personnelContacts = {{ personnel_contacts|tojson }};
       const canEdit = {{ can_edit|tojson }};
       const urls = {
         create: "{{ url_for('main.create_orientation_node') }}",
@@ -120,6 +127,8 @@
       const inspectorBody = document.querySelector("[data-org-inspector-body]");
       const form = document.querySelector("[data-org-form]");
       const typeInput = document.querySelector("#org-node-type");
+      const contactInput = document.querySelector("#org-personnel-contact");
+      const contactField = document.querySelector("[data-personnel-contact-field]");
       const nameInput = document.querySelector("#org-name");
       const titleInput = document.querySelector("#org-title");
       const parentInput = document.querySelector("#org-parent");
@@ -375,15 +384,43 @@
         });
       }
 
+      function contactById(id) {
+        return personnelContacts.find((contact) => String(contact.id) === String(id));
+      }
+
+      function renderContactOptions() {
+        if (!contactInput) return;
+        contactInput.innerHTML = '<option value="">Serbest kişi</option>';
+        personnelContacts.forEach((contact) => {
+          const option = document.createElement("option");
+          option.value = contact.id;
+          option.textContent = contact.title
+            ? `${contact.full_name} - ${contact.title}`
+            : contact.full_name;
+          contactInput.appendChild(option);
+        });
+      }
+
+      function applySelectedContact() {
+        if (!contactInput || !contactInput.value) return;
+        const contact = contactById(contactInput.value);
+        if (!contact) return;
+        nameInput.value = contact.full_name;
+        titleInput.value = contact.title || "";
+      }
+
       function setPanelState() {
         const selected = selectedId ? getNode(selectedId) : null;
         renderParentOptions();
+        renderContactOptions();
         if (!selected) {
           selectedSummary.textContent = "Bir kişi veya departman seçin.";
           selectedType.textContent = "Yok";
           nameInput.value = "";
           titleInput.value = "";
           typeInput.value = "person";
+          if (contactInput) contactInput.value = "";
+          if (contactField) contactField.hidden = false;
           parentInput.value = "";
           colorInput.value = "#198754";
           colorField.hidden = true;
@@ -401,7 +438,9 @@
         nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
         titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
         colorField.hidden = type !== "department";
+        if (contactField) contactField.hidden = type !== "person";
         typeInput.value = type;
+        if (contactInput) contactInput.value = selected.personnel_contact_id || "";
         nameInput.value = selected.name;
         titleInput.value = selected.title || "";
         parentInput.value = selected.parent_id || "";
@@ -614,6 +653,7 @@
         const data = await postJson(urls.create, {
           name: nodeType === "department" ? "Yeni departman" : "Yeni kişi",
           title: "",
+          personnel_contact_id: null,
           node_type: nodeType,
           color: nodeType === "department" ? colorInput.value : "#198754",
           parent_id: parentId || null,
@@ -635,6 +675,7 @@
             const data = await postJson(endpoint(urls.update, selected.id), {
               name: nameInput.value,
               title: titleInput.value,
+              personnel_contact_id: typeInput.value === "person" && contactInput ? contactInput.value || null : null,
               node_type: typeInput.value,
               color: colorInput.value,
               parent_id: parentInput.value || null,
@@ -645,6 +686,18 @@
           } catch (error) {
             alert(error.message);
           }
+        });
+      }
+
+      if (contactInput) {
+        contactInput.addEventListener("change", applySelectedContact);
+      }
+
+      if (typeInput) {
+        typeInput.addEventListener("change", () => {
+          const isPerson = typeInput.value === "person";
+          if (contactField) contactField.hidden = !isPerson;
+          if (!isPerson && contactInput) contactInput.value = "";
         });
       }
 

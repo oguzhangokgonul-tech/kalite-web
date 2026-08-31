@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import unicodedata
 import zipfile
 from xml.etree import ElementTree as ET
 from uuid import uuid4
@@ -266,6 +267,7 @@ def assigned_tasks_badge_count():
 
 @bp.before_app_request
 def load_logged_in_user():
+    ensure_personnel_identity_columns()
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
     g.current_company = None
@@ -391,6 +393,73 @@ def ensure_login_attempt_schema():
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("Login deneme semasi kontrol edilemedi.")
+
+
+def ensure_personnel_identity_columns():
+    if current_app.extensions.get("personnel_identity_columns_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "personnel_contacts" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE personnel_contacts (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            full_name VARCHAR(180) NOT NULL,
+                            phone VARCHAR(60),
+                            department VARCHAR(160),
+                            title VARCHAR(160),
+                            email VARCHAR(255),
+                            notes TEXT,
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            if "users" in tables:
+                user_columns = {
+                    column["name"]
+                    for column in inspector.get_columns("users")
+                }
+                if "personnel_contact_id" not in user_columns:
+                    connection.execute(
+                        text("ALTER TABLE users ADD COLUMN personnel_contact_id INTEGER")
+                    )
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_users_personnel_contact_id "
+                        "ON users (personnel_contact_id)"
+                    )
+                )
+            if "orientation_nodes" in tables:
+                orientation_columns = {
+                    column["name"]
+                    for column in inspector.get_columns("orientation_nodes")
+                }
+                if "personnel_contact_id" not in orientation_columns:
+                    connection.execute(
+                        text("ALTER TABLE orientation_nodes ADD COLUMN personnel_contact_id INTEGER")
+                    )
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_orientation_nodes_personnel_contact_id "
+                        "ON orientation_nodes (personnel_contact_id)"
+                    )
+                )
+        current_app.extensions["personnel_identity_columns_checked"] = True
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Personel kimlik bağlantı kolonları kontrol edilemedi.")
 
 
 def ensure_dof_rejection_schema():
@@ -1234,8 +1303,40 @@ def ensure_personnel_contact_schema():
                     "ON personnel_contacts (full_name)"
                 )
             )
+            user_columns = {
+                column["name"]
+                for column in inspector.get_columns("users")
+            } if "users" in tables else set()
+            if "users" in tables and "personnel_contact_id" not in user_columns:
+                connection.execute(
+                    text("ALTER TABLE users ADD COLUMN personnel_contact_id INTEGER")
+                )
+            if "users" in tables:
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_users_personnel_contact_id "
+                        "ON users (personnel_contact_id)"
+                    )
+                )
+
+            orientation_columns = {
+                column["name"]
+                for column in inspector.get_columns("orientation_nodes")
+            } if "orientation_nodes" in tables else set()
+            if "orientation_nodes" in tables and "personnel_contact_id" not in orientation_columns:
+                connection.execute(
+                    text("ALTER TABLE orientation_nodes ADD COLUMN personnel_contact_id INTEGER")
+                )
+            if "orientation_nodes" in tables:
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_orientation_nodes_personnel_contact_id "
+                        "ON orientation_nodes (personnel_contact_id)"
+                    )
+                )
         current_app.extensions["personnel_contact_schema_checked"] = True
         seed_personnel_contacts_from_excel()
+        sync_personnel_links()
     except OperationalError:
         db.session.rollback()
         current_app.logger.exception("Personel iletişim listesi şeması kontrol edilemedi.")
@@ -1353,6 +1454,191 @@ def seed_personnel_contacts_from_excel():
         created += 1
     if created:
         db.session.commit()
+
+
+def normalize_personnel_name(value):
+    value = unicodedata.normalize("NFKD", value or "")
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = value.casefold()
+    replacements = {
+        "ı": "i",
+        "đ": "d",
+        "ð": "g",
+        "þ": "s",
+        "æ": "c",
+        "œ": "oe",
+    }
+    for source, target in replacements.items():
+        value = value.replace(source, target)
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return " ".join(value.split())
+
+
+def personnel_contact_display_title(contact):
+    if contact is None:
+        return ""
+    return contact.title or contact.department or ""
+
+
+def personnel_contact_by_id(contact_id):
+    if contact_id in (None, "", "null"):
+        return None
+    try:
+        contact_id = int(contact_id)
+    except (TypeError, ValueError):
+        raise ValueError("invalid_personnel_contact") from None
+    contact = personnel_contact_query().filter_by(id=contact_id).first()
+    if contact is None:
+        raise ValueError("invalid_personnel_contact")
+    return contact
+
+
+def personnel_contact_options():
+    return [
+        {
+            "id": contact.id,
+            "full_name": contact.full_name,
+            "title": personnel_contact_display_title(contact),
+            "phone": contact.phone or "",
+            "email": contact.email or "",
+        }
+        for contact in personnel_contact_query()
+        .order_by(PersonnelContact.full_name.asc(), PersonnelContact.id.asc())
+        .all()
+    ]
+
+
+def sync_user_from_personnel_contact(user, contact=None):
+    contact = contact or user.personnel_contact
+    if contact is None:
+        return False
+    changed = False
+    if user.full_name != contact.full_name:
+        user.full_name = contact.full_name
+        changed = True
+    contact_title = personnel_contact_display_title(contact)
+    if contact_title and user.title != contact_title:
+        user.title = contact_title[:160]
+        changed = True
+    if contact.email and user.email != contact.email:
+        user.email = contact.email[:255]
+        changed = True
+    return changed
+
+
+def sync_orientation_node_from_personnel_contact(node, contact=None):
+    contact = contact or node.personnel_contact
+    if contact is None or node.node_type != "person":
+        return False
+    changed = False
+    if node.name != contact.full_name:
+        node.name = contact.full_name[:160]
+        changed = True
+    contact_title = personnel_contact_display_title(contact)
+    if node.title != contact_title:
+        node.title = contact_title[:160]
+        changed = True
+    return changed
+
+
+def sync_personnel_links():
+    company_id = current_company_id()
+    contacts_query = PersonnelContact.query.filter_by(is_active=True)
+    if company_id is not None:
+        contacts_query = contacts_query.filter_by(company_id=company_id)
+    contacts = contacts_query.all()
+    if not contacts:
+        return
+
+    contact_by_name = {}
+    for contact in contacts:
+        normalized = normalize_personnel_name(contact.full_name)
+        if normalized and normalized not in contact_by_name:
+            contact_by_name[normalized] = contact
+
+    changed = False
+    users_query = User.query.filter_by(is_active=True)
+    if company_id is not None:
+        users_query = users_query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
+    for user in users_query.all():
+        contact = user.personnel_contact
+        if contact is None:
+            contact = contact_by_name.get(normalize_personnel_name(user.full_name))
+            if contact is not None:
+                user.personnel_contact_id = contact.id
+                changed = True
+        changed = sync_user_from_personnel_contact(user, contact) or changed
+
+    nodes_query = OrientationNode.query.filter_by(node_type="person")
+    if company_id is not None:
+        nodes_query = nodes_query.filter(OrientationNode.company_id == company_id)
+    for node in nodes_query.all():
+        contact = node.personnel_contact
+        if contact is None:
+            contact = contact_by_name.get(normalize_personnel_name(node.name))
+            if contact is not None:
+                node.personnel_contact_id = contact.id
+                changed = True
+        changed = sync_orientation_node_from_personnel_contact(node, contact) or changed
+
+    for action in scoped_query(Action.query, Action).all():
+        if action.responsible_user and action.responsible_owner != action.responsible_user.full_name:
+            action.responsible_owner = action.responsible_user.full_name
+            changed = True
+
+    if changed:
+        db.session.commit()
+
+
+def sync_personnel_contact_dependents(contact):
+    changed = False
+    for user in User.query.filter_by(personnel_contact_id=contact.id).all():
+        changed = sync_user_from_personnel_contact(user, contact) or changed
+    for node in OrientationNode.query.filter_by(personnel_contact_id=contact.id).all():
+        changed = sync_orientation_node_from_personnel_contact(node, contact) or changed
+    for action in Action.query.join(User, Action.responsible_user_id == User.id).filter(
+        User.personnel_contact_id == contact.id
+    ).all():
+        if action.responsible_owner != contact.full_name:
+            action.responsible_owner = contact.full_name
+            changed = True
+    return changed
+
+
+def matching_personnel_contact_by_name(full_name):
+    normalized_name = normalize_personnel_name(full_name)
+    if not normalized_name:
+        return None
+    for contact in personnel_contact_query().all():
+        if normalize_personnel_name(contact.full_name) == normalized_name:
+            return contact
+    return None
+
+
+def linked_personnel_contact_for_user_form(full_name, title=None, email=None):
+    contact = matching_personnel_contact_by_name(full_name)
+    if contact is None:
+        contact = PersonnelContact(
+            full_name=full_name[:180],
+            title=(title or "")[:160] or None,
+            email=(email or "")[:255] or None,
+            is_active=True,
+            created_by_user_id=getattr(g.current_user, "id", None),
+        )
+        assign_current_company(contact)
+        db.session.add(contact)
+        return contact
+
+    changed = False
+    if title and not contact.title:
+        contact.title = title[:160]
+        changed = True
+    if email and not contact.email:
+        contact.email = email[:255]
+        changed = True
+    if changed:
+        db.session.add(contact)
+    return contact
 
 
 def ensure_quality_test_schema():
@@ -6179,6 +6465,14 @@ def parse_user_form(user=None):
     user.full_name = full_name
     user.title = request.form.get("title", "").strip()
     user.email = request.form.get("email", "").strip() or None
+    if username != "superadmin":
+        contact = linked_personnel_contact_for_user_form(
+            full_name,
+            title=user.title,
+            email=user.email,
+        )
+        user.personnel_contact = contact
+        sync_user_from_personnel_contact(user, contact)
     user.is_active = request.form.get("is_active") == "on"
     user.can_create_actions = request.form.get("can_create_actions") == "on"
     user.can_edit_actions = request.form.get("can_edit_actions") == "on"
@@ -6623,6 +6917,7 @@ def organization():
     return render_template(
         "organization.html",
         nodes=orientation_nodes_payload(),
+        personnel_contacts=personnel_contact_options(),
         can_edit=can_manage_orientation(),
     )
 
@@ -6654,6 +6949,15 @@ def create_orientation_node():
     name = (data.get("name") or default_name).strip()
     title = (data.get("title") or "").strip()
     color = parse_node_color(data.get("color"))
+    contact = None
+    if node_type == "person":
+        try:
+            contact = personnel_contact_by_id(data.get("personnel_contact_id"))
+        except ValueError:
+            return jsonify({"ok": False, "message": "Geçerli bir personel seçin."}), 400
+        if contact is not None:
+            name = contact.full_name
+            title = personnel_contact_display_title(contact)
 
     try:
         parent = parse_node_parent(data.get("parent_id"))
@@ -6678,6 +6982,7 @@ def create_orientation_node():
         parent_id=parent.id if parent else None,
         name=name[:160],
         title=title[:160],
+        personnel_contact_id=contact.id if contact else None,
         node_type=node_type,
         color=color,
         x=parse_coordinate(data, "x", default_x),
@@ -6703,6 +7008,15 @@ def update_orientation_node(node_id):
     if node_type not in ORGANIZATION_NODE_TYPES:
         node_type = "person"
     color = parse_node_color(data.get("color") or node.color)
+    contact = None
+    if node_type == "person":
+        try:
+            contact = personnel_contact_by_id(data.get("personnel_contact_id"))
+        except ValueError:
+            return jsonify({"ok": False, "message": "Geçerli bir personel seçin."}), 400
+        if contact is not None:
+            name = contact.full_name
+            title = personnel_contact_display_title(contact)
 
     if not name:
         return jsonify({"ok": False, "message": "İsim alanı boş bırakılamaz."}), 400
@@ -6714,6 +7028,7 @@ def update_orientation_node(node_id):
 
     node.name = name[:160]
     node.title = title[:160]
+    node.personnel_contact_id = contact.id if contact else None
     node.node_type = node_type
     node.color = color
     node.parent_id = parent.id if parent else None
@@ -9178,6 +9493,8 @@ def create_personnel_contact():
             )
             assign_current_company(contact)
             db.session.add(contact)
+            db.session.flush()
+            sync_personnel_links()
             db.session.commit()
             flash("Personel kaydı eklendi.", "success")
             return redirect(url_for("main.personnel_contacts"))
@@ -9209,6 +9526,7 @@ def edit_personnel_contact(contact_id):
             for key, value in parse_personnel_contact_form().items():
                 setattr(contact, key, value)
             contact.is_active = request.form.get("is_active") == "on"
+            sync_personnel_contact_dependents(contact)
             db.session.commit()
             flash("Personel kaydı güncellendi.", "success")
             return redirect(url_for("main.personnel_contacts"))
@@ -9235,6 +9553,11 @@ def delete_personnel_contact(contact_id):
 
     contact = PersonnelContact.query.get_or_404(contact_id)
     ensure_same_company(contact)
+    sync_personnel_contact_dependents(contact)
+    for user in User.query.filter_by(personnel_contact_id=contact.id).all():
+        user.personnel_contact_id = None
+    for node in OrientationNode.query.filter_by(personnel_contact_id=contact.id).all():
+        node.personnel_contact_id = None
     contact.is_active = False
     db.session.commit()
     flash("Personel kaydı silindi.", "success")

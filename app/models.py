@@ -424,6 +424,16 @@ class User(db.Model):
     full_name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
     email = db.Column(db.String(255), nullable=True)
+    personnel_contact_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "personnel_contacts.id",
+            name="fk_users_personnel_contact_id",
+            use_alter=True,
+        ),
+        nullable=True,
+        index=True,
+    )
     password_hash = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     can_create_actions = db.Column(db.Boolean, nullable=False, default=False)
@@ -457,6 +467,7 @@ class User(db.Model):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    personnel_contact = db.relationship("PersonnelContact", foreign_keys=[personnel_contact_id])
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -1708,6 +1719,12 @@ class OrientationNode(db.Model):
     )
     name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
+    personnel_contact_id = db.Column(
+        db.Integer,
+        db.ForeignKey("personnel_contacts.id"),
+        nullable=True,
+        index=True,
+    )
     node_type = db.Column(db.String(40), nullable=False, default="person")
     color = db.Column(db.String(20), nullable=False, default="#198754")
     x = db.Column(db.Integer, nullable=False, default=120)
@@ -1730,13 +1747,21 @@ class OrientationNode(db.Model):
         back_populates="parent",
         cascade="all, delete-orphan",
     )
+    personnel_contact = db.relationship("PersonnelContact", foreign_keys=[personnel_contact_id])
 
     def to_dict(self):
+        contact = self.personnel_contact if self.node_type == "person" else None
+        display_title = ""
+        if contact is not None:
+            display_title = contact.title or contact.department or ""
+        else:
+            display_title = self.title or ""
         return {
             "id": self.id,
             "parent_id": self.parent_id,
-            "name": self.name,
-            "title": self.title or "",
+            "name": contact.full_name if contact is not None else self.name,
+            "title": display_title,
+            "personnel_contact_id": self.personnel_contact_id,
             "node_type": self.node_type or "person",
             "color": self.color or "#198754",
             "x": self.x,
