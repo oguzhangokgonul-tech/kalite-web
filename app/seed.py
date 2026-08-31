@@ -405,6 +405,17 @@ def ensure_runtime_schema():
         if "email" not in columns:
             db.session.execute(text("ALTER TABLE users ADD COLUMN email VARCHAR(255)"))
             changed = True
+        if "personnel_contact_id" not in columns:
+            db.session.execute(
+                text("ALTER TABLE users ADD COLUMN personnel_contact_id INTEGER")
+            )
+            changed = True
+        db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_users_personnel_contact_id "
+                "ON users (personnel_contact_id)"
+            )
+        )
 
     if "app_settings" not in tables:
         db.session.execute(
@@ -639,6 +650,20 @@ def ensure_runtime_schema():
                 )
             )
             changed = True
+        if "personnel_contact_id" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE orientation_nodes "
+                    "ADD COLUMN personnel_contact_id INTEGER"
+                )
+            )
+            changed = True
+        db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_orientation_nodes_personnel_contact_id "
+                "ON orientation_nodes (personnel_contact_id)"
+            )
+        )
 
     if "dofs" in tables:
         columns = {column["name"] for column in inspector.get_columns("dofs")}
