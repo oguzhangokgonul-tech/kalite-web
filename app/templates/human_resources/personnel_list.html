@@ -5,6 +5,10 @@
 
 {% block app_content %}
   {% call ui.page_header("Personel Listesi", "Personel iletişim bilgilerini görüntüleyin ve yönetin.", icon="bi-person-lines-fill") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.download_personnel_contacts_report') }}">
+      <i class="bi bi-file-earmark-excel"></i>
+      <span>Rapor İndir</span>
+    </a>
     {% if can_manage_personnel_contacts %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_personnel_contact') }}">
         <i class="bi bi-person-plus"></i>

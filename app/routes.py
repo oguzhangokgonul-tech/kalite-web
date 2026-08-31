@@ -1,6 +1,7 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from functools import wraps
+from io import BytesIO
 import json
 from pathlib import Path
 import re
@@ -21,6 +22,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_file,
     send_from_directory,
     session,
     url_for,
@@ -4667,6 +4669,10 @@ def personnel_contact_query():
     return scoped_query(PersonnelContact.query, PersonnelContact).filter_by(is_active=True)
 
 
+def personnel_contact_report_query():
+    return scoped_query(PersonnelContact.query, PersonnelContact)
+
+
 def personnel_contact_filters():
     return {
         "search": request.args.get("q", "").strip(),
@@ -4723,6 +4729,163 @@ def flash_personnel_contact_form_error(error):
         flash("Formdaki metinlerden biri çok uzun.", "danger")
     else:
         flash("Personel kaydı kaydedilemedi.", "danger")
+
+
+def xlsx_escape(value):
+    return (
+        str(value or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+
+def xlsx_column_name(index):
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def build_simple_xlsx(headers, rows, sheet_name="Sayfa1"):
+    def cell_xml(row_number, column_number, value, style_id=0):
+        cell_ref = f"{xlsx_column_name(column_number)}{row_number}"
+        style_attr = f' s="{style_id}"' if style_id else ""
+        return (
+            f'<c r="{cell_ref}" t="inlineStr"{style_attr}>'
+            f"<is><t>{xlsx_escape(value)}</t></is>"
+            "</c>"
+        )
+
+    sheet_rows = []
+    sheet_rows.append(
+        '<row r="1">'
+        + "".join(
+            cell_xml(1, column_number, header, style_id=1)
+            for column_number, header in enumerate(headers, start=1)
+        )
+        + "</row>"
+    )
+    for row_number, row in enumerate(rows, start=2):
+        sheet_rows.append(
+            f'<row r="{row_number}">'
+            + "".join(
+                cell_xml(row_number, column_number, value)
+                for column_number, value in enumerate(row, start=1)
+            )
+            + "</row>"
+        )
+
+    last_column = xlsx_column_name(len(headers))
+    last_row = max(1, len(rows) + 1)
+    sheet_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <dimension ref="A1:{last_column}{last_row}"/>
+  <sheetViews><sheetView workbookViewId="0"/></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols>
+    <col min="1" max="1" width="32" customWidth="1"/>
+    <col min="2" max="2" width="20" customWidth="1"/>
+    <col min="3" max="3" width="34" customWidth="1"/>
+    <col min="4" max="4" width="16" customWidth="1"/>
+  </cols>
+  <sheetData>{''.join(sheet_rows)}</sheetData>
+</worksheet>"""
+
+    workbook_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="{xlsx_escape(sheet_name)}" sheetId="1" r:id="rId1"/>
+  </sheets>
+</workbook>"""
+    workbook_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>"""
+    root_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>"""
+    content_types_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>"""
+    styles_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2">
+    <font><sz val="11"/><name val="Calibri"/></font>
+    <font><b/><sz val="11"/><name val="Calibri"/></font>
+  </fonts>
+  <fills count="2">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border>
+      <left style="thin"><color indexed="64"/></left>
+      <right style="thin"><color indexed="64"/></right>
+      <top style="thin"><color indexed="64"/></top>
+      <bottom style="thin"><color indexed="64"/></bottom>
+      <diagonal/>
+    </border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1">
+      <alignment horizontal="center" vertical="center"/>
+    </xf>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+  <dxfs count="0"/>
+  <tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
+</styleSheet>"""
+
+    output = BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types_xml)
+        archive.writestr("_rels/.rels", root_rels_xml)
+        archive.writestr("xl/workbook.xml", workbook_xml)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+        archive.writestr("xl/styles.xml", styles_xml)
+    output.seek(0)
+    return output
+
+
+def personnel_contacts_report_workbook():
+    contacts = (
+        personnel_contact_report_query()
+        .order_by(
+            PersonnelContact.is_active.desc(),
+            PersonnelContact.full_name.asc(),
+            PersonnelContact.id.asc(),
+        )
+        .all()
+    )
+    rows = [
+        (
+            contact.full_name or "",
+            contact.phone or "",
+            contact.title or contact.department or "",
+            "Aktif" if contact.is_active else "Silinmiş",
+        )
+        for contact in contacts
+    ]
+    return build_simple_xlsx(
+        ("İsim Soyisim", "Telefon No", "Departman", "Durum"),
+        rows,
+        sheet_name="Personel Listesi",
+    )
 
 
 def personnel_contacts_context():
@@ -9475,6 +9638,18 @@ def personnel_contacts():
     return render_template(
         "human_resources/personnel_list.html",
         **personnel_contacts_context(),
+    )
+
+
+@bp.get("/insan-kaynaklari/personel-listesi/rapor")
+@login_required
+def download_personnel_contacts_report():
+    filename = f"personel-iletisim-listesi-{date.today():%Y%m%d}.xlsx"
+    return send_file(
+        personnel_contacts_report_workbook(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
     )
 
 
