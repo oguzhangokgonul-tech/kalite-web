@@ -2,6 +2,7 @@
 {% import "components/ui.html" as ui %}
 
 {% block title %}Kalibrasyon Planı{% endblock %}
+{% block content_extra_class %}calibration-content-wide{% endblock %}
 
 {% block app_content %}
   <section class="calibration-page-card">
@@ -55,15 +56,15 @@
       </div>
       <div class="dashboard-stat-card stat-warning">
         <span class="stat-icon"><i class="bi bi-calendar-event"></i></span>
-        <span class="stat-label">Yakında Kalibrasyon</span>
+        <span class="stat-label">Yaklaşan Kalibrasyon Süresi</span>
         <strong>{{ due_soon_count }}</strong>
-        <small>30 gün içinde</small>
+        <small>30 gün içinde uyarır</small>
       </div>
-      <div class="dashboard-stat-card stat-info">
-        <span class="stat-icon"><i class="bi bi-clock"></i></span>
-        <span class="stat-label">Süresi Yaklaşan</span>
-        <strong>{{ approaching_count }}</strong>
-        <small>31-60 gün içinde</small>
+      <div class="dashboard-stat-card stat-danger">
+        <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+        <span class="stat-label">Süresi Geçen Cihaz</span>
+        <strong>{{ delayed_count }}</strong>
+        <small>Kalibrasyonu geçmiş cihazlar</small>
       </div>
       <div class="dashboard-stat-card stat-success">
         <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
