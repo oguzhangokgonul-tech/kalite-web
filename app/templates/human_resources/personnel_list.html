@@ -22,14 +22,8 @@
       <form class="document-list-actions" method="get">
         <div class="document-search">
           <i class="bi bi-search"></i>
-          <input type="search" name="q" value="{{ filters.search }}" placeholder="Ad, telefon veya departman ara...">
+          <input type="search" name="q" value="{{ filters.search }}" placeholder="Ad, telefon veya görev ara...">
         </div>
-        <select class="form-select document-filter-select" name="department" aria-label="Departman filtrele">
-          <option value="">Tüm departmanlar</option>
-          {% for department in departments %}
-            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
-          {% endfor %}
-        </select>
         <button class="btn btn-outline-primary" type="submit">
           <i class="bi bi-funnel"></i>
           <span>Filtrele</span>
@@ -43,12 +37,10 @@
           <tr>
             <th>Personel</th>
             <th>Telefon No</th>
-            <th>Departman</th>
             <th>Görev / Ünvan</th>
             <th>E-posta</th>
-            <th>Not</th>
             {% if can_manage_personnel_contacts %}
-              <th class="text-end">İşlemler</th>
+              <th>İşlemler</th>
             {% endif %}
           </tr>
         </thead>
@@ -68,14 +60,7 @@
                   <span class="text-muted">-</span>
                 {% endif %}
               </td>
-              <td data-label="Departman">
-                {% if contact.department %}
-                  <span class="document-category-pill"><i class="bi bi-dot"></i>{{ contact.department }}</span>
-                {% else %}
-                  <span class="text-muted">-</span>
-                {% endif %}
-              </td>
-              <td data-label="Görev / Ünvan">{{ contact.title or "-" }}</td>
+              <td data-label="Görev / Ünvan">{{ contact.title or contact.department or "-" }}</td>
               <td data-label="E-posta">
                 {% if contact.email %}
                   <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
@@ -83,7 +68,6 @@
                   <span class="text-muted">-</span>
                 {% endif %}
               </td>
-              <td data-label="Not">{{ contact.notes or "-" }}</td>
               {% if can_manage_personnel_contacts %}
                 <td data-label="İşlemler">
                   <div class="document-row-actions">
@@ -102,7 +86,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="{{ 7 if can_manage_personnel_contacts else 6 }}">
+              <td class="dashboard-empty-row" colspan="{{ 5 if can_manage_personnel_contacts else 4 }}">
                 <strong>Personel kaydı bulunamadı.</strong>
                 <span>Yeni personel eklendiğinde burada listelenecek.</span>
               </td>
