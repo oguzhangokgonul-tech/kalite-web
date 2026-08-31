@@ -4410,20 +4410,16 @@ def parse_personnel_contact_form():
     values = {
         "full_name": request.form.get("full_name", "").strip(),
         "phone": request.form.get("phone", "").strip(),
-        "department": request.form.get("department", "").strip(),
         "title": request.form.get("title", "").strip(),
         "email": request.form.get("email", "").strip(),
-        "notes": request.form.get("notes", "").strip(),
     }
     if not values["full_name"]:
         raise ValueError("required_fields")
     limits = {
         "full_name": 180,
         "phone": 60,
-        "department": 160,
         "title": 160,
         "email": 255,
-        "notes": 2000,
     }
     if any(len(values[key] or "") > limit for key, limit in limits.items()):
         raise ValueError("text_too_long")

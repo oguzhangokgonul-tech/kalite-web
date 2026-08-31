@@ -27,7 +27,7 @@
       <span class="app-card-icon"><i class="bi bi-person-lines-fill"></i></span>
       <div>
         <h3>Personel Bilgileri</h3>
-        <p>İsim, departman ve iletişim bilgilerini yönetin.</p>
+        <p>İsim, görev ve iletişim bilgilerini yönetin.</p>
       </div>
     </div>
 
@@ -41,20 +41,12 @@
         <input class="form-control" id="phone" name="phone" value="{{ value_for('phone') }}" maxlength="60">
       </div>
       <div>
-        <label class="form-label" for="department">Departman</label>
-        <input class="form-control" id="department" name="department" value="{{ value_for('department') }}" maxlength="160">
+        <label class="form-label" for="title">Görev / Ünvan</label>
+        <input class="form-control" id="title" name="title" value="{{ value_for('title', contact.department if contact and contact.department else '') }}" maxlength="160">
       </div>
       <div>
-        <label class="form-label" for="title">Görev / Ünvan</label>
-        <input class="form-control" id="title" name="title" value="{{ value_for('title') }}" maxlength="160">
-      </div>
-      <div class="app-form-full">
         <label class="form-label" for="email">E-posta</label>
         <input class="form-control" id="email" name="email" type="email" value="{{ value_for('email') }}" maxlength="255">
-      </div>
-      <div class="app-form-full">
-        <label class="form-label" for="notes">Not</label>
-        <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="2000">{{ value_for('notes') }}</textarea>
       </div>
     </div>
 
