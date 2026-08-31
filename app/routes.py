@@ -140,6 +140,94 @@ DOCUMENT_OFFICE_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "ppt", "pptx"}
 DOCUMENT_PREVIEW_STATUSES = {"pending", "ready", "failed", "not_supported"}
 DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
+SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
+SALES_READINESS_SECTIONS = (
+    {
+        "title": "Ana Ürün Checklist'i",
+        "items": (
+            ("audit_log", "Tüm kritik işlemler için kapsamlı audit log"),
+            ("iso_dashboard", "ISO 9001 dashboard"),
+            ("risk_module", "Risk yönetimi modülü"),
+            ("training_module", "Eğitim / yeterlilik modülü"),
+            ("complaint_module", "Müşteri şikayetleri modülü"),
+            ("supplier_module", "Tedarikçi değerlendirme modülü"),
+            ("management_review", "Yönetimin gözden geçirmesi modülü"),
+            ("report_center", "Rapor merkezi"),
+            ("notification_upgrade", "Bildirim merkezi güçlendirme"),
+            ("onboarding_wizard", "Kurulum sihirbazı"),
+        ),
+    },
+    {
+        "title": "Paketleme Kararları",
+        "items": (
+            ("core_package", "ISO 9001 KYS Çekirdek paketi"),
+            ("optional_production_modules", "Bakım, araç ve kalite deneylerini opsiyonel üretim modülü yapma"),
+            ("suggestion_core", "Öneri / şikayet modülünü çekirdeğe dahil etme"),
+            ("module_based_menu", "Ana menüyü müşteri paketine göre sadeleştirme"),
+            ("demo_data_split", "Demo verisi ile gerçek müşteri verisini ayırma"),
+        ),
+    },
+    {
+        "title": "Ay 1 - Stabilizasyon",
+        "items": (
+            ("month1_tests", "Tüm sayfalarda CRUD, yetki, filtre, rapor ve dosya testleri"),
+            ("month1_sqlite", "SQLite production risklerini azaltma"),
+            ("month1_bugfix", "Türkçe karakter, dosya, boş veri ve yetki bugfix turu"),
+            ("month1_ui_standard", "UI standardı oluşturma"),
+            ("month1_tasks", "Görevlerim mantığını tüm modüller için kesinleştirme"),
+        ),
+    },
+    {
+        "title": "Ay 2 - Denetlenebilirlik ve Raporlama",
+        "items": (
+            ("month2_audit_log", "Audit log altyapısını kritik modüllere bağlama"),
+            ("month2_document_read", "Doküman okundu / onaylandı kaydı"),
+            ("month2_capa_fields", "DÖF / IF ve aksiyon alanlarını standartlaştırma"),
+            ("month2_reports", "Excel / PDF raporlarını modül bazında tamamlama"),
+            ("month2_management_dashboard", "Yönetici dashboard ve termin raporları"),
+        ),
+    },
+    {
+        "title": "Ay 3 - Eksik KYS Modülleri",
+        "items": (
+            ("month3_risk", "Risk yönetimi modülünü ekleme"),
+            ("month3_training", "Eğitim / yeterlilik modülünü ekleme"),
+            ("month3_complaints", "Şikayet modülünü gerçek iş akışıyla tamamlama"),
+            ("month3_management_review", "Yönetimin gözden geçirmesi modülünü ekleme"),
+            ("month3_supplier", "Tedarikçi değerlendirme modülünü ekleme"),
+        ),
+    },
+    {
+        "title": "Ay 4 - SaaS, Güvenlik ve Kurulum",
+        "items": (
+            ("month4_tenant_tests", "Çoklu firma izolasyonunu testlerle güçlendirme"),
+            ("month4_company_package", "Firma bazlı modül paketi, logo, limit ve kota"),
+            ("month4_backup", "Yedekleme / geri yükleme prosedürü"),
+            ("month4_legal", "KVKK / GDPR ve sözleşme metinleri"),
+            ("month4_admin_panel", "Admin paneline müşteri, disk, hata ve lisans bilgisi"),
+        ),
+    },
+    {
+        "title": "Ay 5 - Satış Paketi ve Pilot",
+        "items": (
+            ("month5_pilots", "2-3 pilot firma belirleme"),
+            ("month5_demo", "Demo ortamı kurma"),
+            ("month5_pricing", "Fiyat paketleri oluşturma"),
+            ("month5_materials", "Landing page, broşür, demo video ve teklif şablonu"),
+            ("month5_feedback", "Pilotlardan satış engeli geri bildirimi toplama"),
+        ),
+    },
+    {
+        "title": "Ay 6 - Satışa Açılış",
+        "items": (
+            ("month6_help", "Onboarding rehberi ve kısa eğitim videoları"),
+            ("month6_support", "Destek süreci ve SLA taslağı"),
+            ("month6_customer_setup", "İlk ücretli müşteri kurulum checklist'i"),
+            ("month6_monitoring", "Uptime, hata, mail ve disk izleme"),
+            ("month6_release_notes", "Versiyonlama ve release note alışkanlığı"),
+        ),
+    },
+)
 INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
@@ -4665,6 +4753,96 @@ def can_manage_personnel_contacts():
     return current_user_can("can_manage_users") or current_user_can("roles.manage")
 
 
+def sales_readiness_item_ids():
+    return {
+        item_id
+        for section in SALES_READINESS_SECTIONS
+        for item_id, _label in section["items"]
+    }
+
+
+def strip_sales_readiness_prefix(key):
+    if key.startswith(SALES_READINESS_SETTING_PREFIX):
+        return key[len(SALES_READINESS_SETTING_PREFIX):]
+    return key
+
+
+def sales_readiness_completed_ids():
+    settings = AppSetting.query.filter(
+        AppSetting.key.like(f"{SALES_READINESS_SETTING_PREFIX}%"),
+        AppSetting.value == "1",
+    ).all()
+    valid_ids = sales_readiness_item_ids()
+    return {
+        strip_sales_readiness_prefix(setting.key)
+        for setting in settings
+        if strip_sales_readiness_prefix(setting.key) in valid_ids
+    }
+
+
+def can_manage_sales_readiness():
+    return g.current_user is not None and (
+        g.current_user_is_super_admin
+        or current_user_can("roles.manage")
+        or current_user_can("users.manage")
+    )
+
+
+def sales_readiness_context():
+    completed_ids = sales_readiness_completed_ids()
+    sections = []
+    total_count = 0
+    completed_count = 0
+    for section in SALES_READINESS_SECTIONS:
+        items = []
+        section_completed = 0
+        for item_id, label in section["items"]:
+            is_done = item_id in completed_ids
+            section_completed += 1 if is_done else 0
+            items.append({"id": item_id, "label": label, "is_done": is_done})
+        item_count = len(items)
+        total_count += item_count
+        completed_count += section_completed
+        sections.append(
+            {
+                "title": section["title"],
+                "items": items,
+                "completed_count": section_completed,
+                "total_count": item_count,
+                "progress": round((section_completed / item_count) * 100) if item_count else 0,
+            }
+        )
+    progress = round((completed_count / total_count) * 100) if total_count else 0
+    return {
+        "sections": sections,
+        "total_count": total_count,
+        "completed_count": completed_count,
+        "remaining_count": total_count - completed_count,
+        "progress": progress,
+    }
+
+
+def save_sales_readiness_state(selected_ids):
+    valid_ids = sales_readiness_item_ids()
+    selected_ids = selected_ids & valid_ids
+    existing_settings = {
+        strip_sales_readiness_prefix(setting.key): setting
+        for setting in AppSetting.query.filter(
+            AppSetting.key.like(f"{SALES_READINESS_SETTING_PREFIX}%")
+        ).all()
+    }
+    for item_id in valid_ids:
+        setting = existing_settings.get(item_id)
+        if item_id in selected_ids:
+            if setting is None:
+                setting = AppSetting(key=f"{SALES_READINESS_SETTING_PREFIX}{item_id}")
+                db.session.add(setting)
+            setting.value = "1"
+        elif setting is not None:
+            db.session.delete(setting)
+    db.session.commit()
+
+
 def personnel_contact_query():
     return scoped_query(PersonnelContact.query, PersonnelContact).filter_by(is_active=True)
 
@@ -7943,6 +8121,20 @@ def landing_dynamic_preview():
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.route("/satisa-hazirlik", methods=["GET", "POST"])
+@login_required
+def sales_readiness():
+    if not can_manage_sales_readiness():
+        abort(403)
+
+    if request.method == "POST":
+        save_sales_readiness_state(set(request.form.getlist("completed_items")))
+        flash("Satışa hazırlık checklist'i güncellendi.", "success")
+        return redirect(url_for("main.sales_readiness"))
+
+    return render_template("sales_readiness.html", **sales_readiness_context())
 
 
 @bp.post("/companies/switch")

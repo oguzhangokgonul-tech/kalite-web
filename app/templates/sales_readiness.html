@@ -1,0 +1,78 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Satışa Hazırlık{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Satışa Hazırlık", "VolkaPortal'ı SaaS ISO 9001 KYS ürünü olarak satışa hazırlama checklist'i.", icon="bi-rocket-takeoff") %}
+    <button class="btn btn-primary btn-lg" form="sales-readiness-form" type="submit">
+      <i class="bi bi-check2-circle"></i>
+      <span>İlerlemeyi Kaydet</span>
+    </button>
+  {% endcall %}
+
+  <section class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="document-list-card h-100 p-4">
+        <span class="text-secondary small fw-semibold">Toplam İlerleme</span>
+        <div class="d-flex align-items-end gap-2 mt-2">
+          <strong class="display-6 lh-1">{{ progress }}%</strong>
+          <span class="text-secondary mb-1">{{ completed_count }} / {{ total_count }} madde</span>
+        </div>
+        <div class="progress mt-3" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ progress }}%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="document-list-card h-100 p-4">
+        <span class="text-secondary small fw-semibold">Kalan İş</span>
+        <strong class="display-6 d-block mt-2">{{ remaining_count }}</strong>
+        <span class="text-secondary">Satış öncesi tamamlanacak madde</span>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="document-list-card h-100 p-4">
+        <span class="text-secondary small fw-semibold">Hedef Paket</span>
+        <strong class="h4 d-block mt-2 mb-1">ISO 9001 KYS Çekirdek</strong>
+        <span class="text-secondary">KOBİ üretim firmaları için SaaS</span>
+      </div>
+    </div>
+  </section>
+
+  <form id="sales-readiness-form" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      {% for section in sections %}
+        <div class="col-xl-6">
+          <section class="document-list-card h-100 p-4">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <div>
+                <h2 class="h5 mb-1">{{ section.title }}</h2>
+                <p class="text-secondary mb-0">{{ section.completed_count }} / {{ section.total_count }} tamamlandı</p>
+              </div>
+              <span class="vp-status-badge vp-status-blue">
+                <i class="bi bi-graph-up"></i>
+                <span>{{ section.progress }}%</span>
+              </span>
+            </div>
+            <div class="progress mb-3" role="progressbar" aria-valuenow="{{ section.progress }}" aria-valuemin="0" aria-valuemax="100">
+              <div class="progress-bar" style="width: {{ section.progress }}%"></div>
+            </div>
+            <div class="vstack gap-2">
+              {% for item in section["items"] %}
+                <label class="border rounded-3 p-3 d-flex align-items-start gap-3 bg-white">
+                  <input class="form-check-input mt-1" type="checkbox" name="completed_items" value="{{ item.id }}" {% if item.is_done %}checked{% endif %}>
+                  <span>
+                    <strong class="d-block">{{ item.label }}</strong>
+                    <small class="text-secondary">{{ "Tamamlandı" if item.is_done else "Bekliyor" }}</small>
+                  </span>
+                </label>
+              {% endfor %}
+            </div>
+          </section>
+        </div>
+      {% endfor %}
+    </div>
+  </form>
+{% endblock %}

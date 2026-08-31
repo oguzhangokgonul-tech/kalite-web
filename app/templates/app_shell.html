@@ -9,6 +9,7 @@
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
   {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard'] %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
+  {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -45,6 +46,12 @@
           <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>
             <span>Rol Yönetimi</span>
+          </a>
+        {% endif %}
+        {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}
+          <a class="dashboard-nav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
+            <i class="bi bi-rocket-takeoff"></i>
+            <span>Satışa Hazırlık</span>
           </a>
         {% endif %}
         {% if g.company_module_enabled('organization') %}
