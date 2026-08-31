@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import zipfile
+from xml.etree import ElementTree as ET
 from uuid import uuid4
 
 from flask import (
@@ -71,6 +73,7 @@ from .models import (
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
+    PersonnelContact,
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
@@ -301,6 +304,7 @@ def load_logged_in_user():
         ensure_document_schema()
         ensure_maintenance_schema()
         ensure_calibration_schema()
+        ensure_personnel_contact_schema()
         ensure_quality_test_schema()
         ensure_suggestion_schema()
         try:
@@ -1161,6 +1165,190 @@ def ensure_calibration_schema():
         current_app.logger.exception("Kalibrasyon planı şeması kontrol edilemedi.")
 
 
+PERSONNEL_CONTACT_EXCEL_NAME_PARTS = ("Personel", "Listesi")
+
+
+def ensure_personnel_contact_schema():
+    if current_app.extensions.get("personnel_contact_schema_checked"):
+        return
+
+    try:
+        inspector = inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        with db.engine.begin() as connection:
+            if "personnel_contacts" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE personnel_contacts (
+                            id INTEGER NOT NULL PRIMARY KEY,
+                            company_id INTEGER,
+                            full_name VARCHAR(180) NOT NULL,
+                            phone VARCHAR(60),
+                            department VARCHAR(160),
+                            title VARCHAR(160),
+                            email VARCHAR(255),
+                            notes TEXT,
+                            is_active BOOLEAN NOT NULL DEFAULT 1,
+                            created_by_user_id INTEGER,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY(company_id) REFERENCES companies (id),
+                            FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                        )
+                        """
+                    )
+                )
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("personnel_contacts")
+                }
+                contact_columns = {
+                    "company_id": "ALTER TABLE personnel_contacts ADD COLUMN company_id INTEGER",
+                    "full_name": "ALTER TABLE personnel_contacts ADD COLUMN full_name VARCHAR(180) NOT NULL DEFAULT ''",
+                    "phone": "ALTER TABLE personnel_contacts ADD COLUMN phone VARCHAR(60)",
+                    "department": "ALTER TABLE personnel_contacts ADD COLUMN department VARCHAR(160)",
+                    "title": "ALTER TABLE personnel_contacts ADD COLUMN title VARCHAR(160)",
+                    "email": "ALTER TABLE personnel_contacts ADD COLUMN email VARCHAR(255)",
+                    "notes": "ALTER TABLE personnel_contacts ADD COLUMN notes TEXT",
+                    "is_active": "ALTER TABLE personnel_contacts ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+                    "created_by_user_id": "ALTER TABLE personnel_contacts ADD COLUMN created_by_user_id INTEGER",
+                    "created_at": "ALTER TABLE personnel_contacts ADD COLUMN created_at DATETIME",
+                    "updated_at": "ALTER TABLE personnel_contacts ADD COLUMN updated_at DATETIME",
+                }
+                for column_name, statement in contact_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_personnel_contacts_company_id "
+                    "ON personnel_contacts (company_id)"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_personnel_contacts_full_name "
+                    "ON personnel_contacts (full_name)"
+                )
+            )
+        current_app.extensions["personnel_contact_schema_checked"] = True
+        seed_personnel_contacts_from_excel()
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Personel iletişim listesi şeması kontrol edilemedi.")
+
+
+def find_personnel_contact_excel():
+    candidates = []
+    desktop = Path.home() / "Desktop"
+    if desktop.exists():
+        candidates.extend(desktop.glob("*.xlsx"))
+    candidates.extend(Path(current_app.root_path).parent.glob("*.xlsx"))
+    for path in candidates:
+        if all(part.lower() in path.name.lower() for part in PERSONNEL_CONTACT_EXCEL_NAME_PARTS):
+            return path
+    return None
+
+
+def xlsx_shared_strings(archive):
+    if "xl/sharedStrings.xml" not in archive.namelist():
+        return []
+    namespace = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+    return [
+        "".join(text_node.text or "" for text_node in item.findall(".//a:t", namespace))
+        for item in root.findall("a:si", namespace)
+    ]
+
+
+def xlsx_cell_value(cell, shared_strings, namespace):
+    value_node = cell.find("a:v", namespace)
+    value = "" if value_node is None else value_node.text or ""
+    if cell.attrib.get("t") == "s" and value:
+        return shared_strings[int(value)]
+    if cell.attrib.get("t") == "inlineStr":
+        return "".join(text_node.text or "" for text_node in cell.findall(".//a:t", namespace))
+    return value
+
+
+def xlsx_first_sheet_rows(path):
+    namespace = {
+        "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+        "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    }
+    with zipfile.ZipFile(path) as archive:
+        shared_strings = xlsx_shared_strings(archive)
+        workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+        rels = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        relmap = {rel.attrib["Id"]: rel.attrib["Target"] for rel in rels}
+        sheet = workbook.find("a:sheets/a:sheet", namespace)
+        if sheet is None:
+            return []
+        rel_id = sheet.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
+        target = relmap[rel_id]
+        sheet_path = "xl/" + target.lstrip("/") if not target.startswith("xl/") else target
+        root = ET.fromstring(archive.read(sheet_path))
+        rows = []
+        for row in root.findall("a:sheetData/a:row", namespace):
+            values = []
+            last_column = 0
+            for cell in row.findall("a:c", namespace):
+                reference = cell.attrib.get("r", "A1")
+                column_letters = "".join(char for char in reference if char.isalpha())
+                column_index = 0
+                for char in column_letters:
+                    column_index = column_index * 26 + ord(char.upper()) - 64
+                while last_column < column_index - 1:
+                    values.append("")
+                    last_column += 1
+                values.append(xlsx_cell_value(cell, shared_strings, namespace))
+                last_column = column_index
+            if any(str(value).strip() for value in values):
+                rows.append(values)
+        return rows
+
+
+def seed_personnel_contacts_from_excel():
+    company_id = current_company_id()
+    query = PersonnelContact.query
+    if company_id is not None:
+        query = query.filter_by(company_id=company_id)
+    if query.first():
+        return
+
+    excel_path = find_personnel_contact_excel()
+    if excel_path is None:
+        return
+
+    try:
+        rows = xlsx_first_sheet_rows(excel_path)
+    except (KeyError, ValueError, OSError, zipfile.BadZipFile, ET.ParseError):
+        current_app.logger.exception("Personel iletişim listesi Excel dosyası okunamadı.")
+        return
+
+    created = 0
+    for row in rows[1:]:
+        full_name = (row[0] if len(row) > 0 else "").strip()
+        phone = (row[3] if len(row) > 3 else "").strip()
+        department = (row[6] if len(row) > 6 else "").strip()
+        if not full_name:
+            continue
+        contact = PersonnelContact(
+            full_name=full_name,
+            phone=phone or None,
+            department=department or None,
+            is_active=True,
+            created_by_user_id=getattr(g.current_user, "id", None),
+        )
+        assign_current_company(contact)
+        db.session.add(contact)
+        created += 1
+    if created:
+        db.session.commit()
+
+
 def ensure_quality_test_schema():
     if current_app.extensions.get("quality_test_schema_checked"):
         return
@@ -1572,6 +1760,10 @@ MODULE_ENDPOINTS = {
     "main.create_calibration_record": "calibration",
     "main.edit_calibration_record": "calibration",
     "main.delete_calibration_record": "calibration",
+    "main.personnel_contacts": "human_resources",
+    "main.create_personnel_contact": "human_resources",
+    "main.edit_personnel_contact": "human_resources",
+    "main.delete_personnel_contact": "human_resources",
     "main.suggestions_dashboard": "suggestions",
     "main.create_suggestion": "suggestions",
     "main.edit_suggestion": "suggestions",
@@ -4172,6 +4364,93 @@ def calibration_dashboard_context():
         "calibration_status_label": calibration_status_label,
         "calibration_status_tone": calibration_status_tone,
         "format_date": format_date,
+    }
+
+
+def can_manage_personnel_contacts():
+    return current_user_can("can_manage_users") or current_user_can("roles.manage")
+
+
+def personnel_contact_query():
+    return scoped_query(PersonnelContact.query, PersonnelContact).filter_by(is_active=True)
+
+
+def personnel_contact_filters():
+    return {
+        "search": request.args.get("q", "").strip(),
+        "department": request.args.get("department", "").strip(),
+    }
+
+
+def filtered_personnel_contacts(filters):
+    query = personnel_contact_query()
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                PersonnelContact.full_name.ilike(search_value),
+                PersonnelContact.phone.ilike(search_value),
+                PersonnelContact.department.ilike(search_value),
+                PersonnelContact.title.ilike(search_value),
+                PersonnelContact.email.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(PersonnelContact.department == filters["department"])
+    return query.order_by(PersonnelContact.full_name.asc(), PersonnelContact.id.asc()).all()
+
+
+def parse_personnel_contact_form():
+    values = {
+        "full_name": request.form.get("full_name", "").strip(),
+        "phone": request.form.get("phone", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "title": request.form.get("title", "").strip(),
+        "email": request.form.get("email", "").strip(),
+        "notes": request.form.get("notes", "").strip(),
+    }
+    if not values["full_name"]:
+        raise ValueError("required_fields")
+    limits = {
+        "full_name": 180,
+        "phone": 60,
+        "department": 160,
+        "title": 160,
+        "email": 255,
+        "notes": 2000,
+    }
+    if any(len(values[key] or "") > limit for key, limit in limits.items()):
+        raise ValueError("text_too_long")
+    for key, value in list(values.items()):
+        if value == "":
+            values[key] = None
+    return values
+
+
+def flash_personnel_contact_form_error(error):
+    error_key = str(error)
+    if error_key == "required_fields":
+        flash("Ad soyad alanı zorunludur.", "danger")
+    elif error_key == "text_too_long":
+        flash("Formdaki metinlerden biri çok uzun.", "danger")
+    else:
+        flash("Personel kaydı kaydedilemedi.", "danger")
+
+
+def personnel_contacts_context():
+    filters = personnel_contact_filters()
+    all_contacts = personnel_contact_query().all()
+    contacts = filtered_personnel_contacts(filters)
+    departments = sorted(
+        {contact.department for contact in all_contacts if contact.department}
+    )
+    return {
+        "contacts": contacts,
+        "total_count": len(all_contacts),
+        "filtered_count": len(contacts),
+        "departments": departments,
+        "filters": filters,
+        "can_manage_personnel_contacts": can_manage_personnel_contacts(),
     }
 
 
@@ -8871,6 +9150,93 @@ def delete_calibration_record(record_id):
     db.session.commit()
     flash("Kalibrasyon kaydı silindi.", "success")
     return redirect(url_for("main.calibration_dashboard"))
+
+
+@bp.route("/insan-kaynaklari/personel-listesi")
+@login_required
+def personnel_contacts():
+    return render_template(
+        "human_resources/personnel_list.html",
+        **personnel_contacts_context(),
+    )
+
+
+@bp.route("/insan-kaynaklari/personel-listesi/yeni", methods=["GET", "POST"])
+@login_required
+def create_personnel_contact():
+    if not can_manage_personnel_contacts():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            contact = PersonnelContact(
+                **parse_personnel_contact_form(),
+                is_active=True,
+                created_by_user_id=g.current_user.id,
+            )
+            assign_current_company(contact)
+            db.session.add(contact)
+            db.session.commit()
+            flash("Personel kaydı eklendi.", "success")
+            return redirect(url_for("main.personnel_contacts"))
+        except ValueError as error:
+            db.session.rollback()
+            flash_personnel_contact_form_error(error)
+
+    return render_template(
+        "human_resources/personnel_form.html",
+        page_title="Personel Ekle",
+        page_description="Personel iletişim bilgilerini girin.",
+        form_action=url_for("main.create_personnel_contact"),
+        submit_label="Personeli Kaydet",
+        contact=None,
+        form_data=request.form,
+    )
+
+
+@bp.route("/insan-kaynaklari/personel-listesi/<int:contact_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_personnel_contact(contact_id):
+    if not can_manage_personnel_contacts():
+        abort(403)
+
+    contact = PersonnelContact.query.get_or_404(contact_id)
+    ensure_same_company(contact)
+    if request.method == "POST":
+        try:
+            for key, value in parse_personnel_contact_form().items():
+                setattr(contact, key, value)
+            contact.is_active = request.form.get("is_active") == "on"
+            db.session.commit()
+            flash("Personel kaydı güncellendi.", "success")
+            return redirect(url_for("main.personnel_contacts"))
+        except ValueError as error:
+            db.session.rollback()
+            flash_personnel_contact_form_error(error)
+
+    return render_template(
+        "human_resources/personnel_form.html",
+        page_title="Personel Düzenle",
+        page_description="Personel iletişim bilgilerini güncelleyin.",
+        form_action=url_for("main.edit_personnel_contact", contact_id=contact.id),
+        submit_label="Değişiklikleri Kaydet",
+        contact=contact,
+        form_data=request.form,
+    )
+
+
+@bp.post("/insan-kaynaklari/personel-listesi/<int:contact_id>/sil")
+@login_required
+def delete_personnel_contact(contact_id):
+    if not can_manage_personnel_contacts():
+        abort(403)
+
+    contact = PersonnelContact.query.get_or_404(contact_id)
+    ensure_same_company(contact)
+    contact.is_active = False
+    db.session.commit()
+    flash("Personel kaydı silindi.", "success")
+    return redirect(url_for("main.personnel_contacts"))
 
 
 @bp.route("/bakim")

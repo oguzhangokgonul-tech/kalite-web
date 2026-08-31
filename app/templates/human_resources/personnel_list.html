@@ -1,0 +1,115 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Personel Listesi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Personel Listesi", "Personel iletişim bilgilerini görüntüleyin ve yönetin.", icon="bi-person-lines-fill") %}
+    {% if can_manage_personnel_contacts %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_personnel_contact') }}">
+        <i class="bi bi-person-plus"></i>
+        <span>Yeni Personel</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <section class="document-list-card personnel-list-card">
+    <div class="document-list-toolbar">
+      <div>
+        <h2>Personel İletişim Listesi</h2>
+        <p>{{ filtered_count }} / {{ total_count }} kayıt gösteriliyor</p>
+      </div>
+      <form class="document-list-actions" method="get">
+        <div class="document-search">
+          <i class="bi bi-search"></i>
+          <input type="search" name="q" value="{{ filters.search }}" placeholder="Ad, telefon veya departman ara...">
+        </div>
+        <select class="form-select document-filter-select" name="department" aria-label="Departman filtrele">
+          <option value="">Tüm departmanlar</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+      </form>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table document-table personnel-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Personel</th>
+            <th>Telefon No</th>
+            <th>Departman</th>
+            <th>Görev / Ünvan</th>
+            <th>E-posta</th>
+            <th>Not</th>
+            {% if can_manage_personnel_contacts %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for contact in contacts %}
+            <tr>
+              <td data-label="Personel">
+                <div class="personnel-name-cell">
+                  <span class="dashboard-avatar personnel-avatar">{{ contact.full_name[:2]|upper }}</span>
+                  <strong>{{ contact.full_name }}</strong>
+                </div>
+              </td>
+              <td data-label="Telefon No">
+                {% if contact.phone %}
+                  <a class="personnel-phone-link" href="tel:{{ contact.phone|replace(' ', '') }}">{{ contact.phone }}</a>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td data-label="Departman">
+                {% if contact.department %}
+                  <span class="document-category-pill"><i class="bi bi-dot"></i>{{ contact.department }}</span>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td data-label="Görev / Ünvan">{{ contact.title or "-" }}</td>
+              <td data-label="E-posta">
+                {% if contact.email %}
+                  <a href="mailto:{{ contact.email }}">{{ contact.email }}</a>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              <td data-label="Not">{{ contact.notes or "-" }}</td>
+              {% if can_manage_personnel_contacts %}
+                <td data-label="İşlemler">
+                  <div class="document-row-actions">
+                    <a class="document-action-btn document-action-edit" href="{{ url_for('main.edit_personnel_contact', contact_id=contact.id) }}" title="Düzenle" aria-label="Düzenle">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form action="{{ url_for('main.delete_personnel_contact', contact_id=contact.id) }}" method="post" onsubmit="return confirm('Bu personel kaydını silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="document-action-btn document-action-delete" type="submit" title="Sil" aria-label="Sil">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 7 if can_manage_personnel_contacts else 6 }}">
+                <strong>Personel kaydı bulunamadı.</strong>
+                <span>Yeni personel eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

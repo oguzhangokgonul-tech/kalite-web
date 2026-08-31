@@ -84,6 +84,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "human_resources",
+        "name": "İnsan Kaynakları",
+        "description": "Personel iletişim listesi ve insan kaynakları kayıtları.",
+        "icon": "bi-person-vcard",
+        "sort_order": 34,
+        "parent_key": None,
+    },
+    {
         "key": "suggestions",
         "name": "Öneri & Şikayet",
         "description": "Öneri değerlendirme ve şikayet kayıtları için ana modül.",
@@ -1031,6 +1039,38 @@ class CalibrationRecord(db.Model):
     calibration_interval = db.Column(db.String(80), nullable=True)
     next_calibration_date = db.Column(db.Date, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="UYGUN")
+    notes = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+
+class PersonnelContact(db.Model):
+    __tablename__ = "personnel_contacts"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "full_name",
+            "phone",
+            name="uq_personnel_contacts_company_name_phone",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    full_name = db.Column(db.String(180), nullable=False)
+    phone = db.Column(db.String(60), nullable=True)
+    department = db.Column(db.String(160), nullable=True)
+    title = db.Column(db.String(160), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
     notes = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)

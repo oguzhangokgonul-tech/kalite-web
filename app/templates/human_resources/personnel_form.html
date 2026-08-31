@@ -1,0 +1,76 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% macro value_for(name, fallback="") -%}
+  {%- if form_data -%}
+    {{ form_data.get(name, fallback) }}
+  {%- elif contact -%}
+    {{ contact|attr(name) or fallback }}
+  {%- else -%}
+    {{ fallback }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, page_description, icon="bi-person-vcard") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.personnel_contacts') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Personel Listesi</span>
+    </a>
+  {% endcall %}
+
+  <form class="app-form-card personnel-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-person-lines-fill"></i></span>
+      <div>
+        <h3>Personel Bilgileri</h3>
+        <p>İsim, departman ve iletişim bilgilerini yönetin.</p>
+      </div>
+    </div>
+
+    <div class="app-form-grid">
+      <div>
+        <label class="form-label" for="full_name">Ad Soyad</label>
+        <input class="form-control" id="full_name" name="full_name" value="{{ value_for('full_name') }}" maxlength="180" required>
+      </div>
+      <div>
+        <label class="form-label" for="phone">Telefon No</label>
+        <input class="form-control" id="phone" name="phone" value="{{ value_for('phone') }}" maxlength="60">
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <input class="form-control" id="department" name="department" value="{{ value_for('department') }}" maxlength="160">
+      </div>
+      <div>
+        <label class="form-label" for="title">Görev / Ünvan</label>
+        <input class="form-control" id="title" name="title" value="{{ value_for('title') }}" maxlength="160">
+      </div>
+      <div class="app-form-full">
+        <label class="form-label" for="email">E-posta</label>
+        <input class="form-control" id="email" name="email" type="email" value="{{ value_for('email') }}" maxlength="255">
+      </div>
+      <div class="app-form-full">
+        <label class="form-label" for="notes">Not</label>
+        <textarea class="form-control" id="notes" name="notes" rows="4" maxlength="2000">{{ value_for('notes') }}</textarea>
+      </div>
+    </div>
+
+    {% if contact %}
+      <div class="form-check form-switch mt-4">
+        <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if contact.is_active %}checked{% endif %}>
+        <label class="form-check-label" for="is_active">Kayıt aktif</label>
+      </div>
+    {% endif %}
+
+    <div class="app-form-actions">
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-check-lg"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.personnel_contacts') }}">Vazgeç</a>
+    </div>
+  </form>
+{% endblock %}
