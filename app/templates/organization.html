@@ -390,6 +390,7 @@
 
       function renderContactOptions() {
         if (!contactInput) return;
+        const currentValue = contactInput.value;
         contactInput.innerHTML = '<option value="">Serbest kişi</option>';
         personnelContacts.forEach((contact) => {
           const option = document.createElement("option");
@@ -399,6 +400,7 @@
             : contact.full_name;
           contactInput.appendChild(option);
         });
+        contactInput.value = currentValue;
       }
 
       function applySelectedContact() {
@@ -407,6 +409,14 @@
         if (!contact) return;
         nameInput.value = contact.full_name;
         titleInput.value = contact.title || "";
+      }
+
+      function applyTypeFields(type) {
+        nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
+        titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
+        colorField.hidden = type !== "department";
+        if (contactField) contactField.hidden = type !== "person";
+        if (type !== "person" && contactInput) contactInput.value = "";
       }
 
       function setPanelState() {
@@ -423,7 +433,7 @@
           if (contactField) contactField.hidden = false;
           parentInput.value = "";
           colorInput.value = "#198754";
-          colorField.hidden = true;
+          applyTypeFields("person");
           [saveButton, deleteButton, addChildPersonButton].forEach((button) => {
             if (button) button.disabled = true;
           });
@@ -435,12 +445,9 @@
           ? `${descendantCount(selected)} bağlı kişi`
           : selected.title || "Ünvan belirtilmedi";
         selectedType.textContent = type === "department" ? "Departman" : "Kişi";
-        nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
-        titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
-        colorField.hidden = type !== "department";
-        if (contactField) contactField.hidden = type !== "person";
         typeInput.value = type;
         if (contactInput) contactInput.value = selected.personnel_contact_id || "";
+        applyTypeFields(type);
         nameInput.value = selected.name;
         titleInput.value = selected.title || "";
         parentInput.value = selected.parent_id || "";
@@ -694,11 +701,7 @@
       }
 
       if (typeInput) {
-        typeInput.addEventListener("change", () => {
-          const isPerson = typeInput.value === "person";
-          if (contactField) contactField.hidden = !isPerson;
-          if (!isPerson && contactInput) contactInput.value = "";
-        });
+        typeInput.addEventListener("change", () => applyTypeFields(typeInput.value));
       }
 
       if (addRootPersonButton) {
@@ -753,13 +756,6 @@
         const factor = event.deltaY > 0 ? 0.9 : 1.1;
         setZoomAt(zoom * factor, event.clientX, event.clientY);
       }, { passive: false });
-
-      typeInput.addEventListener("change", () => {
-        const type = typeInput.value;
-        nameLabel.textContent = type === "department" ? "Departman adı" : "İsim Soyisim";
-        titleLabel.textContent = type === "department" ? "Kısa açıklama" : "Ünvan";
-        colorField.hidden = type !== "department";
-      });
 
       window.addEventListener("resize", () => {
         updateCanvasSize();
