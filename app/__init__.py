@@ -23,6 +23,9 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
+    from .audit import register_audit_listeners
+
+    register_audit_listeners()
 
     app.register_blueprint(bp)
 

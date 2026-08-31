@@ -1700,6 +1700,26 @@ class Notification(db.Model):
     document_revision_request = db.relationship("DocumentRevisionRequest")
 
 
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    entity_type = db.Column(db.String(120), nullable=False, index=True)
+    entity_id = db.Column(db.String(80), nullable=True, index=True)
+    action = db.Column(db.String(40), nullable=False, index=True)
+    summary = db.Column(db.String(255), nullable=True)
+    old_values = db.Column(db.Text, nullable=True)
+    new_values = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(80), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+
+    company = db.relationship("Company")
+    user = db.relationship("User")
+
+
 class AppSetting(db.Model):
     __tablename__ = "app_settings"
 

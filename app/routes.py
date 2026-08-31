@@ -49,6 +49,7 @@ from .models import (
     ACTION_SUB_TASK_PRIORITIES,
     ACTION_SUB_TASK_STATUSES,
     AppSetting,
+    AuditLog,
     CalibrationRecord,
     Company,
     CompanyModule,
@@ -4788,6 +4789,10 @@ def can_manage_sales_readiness():
     )
 
 
+def can_view_audit_log():
+    return can_manage_sales_readiness()
+
+
 def sales_readiness_context():
     completed_ids = sales_readiness_completed_ids()
     sections = []
@@ -8135,6 +8140,29 @@ def sales_readiness():
         return redirect(url_for("main.sales_readiness"))
 
     return render_template("sales_readiness.html", **sales_readiness_context())
+
+
+@bp.route("/denetim-logu")
+@login_required
+def audit_log():
+    if not can_view_audit_log():
+        abort(403)
+
+    logs = (
+        scoped_query(AuditLog.query, AuditLog)
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(250)
+        .all()
+    )
+    return render_template(
+        "audit_log.html",
+        logs=logs,
+        action_labels={
+            "created": "Oluşturuldu",
+            "updated": "Güncellendi",
+            "deleted": "Silindi",
+        },
+    )
 
 
 @bp.post("/companies/switch")

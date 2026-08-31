@@ -1,0 +1,82 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Denetim Logu{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Denetim Logu", "Kritik kayıtlarda yapılan oluşturma, güncelleme ve silme işlemleri.", icon="bi-activity") %}
+    <span class="vp-status-badge vp-status-blue">
+      <i class="bi bi-list-check"></i>
+      <span>{{ logs|length }} kayıt</span>
+    </span>
+  {% endcall %}
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 document-table">
+        <thead>
+          <tr>
+            <th>Tarih</th>
+            <th>Kullanıcı</th>
+            <th>Kayıt</th>
+            <th>İşlem</th>
+            <th>Özet</th>
+            <th>IP</th>
+            <th>Detay</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+            <tr>
+              <td class="text-nowrap">{{ log.created_at.strftime("%d.%m.%Y %H:%M") if log.created_at else "-" }}</td>
+              <td>
+                <strong>{{ log.user.full_name if log.user else "Sistem" }}</strong>
+                {% if log.company %}
+                  <small class="d-block text-secondary">{{ log.company.label }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <strong>{{ log.entity_type }}</strong>
+                <small class="d-block text-secondary">#{{ log.entity_id or "-" }}</small>
+              </td>
+              <td>
+                {% set action_label = action_labels.get(log.action, log.action) %}
+                {% set action_tone = "success" if log.action == "created" else ("danger" if log.action == "deleted" else "blue") %}
+                {{ ui.status_badge(action_label, action_tone) }}
+              </td>
+              <td>{{ log.summary or "-" }}</td>
+              <td class="text-nowrap">{{ log.ip_address or "-" }}</td>
+              <td>
+                <details>
+                  <summary class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-search"></i>
+                    <span>İncele</span>
+                  </summary>
+                  <div class="audit-log-detail mt-3">
+                    {% if log.old_values %}
+                      <strong class="d-block mb-1">Eski Değer</strong>
+                      <pre class="small bg-light border rounded-3 p-3 mb-3">{{ log.old_values }}</pre>
+                    {% endif %}
+                    {% if log.new_values %}
+                      <strong class="d-block mb-1">Yeni Değer</strong>
+                      <pre class="small bg-light border rounded-3 p-3 mb-0">{{ log.new_values }}</pre>
+                    {% endif %}
+                    {% if not log.old_values and not log.new_values %}
+                      <span class="text-secondary">Detay yok.</span>
+                    {% endif %}
+                  </div>
+                </details>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7" class="text-center text-secondary py-5">
+                Henüz denetim kaydı oluşmadı.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

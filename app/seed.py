@@ -431,6 +431,53 @@ def ensure_runtime_schema():
         changed = True
         tables.add("app_settings")
 
+    if "audit_logs" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE audit_logs (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    user_id INTEGER,
+                    entity_type VARCHAR(120) NOT NULL,
+                    entity_id VARCHAR(80),
+                    action VARCHAR(40) NOT NULL,
+                    summary VARCHAR(255),
+                    old_values TEXT,
+                    new_values TEXT,
+                    ip_address VARCHAR(80),
+                    user_agent VARCHAR(255),
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("audit_logs")
+
+    if "audit_logs" in tables:
+        for index_name, column_name in (
+            ("ix_audit_logs_company_id", "company_id"),
+            ("ix_audit_logs_user_id", "user_id"),
+            ("ix_audit_logs_entity_type", "entity_type"),
+            ("ix_audit_logs_entity_id", "entity_id"),
+            ("ix_audit_logs_action", "action"),
+            ("ix_audit_logs_created_at", "created_at"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON audit_logs ({column_name})"
+                )
+            )
+
+    audit_readiness_key = "sales_readiness:audit_log"
+    if db.session.get(AppSetting, audit_readiness_key) is None:
+        db.session.add(AppSetting(key=audit_readiness_key, value="1"))
+        changed = True
+
     if "roles" not in tables:
         db.session.execute(
             text(
