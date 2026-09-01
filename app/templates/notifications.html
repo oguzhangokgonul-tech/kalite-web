@@ -5,7 +5,7 @@
 {% block topbar_title %}Bildirimler{% endblock %}
 
 {% block app_content %}
-  {% call ui.page_header("Bildirimler", "Size atanan aksiyon ve İF kayıtlarındaki son hareketler.", icon="bi-bell") %}
+  {% call ui.page_header("Bildirimler", "Termin, gecikme, onay ve görev hareketleri burada toplanır.", icon="bi-bell") %}
     {% if unread_count %}
       <form method="post" action="{{ url_for('main.mark_all_notifications_read') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -21,30 +21,65 @@
     </a>
   {% endcall %}
 
-  <div class="dashboard-table-card">
+  <div class="dashboard-table-card p-3 p-lg-4">
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      {% for tab in filter_tabs %}
+        <a
+          class="btn btn-sm {% if active_filter == tab.key %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+          href="{{ url_for('main.notifications', filter=tab.key) }}"
+        >
+          <span>{{ tab.label }}</span>
+          <span class="badge {% if active_filter == tab.key %}text-bg-light text-primary{% else %}text-bg-secondary{% endif %} ms-1">{{ tab.count }}</span>
+        </a>
+      {% endfor %}
+    </div>
+
     {% if notifications %}
-      <div class="list-group list-group-flush">
+      <div class="d-flex flex-column gap-2">
         {% for notification in notifications %}
-          <a class="list-group-item list-group-item-action py-3 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
-            <div class="d-flex flex-column flex-sm-row justify-content-between gap-1">
+          {% set meta = notification_meta(notification) %}
+          {% set due_label = notification_due_label(notification) %}
+          <a
+            class="notification-list-card {% if not notification.is_read %}is-unread{% endif %}"
+            href="{{ url_for('main.open_notification', notification_id=notification.id) }}"
+            data-notification-item
+            data-notification-id="{{ notification.id }}"
+            data-notification-read="{{ '1' if notification.is_read else '0' }}"
+          >
+            <span class="notification-list-icon text-{{ meta.tone }}">
+              <i class="bi {{ meta.icon }}"></i>
+            </span>
+            <span class="notification-list-body">
+              <span class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                <span class="badge rounded-pill text-bg-{{ meta.tone }}">{{ meta.label }}</span>
+                <span class="badge rounded-pill text-bg-light text-primary border">{{ notification_source_label(notification) }}</span>
+                {% if due_label %}
+                  <span class="badge rounded-pill text-bg-light border">{{ due_label }}</span>
+                {% endif %}
+              </span>
               <strong>{{ notification.message }}</strong>
-              <small class="text-secondary">{{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
-            </div>
-            {% if notification.action %}
-              <div class="text-secondary small mt-1">{{ notification.action.number_label }} {{ notification.action.title }}</div>
-            {% elif notification.dof %}
-              <div class="text-secondary small mt-1">{{ notification.dof.dof_no }}</div>
-            {% elif notification.document_revision_request %}
-              <div class="text-secondary small mt-1">
-                {{ notification.document_revision_request.document.document_code }}
-                {{ notification.document_revision_request.document.title }}
-              </div>
-            {% endif %}
+              {% if notification.action %}
+                <small>{{ notification.action.number_label }} {{ notification.action.title }}</small>
+              {% elif notification.dof %}
+                <small>{{ notification.dof.dof_no }} {{ notification.dof.title or "" }}</small>
+              {% elif notification.document_revision_request and notification.document_revision_request.document %}
+                <small>
+                  {{ notification.document_revision_request.document.document_code }}
+                  {{ notification.document_revision_request.document.title }}
+                </small>
+              {% endif %}
+            </span>
+            <span class="notification-list-time">
+              {{ notification.created_at.strftime("%d.%m.%Y %H:%M") }}
+            </span>
           </a>
         {% endfor %}
       </div>
     {% else %}
-      <div class="p-5 text-center text-secondary">Henüz bildirim yok.</div>
+      <div class="p-5 text-center text-secondary">
+        <i class="bi bi-bell-slash d-block fs-1 mb-2"></i>
+        Bu filtrede bildirim yok.
+      </div>
     {% endif %}
   </div>
 {% endblock %}

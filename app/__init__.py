@@ -65,6 +65,46 @@ def create_app(config_class=Config):
         else:
             print("Mail gönderilemedi. MAIL_ENABLED ve SMTP ayarlarını kontrol edin.")
 
+    @app.cli.command("send-reminders")
+    @click.option(
+        "--company-id",
+        type=int,
+        default=None,
+        help="Sadece belirtilen firma icin hatirlatma uret.",
+    )
+    @click.option(
+        "--force",
+        is_flag=True,
+        help="Ayni gun daha once calismis olsa bile yeniden uret.",
+    )
+    @with_appcontext
+    def send_reminders_command(company_id, force):
+        from .notifications import ensure_notification_schema
+        from .reminders import (
+            run_due_reminders_for_all_companies,
+            run_due_reminders_once_for_company,
+        )
+
+        ensure_notification_schema()
+        if company_id is not None:
+            stats = run_due_reminders_once_for_company(company_id, force=force)
+            click.echo(
+                "Hatirlatma tamamlandi: "
+                f"{stats['notifications']} bildirim, {stats['emails']} e-posta."
+            )
+            if stats.get("skipped"):
+                click.echo("Bu firma icin bugunun hatirlatmalari zaten uretilmis.")
+            return
+
+        stats = run_due_reminders_for_all_companies(force=force)
+        click.echo(
+            "Hatirlatma tamamlandi: "
+            f"{stats['companies']} kapsam, "
+            f"{stats['notifications']} bildirim, "
+            f"{stats['emails']} e-posta, "
+            f"{stats['skipped']} atlanan."
+        )
+
     @app.cli.command("reopen-completed-dofs")
     @click.option(
         "--apply",

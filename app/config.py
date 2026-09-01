@@ -83,3 +83,17 @@ class Config:
     MAIL_REPLY_TO = os.environ.get("MAIL_REPLY_TO", "")
     MAIL_SUBJECT_PREFIX = os.environ.get("MAIL_SUBJECT_PREFIX", f"[{SITE_NAME}]")
     MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "10"))
+    NOTIFICATION_AUTO_REMINDERS_ENABLED = os.environ.get(
+        "NOTIFICATION_AUTO_REMINDERS_ENABLED", "true"
+    ).lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    NOTIFICATION_REMINDER_DAYS_BEFORE = int(
+        os.environ.get("NOTIFICATION_REMINDER_DAYS_BEFORE", "7")
+    )
+    NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE = int(
+        os.environ.get("NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE", "30")
+    )

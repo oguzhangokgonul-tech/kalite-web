@@ -39,6 +39,13 @@ from .mail import (
     send_document_revision_request_email,
     send_vehicle_reminder_email,
 )
+from .notifications import (
+    add_notifications,
+    ensure_notification_schema,
+    mark_notifications_email_sent,
+    safe_notification_target_url,
+)
+from .reminders import maybe_run_due_reminders_for_request
 from .personnel_seed import PERSONNEL_CONTACT_DEFAULTS
 from .models import (
     Action,
@@ -404,7 +411,7 @@ def load_logged_in_user():
                 session["company_id"] = g.current_company.id
         g.enabled_company_modules = company_module_state(g.current_company)
         enforce_company_module_access()
-        ensure_notification_dof_column()
+        ensure_notification_schema()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
         ensure_internal_audit_schema()
@@ -415,6 +422,10 @@ def load_logged_in_user():
         ensure_personnel_contact_schema()
         ensure_quality_test_schema()
         ensure_suggestion_schema()
+        maybe_run_due_reminders_for_request(
+            company_id=current_company_id(),
+            user=g.current_user,
+        )
         try:
             notification_query = scoped_query(
                 Notification.query,
@@ -435,6 +446,9 @@ def load_logged_in_user():
 
 
 def ensure_notification_dof_column():
+    ensure_notification_schema()
+    return
+
     if current_app.extensions.get("notification_dof_column_checked"):
         return
 
@@ -4363,19 +4377,21 @@ def delete_document_revision_request_file(request_file):
 
 
 def notify_document_revision_request(users, revision_request, message, exclude_user_id=None):
-    target_users = unique_users(users)
-    for user in target_users:
-        if exclude_user_id and user.id == exclude_user_id:
-            continue
-        db.session.add(
-            Notification(
-                user_id=user.id,
-                company_id=revision_request.company_id,
-                document_revision_request=revision_request,
-                message=message,
-            )
-        )
-    send_document_revision_request_email(target_users, revision_request, message)
+    target_users = [
+        user
+        for user in unique_users(users)
+        if not (exclude_user_id and user.id == exclude_user_id)
+    ]
+    created_notifications = add_notifications(
+        target_users,
+        message,
+        company_id=revision_request.company_id,
+        document_revision_request=revision_request,
+        notification_type="warning",
+        exclude_user_id=exclude_user_id,
+    )
+    if send_document_revision_request_email(target_users, revision_request, message):
+        mark_notifications_email_sent(created_notifications)
 
 
 def archive_current_document_version(document, actor=None):
@@ -6450,19 +6466,16 @@ def notify_users(user_ids, action, message, exclude_user_id=None):
         else []
     )
 
-    for user in users:
-        user_id = user.id
-        if exclude_user_id and user_id == exclude_user_id:
-            continue
-        db.session.add(
-            Notification(
-                user_id=user_id,
-                company_id=action.company_id,
-                action=action,
-                message=message,
-            )
-        )
-    send_action_notification_email(users, action, message)
+    created_notifications = add_notifications(
+        users,
+        message,
+        company_id=action.company_id,
+        action=action,
+        notification_type="info",
+        exclude_user_id=exclude_user_id,
+    )
+    if send_action_notification_email(users, action, message):
+        mark_notifications_email_sent(created_notifications)
 
 
 def notify_action_participants(action, message, exclude_user_id=None, extra_user_ids=None):
@@ -6556,16 +6569,16 @@ def notify_dof_users(users, dof, message, exclude_user_id=None):
         and not (exclude_user_id and user.id == exclude_user_id)
     ]
 
-    for user in users:
-        db.session.add(
-            Notification(
-                user_id=user.id,
-                company_id=dof.company_id,
-                dof=dof,
-                message=message,
-            )
-        )
-    send_dof_notification_email(users, dof, message)
+    created_notifications = add_notifications(
+        users,
+        message,
+        company_id=dof.company_id,
+        dof=dof,
+        notification_type="warning",
+        exclude_user_id=exclude_user_id,
+    )
+    if send_dof_notification_email(users, dof, message):
+        mark_notifications_email_sent(created_notifications)
 
 
 def notify_dof_waiting_approvers(dof):
@@ -9510,16 +9523,119 @@ def logout():
     return redirect(url_for("main.login"))
 
 
+NOTIFICATION_FILTERS = (
+    ("all", "Tümü"),
+    ("unread", "Okunmamış"),
+    ("late", "Geciken"),
+    ("approval", "Onay"),
+    ("document", "Doküman"),
+    ("dof", "IF/DÖF"),
+    ("action", "Aksiyon"),
+)
+
+
+def notification_meta(notification):
+    notification_type = notification.notification_type or "info"
+    if notification_type == "danger":
+        return {"tone": "danger", "icon": "bi-exclamation-triangle", "label": "Gecikme"}
+    if notification_type == "warning":
+        return {"tone": "warning", "icon": "bi-clock-history", "label": "Hatırlatma"}
+    if notification_type == "success":
+        return {"tone": "success", "icon": "bi-check-circle", "label": "Tamamlandı"}
+    return {"tone": "primary", "icon": "bi-bell", "label": "Bilgi"}
+
+
+def notification_source_label(notification):
+    source_key = notification.source_key or ""
+    if notification.action or source_key.startswith(("action:", "sub-action:")):
+        return "Aksiyon"
+    if notification.dof or source_key.startswith("dof:"):
+        return "IF/DÖF"
+    if notification.document_revision_request or source_key.startswith("document-revision:"):
+        return "Doküman"
+    if source_key.startswith("calibration:"):
+        return "Kalibrasyon"
+    if source_key.startswith("risk:"):
+        return "Risk"
+    if source_key.startswith("training:"):
+        return "Eğitim"
+    if source_key.startswith("complaint:"):
+        return "Şikayet"
+    if source_key.startswith("supplier:"):
+        return "Tedarikçi"
+    if source_key.startswith("management-review:"):
+        return "YGG"
+    if source_key.startswith("internal-audit:"):
+        return "İç Denetim"
+    if source_key.startswith("maintenance:"):
+        return "Bakım"
+    return "Sistem"
+
+
+def notification_due_label(notification):
+    if not notification.due_date:
+        return ""
+    days = (notification.due_date - date.today()).days
+    if days < 0:
+        return f"{abs(days)} gün geçti"
+    if days == 0:
+        return "Bugün"
+    return f"{days} gün kaldı"
+
+
+def notification_matches_filter(notification, filter_key):
+    source_key = notification.source_key or ""
+    message = (notification.message or "").casefold()
+    if filter_key == "unread":
+        return not notification.is_read
+    if filter_key == "late":
+        return (
+            notification.notification_type == "danger"
+            or (notification.due_date and notification.due_date < date.today())
+        )
+    if filter_key == "approval":
+        return "onay" in message or source_key.startswith("document-revision:")
+    if filter_key == "document":
+        return bool(notification.document_revision_request) or source_key.startswith(
+            "document-revision:"
+        )
+    if filter_key == "dof":
+        return bool(notification.dof) or source_key.startswith("dof:")
+    if filter_key == "action":
+        return bool(notification.action) or source_key.startswith(("action:", "sub-action:"))
+    return True
+
+
 @bp.get("/notifications")
 @login_required
 def notifications():
-    notification_list = (
+    active_filter = request.args.get("filter", "all")
+    if active_filter not in {key for key, _label in NOTIFICATION_FILTERS}:
+        active_filter = "all"
+    all_notifications = (
         scoped_query(Notification.query, Notification)
         .filter_by(user_id=g.current_user.id)
         .order_by(Notification.created_at.desc())
-        .limit(100)
+        .limit(200)
         .all()
     )
+    notification_list = [
+        notification
+        for notification in all_notifications
+        if notification_matches_filter(notification, active_filter)
+    ][:100]
+    filter_tabs = [
+        {
+            "key": key,
+            "label": label,
+            "count": sum(
+                1
+                for notification in all_notifications
+                if notification_matches_filter(notification, key)
+            ),
+        }
+        for key, label in NOTIFICATION_FILTERS
+    ]
     unread_count = scoped_query(Notification.query, Notification).filter_by(
         user_id=g.current_user.id, is_read=False
     ).count()
@@ -9527,6 +9643,11 @@ def notifications():
         "notifications.html",
         notifications=notification_list,
         unread_count=unread_count,
+        filter_tabs=filter_tabs,
+        active_filter=active_filter,
+        notification_meta=notification_meta,
+        notification_source_label=notification_source_label,
+        notification_due_label=notification_due_label,
     )
 
 
@@ -9574,6 +9695,9 @@ def open_notification(notification_id):
     notification = scoped_query(Notification.query, Notification).filter_by(
         id=notification_id, user_id=g.current_user.id
     ).first_or_404()
+    if not notification.is_read:
+        notification.is_read = True
+        db.session.commit()
     if notification.action and can_view_action(notification.action):
         return redirect(url_for("main.action_detail", action_id=notification.action.id))
     if notification.dof and can_view_dof(notification.dof):
@@ -9587,6 +9711,9 @@ def open_notification(notification_id):
                     request_id=revision_request.id,
                 )
             )
+    target_url = safe_notification_target_url(notification.target_url)
+    if target_url:
+        return redirect(target_url)
     return redirect(url_for("main.notifications"))
 
 

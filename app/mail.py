@@ -76,6 +76,26 @@ def _document_revision_request_url(revision_request):
         return ""
 
 
+def _generic_target_url(target_url):
+    if not target_url:
+        return ""
+    value = str(target_url).strip()
+    if value.startswith("//") or "\r" in value or "\n" in value:
+        return ""
+    if value.startswith("/"):
+        public_base_url = current_app.config.get("PUBLIC_BASE_URL")
+        if public_base_url:
+            return f"{public_base_url}{value}"
+        try:
+            base_url = url_for("main.dashboard", _external=True).rstrip("/")
+            return f"{base_url}{value}"
+        except RuntimeError:
+            return value
+    if value.startswith(("http://", "https://")):
+        return value
+    return ""
+
+
 def _format_date(value):
     return value.strftime("%d.%m.%Y") if value else "-"
 
@@ -183,6 +203,27 @@ def build_document_revision_request_email(revision_request, message):
     ]
     if request_url:
         lines.extend(["", f"Detay: {request_url}"])
+    return subject, "\n".join(lines)
+
+
+def build_generic_notification_email(
+    message,
+    title="Bildirim",
+    target_url=None,
+    due_date=None,
+    source_label=None,
+):
+    detail_url = _generic_target_url(target_url)
+    subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
+    subject = f"{subject_prefix} {title or 'Bildirim'}"
+
+    lines = [message]
+    if source_label:
+        lines.extend(["", f"Kaynak: {source_label}"])
+    if due_date:
+        lines.append(f"Termin: {_format_date(due_date)}")
+    if detail_url:
+        lines.extend(["", f"Detay: {detail_url}"])
     return subject, "\n".join(lines)
 
 
@@ -320,6 +361,40 @@ def send_document_revision_request_email(users, revision_request, message):
         return False
 
     subject, body = build_document_revision_request_email(revision_request, message)
+    _mail_executor.submit(
+        _send_mail_safely,
+        settings,
+        recipients,
+        subject,
+        body,
+        current_app.logger,
+    )
+    return True
+
+
+def send_generic_notification_email(
+    users,
+    message,
+    title="Bildirim",
+    target_url=None,
+    due_date=None,
+    source_label=None,
+):
+    recipients = sorted({user.email for user in users if user.email})
+    if not recipients:
+        return False
+
+    settings = _mail_settings()
+    if not _mail_enabled(settings):
+        return False
+
+    subject, body = build_generic_notification_email(
+        message,
+        title=title,
+        target_url=target_url,
+        due_date=due_date,
+        source_label=source_label,
+    )
     _mail_executor.submit(
         _send_mail_safely,
         settings,

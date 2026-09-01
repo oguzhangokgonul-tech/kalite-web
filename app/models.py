@@ -2065,6 +2065,11 @@ class Notification(db.Model):
         db.ForeignKey("document_revision_requests.id"),
         nullable=True,
     )
+    notification_type = db.Column(db.String(40), nullable=False, default="info", server_default="info")
+    source_key = db.Column(db.String(180), nullable=True, index=True)
+    target_url = db.Column(db.String(500), nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    email_sent_at = db.Column(db.DateTime, nullable=True)
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())

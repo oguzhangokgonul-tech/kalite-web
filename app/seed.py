@@ -621,6 +621,39 @@ def ensure_runtime_schema():
                 )
             )
 
+    if "notifications" in tables:
+        columns = {column["name"] for column in inspector.get_columns("notifications")}
+        notification_columns = {
+            "dof_id": "ALTER TABLE notifications ADD COLUMN dof_id INTEGER",
+            "document_revision_request_id": (
+                "ALTER TABLE notifications ADD COLUMN document_revision_request_id INTEGER"
+            ),
+            "notification_type": (
+                "ALTER TABLE notifications "
+                "ADD COLUMN notification_type VARCHAR(40) NOT NULL DEFAULT 'info'"
+            ),
+            "source_key": "ALTER TABLE notifications ADD COLUMN source_key VARCHAR(180)",
+            "target_url": "ALTER TABLE notifications ADD COLUMN target_url VARCHAR(500)",
+            "due_date": "ALTER TABLE notifications ADD COLUMN due_date DATE",
+            "email_sent_at": "ALTER TABLE notifications ADD COLUMN email_sent_at DATETIME",
+        }
+        for column_name, statement in notification_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_notifications_company_id", "company_id"),
+            ("ix_notifications_user_id", "user_id"),
+            ("ix_notifications_source_key", "source_key"),
+            ("ix_notifications_due_date", "due_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON notifications ({column_name})"
+                )
+            )
+
     if "risk_records" not in tables:
         db.session.execute(
             text(
@@ -1392,6 +1425,7 @@ def ensure_runtime_schema():
             "sales_readiness:month3_supplier",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
+            "sales_readiness:notification_upgrade",
         ):
             db.session.execute(
                 text(
