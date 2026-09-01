@@ -8,8 +8,8 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Action, AppSetting, AuditLog, Company, User, UserPermission
-from app.seed import ensure_runtime_schema
+from app.models import Action, AppSetting, AuditLog, Company, Role, User, UserPermission
+from app.seed import ensure_default_roles, ensure_runtime_schema
 
 
 @pytest.fixture()
@@ -168,6 +168,45 @@ def test_report_center_sidebar_link_follows_report_permission(app, client):
 
     assert response.status_code == 200
     assert 'href="/rapor-merkezi"' in response.get_data(as_text=True)
+
+
+def test_default_roles_receive_report_permissions_idempotently(app):
+    existing_role = Role(
+        key="management_representative",
+        name="Eski Yönetim Temsilcisi",
+        hierarchy_level=10,
+        is_system=True,
+    )
+    db.session.add(existing_role)
+    db.session.commit()
+
+    ensure_default_roles()
+    ensure_default_roles()
+    db.session.flush()
+    db.session.expire_all()
+
+    management_representative = Role.query.filter_by(key="management_representative").one()
+    management = Role.query.filter_by(key="management").one()
+    department_manager = Role.query.filter_by(key="department_manager").one()
+    department_staff = Role.query.filter_by(key="department_staff").one()
+
+    assert {"reports.view", "reports.export"}.issubset(
+        management_representative.permission_keys
+    )
+    assert {"reports.view", "reports.export"}.issubset(management.permission_keys)
+    assert "reports.view" in department_manager.permission_keys
+    assert "reports.export" not in department_manager.permission_keys
+    assert "reports.view" not in department_staff.permission_keys
+    assert (
+        len(
+            [
+                permission
+                for permission in management_representative.permissions
+                if permission.permission_key == "reports.view"
+            ]
+        )
+        == 1
+    )
 
 
 def test_runtime_schema_marks_sales_readiness_report_center_done(app):

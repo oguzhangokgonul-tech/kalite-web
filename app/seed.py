@@ -1,7 +1,7 @@
 from sqlalchemy import inspect, text
 
 from .extensions import db
-from .models import AppSetting, Company, MaintenanceMachine, Role, RolePermission, User
+from .models import AppSetting, Company, MaintenanceMachine, Role, User
 from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
@@ -1493,15 +1493,46 @@ def ensure_default_users(reset_passwords=True):
     db.session.commit()
 
 
+def ensure_role_permission(role, permission_key):
+    db.session.execute(
+        text(
+            "INSERT OR IGNORE INTO role_permissions (role_id, permission_key) "
+            "VALUES (:role_id, :permission_key)"
+        ),
+        {"role_id": role.id, "permission_key": permission_key},
+    )
+
+
+def ensure_default_role_row(definition):
+    role = Role.query.filter_by(key=definition["key"]).first()
+    is_new_role = role is None
+    if role is None:
+        db.session.execute(
+            text(
+                """
+                INSERT OR IGNORE INTO roles
+                    (key, name, description, hierarchy_level, is_system)
+                VALUES
+                    (:key, :name, :description, :hierarchy_level, 1)
+                """
+            ),
+            {
+                "key": definition["key"],
+                "name": definition["name"],
+                "description": definition.get("description"),
+                "hierarchy_level": definition["hierarchy_level"],
+            },
+        )
+        db.session.flush()
+        role = Role.query.filter_by(key=definition["key"]).first()
+    return role, is_new_role
+
+
 def ensure_default_roles():
     role_by_key = {}
     active_role_keys = {definition["key"] for definition in ROLE_DEFINITIONS}
     for definition in ROLE_DEFINITIONS:
-        role = Role.query.filter_by(key=definition["key"]).first()
-        is_new_role = role is None
-        if role is None:
-            role = Role(key=definition["key"])
-            db.session.add(role)
+        role, is_new_role = ensure_default_role_row(definition)
         role.name = definition["name"]
         role.description = definition.get("description")
         role.hierarchy_level = definition["hierarchy_level"]
@@ -1509,16 +1540,19 @@ def ensure_default_roles():
 
         existing_permissions = {item.permission_key: item for item in role.permissions}
         desired_permissions = set(definition.get("permissions") or ())
-        if is_new_role or role.key == "super_admin":
+        if is_new_role or role.is_system:
             for permission_key in desired_permissions:
                 if permission_key not in existing_permissions:
-                    role.permissions.append(RolePermission(permission_key=permission_key))
+                    ensure_role_permission(role, permission_key)
+        if role.key == "super_admin":
             for permission in list(role.permissions):
                 if permission.permission_key not in desired_permissions:
                     role.permissions.remove(permission)
         role_by_key[role.key] = role
 
     db.session.flush()
+    for role in role_by_key.values():
+        db.session.expire(role, ["permissions"])
     for old_role_key, new_role_key in REMOVED_ROLE_MAPPINGS.items():
         old_role = Role.query.filter_by(key=old_role_key).first()
         new_role = role_by_key.get(new_role_key)
