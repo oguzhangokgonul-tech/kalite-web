@@ -379,12 +379,16 @@ def load_logged_in_user():
     g.latest_notifications = []
     g.assigned_tasks_count = 0
     g.current_user_is_super_admin = False
+    g.current_user_is_superadmin_account = False
     g.enabled_company_modules = default_company_module_state(True)
     g.company_module_enabled = company_module_enabled
     ensure_login_attempt_schema()
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
         g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
+        g.current_user_is_superadmin_account = (
+            (g.current_user.username or "").strip().lower() == "superadmin"
+        )
         session_company_id = session.get("company_id")
         if g.tenant_company is not None and session_company_id != g.tenant_company.id:
             g.current_company = g.tenant_company
@@ -4814,16 +4818,20 @@ def sales_readiness_completed_ids():
     }
 
 
+def is_superadmin_account():
+    return bool(getattr(g, "current_user_is_superadmin_account", False))
+
+
 def can_manage_sales_readiness():
+    return is_superadmin_account()
+
+
+def can_view_audit_log():
     return g.current_user is not None and (
         g.current_user_is_super_admin
         or current_user_can("roles.manage")
         or current_user_can("users.manage")
     )
-
-
-def can_view_audit_log():
-    return can_manage_sales_readiness()
 
 
 def sales_readiness_context():

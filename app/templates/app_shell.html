@@ -53,11 +53,13 @@
             <span>Rol Yönetimi</span>
           </a>
         {% endif %}
-        {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}
+        {% if g.current_user_is_superadmin_account %}
           <a class="dashboard-nav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
             <i class="bi bi-rocket-takeoff"></i>
             <span>Satışa Hazırlık</span>
           </a>
+        {% endif %}
+        {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}
           <a class="dashboard-nav-item {% if audit_log_active %}active{% endif %}" href="{{ url_for('main.audit_log') }}">
             <i class="bi bi-activity"></i>
             <span>Denetim Logu</span>

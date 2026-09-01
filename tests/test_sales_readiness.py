@@ -50,7 +50,7 @@ def create_user(username, permission_key=None):
     return user
 
 
-def test_sales_readiness_requires_management_permission(app, client):
+def test_sales_readiness_requires_superadmin_account(app, client):
     user = create_user("viewer")
     login(client, user)
 
@@ -59,8 +59,17 @@ def test_sales_readiness_requires_management_permission(app, client):
     assert response.status_code == 403
 
 
-def test_sales_readiness_page_renders_checklist(app, client):
+def test_sales_readiness_rejects_other_management_users(app, client):
     user = create_user("manager", "users.manage")
+    login(client, user)
+
+    response = client.get("/satisa-hazirlik")
+
+    assert response.status_code == 403
+
+
+def test_sales_readiness_page_renders_checklist(app, client):
+    user = create_user("superadmin")
     login(client, user)
 
     response = client.get("/satisa-hazirlik")
@@ -72,8 +81,26 @@ def test_sales_readiness_page_renders_checklist(app, client):
     assert "audit_log" in body
 
 
+def test_sales_readiness_sidebar_link_only_for_superadmin_account(app, client):
+    manager = create_user("manager", "users.manage")
+    login(client, manager)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'href="/satisa-hazirlik"' not in response.get_data(as_text=True)
+
+    superadmin = create_user("superadmin")
+    login(client, superadmin)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert 'href="/satisa-hazirlik"' in response.get_data(as_text=True)
+
+
 def test_sales_readiness_persists_completed_items(app, client):
-    user = create_user("manager", "roles.manage")
+    user = create_user("superadmin")
     login(client, user)
 
     response = client.post(
