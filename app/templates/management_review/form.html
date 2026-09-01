@@ -1,0 +1,129 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = review is defined and review %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, "Toplantı girdilerini, kararları ve takip aksiyonlarını tek kayıtta yönetin.", icon="bi-clipboard-data") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.management_review_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>YGG Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="review_no">YGG No</label>
+        <input class="form-control" id="review_no" value="{{ review.review_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="title">Toplantı Başlığı</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', review.title if is_edit else 'Yönetimin Gözden Geçirmesi Toplantısı') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="review_period">Dönem</label>
+        <input class="form-control" id="review_period" name="review_period" value="{{ form_data.get('review_period', review.review_period if is_edit else '') }}" placeholder="Örn. 2026 / 1. Yarıyıl" maxlength="80">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="meeting_date">Toplantı Tarihi</label>
+        {% set meeting_value = form_data.get('meeting_date', review.meeting_date.isoformat() if is_edit and review.meeting_date else today_value) %}
+        <input class="form-control" id="meeting_date" name="meeting_date" type="date" value="{{ meeting_value }}" required>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', review.status if is_edit else 'Planlandı') %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="chair_user_id">Toplantı Başkanı</label>
+        {% set selected_chair = form_data.get('chair_user_id', review.chair_user_id if is_edit else '')|string %}
+        <select class="form-select" id="chair_user_id" name="chair_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_chair == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="recorder_user_id">Raportör</label>
+        {% set selected_recorder = form_data.get('recorder_user_id', review.recorder_user_id if is_edit else '')|string %}
+        <select class="form-select" id="recorder_user_id" name="recorder_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_recorder == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="location">Toplantı Yeri</label>
+        <input class="form-control" id="location" name="location" value="{{ form_data.get('location', review.location if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="action_id">Takip Aksiyonu</label>
+        {% set selected_action = form_data.get('action_id', review.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="participants">Katılımcılar</label>
+        <input class="form-control" id="participants" name="participants" value="{{ form_data.get('participants', review.participants if is_edit else '') }}" placeholder="Ad soyadları virgülle ayırın">
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="agenda">Toplantı Gündemi</label>
+        <textarea class="form-control" id="agenda" name="agenda" rows="3">{{ form_data.get('agenda', review.agenda if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      {{ ui.card_header("ISO 9001 Girdileri", "Denetimde kanıt olarak gösterilecek ana başlıklar.", icon="bi-diagram-3") }}
+      <div class="row g-3">
+        {% for field_name, label, icon in input_fields %}
+          <div class="col-md-6 col-xl-4">
+            <label class="form-label" for="{{ field_name }}">
+              <i class="bi {{ icon }} text-primary me-1"></i>
+              {{ label }}
+            </label>
+            <textarea class="form-control" id="{{ field_name }}" name="{{ field_name }}" rows="4">{{ form_data.get(field_name, review|attr(field_name) if is_edit else '') }}</textarea>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="mt-4">
+      {{ ui.card_header("Karar ve Çıktılar", "Toplantı sonunda alınan kararlar, çıktı ve iyileştirme fırsatları.", icon="bi-check2-square") }}
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <label class="form-label" for="decisions">Alınan Kararlar</label>
+          <textarea class="form-control" id="decisions" name="decisions" rows="5">{{ form_data.get('decisions', review.decisions if is_edit else '') }}</textarea>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label" for="outputs">Toplantı Çıktıları</label>
+          <textarea class="form-control" id="outputs" name="outputs" rows="5">{{ form_data.get('outputs', review.outputs if is_edit else '') }}</textarea>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label" for="improvement_opportunities">İyileştirme Fırsatları</label>
+          <textarea class="form-control" id="improvement_opportunities" name="improvement_opportunities" rows="5">{{ form_data.get('improvement_opportunities', review.improvement_opportunities if is_edit else '') }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.management_review_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

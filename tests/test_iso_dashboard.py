@@ -15,6 +15,7 @@ from app.models import (
     DocumentRevisionRequest,
     Dof,
     InternalAudit,
+    ManagementReview,
     User,
     UserPermission,
 )
@@ -118,6 +119,14 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
                 planned_date=today + timedelta(days=7),
                 status="Planlandı",
             ),
+            ManagementReview(
+                review_no="YGG-2026-0001",
+                title="Yıllık yönetimin gözden geçirmesi",
+                meeting_date=today + timedelta(days=10),
+                status="Planlandı",
+                review_period="2026",
+                created_by_user_id=manager.id,
+            ),
             CalibrationRecord(
                 device_code="CK01",
                 device_name="Elek",
@@ -149,11 +158,13 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
     assert "Revizyon Bekleyen Doküman" in body
     assert "Açık Şikayet" in body
     assert "Yaklaşan İç Denetim" in body
+    assert "YGG Takibi" in body
     assert "Kalibrasyon Riski" in body
     assert "Geciken aksiyon" in body
     assert "Açık uygunsuzluk" in body
     assert "Yönetim Prosedürü" in body
     assert "Geciken müşteri şikayeti" in body
+    assert "Yıllık yönetimin gözden geçirmesi" in body
     assert "Yaklaşan denetim" in body
     assert "Elek" in body
 

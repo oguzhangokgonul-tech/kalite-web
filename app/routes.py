@@ -76,6 +76,7 @@ from .models import (
     MAINTENANCE_MACHINE_STATUSES,
     MaintenanceFault,
     MaintenanceMachine,
+    ManagementReview,
     Notification,
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
@@ -2190,6 +2191,11 @@ MODULE_ENDPOINTS = {
     "main.delete_training": "training",
     "main.confirm_training_participant": "training",
     "main.update_training_participant": "training",
+    "main.management_review_dashboard": "management_review",
+    "main.create_management_review": "management_review",
+    "main.edit_management_review": "management_review",
+    "main.management_review_report": "management_review",
+    "main.delete_management_review": "management_review",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -6097,6 +6103,22 @@ def iso_dashboard_context(all_actions):
         .order_by(InternalAudit.planned_date.asc(), InternalAudit.id.asc())
         .all()
     )
+    open_management_reviews = (
+        scoped_query(ManagementReview.query, ManagementReview)
+        .filter(~ManagementReview.status.in_(["Tamamlandı", "İptal"]))
+        .all()
+    )
+    overdue_management_reviews = [
+        review
+        for review in open_management_reviews
+        if review.delay_days and review.delay_days > 0
+    ]
+    upcoming_management_reviews = [
+        review
+        for review in open_management_reviews
+        if review.meeting_date
+        and today <= review.meeting_date <= today + timedelta(days=30)
+    ]
     calibration_records = scoped_query(
         CalibrationRecord.query,
         CalibrationRecord,
@@ -6230,6 +6252,26 @@ def iso_dashboard_context(all_actions):
                     "status": format_date(audit.planned_date),
                 }
                 for audit in upcoming_audits[:3]
+            ],
+        },
+        {
+            "title": "YGG Takibi",
+            "value": len(open_management_reviews),
+            "subtitle": f"{len(overdue_management_reviews)} gecikmiş, {len(upcoming_management_reviews)} yaklaşan",
+            "tone": "danger" if overdue_management_reviews else ("warning" if upcoming_management_reviews else "success"),
+            "icon": "bi-clipboard-data",
+            "href": url_for("main.management_review_dashboard"),
+            "items": [
+                {
+                    "label": review.review_no,
+                    "meta": review.title,
+                    "status": (
+                        f"{review.delay_days} gün geçti"
+                        if review.delay_days
+                        else format_date(review.meeting_date)
+                    ),
+                }
+                for review in sorted(open_management_reviews, key=management_review_sort_key)[:3]
             ],
         },
         {
@@ -7307,6 +7349,236 @@ def complaint_form_error_message(error_key):
         "invalid_action": "Geçerli bir aksiyon bağlantısı seçin.",
         "invalid_dof": "Geçerli bir IF/DÖF bağlantısı seçin.",
     }.get(error_key, "Şikayet kaydı kaydedilemedi.")
+
+
+MANAGEMENT_REVIEW_STATUSES = ("Planlandı", "Devam Ediyor", "Tamamlandı", "İptal")
+MANAGEMENT_REVIEW_INPUT_FIELDS = (
+    ("audit_results", "İç / dış denetim sonuçları", "bi-clipboard-check"),
+    ("customer_feedback", "Müşteri geri bildirimi ve şikayetler", "bi-chat-left-text"),
+    ("process_performance", "Süreç performansı ve hedefler", "bi-speedometer2"),
+    ("nonconformities", "Uygunsuzluklar", "bi-shield-exclamation"),
+    ("corrective_actions", "Düzeltici faaliyet durumu", "bi-tools"),
+    ("monitoring_results", "İzleme ve ölçme sonuçları", "bi-graph-up"),
+    ("supplier_performance", "Tedarikçi performansı", "bi-truck"),
+    ("resource_needs", "Kaynak ihtiyaçları", "bi-boxes"),
+    ("risk_opportunities", "Riskler ve fırsatlar", "bi-exclamation-diamond"),
+)
+
+
+def can_manage_management_reviews():
+    return current_user_can("management_review.manage")
+
+
+def can_view_management_reviews():
+    return current_user_can("management_review.view") or can_manage_management_reviews()
+
+
+def can_delete_management_reviews():
+    return current_user_can("management_review.delete")
+
+
+def management_review_query():
+    return scoped_query(ManagementReview.query, ManagementReview)
+
+
+def management_review_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "year": request.args.get("year", "").strip(),
+    }
+
+
+def management_review_status_tone(status):
+    return {
+        "Planlandı": "warning",
+        "Devam Ediyor": "blue",
+        "Tamamlandı": "success",
+        "İptal": "muted",
+    }.get(status, "muted")
+
+
+def management_review_sort_key(review):
+    completed_order = 1 if review.is_completed else 0
+    return (
+        completed_order,
+        -review.delay_days,
+        review.meeting_date or date.max,
+        review.id,
+    )
+
+
+def filtered_management_reviews(filters):
+    query = management_review_query()
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                ManagementReview.review_no.ilike(search_value),
+                ManagementReview.title.ilike(search_value),
+                ManagementReview.review_period.ilike(search_value),
+                ManagementReview.participants.ilike(search_value),
+                ManagementReview.agenda.ilike(search_value),
+                ManagementReview.decisions.ilike(search_value),
+                ManagementReview.outputs.ilike(search_value),
+                ManagementReview.improvement_opportunities.ilike(search_value),
+            )
+        )
+    if filters["status"]:
+        query = query.filter(ManagementReview.status == filters["status"])
+
+    reviews = query.all()
+    if filters["year"]:
+        try:
+            year = int(filters["year"])
+        except ValueError:
+            year = None
+        if year:
+            reviews = [
+                review
+                for review in reviews
+                if review.meeting_date and review.meeting_date.year == year
+            ]
+    return sorted(reviews, key=management_review_sort_key)
+
+
+def next_management_review_no():
+    prefix = f"YGG-{date.today().year}-"
+    rows = (
+        scoped_query(
+            ManagementReview.query.with_entities(ManagementReview.review_no),
+            ManagementReview,
+        )
+        .filter(ManagementReview.review_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (review_no,) in rows:
+        try:
+            numbers.append(int((review_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_management_review_form():
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "review_period": request.form.get("review_period", "").strip(),
+        "meeting_date": parse_optional_date("meeting_date"),
+        "location": request.form.get("location", "").strip(),
+        "status": request.form.get("status", "Planlandı").strip() or "Planlandı",
+        "chair_user_id": request.form.get("chair_user_id", type=int),
+        "recorder_user_id": request.form.get("recorder_user_id", type=int),
+        "participants": request.form.get("participants", "").strip(),
+        "agenda": request.form.get("agenda", "").strip(),
+        "decisions": request.form.get("decisions", "").strip(),
+        "outputs": request.form.get("outputs", "").strip(),
+        "improvement_opportunities": request.form.get("improvement_opportunities", "").strip(),
+        "action_id": request.form.get("action_id", type=int),
+    }
+    for field_name, _label, _icon in MANAGEMENT_REVIEW_INPUT_FIELDS:
+        values[field_name] = request.form.get(field_name, "").strip()
+
+    if not values["title"] or not values["meeting_date"]:
+        raise ValueError("required_fields")
+    if values["status"] not in MANAGEMENT_REVIEW_STATUSES:
+        raise ValueError("invalid_status")
+    if values["chair_user_id"] and active_user_by_id(values["chair_user_id"]) is None:
+        raise ValueError("invalid_chair")
+    if values["recorder_user_id"] and active_user_by_id(values["recorder_user_id"]) is None:
+        raise ValueError("invalid_recorder")
+    if values["action_id"]:
+        action = scoped_query(Action.query, Action).filter_by(id=values["action_id"]).first()
+        if action is None:
+            raise ValueError("invalid_action")
+
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def management_review_dashboard_context():
+    filters = management_review_filters()
+    reviews = filtered_management_reviews(filters)
+    all_reviews = management_review_query().all()
+    open_reviews = [review for review in all_reviews if not review.is_completed]
+    overdue_reviews = [
+        review
+        for review in open_reviews
+        if review.delay_days and review.delay_days > 0
+    ]
+    completed_reviews = [
+        review
+        for review in all_reviews
+        if review.status == "Tamamlandı"
+    ]
+    linked_action_count = sum(1 for review in all_reviews if review.action_id)
+    years = sorted(
+        {
+            review.meeting_date.year
+            for review in all_reviews
+            if review.meeting_date
+        },
+        reverse=True,
+    )
+    return {
+        "reviews": reviews,
+        "total_count": len(all_reviews),
+        "open_count": len(open_reviews),
+        "overdue_count": len(overdue_reviews),
+        "completed_count": len(completed_reviews),
+        "linked_action_count": linked_action_count,
+        "filters": filters,
+        "years": years,
+        "statuses": MANAGEMENT_REVIEW_STATUSES,
+        "can_manage_management_reviews": can_manage_management_reviews(),
+        "can_delete_management_reviews": can_delete_management_reviews(),
+        "management_review_status_tone": management_review_status_tone,
+        "format_date": format_date,
+    }
+
+
+def management_review_form_context(review=None):
+    return {
+        "review": review,
+        "statuses": MANAGEMENT_REVIEW_STATUSES,
+        "input_fields": MANAGEMENT_REVIEW_INPUT_FIELDS,
+        "users": active_users(),
+        "actions": scoped_query(Action.query, Action)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all(),
+        "form_data": request.form if request.method == "POST" else {},
+        "today_value": date.today().isoformat(),
+    }
+
+
+def management_review_report_context(review):
+    input_sections = [
+        {
+            "label": label,
+            "icon": icon,
+            "value": getattr(review, field_name),
+        }
+        for field_name, label, icon in MANAGEMENT_REVIEW_INPUT_FIELDS
+    ]
+    return {
+        "review": review,
+        "input_sections": input_sections,
+        "format_date": format_date,
+    }
+
+
+def management_review_form_error_message(error_key):
+    return {
+        "required_fields": "Toplantı başlığı ve toplantı tarihi zorunludur.",
+        "invalid_date": "Toplantı tarihini kontrol edin.",
+        "invalid_status": "Geçerli bir toplantı durumu seçin.",
+        "invalid_chair": "Geçerli bir toplantı başkanı seçin.",
+        "invalid_recorder": "Geçerli bir raportör seçin.",
+        "invalid_action": "Geçerli bir aksiyon bağlantısı seçin.",
+    }.get(error_key, "YGG kaydı kaydedilemedi.")
 
 
 def delete_uploaded_file(action):
@@ -9380,6 +9652,106 @@ def update_training_participant(training_id, participant_id):
         db.session.rollback()
         flash(training_form_error_message(str(error)), "danger")
     return redirect(url_for("main.training_dashboard"))
+
+
+@bp.route("/yonetimin-gozden-gecirmesi")
+@login_required
+def management_review_dashboard():
+    if not can_view_management_reviews():
+        abort(403)
+    return render_template(
+        "management_review/dashboard.html",
+        **management_review_dashboard_context(),
+    )
+
+
+@bp.route("/yonetimin-gozden-gecirmesi/yeni", methods=["GET", "POST"])
+@login_required
+def create_management_review():
+    if not can_manage_management_reviews():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            review = ManagementReview(
+                review_no=next_management_review_no(),
+                created_by_user_id=g.current_user.id,
+                **parse_management_review_form(),
+            )
+            assign_current_company(review)
+            db.session.add(review)
+            db.session.commit()
+            flash("Yönetimin gözden geçirmesi kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.management_review_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(management_review_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "management_review/form.html",
+        page_title="Yeni YGG Kaydı",
+        form_action=url_for("main.create_management_review"),
+        submit_label="YGG Kaydını Kaydet",
+        **management_review_form_context(),
+    )
+
+
+@bp.route(
+    "/yonetimin-gozden-gecirmesi/<int:review_id>/duzenle",
+    methods=["GET", "POST"],
+)
+@login_required
+def edit_management_review(review_id):
+    if not can_manage_management_reviews():
+        abort(403)
+    review = management_review_query().filter_by(id=review_id).first_or_404()
+    ensure_same_company(review)
+
+    if request.method == "POST":
+        try:
+            values = parse_management_review_form()
+            for key, value in values.items():
+                setattr(review, key, value)
+            db.session.commit()
+            flash("YGG kaydı güncellendi.", "success")
+            return redirect(url_for("main.management_review_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(management_review_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "management_review/form.html",
+        page_title=f"{review.review_no} Düzenle",
+        form_action=url_for("main.edit_management_review", review_id=review.id),
+        submit_label="Değişiklikleri Kaydet",
+        **management_review_form_context(review),
+    )
+
+
+@bp.get("/yonetimin-gozden-gecirmesi/<int:review_id>/rapor")
+@login_required
+def management_review_report(review_id):
+    if not can_view_management_reviews():
+        abort(403)
+    review = management_review_query().filter_by(id=review_id).first_or_404()
+    ensure_same_company(review)
+    return render_template(
+        "management_review/report.html",
+        **management_review_report_context(review),
+    )
+
+
+@bp.post("/yonetimin-gozden-gecirmesi/<int:review_id>/sil")
+@login_required
+def delete_management_review(review_id):
+    if not can_delete_management_reviews():
+        abort(403)
+    review = management_review_query().filter_by(id=review_id).first_or_404()
+    ensure_same_company(review)
+    db.session.delete(review)
+    db.session.commit()
+    flash("YGG kaydı silindi.", "success")
+    return redirect(url_for("main.management_review_dashboard"))
 
 
 @bp.route("/denetim-logu")

@@ -13,6 +13,7 @@
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
+  {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -167,6 +168,12 @@
         <a class="dashboard-nav-item {% if request.endpoint in ['main.internal_audit', 'main.create_internal_audit', 'main.edit_internal_audit', 'main.copy_internal_audit', 'main.internal_audit_report', 'main.delete_internal_audit', 'main.internal_audit_question', 'main.save_internal_audit_answer', 'main.open_internal_audit_nonconformity', 'main.complete_internal_audit'] %}active{% endif %}" href="{{ url_for('main.internal_audit') }}">
           <i class="bi bi-clipboard-check"></i>
           <span>İç Denetim Yönetimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('management_review') and (g.current_user.has_permission('management_review.view') or g.current_user.has_permission('management_review.manage')) %}
+        <a class="dashboard-nav-item {% if management_review_active %}active{% endif %}" href="{{ url_for('main.management_review_dashboard') }}">
+          <i class="bi bi-clipboard-data"></i>
+          <span>YGG Yönetimi</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('documents') %}

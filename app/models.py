@@ -180,6 +180,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "management_review",
+        "name": "YGG Yönetimi",
+        "description": "Yönetimin gözden geçirmesi toplantıları, girdiler, kararlar ve aksiyonlar.",
+        "icon": "bi-clipboard-data",
+        "sort_order": 65,
+        "parent_key": None,
+    },
+    {
         "key": "documents",
         "name": "Doküman Yönetimi",
         "description": "Doküman kategori, yayın, revizyon ve indirme yönetimi.",
@@ -1000,6 +1008,66 @@ class ComplaintRecord(db.Model):
         if self.is_closed or not self.due_date:
             return 0
         return max((date.today() - self.due_date).days, 0)
+
+
+class ManagementReview(db.Model):
+    __tablename__ = "management_reviews"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "review_no",
+            name="uq_management_reviews_company_review_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    review_no = db.Column(db.String(30), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    review_period = db.Column(db.String(80), nullable=True)
+    meeting_date = db.Column(db.Date, nullable=True)
+    location = db.Column(db.String(160), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Planlandı")
+    chair_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    recorder_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    participants = db.Column(db.Text, nullable=True)
+    agenda = db.Column(db.Text, nullable=True)
+    audit_results = db.Column(db.Text, nullable=True)
+    customer_feedback = db.Column(db.Text, nullable=True)
+    process_performance = db.Column(db.Text, nullable=True)
+    nonconformities = db.Column(db.Text, nullable=True)
+    corrective_actions = db.Column(db.Text, nullable=True)
+    monitoring_results = db.Column(db.Text, nullable=True)
+    supplier_performance = db.Column(db.Text, nullable=True)
+    resource_needs = db.Column(db.Text, nullable=True)
+    risk_opportunities = db.Column(db.Text, nullable=True)
+    decisions = db.Column(db.Text, nullable=True)
+    outputs = db.Column(db.Text, nullable=True)
+    improvement_opportunities = db.Column(db.Text, nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    chair = db.relationship("User", foreign_keys=[chair_user_id])
+    recorder = db.relationship("User", foreign_keys=[recorder_user_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    @property
+    def is_completed(self):
+        return self.status in {"Tamamlandı", "İptal"}
+
+    @property
+    def delay_days(self):
+        if self.is_completed or not self.meeting_date:
+            return 0
+        return max((date.today() - self.meeting_date).days, 0)
 
 
 class DocumentCategory(db.Model):

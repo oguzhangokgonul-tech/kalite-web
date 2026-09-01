@@ -157,6 +157,24 @@ PERMISSION_CATALOG = (
         "description": "Şikayet kayıtlarını silebilir.",
     },
     {
+        "key": "management_review.view",
+        "label": "YGG görüntüleme",
+        "group": "Yönetimin Gözden Geçirmesi",
+        "description": "Yönetimin gözden geçirmesi toplantılarını, kararları ve çıktı raporlarını görüntüler.",
+    },
+    {
+        "key": "management_review.manage",
+        "label": "YGG yönetimi",
+        "group": "Yönetimin Gözden Geçirmesi",
+        "description": "YGG toplantı kaydı oluşturur, girdileri, kararları ve aksiyon bağlantılarını yönetir.",
+    },
+    {
+        "key": "management_review.delete",
+        "label": "YGG silme",
+        "group": "Yönetimin Gözden Geçirmesi",
+        "description": "Yönetimin gözden geçirmesi kayıtlarını silebilir.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -277,6 +295,9 @@ ROLE_DEFINITIONS = (
             "complaints.view",
             "complaints.manage",
             "complaints.delete",
+            "management_review.view",
+            "management_review.manage",
+            "management_review.delete",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -303,6 +324,8 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "training.view",
             "complaints.view",
+            "management_review.view",
+            "management_review.manage",
             "vehicles.view",
         ],
     },
@@ -321,6 +344,7 @@ ROLE_DEFINITIONS = (
             "training.view",
             "complaints.view",
             "complaints.manage",
+            "management_review.view",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -756,6 +780,73 @@ def ensure_runtime_schema():
             )
         )
 
+    if "management_reviews" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE management_reviews (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    review_no VARCHAR(30) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    review_period VARCHAR(80),
+                    meeting_date DATE,
+                    location VARCHAR(160),
+                    status VARCHAR(40) NOT NULL DEFAULT 'Planlandı',
+                    chair_user_id INTEGER,
+                    recorder_user_id INTEGER,
+                    participants TEXT,
+                    agenda TEXT,
+                    audit_results TEXT,
+                    customer_feedback TEXT,
+                    process_performance TEXT,
+                    nonconformities TEXT,
+                    corrective_actions TEXT,
+                    monitoring_results TEXT,
+                    supplier_performance TEXT,
+                    resource_needs TEXT,
+                    risk_opportunities TEXT,
+                    decisions TEXT,
+                    outputs TEXT,
+                    improvement_opportunities TEXT,
+                    action_id INTEGER,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(chair_user_id) REFERENCES users (id),
+                    FOREIGN KEY(recorder_user_id) REFERENCES users (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("management_reviews")
+
+    if "management_reviews" in tables:
+        for index_name, column_name in (
+            ("ix_management_reviews_company_id", "company_id"),
+            ("ix_management_reviews_chair_user_id", "chair_user_id"),
+            ("ix_management_reviews_recorder_user_id", "recorder_user_id"),
+            ("ix_management_reviews_action_id", "action_id"),
+            ("ix_management_reviews_status", "status"),
+            ("ix_management_reviews_meeting_date", "meeting_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON management_reviews ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_management_reviews_company_review_no "
+                "ON management_reviews (company_id, review_no)"
+            )
+        )
+
     if "roles" not in tables:
         db.session.execute(
             text(
@@ -1148,6 +1239,8 @@ def ensure_runtime_schema():
             "sales_readiness:training_module",
             "sales_readiness:complaint_module",
             "sales_readiness:month3_complaints",
+            "sales_readiness:management_review",
+            "sales_readiness:month3_management_review",
         ):
             db.session.execute(
                 text(

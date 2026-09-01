@@ -1,0 +1,132 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ review.review_no }} Rapor{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(review.review_no ~ " YGG Raporu", review.title, icon="bi-file-earmark-text") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.management_review_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>YGG Yönetimi</span>
+    </a>
+    <button class="btn btn-primary btn-lg" type="button" onclick="window.print()">
+      <i class="bi bi-printer"></i>
+      <span>Yazdır</span>
+    </button>
+  {% endcall %}
+
+  <section class="document-list-card p-4 management-review-report">
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <small class="text-secondary d-block">YGG No</small>
+        <strong>{{ review.review_no }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Dönem</small>
+        <strong>{{ review.review_period or "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Toplantı Tarihi</small>
+        <strong>{{ format_date(review.meeting_date) }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Durum</small>
+        {{ ui.status_badge(review.status) }}
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Toplantı Başkanı</small>
+        <strong>{{ review.chair.full_name if review.chair else "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Raportör</small>
+        <strong>{{ review.recorder.full_name if review.recorder else "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Toplantı Yeri</small>
+        <strong>{{ review.location or "-" }}</strong>
+      </div>
+      <div class="col-md-3">
+        <small class="text-secondary d-block">Bağlı Aksiyon</small>
+        {% if review.action %}
+          <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=review.action.id) }}">{{ review.action.number_label }}</a>
+        {% else %}
+          <strong>-</strong>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="border rounded-3 p-3 mb-3">
+      <h3 class="h6 mb-2">Katılımcılar</h3>
+      <p class="mb-0 report-pre">{{ review.participants or "-" }}</p>
+    </div>
+
+    <div class="border rounded-3 p-3 mb-4">
+      <h3 class="h6 mb-2">Toplantı Gündemi</h3>
+      <p class="mb-0 report-pre">{{ review.agenda or "-" }}</p>
+    </div>
+
+    <h3 class="h5 mb-3">ISO 9001 Girdileri</h3>
+    <div class="row g-3 mb-4">
+      {% for section in input_sections %}
+        <div class="col-lg-6">
+          <div class="border rounded-3 p-3 h-100">
+            <h4 class="h6 d-flex align-items-center gap-2 mb-2">
+              <i class="bi {{ section.icon }} text-primary"></i>
+              <span>{{ section.label }}</span>
+            </h4>
+            <p class="mb-0 report-pre">{{ section.value or "-" }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <h3 class="h5 mb-3">Karar ve Çıktılar</h3>
+    <div class="row g-3">
+      <div class="col-lg-4">
+        <div class="border rounded-3 p-3 h-100">
+          <h4 class="h6 mb-2">Alınan Kararlar</h4>
+          <p class="mb-0 report-pre">{{ review.decisions or "-" }}</p>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="border rounded-3 p-3 h-100">
+          <h4 class="h6 mb-2">Toplantı Çıktıları</h4>
+          <p class="mb-0 report-pre">{{ review.outputs or "-" }}</p>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="border rounded-3 p-3 h-100">
+          <h4 class="h6 mb-2">İyileştirme Fırsatları</h4>
+          <p class="mb-0 report-pre">{{ review.improvement_opportunities or "-" }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .management-review-report .report-pre {
+      white-space: pre-wrap;
+    }
+
+    @media print {
+      .dashboard-sidebar,
+      .dashboard-topbar,
+      .dashboard-mobile-menu-button,
+      .app-page-actions {
+        display: none !important;
+      }
+
+      .dashboard-main,
+      .dashboard-content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+      }
+
+      .document-list-card {
+        border: 0 !important;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+{% endblock %}
