@@ -156,6 +156,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "risk_management",
+        "name": "Risk Yönetimi",
+        "description": "ISO 9001 riskleri, RPN puanları ve aksiyon bağlantıları.",
+        "icon": "bi-exclamation-diamond",
+        "sort_order": 55,
+        "parent_key": None,
+    },
+    {
         "key": "internal_audit",
         "name": "İç Denetim Yönetimi",
         "description": "İç denetim oluşturma, cevaplama, çıktı ve IF bağlantısı.",
@@ -796,6 +804,55 @@ class DofComment(db.Model):
 
     dof = db.relationship("Dof", back_populates="comments")
     user = db.relationship("User")
+
+
+class RiskRecord(db.Model):
+    __tablename__ = "risk_records"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "risk_no", name="uq_risk_records_company_risk_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    risk_no = db.Column(db.String(30), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    department = db.Column(db.String(80), nullable=True)
+    process = db.Column(db.String(160), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    cause = db.Column(db.Text, nullable=True)
+    consequence = db.Column(db.Text, nullable=True)
+    likelihood = db.Column(db.Integer, nullable=False, default=1)
+    severity = db.Column(db.Integer, nullable=False, default=1)
+    status = db.Column(db.String(40), nullable=False, default="Açık")
+    due_date = db.Column(db.Date, nullable=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+
+    @property
+    def rpn(self):
+        return (self.likelihood or 0) * (self.severity or 0)
+
+    @property
+    def level(self):
+        if self.rpn >= 16:
+            return "Yüksek"
+        if self.rpn >= 8:
+            return "Orta"
+        return "Düşük"
 
 
 class DocumentCategory(db.Model):

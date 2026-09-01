@@ -82,6 +82,7 @@ from .models import (
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
+    RiskRecord,
     Role,
     RolePermission,
     SUGGESTION_STATUSES,
@@ -2170,6 +2171,10 @@ MODULE_ENDPOINTS = {
     "main.download_dof_evidence_file": "if_management",
     "main.download_dof_file": "if_management",
     "main.delete_dof": "if_management",
+    "main.risk_dashboard": "risk_management",
+    "main.create_risk": "risk_management",
+    "main.edit_risk": "risk_management",
+    "main.delete_risk": "risk_management",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -6018,6 +6023,15 @@ def iso_dashboard_context(all_actions):
         .order_by(DocumentRevisionRequest.created_at.desc())
         .all()
     )
+    open_risks = (
+        scoped_query(RiskRecord.query, RiskRecord)
+        .filter(RiskRecord.status != "Kapandı")
+        .all()
+    )
+    high_risks = sorted(
+        [risk for risk in open_risks if risk.level == "Yüksek"],
+        key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
+    )
     upcoming_audits = (
         scoped_query(InternalAudit.query, InternalAudit)
         .filter(
@@ -6094,6 +6108,22 @@ def iso_dashboard_context(all_actions):
                     "status": "Onay bekliyor",
                 }
                 for request_item in pending_revision_requests[:3]
+            ],
+        },
+        {
+            "title": "Yüksek Risk",
+            "value": len(high_risks),
+            "subtitle": f"{len(open_risks)} açık/izlenen risk",
+            "tone": "danger" if high_risks else "success",
+            "icon": "bi-exclamation-diamond",
+            "href": url_for("main.risk_dashboard"),
+            "items": [
+                {
+                    "label": risk.risk_no,
+                    "meta": risk.title,
+                    "status": f"RPN {risk.rpn}",
+                }
+                for risk in high_risks[:3]
             ],
         },
         {
@@ -6409,6 +6439,189 @@ def dof_due_priority_sort_key(dof):
         return (1, 0, dof.due_date, dof.id)
 
     return (2, 0, date.max, dof.id)
+
+
+RISK_STATUSES = ("Açık", "İzlemede", "Aksiyon Açıldı", "Kapandı")
+
+
+def can_view_risks():
+    return current_user_can("risk.view") or can_manage_risks()
+
+
+def can_manage_risks():
+    return current_user_can("risk.manage")
+
+
+def can_delete_risks():
+    return current_user_can("risk.delete")
+
+
+def risk_level_tone(level):
+    return {
+        "Yüksek": "danger",
+        "Orta": "warning",
+        "Düşük": "success",
+    }.get(level, "muted")
+
+
+def risk_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "level": request.args.get("level", "").strip(),
+    }
+
+
+def risk_query():
+    return scoped_query(RiskRecord.query, RiskRecord)
+
+
+def filtered_risks(filters):
+    query = risk_query()
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                RiskRecord.risk_no.ilike(search_value),
+                RiskRecord.title.ilike(search_value),
+                RiskRecord.process.ilike(search_value),
+                RiskRecord.description.ilike(search_value),
+                RiskRecord.cause.ilike(search_value),
+                RiskRecord.consequence.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(RiskRecord.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(RiskRecord.status == filters["status"])
+
+    risks = query.all()
+    if filters["level"]:
+        risks = [risk for risk in risks if risk.level == filters["level"]]
+    return sorted(risks, key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id))
+
+
+def next_risk_no():
+    prefix = f"RSK-{date.today().year}-"
+    rows = (
+        scoped_query(RiskRecord.query.with_entities(RiskRecord.risk_no), RiskRecord)
+        .filter(RiskRecord.risk_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (risk_no,) in rows:
+        try:
+            numbers.append(int((risk_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_risk_form():
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "process": request.form.get("process", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "cause": request.form.get("cause", "").strip(),
+        "consequence": request.form.get("consequence", "").strip(),
+        "status": request.form.get("status", "Açık").strip() or "Açık",
+        "due_date": parse_optional_date("due_date"),
+        "owner_user_id": request.form.get("owner_user_id", type=int),
+        "action_id": request.form.get("action_id", type=int),
+        "dof_id": request.form.get("dof_id", type=int),
+    }
+    try:
+        values["likelihood"] = int(request.form.get("likelihood", 1))
+        values["severity"] = int(request.form.get("severity", 1))
+    except (TypeError, ValueError):
+        raise ValueError("invalid_score")
+
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["status"] not in RISK_STATUSES:
+        raise ValueError("invalid_status")
+    if values["likelihood"] not in range(1, 6) or values["severity"] not in range(1, 6):
+        raise ValueError("invalid_score")
+
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def risk_form_context(risk=None):
+    return {
+        "risk": risk,
+        "statuses": RISK_STATUSES,
+        "departments": DEPARTMENTS,
+        "score_options": range(1, 6),
+        "users": active_users(),
+        "actions": visible_actions_query()
+        .filter_by(is_completed=False)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all(),
+        "dofs": attach_dof_view_state(
+            visible_dofs_query().order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        ),
+        "form_data": request.form if request.method == "POST" else {},
+    }
+
+
+def validate_risk_links(risk):
+    if risk.owner_user_id:
+        user = User.query.filter_by(id=risk.owner_user_id, is_active=True).first()
+        if user is None:
+            raise ValueError("invalid_owner")
+        if current_company_id() and user.company_id not in {None, current_company_id()}:
+            raise ValueError("invalid_owner")
+
+    if risk.action_id:
+        action = scoped_query(Action.query, Action).filter_by(id=risk.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action")
+
+    if risk.dof_id:
+        dof = scoped_query(Dof.query, Dof).filter_by(id=risk.dof_id).first()
+        if dof is None:
+            raise ValueError("invalid_dof")
+
+
+def risk_form_error_message(error_key):
+    return {
+        "required_fields": "Risk başlığı zorunludur.",
+        "invalid_department": "Geçerli bir departman seçin.",
+        "invalid_status": "Geçerli bir risk durumu seçin.",
+        "invalid_score": "Olasılık ve şiddet 1 ile 5 arasında olmalıdır.",
+        "invalid_owner": "Geçerli bir risk sorumlusu seçin.",
+        "invalid_action": "Geçerli bir aksiyon bağlantısı seçin.",
+        "invalid_dof": "Geçerli bir IF/DÖF bağlantısı seçin.",
+    }.get(error_key, "Risk kaydı kaydedilemedi.")
+
+
+def risk_dashboard_context():
+    filters = risk_filters()
+    risks = filtered_risks(filters)
+    all_risks = risk_query().all()
+    open_risks = [risk for risk in all_risks if risk.status != "Kapandı"]
+    high_risks = [risk for risk in open_risks if risk.level == "Yüksek"]
+    linked_count = sum(1 for risk in all_risks if risk.action_id or risk.dof_id)
+    return {
+        "risks": risks,
+        "total_count": len(all_risks),
+        "open_count": len(open_risks),
+        "high_count": len(high_risks),
+        "linked_count": linked_count,
+        "filters": filters,
+        "statuses": RISK_STATUSES,
+        "departments": DEPARTMENTS,
+        "can_manage_risks": can_manage_risks(),
+        "can_delete_risks": can_delete_risks(),
+        "risk_level_tone": risk_level_tone,
+    }
 
 
 def delete_uploaded_file(action):
@@ -8304,6 +8517,78 @@ def sales_readiness():
         return redirect(url_for("main.sales_readiness"))
 
     return render_template("sales_readiness.html", **sales_readiness_context())
+
+
+@bp.route("/risk-yonetimi")
+@login_required
+def risk_dashboard():
+    if not can_view_risks():
+        abort(403)
+    return render_template("risks/dashboard.html", **risk_dashboard_context())
+
+
+@bp.route("/risk-yonetimi/yeni", methods=["GET", "POST"])
+@login_required
+def create_risk():
+    if not can_manage_risks():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_risk_form()
+            risk = RiskRecord(
+                risk_no=next_risk_no(),
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(risk)
+            validate_risk_links(risk)
+            db.session.add(risk)
+            db.session.commit()
+            flash("Risk kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.risk_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(risk_form_error_message(str(error)), "danger")
+
+    return render_template("risks/form.html", **risk_form_context())
+
+
+@bp.route("/risk-yonetimi/<int:risk_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_risk(risk_id):
+    if not can_manage_risks():
+        abort(403)
+    risk = risk_query().filter_by(id=risk_id).first_or_404()
+    ensure_same_company(risk)
+
+    if request.method == "POST":
+        try:
+            values = parse_risk_form()
+            for key, value in values.items():
+                setattr(risk, key, value)
+            validate_risk_links(risk)
+            db.session.commit()
+            flash("Risk kaydı güncellendi.", "success")
+            return redirect(url_for("main.risk_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(risk_form_error_message(str(error)), "danger")
+
+    return render_template("risks/form.html", **risk_form_context(risk))
+
+
+@bp.post("/risk-yonetimi/<int:risk_id>/sil")
+@login_required
+def delete_risk(risk_id):
+    if not can_delete_risks():
+        abort(403)
+    risk = risk_query().filter_by(id=risk_id).first_or_404()
+    ensure_same_company(risk)
+    db.session.delete(risk)
+    db.session.commit()
+    flash("Risk kaydı silindi.", "success")
+    return redirect(url_for("main.risk_dashboard"))
 
 
 @bp.route("/denetim-logu")

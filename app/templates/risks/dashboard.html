@@ -1,0 +1,184 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Risk Yönetimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Risk Yönetimi", "ISO 9001 risklerini RPN puanı, termin ve aksiyon bağlantılarıyla takip edin.", icon="bi-exclamation-diamond") %}
+    {% if can_manage_risks %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_risk') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Risk</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Toplam Risk</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-eye"></i></span>
+      <span class="stat-label">Açık / İzlenen</span>
+      <strong>{{ open_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Yüksek Risk</span>
+      <strong>{{ high_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+      <span class="stat-label">Bağlantılı Kayıt</span>
+      <strong>{{ linked_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Risk, süreç, sebep ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="level">Seviye</label>
+        <select class="form-select" id="level" name="level">
+          <option value="">Tümü</option>
+          {% for level in ["Yüksek", "Orta", "Düşük"] %}
+            <option value="{{ level }}" {% if filters.level == level %}selected{% endif %}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.risk_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Risk No</th>
+            <th>Risk Başlığı</th>
+            <th>Departman / Süreç</th>
+            <th>Olasılık</th>
+            <th>Şiddet</th>
+            <th>RPN</th>
+            <th>Durum</th>
+            <th>Bağlantı</th>
+            <th>Termin</th>
+            {% if can_manage_risks or can_delete_risks %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for risk in risks %}
+            <tr>
+              <td><strong>{{ risk.risk_no }}</strong></td>
+              <td>
+                <strong class="text-primary">{{ risk.title }}</strong>
+                {% if risk.description %}
+                  <small class="d-block text-secondary">{{ risk.description }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <span>{{ risk.department or "-" }}</span>
+                {% if risk.process %}
+                  <small class="d-block text-secondary">{{ risk.process }}</small>
+                {% endif %}
+              </td>
+              <td>{{ risk.likelihood }}</td>
+              <td>{{ risk.severity }}</td>
+              <td>
+                {{ ui.status_badge(risk.rpn|string, tone=risk_level_tone(risk.level), icon="bi-speedometer2", title=risk.level) }}
+                <small class="d-block text-secondary mt-1">{{ risk.level }}</small>
+              </td>
+              <td>{{ ui.status_badge(risk.status) }}</td>
+              <td>
+                <div class="vstack gap-1">
+                  {% if risk.action %}
+                    <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=risk.action.id) }}">
+                      <i class="bi bi-clipboard-check"></i>
+                      {{ risk.action.number_label }}
+                    </a>
+                  {% endif %}
+                  {% if risk.dof %}
+                    <a class="text-decoration-none" href="{{ url_for('main.dof_detail', dof_id=risk.dof.id) }}">
+                      <i class="bi bi-shield-check"></i>
+                      {{ risk.dof.dof_no }}
+                    </a>
+                  {% endif %}
+                  {% if not risk.action and not risk.dof %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>{{ risk.due_date.strftime("%d.%m.%Y") if risk.due_date else "-" }}</td>
+              {% if can_manage_risks or can_delete_risks %}
+                <td>
+                  <div class="dashboard-row-actions justify-content-end">
+                    {% if can_manage_risks %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_risk', risk_id=risk.id) }}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
+                    {% if can_delete_risks %}
+                      <form action="{{ url_for('main.delete_risk', risk_id=risk.id) }}" method="post" onsubmit="return confirm('Risk kaydını silmek istediğinize emin misiniz?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-trash"></i>
+                          <span>Sil</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 10 if can_manage_risks or can_delete_risks else 9 }}">
+                <strong>Henüz risk kaydı yok.</strong>
+                <span>Yeni risk eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

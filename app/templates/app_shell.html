@@ -11,6 +11,7 @@
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
+  {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -147,6 +148,12 @@
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-shield-check"></i>
           <span>İF Yönetimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('risk_management') and (g.current_user.has_permission('risk.view') or g.current_user.has_permission('risk.manage')) %}
+        <a class="dashboard-nav-item {% if risk_management_active %}active{% endif %}" href="{{ url_for('main.risk_dashboard') }}">
+          <i class="bi bi-exclamation-diamond"></i>
+          <span>Risk Yönetimi</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('internal_audit') %}

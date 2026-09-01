@@ -103,6 +103,24 @@ PERMISSION_CATALOG = (
         "description": "Yetkili olduğu IF onay adımında ret sebebi girer.",
     },
     {
+        "key": "risk.view",
+        "label": "Riskleri görüntüleme",
+        "group": "Risk Yönetimi",
+        "description": "Risk yönetimi kayıtlarını ve RPN özetlerini görüntüler.",
+    },
+    {
+        "key": "risk.manage",
+        "label": "Risk yönetimi",
+        "group": "Risk Yönetimi",
+        "description": "Risk kaydı oluşturur, düzenler ve aksiyon/IF bağlantısı kurar.",
+    },
+    {
+        "key": "risk.delete",
+        "label": "Risk silme",
+        "group": "Risk Yönetimi",
+        "description": "Risk kayıtlarını silebilir.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -214,6 +232,9 @@ ROLE_DEFINITIONS = (
             "if.delete",
             "if.approve_management",
             "if.reject",
+            "risk.view",
+            "risk.manage",
+            "risk.delete",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -237,6 +258,7 @@ ROLE_DEFINITIONS = (
             "if.reject",
             "actions.view_all",
             "documents.view",
+            "risk.view",
             "vehicles.view",
         ],
     },
@@ -251,6 +273,7 @@ ROLE_DEFINITIONS = (
             "actions.request_close_assigned",
             "maintenance.fault_manage",
             "documents.view",
+            "risk.view",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -472,6 +495,62 @@ def ensure_runtime_schema():
                     f"ON audit_logs ({column_name})"
                 )
             )
+
+    if "risk_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE risk_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    risk_no VARCHAR(30) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    department VARCHAR(80),
+                    process VARCHAR(160),
+                    description TEXT,
+                    cause TEXT,
+                    consequence TEXT,
+                    likelihood INTEGER NOT NULL DEFAULT 1,
+                    severity INTEGER NOT NULL DEFAULT 1,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Açık',
+                    due_date DATE,
+                    owner_user_id INTEGER,
+                    action_id INTEGER,
+                    dof_id INTEGER,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(owner_user_id) REFERENCES users (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("risk_records")
+
+    if "risk_records" in tables:
+        for index_name, column_name in (
+            ("ix_risk_records_company_id", "company_id"),
+            ("ix_risk_records_owner_user_id", "owner_user_id"),
+            ("ix_risk_records_action_id", "action_id"),
+            ("ix_risk_records_dof_id", "dof_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON risk_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_records_company_risk_no "
+                "ON risk_records (company_id, risk_no)"
+            )
+        )
 
     if "roles" not in tables:
         db.session.execute(
@@ -861,6 +940,7 @@ def ensure_runtime_schema():
         for readiness_key in (
             "sales_readiness:audit_log",
             "sales_readiness:iso_dashboard",
+            "sales_readiness:risk_module",
         ):
             db.session.execute(
                 text(

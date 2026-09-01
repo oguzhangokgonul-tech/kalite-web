@@ -1,0 +1,149 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = risk is defined and risk %}
+{% block title %}{{ "Risk Düzenle" if is_edit else "Yeni Risk" }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Risk Düzenle" if is_edit else "Yeni Risk", "Olasılık ve şiddet puanları otomatik RPN sonucuna çevrilir.", icon="bi-exclamation-diamond") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.risk_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Risk Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="risk_no">Risk No</label>
+        <input class="form-control" id="risk_no" value="{{ risk.risk_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label" for="title">Risk Başlığı</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', risk.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="department">Departman</label>
+        {% set selected_department = form_data.get('department', risk.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="process">Süreç</label>
+        <input class="form-control" id="process" name="process" value="{{ form_data.get('process', risk.process if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="owner_user_id">Risk Sorumlusu</label>
+        {% set selected_owner = form_data.get('owner_user_id', risk.owner_user_id if is_edit else '')|string %}
+        <select class="form-select" id="owner_user_id" name="owner_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_owner == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="description">Risk Tanımı</label>
+        <textarea class="form-control" id="description" name="description" rows="4">{{ form_data.get('description', risk.description if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="cause">Sebep</label>
+        <textarea class="form-control" id="cause" name="cause" rows="4">{{ form_data.get('cause', risk.cause if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="consequence">Sonuç / Etki</label>
+        <textarea class="form-control" id="consequence" name="consequence" rows="4">{{ form_data.get('consequence', risk.consequence if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="likelihood">Olasılık</label>
+        {% set selected_likelihood = form_data.get('likelihood', risk.likelihood if is_edit else 1)|int %}
+        <select class="form-select" id="likelihood" name="likelihood" data-risk-score>
+          {% for score in score_options %}
+            <option value="{{ score }}" {% if selected_likelihood == score %}selected{% endif %}>{{ score }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="severity">Şiddet</label>
+        {% set selected_severity = form_data.get('severity', risk.severity if is_edit else 1)|int %}
+        <select class="form-select" id="severity" name="severity" data-risk-score>
+          {% for score in score_options %}
+            <option value="{{ score }}" {% if selected_severity == score %}selected{% endif %}>{{ score }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', risk.status if is_edit else 'Açık') %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', risk.due_date.isoformat() if is_edit and risk.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="rpn_preview">RPN</label>
+        <div class="form-control d-flex justify-content-between align-items-center bg-light" id="rpn_preview">
+          <strong data-risk-rpn>1</strong>
+          <span class="text-secondary" data-risk-level>Düşük</span>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="action_id">Aksiyon Bağlantısı</label>
+        {% set selected_action = form_data.get('action_id', risk.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="dof_id">IF/DÖF Bağlantısı</label>
+        {% set selected_dof = form_data.get('dof_id', risk.dof_id if is_edit else '')|string %}
+        <select class="form-select" id="dof_id" name="dof_id">
+          <option value="">Yok</option>
+          {% for dof in dofs %}
+            {% if dof.display_status != "Tamamlandı" %}
+              <option value="{{ dof.id }}" {% if selected_dof == dof.id|string %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kaydı' }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.risk_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "Güncelle" if is_edit else "Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+
+  <script>
+    (() => {
+      const likelihood = document.getElementById("likelihood");
+      const severity = document.getElementById("severity");
+      const rpn = document.querySelector("[data-risk-rpn]");
+      const level = document.querySelector("[data-risk-level]");
+      const update = () => {
+        const value = Number(likelihood.value || 1) * Number(severity.value || 1);
+        rpn.textContent = value;
+        level.textContent = value >= 16 ? "Yüksek" : value >= 8 ? "Orta" : "Düşük";
+      };
+      likelihood.addEventListener("change", update);
+      severity.addEventListener("change", update);
+      update();
+    })();
+  </script>
+{% endblock %}
