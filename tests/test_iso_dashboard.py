@@ -9,6 +9,7 @@ from app.models import (
     Action,
     AppSetting,
     CalibrationRecord,
+    ComplaintRecord,
     Document,
     DocumentCategory,
     DocumentRevisionRequest,
@@ -124,6 +125,15 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
                 status="UYGUN",
                 is_active=True,
             ),
+            ComplaintRecord(
+                complaint_no="SIK-2026-0001",
+                customer_name="Bergama Plastik",
+                subject="Geciken müşteri şikayeti",
+                due_date=today - timedelta(days=2),
+                status="Açık",
+                priority="Kritik",
+                created_by_user_id=manager.id,
+            ),
         ]
     )
     db.session.commit()
@@ -137,11 +147,13 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
     assert "Açık IF/DÖF" in body
     assert "Geciken Aksiyon" in body
     assert "Revizyon Bekleyen Doküman" in body
+    assert "Açık Şikayet" in body
     assert "Yaklaşan İç Denetim" in body
     assert "Kalibrasyon Riski" in body
     assert "Geciken aksiyon" in body
     assert "Açık uygunsuzluk" in body
     assert "Yönetim Prosedürü" in body
+    assert "Geciken müşteri şikayeti" in body
     assert "Yaklaşan denetim" in body
     assert "Elek" in body
 

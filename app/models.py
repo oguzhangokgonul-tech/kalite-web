@@ -947,6 +947,61 @@ class TrainingParticipant(db.Model):
         return self.status in {"Okundu", "Katıldı", "Başarılı", "Başarısız", "Muaf"}
 
 
+class ComplaintRecord(db.Model):
+    __tablename__ = "complaint_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "complaint_no",
+            name="uq_complaint_records_company_complaint_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    complaint_no = db.Column(db.String(30), nullable=False)
+    customer_name = db.Column(db.String(180), nullable=False)
+    contact_name = db.Column(db.String(160), nullable=True)
+    contact_phone = db.Column(db.String(80), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    subject = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    root_cause = db.Column(db.Text, nullable=True)
+    corrective_action = db.Column(db.Text, nullable=True)
+    closing_note = db.Column(db.Text, nullable=True)
+    received_date = db.Column(db.Date, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Açık")
+    priority = db.Column(db.String(40), nullable=False, default="Orta")
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+
+    @property
+    def is_closed(self):
+        return self.status == "Kapandı" or self.closed_at is not None
+
+    @property
+    def delay_days(self):
+        if self.is_closed or not self.due_date:
+            return 0
+        return max((date.today() - self.due_date).days, 0)
+
+
 class DocumentCategory(db.Model):
     __tablename__ = "document_categories"
     __table_args__ = (

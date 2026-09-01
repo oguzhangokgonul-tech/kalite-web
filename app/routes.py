@@ -51,6 +51,7 @@ from .models import (
     AppSetting,
     AuditLog,
     CalibrationRecord,
+    ComplaintRecord,
     Company,
     CompanyModule,
     COMPANY_MODULE_CATALOG,
@@ -2165,6 +2166,9 @@ MODULE_ENDPOINTS = {
     "main.delete_suggestion_parameter": "suggestions",
     "main.suggestion_evaluators": "suggestions",
     "main.complaints_dashboard": "suggestions",
+    "main.create_complaint": "suggestions",
+    "main.edit_complaint": "suggestions",
+    "main.delete_complaint": "suggestions",
     "main.dof_management": "if_management",
     "main.create_dof": "if_management",
     "main.edit_dof_draft": "if_management",
@@ -6043,6 +6047,28 @@ def iso_dashboard_context(all_actions):
         [risk for risk in open_risks if risk.level == "Yüksek"],
         key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
     )
+    open_complaints = (
+        scoped_query(ComplaintRecord.query, ComplaintRecord)
+        .filter(ComplaintRecord.status != "Kapandı")
+        .all()
+    )
+    delayed_complaints = sorted(
+        [
+            complaint
+            for complaint in open_complaints
+            if complaint.delay_days and complaint.delay_days > 0
+        ],
+        key=lambda complaint: (
+            -complaint.delay_days,
+            complaint.due_date or date.min,
+            complaint.id,
+        ),
+    )
+    critical_complaints = [
+        complaint
+        for complaint in open_complaints
+        if complaint.priority == "Kritik"
+    ]
     training_records = training_query().all() if can_view_trainings() else []
     training_participants = [
         participant
@@ -6152,6 +6178,26 @@ def iso_dashboard_context(all_actions):
                     "status": f"RPN {risk.rpn}",
                 }
                 for risk in high_risks[:3]
+            ],
+        },
+        {
+            "title": "Açık Şikayet",
+            "value": len(open_complaints),
+            "subtitle": f"{len(delayed_complaints)} gecikmiş, {len(critical_complaints)} kritik",
+            "tone": "danger" if delayed_complaints or critical_complaints else "success",
+            "icon": "bi-chat-left-text",
+            "href": url_for("main.complaints_dashboard"),
+            "items": [
+                {
+                    "label": complaint.complaint_no,
+                    "meta": complaint.subject,
+                    "status": (
+                        f"{complaint.delay_days} gün geçti"
+                        if complaint.delay_days
+                        else complaint.priority
+                    ),
+                }
+                for complaint in sorted(open_complaints, key=complaint_sort_key)[:3]
             ],
         },
         {
@@ -7040,6 +7086,227 @@ def training_form_error_message(error_key):
         "invalid_participant_status": "Geçerli bir katılımcı durumu seçin.",
         "invalid_score": "Puan alanına sayısal değer girin.",
     }.get(error_key, "Eğitim kaydı kaydedilemedi.")
+
+
+COMPLAINT_STATUSES = ("Açık", "İncelemede", "IF/DÖF Açıldı", "Aksiyon Açıldı", "Kapandı")
+COMPLAINT_PRIORITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
+
+
+def can_manage_complaints():
+    return current_user_can("complaints.manage")
+
+
+def can_view_complaints():
+    return current_user_can("complaints.view") or can_manage_complaints()
+
+
+def can_delete_complaints():
+    return current_user_can("complaints.delete")
+
+
+def complaint_query():
+    return scoped_query(ComplaintRecord.query, ComplaintRecord)
+
+
+def complaint_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "priority": request.args.get("priority", "").strip(),
+    }
+
+
+def complaint_status_tone(status):
+    return {
+        "Açık": "info",
+        "İncelemede": "warning",
+        "IF/DÖF Açıldı": "purple",
+        "Aksiyon Açıldı": "blue",
+        "Kapandı": "success",
+    }.get(status, "muted")
+
+
+def complaint_priority_tone(priority):
+    return {
+        "Kritik": "danger",
+        "Yüksek": "warning",
+        "Orta": "blue",
+        "Düşük": "muted",
+    }.get(priority, "muted")
+
+
+def complaint_sort_key(complaint):
+    closed_order = 1 if complaint.is_closed else 0
+    return (
+        closed_order,
+        -complaint.delay_days,
+        complaint.due_date or date.max,
+        complaint.id,
+    )
+
+
+def filtered_complaints(filters):
+    query = complaint_query()
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                ComplaintRecord.complaint_no.ilike(search_value),
+                ComplaintRecord.customer_name.ilike(search_value),
+                ComplaintRecord.subject.ilike(search_value),
+                ComplaintRecord.description.ilike(search_value),
+                ComplaintRecord.root_cause.ilike(search_value),
+                ComplaintRecord.corrective_action.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(ComplaintRecord.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(ComplaintRecord.status == filters["status"])
+    if filters["priority"]:
+        query = query.filter(ComplaintRecord.priority == filters["priority"])
+    return sorted(query.all(), key=complaint_sort_key)
+
+
+def next_complaint_no():
+    prefix = f"SIK-{date.today().year}-"
+    rows = (
+        scoped_query(
+            ComplaintRecord.query.with_entities(ComplaintRecord.complaint_no),
+            ComplaintRecord,
+        )
+        .filter(ComplaintRecord.complaint_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (complaint_no,) in rows:
+        try:
+            numbers.append(int((complaint_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_complaint_form():
+    values = {
+        "customer_name": request.form.get("customer_name", "").strip(),
+        "contact_name": request.form.get("contact_name", "").strip(),
+        "contact_phone": request.form.get("contact_phone", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "subject": request.form.get("subject", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "root_cause": request.form.get("root_cause", "").strip(),
+        "corrective_action": request.form.get("corrective_action", "").strip(),
+        "closing_note": request.form.get("closing_note", "").strip(),
+        "received_date": parse_optional_date("received_date") or date.today(),
+        "due_date": parse_optional_date("due_date"),
+        "status": request.form.get("status", "Açık").strip() or "Açık",
+        "priority": request.form.get("priority", "Orta").strip() or "Orta",
+        "responsible_user_id": request.form.get("responsible_user_id", type=int),
+        "action_id": request.form.get("action_id", type=int),
+        "dof_id": request.form.get("dof_id", type=int),
+    }
+
+    if not values["customer_name"] or not values["subject"]:
+        raise ValueError("required_fields")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["status"] not in COMPLAINT_STATUSES:
+        raise ValueError("invalid_status")
+    if values["priority"] not in COMPLAINT_PRIORITIES:
+        raise ValueError("invalid_priority")
+
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_complaint_links(complaint):
+    if complaint.responsible_user_id and active_user_by_id(complaint.responsible_user_id) is None:
+        raise ValueError("invalid_responsible")
+
+    if complaint.action_id:
+        action = scoped_query(Action.query, Action).filter_by(id=complaint.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action")
+
+    if complaint.dof_id:
+        dof = scoped_query(Dof.query, Dof).filter_by(id=complaint.dof_id).first()
+        if dof is None:
+            raise ValueError("invalid_dof")
+
+
+def sync_complaint_closure(complaint):
+    if complaint.status == "Kapandı":
+        complaint.closed_at = complaint.closed_at or datetime.now()
+    else:
+        complaint.closed_at = None
+
+
+def complaint_dashboard_context():
+    filters = complaint_filters()
+    complaints = filtered_complaints(filters)
+    all_complaints = complaint_query().all()
+    open_complaints = [complaint for complaint in all_complaints if not complaint.is_closed]
+    delayed_complaints = [
+        complaint
+        for complaint in open_complaints
+        if complaint.delay_days and complaint.delay_days > 0
+    ]
+    critical_complaints = [
+        complaint
+        for complaint in open_complaints
+        if complaint.priority == "Kritik"
+    ]
+    return {
+        "complaints": complaints,
+        "total_count": len(all_complaints),
+        "open_count": len(open_complaints),
+        "delayed_count": len(delayed_complaints),
+        "critical_count": len(critical_complaints),
+        "filters": filters,
+        "statuses": COMPLAINT_STATUSES,
+        "priorities": COMPLAINT_PRIORITIES,
+        "departments": DEPARTMENTS,
+        "can_manage_complaints": can_manage_complaints(),
+        "can_delete_complaints": can_delete_complaints(),
+        "complaint_status_tone": complaint_status_tone,
+        "complaint_priority_tone": complaint_priority_tone,
+        "format_date": format_date,
+    }
+
+
+def complaint_form_context(complaint=None):
+    return {
+        "complaint": complaint,
+        "statuses": COMPLAINT_STATUSES,
+        "priorities": COMPLAINT_PRIORITIES,
+        "departments": DEPARTMENTS,
+        "users": active_users(),
+        "actions": scoped_query(Action.query, Action)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all(),
+        "dofs": attach_dof_view_state(
+            scoped_query(Dof.query, Dof).order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        ),
+        "form_data": request.form if request.method == "POST" else {},
+        "today_value": date.today().isoformat(),
+    }
+
+
+def complaint_form_error_message(error_key):
+    return {
+        "required_fields": "Müşteri adı ve şikayet konusu zorunludur.",
+        "invalid_date": "Tarih alanlarını kontrol edin.",
+        "invalid_department": "Geçerli bir departman seçin.",
+        "invalid_status": "Geçerli bir şikayet durumu seçin.",
+        "invalid_priority": "Geçerli bir öncelik seçin.",
+        "invalid_responsible": "Geçerli bir sorumlu seçin.",
+        "invalid_action": "Geçerli bir aksiyon bağlantısı seçin.",
+        "invalid_dof": "Geçerli bir IF/DÖF bağlantısı seçin.",
+    }.get(error_key, "Şikayet kaydı kaydedilemedi.")
 
 
 def delete_uploaded_file(action):
@@ -10696,7 +10963,86 @@ def delete_suggestion_parameter(parameter_id):
 @bp.route("/oneri-sikayet/sikayet")
 @login_required
 def complaints_dashboard():
-    return render_template("suggestions/complaints.html")
+    if not can_view_complaints():
+        abort(403)
+    return render_template("suggestions/complaints.html", **complaint_dashboard_context())
+
+
+@bp.route("/oneri-sikayet/sikayet/yeni", methods=["GET", "POST"])
+@login_required
+def create_complaint():
+    if not can_manage_complaints():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            complaint = ComplaintRecord(
+                complaint_no=next_complaint_no(),
+                created_by_user_id=g.current_user.id,
+                **parse_complaint_form(),
+            )
+            assign_current_company(complaint)
+            validate_complaint_links(complaint)
+            sync_complaint_closure(complaint)
+            db.session.add(complaint)
+            db.session.commit()
+            flash("Şikayet kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.complaints_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(complaint_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "suggestions/complaint_form.html",
+        page_title="Yeni Şikayet Kaydı",
+        form_action=url_for("main.create_complaint"),
+        submit_label="Şikayeti Kaydet",
+        **complaint_form_context(),
+    )
+
+
+@bp.route("/oneri-sikayet/sikayet/<int:complaint_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_complaint(complaint_id):
+    if not can_manage_complaints():
+        abort(403)
+    complaint = complaint_query().filter_by(id=complaint_id).first_or_404()
+    ensure_same_company(complaint)
+
+    if request.method == "POST":
+        try:
+            values = parse_complaint_form()
+            for key, value in values.items():
+                setattr(complaint, key, value)
+            validate_complaint_links(complaint)
+            sync_complaint_closure(complaint)
+            db.session.commit()
+            flash("Şikayet kaydı güncellendi.", "success")
+            return redirect(url_for("main.complaints_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(complaint_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "suggestions/complaint_form.html",
+        page_title=f"{complaint.complaint_no} Düzenle",
+        form_action=url_for("main.edit_complaint", complaint_id=complaint.id),
+        submit_label="Değişiklikleri Kaydet",
+        **complaint_form_context(complaint),
+    )
+
+
+@bp.post("/oneri-sikayet/sikayet/<int:complaint_id>/sil")
+@login_required
+def delete_complaint(complaint_id):
+    if not can_delete_complaints():
+        abort(403)
+    complaint = complaint_query().filter_by(id=complaint_id).first_or_404()
+    ensure_same_company(complaint)
+    db.session.delete(complaint)
+    db.session.commit()
+    flash("Şikayet kaydı silindi.", "success")
+    return redirect(url_for("main.complaints_dashboard"))
 
 
 @bp.route("/kalibrasyon")

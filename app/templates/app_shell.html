@@ -7,7 +7,7 @@
 
 {% block content %}
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
-  {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard'] %}
+  {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
@@ -138,7 +138,7 @@
               <i class="bi bi-lightbulb"></i>
               <span>Öneri</span>
             </a>
-            <a class="dashboard-subnav-item {% if request.endpoint == 'main.complaints_dashboard' %}active{% endif %}" href="{{ url_for('main.complaints_dashboard') }}">
+            <a class="dashboard-subnav-item {% if request.endpoint in ['main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}active{% endif %}" href="{{ url_for('main.complaints_dashboard') }}">
               <i class="bi bi-chat-left-text"></i>
               <span>Şikayet</span>
             </a>

@@ -4,15 +4,239 @@
 {% block title %}Şikayet Yönetimi{% endblock %}
 
 {% block app_content %}
-  {% call ui.page_header("Şikayet Yönetimi", "Şikayet süreci için hazırlık alanı.", icon="bi-chat-left-text") %}
+  {% call ui.page_header("Şikayet Yönetimi", "Müşteri şikayetlerini kök neden, aksiyon, IF/DÖF ve kapanış takibiyle yönetin.", icon="bi-chat-left-text") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.suggestions_dashboard') }}">
       <i class="bi bi-lightbulb"></i>
       <span>Öneriler</span>
     </a>
+    {% if can_manage_complaints %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_complaint') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Şikayet</span>
+      </a>
+    {% endif %}
   {% endcall %}
 
-  <section class="maintenance-form-card">
-    {{ ui.card_header("Şikayet Modülü", "Bu bölüm şimdilik boş bırakıldı.", icon="bi-info-circle") }}
-    <p class="mb-0 text-muted">Şikayet formu ve akışı daha sonra birlikte tasarlanabilir.</p>
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-chat-left-text"></i></span>
+      <span class="stat-label">Toplam Şikayet</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-folder2-open"></i></span>
+      <span class="stat-label">Açık Kayıt</span>
+      <strong>{{ open_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+      <span class="stat-label">Geciken</span>
+      <strong>{{ delayed_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-diamond"></i></span>
+      <span class="stat-label">Kritik</span>
+      <strong>{{ critical_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Şikayet no, müşteri veya konu ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="priority">Öncelik</label>
+        <select class="form-select" id="priority" name="priority">
+          <option value="">Tümü</option>
+          {% for priority in priorities %}
+            <option value="{{ priority }}" {% if filters.priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.complaints_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Şikayet No</th>
+            <th>Müşteri / Konu</th>
+            <th>Departman / Sorumlu</th>
+            <th>Öncelik</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th>Bağlantı</th>
+            {% if can_manage_complaints or can_delete_complaints %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for complaint in complaints %}
+            {% set detail_id = "complaint_detail_%s"|format(complaint.id) %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-link p-0 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ detail_id }}" aria-expanded="false" aria-controls="{{ detail_id }}">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                  <strong>{{ complaint.complaint_no }}</strong>
+                </div>
+              </td>
+              <td>
+                <strong class="text-primary">{{ complaint.customer_name }}</strong>
+                <small class="d-block text-secondary">{{ complaint.subject }}</small>
+                {% if complaint.contact_name or complaint.contact_phone %}
+                  <small class="d-block text-secondary">
+                    {{ complaint.contact_name or "-" }}{% if complaint.contact_phone %} · {{ complaint.contact_phone }}{% endif %}
+                  </small>
+                {% endif %}
+              </td>
+              <td>
+                <span>{{ complaint.department or "-" }}</span>
+                <small class="d-block text-secondary">
+                  {{ complaint.responsible.full_name if complaint.responsible else "Sorumlu yok" }}
+                </small>
+              </td>
+              <td>{{ ui.status_badge(complaint.priority, tone=complaint_priority_tone(complaint.priority), icon="bi-flag-fill") }}</td>
+              <td>
+                {% if complaint.due_date %}
+                  <span>{{ format_date(complaint.due_date) }}</span>
+                  {% if complaint.delay_days > 0 %}
+                    <small class="d-block text-danger fw-semibold">{{ complaint.delay_days }} gün geçti</small>
+                  {% endif %}
+                {% else %}
+                  <span class="text-secondary">Termin yok</span>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(complaint.status, tone=complaint_status_tone(complaint.status)) }}</td>
+              <td>
+                <div class="vstack gap-1">
+                  {% if complaint.action %}
+                    <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=complaint.action.id) }}">
+                      <i class="bi bi-clipboard-check"></i>
+                      {{ complaint.action.number_label }}
+                    </a>
+                  {% endif %}
+                  {% if complaint.dof %}
+                    <a class="text-decoration-none" href="{{ url_for('main.dof_detail', dof_id=complaint.dof.id) }}">
+                      <i class="bi bi-shield-check"></i>
+                      {{ complaint.dof.dof_no }}
+                    </a>
+                  {% endif %}
+                  {% if not complaint.action and not complaint.dof %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </div>
+              </td>
+              {% if can_manage_complaints or can_delete_complaints %}
+                <td>
+                  <div class="dashboard-row-actions justify-content-end">
+                    {% if can_manage_complaints %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_complaint', complaint_id=complaint.id) }}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
+                    {% if can_delete_complaints %}
+                      <form action="{{ url_for('main.delete_complaint', complaint_id=complaint.id) }}" method="post" onsubmit="return confirm('Şikayet kaydını silmek istediğinize emin misiniz?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-trash"></i>
+                          <span>Sil</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+            <tr>
+              <td colspan="{{ 8 if can_manage_complaints or can_delete_complaints else 7 }}" class="p-0 border-0">
+                <div class="collapse" id="{{ detail_id }}">
+                  <div class="p-3 bg-light border-top">
+                    <div class="row g-3">
+                      <div class="col-lg-3">
+                        <small class="text-secondary d-block">Alınma Tarihi</small>
+                        <strong>{{ format_date(complaint.received_date) if complaint.received_date else "-" }}</strong>
+                      </div>
+                      <div class="col-lg-3">
+                        <small class="text-secondary d-block">Açan</small>
+                        <strong>{{ complaint.created_by.full_name if complaint.created_by else "-" }}</strong>
+                      </div>
+                      <div class="col-lg-3">
+                        <small class="text-secondary d-block">Kapanış Tarihi</small>
+                        <strong>{{ format_date(complaint.closed_at) if complaint.closed_at else "-" }}</strong>
+                      </div>
+                      <div class="col-lg-3">
+                        <small class="text-secondary d-block">Süreç Durumu</small>
+                        <strong>{{ "Kapandı" if complaint.is_closed else "Açık takipte" }}</strong>
+                      </div>
+                      <div class="col-lg-4">
+                        <small class="text-secondary d-block">Şikayet Açıklaması</small>
+                        <p class="mb-0">{{ complaint.description or "-" }}</p>
+                      </div>
+                      <div class="col-lg-4">
+                        <small class="text-secondary d-block">Kök Neden</small>
+                        <p class="mb-0">{{ complaint.root_cause or "-" }}</p>
+                      </div>
+                      <div class="col-lg-4">
+                        <small class="text-secondary d-block">Düzeltici Faaliyet / Kapanış</small>
+                        <p class="mb-1">{{ complaint.corrective_action or "-" }}</p>
+                        {% if complaint.closing_note %}
+                          <small class="text-secondary">{{ complaint.closing_note }}</small>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 8 if can_manage_complaints or can_delete_complaints else 7 }}">
+                <strong>Henüz şikayet kaydı yok.</strong>
+                <span>Yeni şikayet eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </section>
 {% endblock %}

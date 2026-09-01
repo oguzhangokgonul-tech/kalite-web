@@ -1,0 +1,136 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = complaint is defined and complaint %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, "Şikayet kaydı, sorumlu takip, IF/DÖF ve aksiyon bağlantısı aynı ekranda yönetilir.", icon="bi-chat-left-text") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.complaints_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Şikayet Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="complaint_no">Şikayet No</label>
+        <input class="form-control" id="complaint_no" value="{{ complaint.complaint_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="received_date">Şikayet Tarihi</label>
+        {% set received_value = form_data.get('received_date', complaint.received_date.isoformat() if is_edit and complaint.received_date else today_value) %}
+        <input class="form-control" id="received_date" name="received_date" type="date" value="{{ received_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', complaint.due_date.isoformat() if is_edit and complaint.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="priority">Öncelik</label>
+        {% set selected_priority = form_data.get('priority', complaint.priority if is_edit else 'Orta') %}
+        <select class="form-select" id="priority" name="priority">
+          {% for priority in priorities %}
+            <option value="{{ priority }}" {% if selected_priority == priority %}selected{% endif %}>{{ priority }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="customer_name">Müşteri Adı</label>
+        <input class="form-control" id="customer_name" name="customer_name" value="{{ form_data.get('customer_name', complaint.customer_name if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="contact_name">İlgili Kişi</label>
+        <input class="form-control" id="contact_name" name="contact_name" value="{{ form_data.get('contact_name', complaint.contact_name if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="contact_phone">Telefon / İletişim</label>
+        <input class="form-control" id="contact_phone" name="contact_phone" value="{{ form_data.get('contact_phone', complaint.contact_phone if is_edit else '') }}" maxlength="80">
+      </div>
+
+      <div class="col-md-5">
+        <label class="form-label" for="subject">Şikayet Konusu</label>
+        <input class="form-control" id="subject" name="subject" value="{{ form_data.get('subject', complaint.subject if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="department">İlgili Departman</label>
+        {% set selected_department = form_data.get('department', complaint.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="responsible_user_id">Sorumlu</label>
+        {% set selected_responsible = form_data.get('responsible_user_id', complaint.responsible_user_id if is_edit else '')|string %}
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', complaint.status if is_edit else 'Açık') %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="action_id">Aksiyon Bağlantısı</label>
+        {% set selected_action = form_data.get('action_id', complaint.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="dof_id">IF/DÖF Bağlantısı</label>
+        {% set selected_dof = form_data.get('dof_id', complaint.dof_id if is_edit else '')|string %}
+        <select class="form-select" id="dof_id" name="dof_id">
+          <option value="">Yok</option>
+          {% for dof in dofs %}
+            <option value="{{ dof.id }}" {% if selected_dof == dof.id|string %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kaydı' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="description">Şikayet Açıklaması</label>
+        <textarea class="form-control" id="description" name="description" rows="4">{{ form_data.get('description', complaint.description if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="root_cause">Kök Neden</label>
+        <textarea class="form-control" id="root_cause" name="root_cause" rows="4">{{ form_data.get('root_cause', complaint.root_cause if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="corrective_action">Düzeltici Faaliyet</label>
+        <textarea class="form-control" id="corrective_action" name="corrective_action" rows="4">{{ form_data.get('corrective_action', complaint.corrective_action if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="closing_note">Kapanış Notu</label>
+        <textarea class="form-control" id="closing_note" name="closing_note" rows="3">{{ form_data.get('closing_note', complaint.closing_note if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.complaints_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

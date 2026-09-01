@@ -139,6 +139,24 @@ PERMISSION_CATALOG = (
         "description": "Eğitim ve yeterlilik kayıtlarını silebilir.",
     },
     {
+        "key": "complaints.view",
+        "label": "Şikayetleri görüntüleme",
+        "group": "Öneri & Şikayet",
+        "description": "Müşteri şikayet kayıtlarını, terminleri ve bağlantılı aksiyon/IF kayıtlarını görüntüler.",
+    },
+    {
+        "key": "complaints.manage",
+        "label": "Şikayet yönetimi",
+        "group": "Öneri & Şikayet",
+        "description": "Şikayet kaydı oluşturur, düzenler, kök neden ve düzeltici faaliyetleri yönetir.",
+    },
+    {
+        "key": "complaints.delete",
+        "label": "Şikayet silme",
+        "group": "Öneri & Şikayet",
+        "description": "Şikayet kayıtlarını silebilir.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -256,6 +274,9 @@ ROLE_DEFINITIONS = (
             "training.view",
             "training.manage",
             "training.delete",
+            "complaints.view",
+            "complaints.manage",
+            "complaints.delete",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -281,6 +302,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "risk.view",
             "training.view",
+            "complaints.view",
             "vehicles.view",
         ],
     },
@@ -297,6 +319,8 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "risk.view",
             "training.view",
+            "complaints.view",
+            "complaints.manage",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -312,6 +336,7 @@ ROLE_DEFINITIONS = (
             "actions.request_close_assigned",
             "documents.view",
             "training.view",
+            "complaints.view",
             "vehicles.view",
         ],
     },
@@ -323,6 +348,7 @@ ROLE_DEFINITIONS = (
         "permissions": [
             "documents.view",
             "training.view",
+            "complaints.view",
             "vehicles.view",
         ],
     },
@@ -667,6 +693,68 @@ def ensure_runtime_schema():
                     f"ON training_participants ({column_name})"
                 )
             )
+
+    if "complaint_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE complaint_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    complaint_no VARCHAR(30) NOT NULL,
+                    customer_name VARCHAR(180) NOT NULL,
+                    contact_name VARCHAR(160),
+                    contact_phone VARCHAR(80),
+                    department VARCHAR(80),
+                    subject VARCHAR(180) NOT NULL,
+                    description TEXT,
+                    root_cause TEXT,
+                    corrective_action TEXT,
+                    closing_note TEXT,
+                    received_date DATE,
+                    due_date DATE,
+                    closed_at DATETIME,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Açık',
+                    priority VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                    responsible_user_id INTEGER,
+                    action_id INTEGER,
+                    dof_id INTEGER,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("complaint_records")
+
+    if "complaint_records" in tables:
+        for index_name, column_name in (
+            ("ix_complaint_records_company_id", "company_id"),
+            ("ix_complaint_records_responsible_user_id", "responsible_user_id"),
+            ("ix_complaint_records_action_id", "action_id"),
+            ("ix_complaint_records_dof_id", "dof_id"),
+            ("ix_complaint_records_status", "status"),
+            ("ix_complaint_records_due_date", "due_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON complaint_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_complaint_records_company_complaint_no "
+                "ON complaint_records (company_id, complaint_no)"
+            )
+        )
 
     if "roles" not in tables:
         db.session.execute(
@@ -1058,6 +1146,8 @@ def ensure_runtime_schema():
             "sales_readiness:iso_dashboard",
             "sales_readiness:risk_module",
             "sales_readiness:training_module",
+            "sales_readiness:complaint_module",
+            "sales_readiness:month3_complaints",
         ):
             db.session.execute(
                 text(
