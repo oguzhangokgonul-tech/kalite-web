@@ -473,11 +473,6 @@ def ensure_runtime_schema():
                 )
             )
 
-    audit_readiness_key = "sales_readiness:audit_log"
-    if db.session.get(AppSetting, audit_readiness_key) is None:
-        db.session.add(AppSetting(key=audit_readiness_key, value="1"))
-        changed = True
-
     if "roles" not in tables:
         db.session.execute(
             text(
@@ -860,6 +855,21 @@ def ensure_runtime_schema():
                 )
             )
             db.session.commit()
+
+    tables = set(inspect(db.engine).get_table_names())
+    if "app_settings" in tables:
+        for readiness_key in (
+            "sales_readiness:audit_log",
+            "sales_readiness:iso_dashboard",
+        ):
+            db.session.execute(
+                text(
+                    "INSERT OR IGNORE INTO app_settings (key, value) "
+                    "VALUES (:key, '1')"
+                ),
+                {"key": readiness_key},
+            )
+        db.session.commit()
 
 
 def ensure_default_companies():

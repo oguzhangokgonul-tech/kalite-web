@@ -4848,6 +4848,18 @@ def save_sales_readiness_state(selected_ids):
     db.session.commit()
 
 
+def mark_sales_readiness_item_done(item_id):
+    if item_id not in sales_readiness_item_ids():
+        return
+    key = f"{SALES_READINESS_SETTING_PREFIX}{item_id}"
+    setting = db.session.get(AppSetting, key)
+    if setting is None:
+        db.session.add(AppSetting(key=key, value="1"))
+    else:
+        setting.value = "1"
+    db.session.commit()
+
+
 def personnel_contact_query():
     return scoped_query(PersonnelContact.query, PersonnelContact).filter_by(is_active=True)
 
@@ -5974,6 +5986,156 @@ def dashboard_filters():
         "department": request.args.get("department", "").strip(),
         "responsible_user_id": request.args.get("responsible_user_id", "").strip(),
         "status": request.args.get("status", "").strip(),
+    }
+
+
+def iso_dashboard_context(all_actions):
+    today = date.today()
+    all_dofs = attach_dof_view_state(
+        visible_dofs_query().order_by(Dof.due_date.asc(), Dof.id.asc()).all()
+    )
+    open_dofs = [
+        dof
+        for dof in all_dofs
+        if dof.display_status not in {"Tamamlandı", "Taslak"}
+    ]
+    delayed_dofs = [
+        dof
+        for dof in open_dofs
+        if dof.delay_days and dof.delay_days > 0
+    ]
+    delayed_actions = sorted(
+        [
+            action
+            for action in all_actions
+            if not action.is_completed and action.delay_days and action.delay_days > 0
+        ],
+        key=lambda action: (-action.delay_days, action.termin_date or date.min, action.id),
+    )
+    pending_revision_requests = (
+        scoped_query(DocumentRevisionRequest.query, DocumentRevisionRequest)
+        .filter(DocumentRevisionRequest.status == DOCUMENT_REVISION_PENDING_STATUS)
+        .order_by(DocumentRevisionRequest.created_at.desc())
+        .all()
+    )
+    upcoming_audits = (
+        scoped_query(InternalAudit.query, InternalAudit)
+        .filter(
+            InternalAudit.status != "Tamamlandı",
+            InternalAudit.planned_date.isnot(None),
+            InternalAudit.planned_date >= today,
+            InternalAudit.planned_date <= today + timedelta(days=30),
+        )
+        .order_by(InternalAudit.planned_date.asc(), InternalAudit.id.asc())
+        .all()
+    )
+    calibration_records = scoped_query(
+        CalibrationRecord.query,
+        CalibrationRecord,
+    ).filter_by(is_active=True).all()
+    overdue_calibrations = [
+        record
+        for record in calibration_records
+        if record.next_calibration_date and record.next_calibration_date < today
+    ]
+    due_calibrations = [
+        record
+        for record in calibration_records
+        if record.next_calibration_date
+        and 0 <= (record.next_calibration_date - today).days <= 30
+    ]
+
+    cards = [
+        {
+            "title": "Açık IF/DÖF",
+            "value": len(open_dofs),
+            "subtitle": f"{len(delayed_dofs)} gecikmiş kayıt",
+            "tone": "danger" if delayed_dofs else "blue",
+            "icon": "bi-shield-check",
+            "href": url_for("main.dof_management"),
+            "items": [
+                {
+                    "label": dof.dof_no,
+                    "meta": dof.title or dof.nonconformity_description or "Başlık yok",
+                    "status": dof.display_status,
+                }
+                for dof in sorted(open_dofs, key=dof_due_priority_sort_key)[:3]
+            ],
+        },
+        {
+            "title": "Geciken Aksiyon",
+            "value": len(delayed_actions),
+            "subtitle": "Tamamlanmamış gecikmeler",
+            "tone": "danger" if delayed_actions else "success",
+            "icon": "bi-exclamation-circle",
+            "href": url_for("main.dashboard", status="delayed"),
+            "items": [
+                {
+                    "label": action.number_label,
+                    "meta": action.title,
+                    "status": f"{action.delay_days} gün geçti",
+                }
+                for action in delayed_actions[:3]
+            ],
+        },
+        {
+            "title": "Revizyon Bekleyen Doküman",
+            "value": len(pending_revision_requests),
+            "subtitle": "Yönetim onayı bekleyen talep",
+            "tone": "warning" if pending_revision_requests else "success",
+            "icon": "bi-file-earmark-text",
+            "href": url_for("main.documents_dashboard"),
+            "items": [
+                {
+                    "label": request_item.document.document_code
+                    if request_item.document
+                    else f"Talep #{request_item.id}",
+                    "meta": request_item.document.title if request_item.document else "Doküman",
+                    "status": "Onay bekliyor",
+                }
+                for request_item in pending_revision_requests[:3]
+            ],
+        },
+        {
+            "title": "Yaklaşan İç Denetim",
+            "value": len(upcoming_audits),
+            "subtitle": "30 gün içindeki planlar",
+            "tone": "purple" if upcoming_audits else "success",
+            "icon": "bi-clipboard-check",
+            "href": url_for("main.internal_audit"),
+            "items": [
+                {
+                    "label": audit.audit_no,
+                    "meta": audit.title or audit.evaluated_department or "İç denetim",
+                    "status": format_date(audit.planned_date),
+                }
+                for audit in upcoming_audits[:3]
+            ],
+        },
+        {
+            "title": "Kalibrasyon Riski",
+            "value": len(overdue_calibrations) + len(due_calibrations),
+            "subtitle": f"{len(overdue_calibrations)} geçmiş, {len(due_calibrations)} yaklaşan",
+            "tone": "danger" if overdue_calibrations else ("warning" if due_calibrations else "success"),
+            "icon": "bi-rulers",
+            "href": url_for("main.calibration_dashboard"),
+            "items": [
+                {
+                    "label": record.device_code,
+                    "meta": record.device_name,
+                    "status": calibration_day_status(record.next_calibration_date)["label"],
+                }
+                for record in sorted(
+                    overdue_calibrations + due_calibrations,
+                    key=lambda record: record.next_calibration_date or date.max,
+                )[:3]
+            ],
+        },
+    ]
+    return {
+        "cards": cards,
+        "risk_count": sum(card["value"] for card in cards),
+        "healthy_count": sum(1 for card in cards if card["value"] == 0),
     }
 
 
@@ -7424,6 +7586,7 @@ def dashboard_context():
         if not action.is_completed and action.closure_approval_requested
     )
     total_count = len(all_actions)
+    iso_dashboard = iso_dashboard_context(all_actions)
 
     return {
         "actions": actions,
@@ -7436,6 +7599,7 @@ def dashboard_context():
         "completed_count": completed_count,
         "pending_approval_count": pending_approval_count,
         "total_count": total_count,
+        "iso_dashboard": iso_dashboard,
         "can_complete_action": can_complete_action,
         "can_request_closure_action": can_request_closure_action,
         "can_approve_closure_action": can_approve_closure_action,
