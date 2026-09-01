@@ -14,6 +14,7 @@
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
+  {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.deactivate_supplier'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -174,6 +175,12 @@
         <a class="dashboard-nav-item {% if management_review_active %}active{% endif %}" href="{{ url_for('main.management_review_dashboard') }}">
           <i class="bi bi-clipboard-data"></i>
           <span>YGG Yönetimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('supplier_management') and (g.current_user.has_permission('suppliers.view') or g.current_user.has_permission('suppliers.evaluate') or g.current_user.has_permission('suppliers.manage')) %}
+        <a class="dashboard-nav-item {% if supplier_management_active %}active{% endif %}" href="{{ url_for('main.supplier_dashboard') }}">
+          <i class="bi bi-truck"></i>
+          <span>Tedarikçi Değerlendirme</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('documents') %}

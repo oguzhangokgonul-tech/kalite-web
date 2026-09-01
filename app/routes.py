@@ -92,6 +92,8 @@ from .models import (
     SuggestionEvaluation,
     SuggestionScore,
     SuggestionScoreParameter,
+    SupplierEvaluation,
+    SupplierRecord,
     TrainingParticipant,
     TrainingRecord,
     User,
@@ -2196,6 +2198,11 @@ MODULE_ENDPOINTS = {
     "main.edit_management_review": "management_review",
     "main.management_review_report": "management_review",
     "main.delete_management_review": "management_review",
+    "main.supplier_dashboard": "supplier_management",
+    "main.create_supplier": "supplier_management",
+    "main.edit_supplier": "supplier_management",
+    "main.evaluate_supplier": "supplier_management",
+    "main.deactivate_supplier": "supplier_management",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -6119,6 +6126,25 @@ def iso_dashboard_context(all_actions):
         if review.meeting_date
         and today <= review.meeting_date <= today + timedelta(days=30)
     ]
+    active_suppliers = (
+        supplier_query().all()
+        if company_module_enabled("supplier_management")
+        else []
+    )
+    supplier_risks = sorted(
+        [
+            supplier
+            for supplier in active_suppliers
+            if supplier.status in {"Askıda", "Şartlı Onaylı"}
+            or (supplier.delay_days and supplier.delay_days > 0)
+        ],
+        key=supplier_sort_key,
+    )
+    overdue_suppliers = [
+        supplier
+        for supplier in active_suppliers
+        if supplier.delay_days and supplier.delay_days > 0
+    ]
     calibration_records = scoped_query(
         CalibrationRecord.query,
         CalibrationRecord,
@@ -6200,6 +6226,26 @@ def iso_dashboard_context(all_actions):
                     "status": f"RPN {risk.rpn}",
                 }
                 for risk in high_risks[:3]
+            ],
+        },
+        {
+            "title": "Tedarikçi Riski",
+            "value": len(supplier_risks),
+            "subtitle": f"{len(overdue_suppliers)} değerlendirme tarihi geçmiş",
+            "tone": "danger" if overdue_suppliers or supplier_risks else "success",
+            "icon": "bi-truck",
+            "href": url_for("main.supplier_dashboard"),
+            "items": [
+                {
+                    "label": supplier.supplier_no,
+                    "meta": supplier.name,
+                    "status": (
+                        f"{supplier.delay_days} gün geçti"
+                        if supplier.delay_days
+                        else supplier.status
+                    ),
+                }
+                for supplier in supplier_risks[:3]
             ],
         },
         {
@@ -7579,6 +7625,305 @@ def management_review_form_error_message(error_key):
         "invalid_recorder": "Geçerli bir raportör seçin.",
         "invalid_action": "Geçerli bir aksiyon bağlantısı seçin.",
     }.get(error_key, "YGG kaydı kaydedilemedi.")
+
+
+SUPPLIER_STATUSES = (
+    "Değerlendirme Bekliyor",
+    "Onaylı",
+    "Şartlı Onaylı",
+    "Askıda",
+    "Pasif",
+)
+SUPPLIER_EVALUATION_CRITERIA = (
+    ("quality_score", "Kalite Performansı", 30, "bi-patch-check"),
+    ("delivery_score", "Teslimat Performansı", 25, "bi-truck"),
+    ("cost_score", "Fiyat / Maliyet Uygunluğu", 15, "bi-cash-coin"),
+    ("communication_score", "İletişim / Destek", 10, "bi-chat-dots"),
+    ("documentation_score", "Sertifika / Doküman Uygunluğu", 10, "bi-file-earmark-check"),
+    ("nonconformity_score", "Şikayet / Uygunsuzluk Etkisi", 10, "bi-shield-exclamation"),
+)
+
+
+def can_view_suppliers():
+    return (
+        current_user_can("suppliers.view")
+        or current_user_can("suppliers.evaluate")
+        or can_manage_suppliers()
+    )
+
+
+def can_evaluate_suppliers():
+    return current_user_can("suppliers.evaluate") or can_manage_suppliers()
+
+
+def can_manage_suppliers():
+    return current_user_can("suppliers.manage")
+
+
+def can_delete_suppliers():
+    return current_user_can("suppliers.delete")
+
+
+def supplier_query(include_inactive=False):
+    query = scoped_query(SupplierRecord.query, SupplierRecord)
+    if not include_inactive:
+        query = query.filter(SupplierRecord.is_active.is_(True))
+    return query
+
+
+def supplier_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "visibility": request.args.get("visibility", "active").strip() or "active",
+    }
+
+
+def supplier_status_tone(status):
+    return {
+        "Onaylı": "success",
+        "Şartlı Onaylı": "warning",
+        "Askıda": "danger",
+        "Değerlendirme Bekliyor": "amber",
+        "Pasif": "muted",
+    }.get(status, "muted")
+
+
+def supplier_score_tone(score):
+    if score is None:
+        return "muted"
+    if score >= 85:
+        return "success"
+    if score >= 60:
+        return "warning"
+    return "danger"
+
+
+def supplier_status_from_score(score):
+    if score >= 85:
+        return "Onaylı"
+    if score >= 60:
+        return "Şartlı Onaylı"
+    return "Askıda"
+
+
+def supplier_sort_key(supplier):
+    passive_order = 1 if supplier.is_passive else 0
+    risky_order = 0 if supplier.status in {"Askıda", "Şartlı Onaylı"} else 1
+    score_order = supplier.last_score if supplier.last_score is not None else -1
+    return (
+        passive_order,
+        -supplier.delay_days,
+        risky_order,
+        score_order,
+        supplier.next_evaluation_date or date.max,
+        supplier.name.lower(),
+        supplier.id,
+    )
+
+
+def filtered_suppliers(filters):
+    visibility = filters["visibility"]
+    query = supplier_query(include_inactive=visibility in {"all", "passive"})
+    if visibility == "passive":
+        query = query.filter(SupplierRecord.is_active.is_(False))
+
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                SupplierRecord.supplier_no.ilike(search_value),
+                SupplierRecord.name.ilike(search_value),
+                SupplierRecord.product_group.ilike(search_value),
+                SupplierRecord.contact_person.ilike(search_value),
+                SupplierRecord.email.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(SupplierRecord.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(SupplierRecord.status == filters["status"])
+    return sorted(query.all(), key=supplier_sort_key)
+
+
+def next_supplier_no():
+    prefix = f"TED-{date.today().year}-"
+    rows = (
+        scoped_query(
+            SupplierRecord.query.with_entities(SupplierRecord.supplier_no),
+            SupplierRecord,
+        )
+        .filter(SupplierRecord.supplier_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (supplier_no,) in rows:
+        try:
+            numbers.append(int((supplier_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_supplier_form():
+    status = request.form.get("status", "Değerlendirme Bekliyor").strip()
+    values = {
+        "name": request.form.get("name", "").strip(),
+        "product_group": request.form.get("product_group", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "contact_person": request.form.get("contact_person", "").strip(),
+        "phone": request.form.get("phone", "").strip(),
+        "email": request.form.get("email", "").strip(),
+        "next_evaluation_date": parse_optional_date("next_evaluation_date"),
+        "status": status or "Değerlendirme Bekliyor",
+    }
+
+    if not values["name"]:
+        raise ValueError("required_fields")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["status"] not in SUPPLIER_STATUSES:
+        raise ValueError("invalid_status")
+
+    values["is_active"] = values["status"] != "Pasif"
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def supplier_score_values_from_form():
+    values = {}
+    for field_name, _label, _weight, _icon in SUPPLIER_EVALUATION_CRITERIA:
+        raw_value = request.form.get(field_name, "").strip()
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            raise ValueError("invalid_score") from None
+        if value < 1 or value > 10:
+            raise ValueError("invalid_score")
+        values[field_name] = value
+    return values
+
+
+def supplier_total_score(score_values):
+    weighted_total = sum(
+        score_values[field_name] * weight
+        for field_name, _label, weight, _icon in SUPPLIER_EVALUATION_CRITERIA
+    )
+    return int((weighted_total + 5) // 10)
+
+
+def parse_supplier_evaluation_form():
+    score_values = supplier_score_values_from_form()
+    total_score = supplier_total_score(score_values)
+    values = {
+        **score_values,
+        "evaluation_date": parse_optional_date("evaluation_date") or date.today(),
+        "next_evaluation_date": parse_optional_date("next_evaluation_date"),
+        "notes": request.form.get("notes", "").strip(),
+        "total_score": total_score,
+        "result_status": supplier_status_from_score(total_score),
+    }
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def apply_supplier_evaluation_result(supplier, evaluation):
+    supplier.last_score = evaluation.total_score
+    supplier.last_evaluation_date = evaluation.evaluation_date
+    supplier.status = evaluation.result_status
+    supplier.is_active = True
+    if evaluation.next_evaluation_date:
+        supplier.next_evaluation_date = evaluation.next_evaluation_date
+
+
+def supplier_recent_evaluations(suppliers):
+    return {
+        supplier.id: sorted(
+            supplier.evaluations,
+            key=lambda item: (item.evaluation_date or date.min, item.id),
+            reverse=True,
+        )[:3]
+        for supplier in suppliers
+    }
+
+
+def supplier_dashboard_context():
+    filters = supplier_filters()
+    suppliers = filtered_suppliers(filters)
+    all_suppliers = supplier_query(include_inactive=True).all()
+    active_suppliers = [supplier for supplier in all_suppliers if supplier.is_active]
+    pending_suppliers = [
+        supplier
+        for supplier in active_suppliers
+        if supplier.status == "Değerlendirme Bekliyor"
+    ]
+    risky_suppliers = [
+        supplier
+        for supplier in active_suppliers
+        if supplier.status in {"Askıda", "Şartlı Onaylı"}
+    ]
+    overdue_suppliers = [
+        supplier
+        for supplier in active_suppliers
+        if supplier.delay_days and supplier.delay_days > 0
+    ]
+    return {
+        "suppliers": suppliers,
+        "total_count": len(active_suppliers),
+        "pending_count": len(pending_suppliers),
+        "risky_count": len(risky_suppliers),
+        "overdue_count": len(overdue_suppliers),
+        "filters": filters,
+        "statuses": SUPPLIER_STATUSES,
+        "departments": DEPARTMENTS,
+        "recent_evaluations": supplier_recent_evaluations(suppliers),
+        "can_manage_suppliers": can_manage_suppliers(),
+        "can_evaluate_suppliers": can_evaluate_suppliers(),
+        "can_delete_suppliers": can_delete_suppliers(),
+        "supplier_status_tone": supplier_status_tone,
+        "supplier_score_tone": supplier_score_tone,
+        "format_date": format_date,
+    }
+
+
+def supplier_form_context(supplier=None):
+    return {
+        "supplier": supplier,
+        "statuses": SUPPLIER_STATUSES,
+        "departments": DEPARTMENTS,
+        "form_data": request.form if request.method == "POST" else {},
+    }
+
+
+def supplier_evaluation_context(supplier):
+    return {
+        "supplier": supplier,
+        "criteria": SUPPLIER_EVALUATION_CRITERIA,
+        "score_options": range(1, 11),
+        "form_data": request.form if request.method == "POST" else {},
+        "today_value": date.today().isoformat(),
+        "supplier_status_tone": supplier_status_tone,
+        "default_next_date": (
+            supplier.next_evaluation_date.isoformat()
+            if supplier.next_evaluation_date
+            else ""
+        ),
+    }
+
+
+def supplier_form_error_message(error_key):
+    return {
+        "required_fields": "Tedarikçi adı zorunludur.",
+        "invalid_date": "Tarih alanını kontrol edin.",
+        "invalid_department": "Geçerli bir departman seçin.",
+        "invalid_status": "Geçerli bir tedarikçi durumu seçin.",
+        "invalid_score": "Değerlendirme puanları 1 ile 10 arasında olmalıdır.",
+    }.get(error_key, "Tedarikçi kaydı kaydedilemedi.")
 
 
 def delete_uploaded_file(action):
@@ -9752,6 +10097,125 @@ def delete_management_review(review_id):
     db.session.commit()
     flash("YGG kaydı silindi.", "success")
     return redirect(url_for("main.management_review_dashboard"))
+
+
+@bp.route("/tedarikci-degerlendirme")
+@login_required
+def supplier_dashboard():
+    if not can_view_suppliers():
+        abort(403)
+    return render_template(
+        "suppliers/dashboard.html",
+        **supplier_dashboard_context(),
+    )
+
+
+@bp.route("/tedarikci-degerlendirme/yeni", methods=["GET", "POST"])
+@login_required
+def create_supplier():
+    if not can_manage_suppliers():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            supplier = SupplierRecord(
+                supplier_no=next_supplier_no(),
+                created_by_user_id=g.current_user.id,
+                **parse_supplier_form(),
+            )
+            assign_current_company(supplier)
+            db.session.add(supplier)
+            db.session.commit()
+            flash("Tedarikçi kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "suppliers/form.html",
+        page_title="Yeni Tedarikçi",
+        form_action=url_for("main.create_supplier"),
+        submit_label="Tedarikçiyi Kaydet",
+        **supplier_form_context(),
+    )
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_supplier(supplier_id):
+    if not can_manage_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    ensure_same_company(supplier)
+
+    if request.method == "POST":
+        try:
+            values = parse_supplier_form()
+            for key, value in values.items():
+                setattr(supplier, key, value)
+            db.session.commit()
+            flash("Tedarikçi kaydı güncellendi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "suppliers/form.html",
+        page_title=f"{supplier.supplier_no} Düzenle",
+        form_action=url_for("main.edit_supplier", supplier_id=supplier.id),
+        submit_label="Değişiklikleri Kaydet",
+        **supplier_form_context(supplier),
+    )
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/degerlendir", methods=["GET", "POST"])
+@login_required
+def evaluate_supplier(supplier_id):
+    if not can_evaluate_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    ensure_same_company(supplier)
+    if supplier.is_passive:
+        flash("Pasif tedarikçiler değerlendirilemez.", "warning")
+        return redirect(url_for("main.supplier_dashboard", visibility="passive"))
+
+    if request.method == "POST":
+        try:
+            evaluation = SupplierEvaluation(
+                supplier=supplier,
+                company_id=supplier.company_id,
+                evaluated_by_user_id=g.current_user.id,
+                **parse_supplier_evaluation_form(),
+            )
+            apply_supplier_evaluation_result(supplier, evaluation)
+            db.session.add(evaluation)
+            db.session.commit()
+            flash("Tedarikçi değerlendirmesi kaydedildi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "suppliers/evaluation_form.html",
+        **supplier_evaluation_context(supplier),
+    )
+
+
+@bp.post("/tedarikci-degerlendirme/<int:supplier_id>/pasife-al")
+@login_required
+def deactivate_supplier(supplier_id):
+    if not can_delete_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    ensure_same_company(supplier)
+    supplier.is_active = False
+    supplier.status = "Pasif"
+    db.session.commit()
+    flash("Tedarikçi kaydı pasife alındı.", "success")
+    return redirect(url_for("main.supplier_dashboard"))
 
 
 @bp.route("/denetim-logu")

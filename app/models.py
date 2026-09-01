@@ -188,6 +188,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "supplier_management",
+        "name": "Tedarikçi Değerlendirme",
+        "description": "Tedarikçi kartları, performans puanları ve onay durumları.",
+        "icon": "bi-truck",
+        "sort_order": 67,
+        "parent_key": None,
+    },
+    {
         "key": "documents",
         "name": "Doküman Yönetimi",
         "description": "Doküman kategori, yayın, revizyon ve indirme yönetimi.",
@@ -1068,6 +1076,93 @@ class ManagementReview(db.Model):
         if self.is_completed or not self.meeting_date:
             return 0
         return max((date.today() - self.meeting_date).days, 0)
+
+
+class SupplierRecord(db.Model):
+    __tablename__ = "supplier_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "supplier_no",
+            name="uq_supplier_records_company_supplier_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    supplier_no = db.Column(db.String(30), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    product_group = db.Column(db.String(160), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    contact_person = db.Column(db.String(160), nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+    email = db.Column(db.String(160), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Değerlendirme Bekliyor")
+    last_score = db.Column(db.Integer, nullable=True)
+    last_evaluation_date = db.Column(db.Date, nullable=True)
+    next_evaluation_date = db.Column(db.Date, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    evaluations = db.relationship(
+        "SupplierEvaluation",
+        back_populates="supplier",
+        cascade="all, delete-orphan",
+    )
+
+    @property
+    def is_passive(self):
+        return not self.is_active or self.status == "Pasif"
+
+    @property
+    def delay_days(self):
+        if self.is_passive or not self.next_evaluation_date:
+            return 0
+        return max((date.today() - self.next_evaluation_date).days, 0)
+
+    @property
+    def days_until_next_evaluation(self):
+        if self.is_passive or not self.next_evaluation_date:
+            return None
+        return (self.next_evaluation_date - date.today()).days
+
+
+class SupplierEvaluation(db.Model):
+    __tablename__ = "supplier_evaluations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier_records.id"), nullable=False, index=True)
+    evaluation_date = db.Column(db.Date, nullable=False, default=date.today)
+    evaluated_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    quality_score = db.Column(db.Integer, nullable=False)
+    delivery_score = db.Column(db.Integer, nullable=False)
+    cost_score = db.Column(db.Integer, nullable=False)
+    communication_score = db.Column(db.Integer, nullable=False)
+    documentation_score = db.Column(db.Integer, nullable=False)
+    nonconformity_score = db.Column(db.Integer, nullable=False)
+    total_score = db.Column(db.Integer, nullable=False)
+    result_status = db.Column(db.String(40), nullable=False)
+    next_evaluation_date = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    supplier = db.relationship("SupplierRecord", back_populates="evaluations")
+    evaluated_by = db.relationship("User", foreign_keys=[evaluated_by_user_id])
 
 
 class DocumentCategory(db.Model):

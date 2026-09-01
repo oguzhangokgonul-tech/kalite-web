@@ -1,0 +1,148 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Tedarikçi Değerlendir{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Tedarikçi Değerlendir", supplier.supplier_no ~ " · " ~ supplier.name, icon="bi-clipboard2-check") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.supplier_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Tedarikçi Değerlendirme</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="border rounded-3 bg-light p-3 h-100">
+          <small class="text-secondary d-block">Ürün / Hizmet Grubu</small>
+          <strong>{{ supplier.product_group or "-" }}</strong>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="border rounded-3 bg-light p-3 h-100">
+          <small class="text-secondary d-block">İlgili Departman</small>
+          <strong>{{ supplier.department or "-" }}</strong>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="border rounded-3 bg-light p-3 h-100">
+          <small class="text-secondary d-block">Mevcut Durum</small>
+          {{ ui.status_badge(supplier.status, tone=supplier_status_tone(supplier.status)) }}
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="border rounded-3 bg-light p-3 h-100">
+          <small class="text-secondary d-block">Son Puan</small>
+          <strong>{{ supplier.last_score if supplier.last_score is not none else "-" }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-8">
+        {{ ui.card_header("Puanlama Kriterleri", "Her kriter 1 ile 10 arasında puanlanır; ağırlıklı sonuç 100 üzerinden hesaplanır.", icon="bi-sliders") }}
+        <div class="row g-3">
+          {% for field_name, label, weight, icon in criteria %}
+            <div class="col-md-6 col-xl-4">
+              <div class="border rounded-3 bg-white p-3 h-100">
+                <div class="d-flex align-items-start gap-2 mb-3">
+                  <span class="app-card-icon flex-shrink-0"><i class="bi {{ icon }}"></i></span>
+                  <div>
+                    <label class="form-label mb-1" for="{{ field_name }}">{{ label }}</label>
+                    <small class="d-block text-secondary">Ağırlık: %{{ weight }}</small>
+                  </div>
+                </div>
+                {% set selected_score = form_data.get(field_name, '') %}
+                <select class="form-select" id="{{ field_name }}" name="{{ field_name }}" data-supplier-score data-weight="{{ weight }}" required>
+                  <option value="">Puan seç</option>
+                  {% for score in score_options %}
+                    <option value="{{ score }}" {% if selected_score|string == score|string %}selected{% endif %}>{{ score }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <div class="border rounded-3 bg-light p-4 h-100">
+          <div class="d-flex align-items-center gap-3 mb-4">
+            <span class="app-card-icon"><i class="bi bi-speedometer2"></i></span>
+            <div>
+              <h3 class="h5 mb-1">Puan Özeti</h3>
+              <p class="text-secondary mb-0">Skor kaydedildiğinde tedarikçi durumu otomatik güncellenir.</p>
+            </div>
+          </div>
+          <div class="text-center py-3">
+            <strong class="display-5 text-primary" data-supplier-total>-</strong>
+            <span class="d-block text-secondary">Toplam Puan</span>
+            <span class="d-inline-flex mt-3" data-supplier-status>{{ ui.status_badge("Değerlendirme Bekliyor", tone="amber") }}</span>
+          </div>
+          <div class="row g-3 mt-2">
+            <div class="col-12">
+              <label class="form-label" for="evaluation_date">Değerlendirme Tarihi</label>
+              {% set evaluation_value = form_data.get('evaluation_date', today_value) %}
+              <input class="form-control" id="evaluation_date" name="evaluation_date" type="date" value="{{ evaluation_value }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="next_evaluation_date">Sonraki Değerlendirme Tarihi</label>
+              {% set next_value = form_data.get('next_evaluation_date', default_next_date) %}
+              <input class="form-control" id="next_evaluation_date" name="next_evaluation_date" type="date" value="{{ next_value }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label" for="notes">Değerlendirme Notu</label>
+        <textarea class="form-control" id="notes" name="notes" rows="4" placeholder="Gerekirse değerlendirme notu ekleyin.">{{ form_data.get('notes', '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.supplier_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-success" type="submit">
+        <i class="bi bi-check-circle"></i>
+        <span>Değerlendirmeyi Kaydet</span>
+      </button>
+    </div>
+  </form>
+
+  <script>
+    (() => {
+      const scoreInputs = [...document.querySelectorAll("[data-supplier-score]")];
+      const totalEl = document.querySelector("[data-supplier-total]");
+      const statusEl = document.querySelector("[data-supplier-status]");
+      const badge = (label, tone, icon) => `
+        <span class="vp-status-badge vp-status-${tone}">
+          <i class="bi ${icon}"></i>
+          <span>${label}</span>
+        </span>`;
+      const statusForScore = (score) => {
+        if (score >= 85) return ["Onaylı", "success", "bi-check-circle-fill"];
+        if (score >= 60) return ["Şartlı Onaylı", "warning", "bi-clock-fill"];
+        return ["Askıda", "danger", "bi-exclamation-circle-fill"];
+      };
+      const update = () => {
+        if (scoreInputs.some((input) => !input.value)) {
+          totalEl.textContent = "-";
+          statusEl.innerHTML = badge("Değerlendirme Bekliyor", "amber", "bi-clock-fill");
+          return;
+        }
+        const weightedTotal = scoreInputs.reduce((sum, input) => {
+          return sum + Number(input.value) * Number(input.dataset.weight || 0);
+        }, 0);
+        const total = Math.floor((weightedTotal + 5) / 10);
+        const [label, tone, icon] = statusForScore(total);
+        totalEl.textContent = total;
+        statusEl.innerHTML = badge(label, tone, icon);
+      };
+      scoreInputs.forEach((input) => input.addEventListener("change", update));
+      update();
+    })();
+  </script>
+{% endblock %}

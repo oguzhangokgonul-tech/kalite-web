@@ -1,0 +1,210 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Tedarikçi Değerlendirme{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Tedarikçi Değerlendirme", "Tedarikçi kartlarını, performans puanlarını ve onay durumlarını takip edin.", icon="bi-truck") %}
+    {% if can_manage_suppliers %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_supplier') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Tedarikçi</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-truck"></i></span>
+      <span class="stat-label">Aktif Tedarikçi</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">Değerlendirme Bekliyor</span>
+      <strong>{{ pending_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Riskli Tedarikçi</span>
+      <strong>{{ risky_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-calendar-x"></i></span>
+      <span class="stat-label">Termin Geçti</span>
+      <strong>{{ overdue_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Tedarikçi, ürün grubu, kişi veya e-posta ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="visibility">Kayıtlar</label>
+        <select class="form-select" id="visibility" name="visibility">
+          <option value="active" {% if filters.visibility == "active" %}selected{% endif %}>Aktif</option>
+          <option value="passive" {% if filters.visibility == "passive" %}selected{% endif %}>Pasif</option>
+          <option value="all" {% if filters.visibility == "all" %}selected{% endif %}>Tümü</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.supplier_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Tedarikçi No</th>
+            <th>Tedarikçi / Grup</th>
+            <th>Departman</th>
+            <th>İletişim</th>
+            <th>Son Puan</th>
+            <th>Son Değerlendirme</th>
+            <th>Sonraki Değerlendirme</th>
+            <th>Durum</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for supplier in suppliers %}
+            {% set detail_id = "supplier_detail_%s"|format(supplier.id) %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-sm btn-link p-0 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ detail_id }}" aria-expanded="false" aria-controls="{{ detail_id }}">
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                  <strong>{{ supplier.supplier_no }}</strong>
+                </div>
+              </td>
+              <td>
+                <strong class="text-primary">{{ supplier.name }}</strong>
+                <small class="d-block text-secondary">{{ supplier.product_group or "Ürün / hizmet grubu yok" }}</small>
+              </td>
+              <td>{{ supplier.department or "-" }}</td>
+              <td>
+                <span>{{ supplier.contact_person or "-" }}</span>
+                {% if supplier.phone or supplier.email %}
+                  <small class="d-block text-secondary">{{ supplier.phone or "-" }}{% if supplier.email %} · {{ supplier.email }}{% endif %}</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if supplier.last_score is not none %}
+                  {{ ui.status_badge(supplier.last_score|string, tone=supplier_score_tone(supplier.last_score), icon="bi-speedometer2", title="Son değerlendirme puanı") }}
+                {% else %}
+                  <span class="text-secondary">-</span>
+                {% endif %}
+              </td>
+              <td>{{ format_date(supplier.last_evaluation_date) }}</td>
+              <td>
+                <span>{{ format_date(supplier.next_evaluation_date) }}</span>
+                {% if supplier.delay_days > 0 %}
+                  <small class="d-block text-danger fw-semibold">{{ supplier.delay_days }} gün geçti</small>
+                {% elif supplier.days_until_next_evaluation is not none and supplier.days_until_next_evaluation <= 30 %}
+                  <small class="d-block text-warning fw-semibold">{{ supplier.days_until_next_evaluation }} gün kaldı</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(supplier.status, tone=supplier_status_tone(supplier.status)) }}</td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  {% if can_evaluate_suppliers and not supplier.is_passive %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.evaluate_supplier', supplier_id=supplier.id) }}">
+                      <i class="bi bi-clipboard2-check"></i>
+                      <span>Değerlendir</span>
+                    </a>
+                  {% endif %}
+                  {% if can_manage_suppliers %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_supplier', supplier_id=supplier.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_suppliers and not supplier.is_passive %}
+                    <form action="{{ url_for('main.deactivate_supplier', supplier_id=supplier.id) }}" method="post" onsubmit="return confirm('Tedarikçi kaydını pasife almak istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-archive"></i>
+                        <span>Pasife Al</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="9" class="p-0 border-0">
+                <div class="collapse" id="{{ detail_id }}">
+                  <div class="p-3 bg-light border-top">
+                    <div class="row g-3">
+                      {% for evaluation in recent_evaluations.get(supplier.id, []) %}
+                        <div class="col-md-6 col-xl-4">
+                          <div class="border rounded-3 bg-white p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                              <div>
+                                <strong>{{ format_date(evaluation.evaluation_date) }}</strong>
+                                <small class="d-block text-secondary">{{ evaluation.evaluated_by.full_name if evaluation.evaluated_by else "Değerlendiren yok" }}</small>
+                              </div>
+                              {{ ui.status_badge(evaluation.total_score|string, tone=supplier_score_tone(evaluation.total_score), icon="bi-speedometer2") }}
+                            </div>
+                            <small class="d-block text-secondary mb-2">{{ evaluation.result_status }}</small>
+                            <p class="mb-0">{{ evaluation.notes or "Not girilmedi." }}</p>
+                          </div>
+                        </div>
+                      {% else %}
+                        <div class="col-12">
+                          <span class="text-secondary">Henüz değerlendirme kaydı yok.</span>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="9">
+                <strong>Henüz tedarikçi kaydı yok.</strong>
+                <span>Yeni tedarikçi eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

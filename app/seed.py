@@ -175,6 +175,30 @@ PERMISSION_CATALOG = (
         "description": "Yönetimin gözden geçirmesi kayıtlarını silebilir.",
     },
     {
+        "key": "suppliers.view",
+        "label": "Tedarikçileri görüntüleme",
+        "group": "Tedarikçi Değerlendirme",
+        "description": "Tedarikçi kartlarını, değerlendirme puanlarını ve onay durumlarını görüntüler.",
+    },
+    {
+        "key": "suppliers.evaluate",
+        "label": "Tedarikçi değerlendirme",
+        "group": "Tedarikçi Değerlendirme",
+        "description": "Tedarikçilere dönemsel performans değerlendirmesi yapar.",
+    },
+    {
+        "key": "suppliers.manage",
+        "label": "Tedarikçi yönetimi",
+        "group": "Tedarikçi Değerlendirme",
+        "description": "Tedarikçi kartı oluşturur ve düzenler.",
+    },
+    {
+        "key": "suppliers.delete",
+        "label": "Tedarikçi pasife alma",
+        "group": "Tedarikçi Değerlendirme",
+        "description": "Tedarikçi kartlarını denetim izi korunacak şekilde pasife alır.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -298,6 +322,10 @@ ROLE_DEFINITIONS = (
             "management_review.view",
             "management_review.manage",
             "management_review.delete",
+            "suppliers.view",
+            "suppliers.evaluate",
+            "suppliers.manage",
+            "suppliers.delete",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -326,6 +354,7 @@ ROLE_DEFINITIONS = (
             "complaints.view",
             "management_review.view",
             "management_review.manage",
+            "suppliers.view",
             "vehicles.view",
         ],
     },
@@ -345,6 +374,8 @@ ROLE_DEFINITIONS = (
             "complaints.view",
             "complaints.manage",
             "management_review.view",
+            "suppliers.view",
+            "suppliers.evaluate",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -361,6 +392,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "training.view",
             "complaints.view",
+            "suppliers.view",
             "vehicles.view",
         ],
     },
@@ -373,6 +405,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "training.view",
             "complaints.view",
+            "suppliers.view",
             "vehicles.view",
         ],
     },
@@ -847,6 +880,103 @@ def ensure_runtime_schema():
             )
         )
 
+    if "supplier_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE supplier_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    supplier_no VARCHAR(30) NOT NULL,
+                    name VARCHAR(180) NOT NULL,
+                    product_group VARCHAR(160),
+                    department VARCHAR(80),
+                    contact_person VARCHAR(160),
+                    phone VARCHAR(80),
+                    email VARCHAR(160),
+                    status VARCHAR(40) NOT NULL DEFAULT 'Değerlendirme Bekliyor',
+                    last_score INTEGER,
+                    last_evaluation_date DATE,
+                    next_evaluation_date DATE,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("supplier_records")
+
+    if "supplier_records" in tables:
+        for index_name, column_name in (
+            ("ix_supplier_records_company_id", "company_id"),
+            ("ix_supplier_records_status", "status"),
+            ("ix_supplier_records_next_evaluation_date", "next_evaluation_date"),
+            ("ix_supplier_records_created_by_user_id", "created_by_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON supplier_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_supplier_records_company_supplier_no "
+                "ON supplier_records (company_id, supplier_no)"
+            )
+        )
+
+    if "supplier_evaluations" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE supplier_evaluations (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    supplier_id INTEGER NOT NULL,
+                    evaluation_date DATE NOT NULL,
+                    evaluated_by_user_id INTEGER,
+                    quality_score INTEGER NOT NULL,
+                    delivery_score INTEGER NOT NULL,
+                    cost_score INTEGER NOT NULL,
+                    communication_score INTEGER NOT NULL,
+                    documentation_score INTEGER NOT NULL,
+                    nonconformity_score INTEGER NOT NULL,
+                    total_score INTEGER NOT NULL,
+                    result_status VARCHAR(40) NOT NULL,
+                    next_evaluation_date DATE,
+                    notes TEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(supplier_id) REFERENCES supplier_records (id),
+                    FOREIGN KEY(evaluated_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("supplier_evaluations")
+
+    if "supplier_evaluations" in tables:
+        for index_name, column_name in (
+            ("ix_supplier_evaluations_company_id", "company_id"),
+            ("ix_supplier_evaluations_supplier_id", "supplier_id"),
+            ("ix_supplier_evaluations_evaluated_by_user_id", "evaluated_by_user_id"),
+            ("ix_supplier_evaluations_evaluation_date", "evaluation_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON supplier_evaluations ({column_name})"
+                )
+            )
+
     if "roles" not in tables:
         db.session.execute(
             text(
@@ -1241,6 +1371,8 @@ def ensure_runtime_schema():
             "sales_readiness:month3_complaints",
             "sales_readiness:management_review",
             "sales_readiness:month3_management_review",
+            "sales_readiness:supplier_module",
+            "sales_readiness:month3_supplier",
         ):
             db.session.execute(
                 text(

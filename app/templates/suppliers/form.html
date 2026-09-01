@@ -1,0 +1,76 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = supplier is defined and supplier %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, "Tedarikçi temel bilgileri ve takip terminini yönetin.", icon="bi-truck") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.supplier_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Tedarikçi Değerlendirme</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="supplier_no">Tedarikçi No</label>
+        <input class="form-control" id="supplier_no" value="{{ supplier.supplier_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="name">Tedarikçi Adı</label>
+        <input class="form-control" id="name" name="name" value="{{ form_data.get('name', supplier.name if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="product_group">Ürün / Hizmet Grubu</label>
+        <input class="form-control" id="product_group" name="product_group" value="{{ form_data.get('product_group', supplier.product_group if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="department">İlgili Departman</label>
+        {% set selected_department = form_data.get('department', supplier.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="contact_person">Yetkili Kişi</label>
+        <input class="form-control" id="contact_person" name="contact_person" value="{{ form_data.get('contact_person', supplier.contact_person if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="phone">Telefon</label>
+        <input class="form-control" id="phone" name="phone" value="{{ form_data.get('phone', supplier.phone if is_edit else '') }}" maxlength="80">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="email">E-posta</label>
+        <input class="form-control" id="email" name="email" type="email" value="{{ form_data.get('email', supplier.email if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="next_evaluation_date">Sonraki Değerlendirme Tarihi</label>
+        {% set next_value = form_data.get('next_evaluation_date', supplier.next_evaluation_date.isoformat() if is_edit and supplier.next_evaluation_date else '') %}
+        <input class="form-control" id="next_evaluation_date" name="next_evaluation_date" type="date" value="{{ next_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', supplier.status if is_edit else 'Değerlendirme Bekliyor') %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.supplier_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}
