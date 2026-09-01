@@ -2207,6 +2207,8 @@ MODULE_ENDPOINTS = {
     "main.edit_supplier": "supplier_management",
     "main.evaluate_supplier": "supplier_management",
     "main.deactivate_supplier": "supplier_management",
+    "main.report_center": "report_center",
+    "main.download_report_center_excel": "report_center",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -4986,7 +4988,7 @@ def xlsx_column_name(index):
     return name
 
 
-def build_simple_xlsx(headers, rows, sheet_name="Sayfa1"):
+def build_simple_xlsx(headers, rows, sheet_name="Sayfa1", column_widths=None):
     def cell_xml(row_number, column_number, value, style_id=0):
         cell_ref = f"{xlsx_column_name(column_number)}{row_number}"
         style_attr = f' s="{style_id}"' if style_id else ""
@@ -5017,17 +5019,20 @@ def build_simple_xlsx(headers, rows, sheet_name="Sayfa1"):
 
     last_column = xlsx_column_name(len(headers))
     last_row = max(1, len(rows) + 1)
+    column_widths = list(column_widths or ())
+    if len(column_widths) < len(headers):
+        column_widths.extend([18] * (len(headers) - len(column_widths)))
+    cols_xml = "".join(
+        f'<col min="{column_number}" max="{column_number}" width="{width}" customWidth="1"/>'
+        for column_number, width in enumerate(column_widths[: len(headers)], start=1)
+    )
+
     sheet_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <dimension ref="A1:{last_column}{last_row}"/>
   <sheetViews><sheetView workbookViewId="0"/></sheetViews>
   <sheetFormatPr defaultRowHeight="18"/>
-  <cols>
-    <col min="1" max="1" width="32" customWidth="1"/>
-    <col min="2" max="2" width="20" customWidth="1"/>
-    <col min="3" max="3" width="34" customWidth="1"/>
-    <col min="4" max="4" width="16" customWidth="1"/>
-  </cols>
+  <cols>{cols_xml}</cols>
   <sheetData>{''.join(sheet_rows)}</sheetData>
 </worksheet>"""
 
@@ -5121,7 +5126,650 @@ def personnel_contacts_report_workbook():
         ("İsim Soyisim", "Telefon No", "Departman", "Durum"),
         rows,
         sheet_name="Personel Listesi",
+        column_widths=(32, 20, 34, 16),
     )
+
+
+def can_export_reports():
+    return current_user_can("reports.export")
+
+
+def can_view_report_center():
+    return current_user_can("reports.view") or can_export_reports()
+
+
+def report_scope_label():
+    if getattr(g, "current_company", None) is not None:
+        return g.current_company.label
+    if getattr(g, "current_user_is_super_admin", False):
+        return "Tüm Firmalar"
+    return "Mevcut Firma"
+
+
+def report_filename(report_key):
+    return f"{report_key.replace('_', '-')}-{date.today():%Y%m%d}.xlsx"
+
+
+def report_user_name(user):
+    return user.full_name if user else "-"
+
+
+def report_action_status(action):
+    if action.is_completed:
+        return "Tamamlandı"
+    if action.closure_approval_requested:
+        return "Kapanma Onayı Beklemede"
+    if action.closure_rejection_reason:
+        return "Kapanma Onayı Reddedildi"
+    if action.calculate_delay_days() > 0:
+        return "Gecikti"
+    return "Açık"
+
+
+def report_actions_overdue_data():
+    actions = [
+        action
+        for action in scoped_query(Action.query, Action).all()
+        if not action.is_completed and action.calculate_delay_days() > 0
+    ]
+    actions = sorted(
+        actions,
+        key=lambda action: (
+            -action.calculate_delay_days(),
+            action.termin_date or date.min,
+            action.id,
+        ),
+    )
+    rows = [
+        (
+            action.number_label,
+            action.title,
+            action.department,
+            action.responsible_owner,
+            format_date(action.termin_date),
+            action.calculate_delay_days(),
+            report_action_status(action),
+        )
+        for action in actions
+    ]
+    return {
+        "headers": (
+            "Aksiyon No",
+            "Başlık",
+            "Departman",
+            "Sorumlu",
+            "Termin",
+            "Gecikme Günü",
+            "Durum",
+        ),
+        "rows": rows,
+        "sheet_name": "Geciken Aksiyonlar",
+        "column_widths": (16, 34, 18, 24, 16, 16, 24),
+    }
+
+
+def report_dofs_status_data():
+    dofs = attach_dof_view_state(
+        scoped_query(Dof.query, Dof).order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+    )
+    dofs = sorted(dofs, key=dof_due_priority_sort_key)
+    rows = [
+        (
+            dof.dof_no,
+            dof.title or "-",
+            dof.department or "-",
+            report_user_name(dof.responsible),
+            format_date(dof.opening_date),
+            format_date(dof.due_date),
+            dof.display_status,
+            dof.delay_days or 0,
+        )
+        for dof in dofs
+    ]
+    return {
+        "headers": (
+            "IF/DÖF No",
+            "Başlık",
+            "Departman",
+            "Sorumlu",
+            "Açılış",
+            "Termin",
+            "Durum",
+            "Gecikme Günü",
+        ),
+        "rows": rows,
+        "sheet_name": "IF DOF Durumu",
+        "column_widths": (16, 34, 18, 24, 16, 16, 28, 16),
+    }
+
+
+def report_documents_master_data():
+    documents = sort_documents_by_code(document_query().all())
+    rows = [
+        (
+            document.document_code,
+            document.title,
+            document.category.display_name if document.category else "-",
+            document.revision_no or "-",
+            format_date(document.publish_date),
+            format_date(document.revision_date),
+            document.department or "-",
+            document.status,
+        )
+        for document in documents
+    ]
+    return {
+        "headers": (
+            "Doküman Kodu",
+            "Doküman Adı",
+            "Kategori",
+            "Revizyon",
+            "Yayın Tarihi",
+            "Son Revizyon",
+            "Departman",
+            "Durum",
+        ),
+        "rows": rows,
+        "sheet_name": "Dokuman Master Liste",
+        "column_widths": (18, 38, 24, 12, 16, 16, 22, 18),
+    }
+
+
+def report_document_revisions_data():
+    requests = (
+        scoped_query(DocumentRevisionRequest.query, DocumentRevisionRequest)
+        .order_by(DocumentRevisionRequest.created_at.desc(), DocumentRevisionRequest.id.desc())
+        .all()
+    )
+    rows = [
+        (
+            item.document.document_code if item.document else "-",
+            item.document.title if item.document else "-",
+            report_user_name(item.requested_by),
+            item.status,
+            format_date(item.created_at),
+            format_date(item.approved_at),
+            item.explanation,
+        )
+        for item in requests
+    ]
+    return {
+        "headers": (
+            "Doküman Kodu",
+            "Doküman Adı",
+            "Talep Eden",
+            "Durum",
+            "Talep Tarihi",
+            "Onay Tarihi",
+            "Açıklama",
+        ),
+        "rows": rows,
+        "sheet_name": "Revizyon Talepleri",
+        "column_widths": (18, 36, 24, 34, 18, 18, 50),
+    }
+
+
+def report_internal_audits_data():
+    audits = (
+        scoped_query(InternalAudit.query, InternalAudit)
+        .order_by(InternalAudit.planned_date.desc(), InternalAudit.id.desc())
+        .all()
+    )
+    rows = [
+        (
+            audit.audit_no,
+            audit.title,
+            audit.evaluated_department or "-",
+            report_user_name(audit.auditor),
+            report_user_name(audit.audited_user),
+            format_date(audit.planned_date),
+            audit.status,
+            len(audit.questions),
+            len([answer for answer in audit.answers if not answer.is_draft]),
+        )
+        for audit in audits
+    ]
+    return {
+        "headers": (
+            "Denetim No",
+            "Başlık",
+            "Denetlenen Departman",
+            "Denetçi",
+            "Denetlenen Kişi",
+            "Plan Tarihi",
+            "Durum",
+            "Soru Sayısı",
+            "Cevap Sayısı",
+        ),
+        "rows": rows,
+        "sheet_name": "Ic Denetim",
+        "column_widths": (16, 34, 24, 24, 24, 16, 18, 14, 14),
+    }
+
+
+def report_calibration_data():
+    records = (
+        scoped_query(CalibrationRecord.query, CalibrationRecord)
+        .filter(CalibrationRecord.is_active.is_(True))
+        .order_by(CalibrationRecord.device_code.asc(), CalibrationRecord.id.asc())
+        .all()
+    )
+    rows = [
+        (
+            record.device_code,
+            record.device_name,
+            record.brand_model or "-",
+            record.serial_no or "-",
+            record.certificate_no or "-",
+            format_date(record.calibration_date),
+            format_date(record.next_calibration_date),
+            calibration_day_status(record.next_calibration_date)["label"],
+            calibration_status_label(record),
+        )
+        for record in records
+    ]
+    return {
+        "headers": (
+            "Cihaz Kodu",
+            "Cihaz / Ekipman",
+            "Marka / Model",
+            "Seri No",
+            "Sertifika No",
+            "Son Kalibrasyon",
+            "Gelecek Kalibrasyon",
+            "Kalan / Geciken Süre",
+            "Durum",
+        ),
+        "rows": rows,
+        "sheet_name": "Kalibrasyon",
+        "column_widths": (14, 34, 24, 20, 24, 18, 20, 22, 16),
+    }
+
+
+def report_risks_data():
+    risks = sorted(
+        risk_query().all(),
+        key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
+    )
+    rows = [
+        (
+            risk.risk_no,
+            risk.title,
+            risk.department or "-",
+            risk.process or "-",
+            risk.likelihood,
+            risk.severity,
+            risk.rpn,
+            risk.level,
+            risk.status,
+            report_user_name(risk.owner),
+            format_date(risk.due_date),
+        )
+        for risk in risks
+    ]
+    return {
+        "headers": (
+            "Risk No",
+            "Başlık",
+            "Departman",
+            "Süreç",
+            "Olasılık",
+            "Şiddet",
+            "RPN",
+            "Seviye",
+            "Durum",
+            "Sorumlu",
+            "Termin",
+        ),
+        "rows": rows,
+        "sheet_name": "Riskler",
+        "column_widths": (16, 34, 18, 26, 12, 12, 10, 14, 18, 24, 16),
+    }
+
+
+def report_trainings_data():
+    trainings = (
+        scoped_query(TrainingRecord.query, TrainingRecord)
+        .order_by(TrainingRecord.due_date.desc(), TrainingRecord.id.desc())
+        .all()
+    )
+    rows = [
+        (
+            training.training_no,
+            training.title,
+            training.training_type,
+            format_date(training.planned_date),
+            format_date(training.due_date),
+            report_user_name(training.instructor),
+            training.status,
+            len(training.participants),
+            sum(1 for participant in training.participants if participant.is_completed),
+        )
+        for training in trainings
+    ]
+    return {
+        "headers": (
+            "Eğitim No",
+            "Başlık",
+            "Tip",
+            "Plan Tarihi",
+            "Termin",
+            "Eğitmen",
+            "Durum",
+            "Katılımcı",
+            "Tamamlanan",
+        ),
+        "rows": rows,
+        "sheet_name": "Egitim Yeterlilik",
+        "column_widths": (16, 34, 24, 16, 16, 24, 18, 14, 14),
+    }
+
+
+def report_complaints_data():
+    complaints = sorted(complaint_query().all(), key=complaint_sort_key)
+    rows = [
+        (
+            complaint.complaint_no,
+            complaint.customer_name,
+            complaint.subject,
+            complaint.department or "-",
+            report_user_name(complaint.responsible),
+            complaint.priority,
+            complaint.status,
+            format_date(complaint.received_date),
+            format_date(complaint.due_date),
+            complaint.delay_days,
+        )
+        for complaint in complaints
+    ]
+    return {
+        "headers": (
+            "Şikayet No",
+            "Müşteri",
+            "Konu",
+            "Departman",
+            "Sorumlu",
+            "Öncelik",
+            "Durum",
+            "Alınma Tarihi",
+            "Termin",
+            "Gecikme Günü",
+        ),
+        "rows": rows,
+        "sheet_name": "Sikayetler",
+        "column_widths": (18, 28, 38, 18, 24, 14, 18, 18, 16, 16),
+    }
+
+
+def report_suppliers_data():
+    suppliers = sorted(supplier_query(include_inactive=True).all(), key=supplier_sort_key)
+    rows = [
+        (
+            supplier.supplier_no,
+            supplier.name,
+            supplier.product_group or "-",
+            supplier.department or "-",
+            supplier.contact_person or "-",
+            supplier.last_score if supplier.last_score is not None else "-",
+            format_date(supplier.last_evaluation_date),
+            format_date(supplier.next_evaluation_date),
+            supplier.status,
+        )
+        for supplier in suppliers
+    ]
+    return {
+        "headers": (
+            "Tedarikçi No",
+            "Tedarikçi",
+            "Ürün / Hizmet Grubu",
+            "Departman",
+            "Yetkili",
+            "Son Puan",
+            "Son Değerlendirme",
+            "Sonraki Değerlendirme",
+            "Durum",
+        ),
+        "rows": rows,
+        "sheet_name": "Tedarikciler",
+        "column_widths": (18, 34, 28, 18, 24, 12, 20, 22, 18),
+    }
+
+
+def report_management_reviews_data():
+    reviews = sorted(management_review_query().all(), key=management_review_sort_key)
+    rows = [
+        (
+            review.review_no,
+            review.title,
+            review.review_period or "-",
+            format_date(review.meeting_date),
+            report_user_name(review.chair),
+            report_user_name(review.recorder),
+            review.status,
+            review.action.number_label if review.action else "-",
+        )
+        for review in reviews
+    ]
+    return {
+        "headers": (
+            "YGG No",
+            "Toplantı",
+            "Dönem",
+            "Tarih",
+            "Başkan",
+            "Raportör",
+            "Durum",
+            "Bağlı Aksiyon",
+        ),
+        "rows": rows,
+        "sheet_name": "YGG",
+        "column_widths": (18, 38, 16, 16, 24, 24, 18, 18),
+    }
+
+
+def report_personnel_contacts_data():
+    contacts = (
+        personnel_contact_report_query()
+        .order_by(
+            PersonnelContact.is_active.desc(),
+            PersonnelContact.full_name.asc(),
+            PersonnelContact.id.asc(),
+        )
+        .all()
+    )
+    rows = [
+        (
+            contact.full_name or "",
+            contact.phone or "",
+            contact.title or contact.department or "",
+            "Aktif" if contact.is_active else "Silinmiş",
+        )
+        for contact in contacts
+    ]
+    return {
+        "headers": ("İsim Soyisim", "Telefon No", "Departman", "Durum"),
+        "rows": rows,
+        "sheet_name": "Personel Listesi",
+        "column_widths": (32, 20, 34, 16),
+    }
+
+
+REPORT_CENTER_REPORTS = (
+    {
+        "key": "actions_overdue",
+        "title": "Aksiyon Gecikme Raporu",
+        "description": "Termin tarihi geçmiş ve açık kalan aksiyonların listesi.",
+        "icon": "bi-exclamation-circle",
+        "tone": "danger",
+        "builder": report_actions_overdue_data,
+    },
+    {
+        "key": "dofs_status",
+        "title": "IF/DÖF Durum Raporu",
+        "description": "Tüm IF/DÖF kayıtlarının termin, sorumlu ve durum özeti.",
+        "icon": "bi-shield-check",
+        "tone": "blue",
+        "module_key": "if_management",
+        "builder": report_dofs_status_data,
+    },
+    {
+        "key": "documents_master",
+        "title": "Doküman Master Liste",
+        "description": "Doküman kodu, kategori, revizyon ve yayın durumları.",
+        "icon": "bi-file-earmark-text",
+        "tone": "blue",
+        "module_key": "documents",
+        "builder": report_documents_master_data,
+    },
+    {
+        "key": "document_revisions",
+        "title": "Revizyon Talepleri Raporu",
+        "description": "Doküman revizyon talepleri, onay durumu ve açıklamaları.",
+        "icon": "bi-arrow-repeat",
+        "tone": "warning",
+        "module_key": "documents",
+        "builder": report_document_revisions_data,
+    },
+    {
+        "key": "internal_audits",
+        "title": "İç Denetim Özet Raporu",
+        "description": "Planlanan ve tamamlanan iç denetimlerin durum özeti.",
+        "icon": "bi-clipboard-check",
+        "tone": "purple",
+        "module_key": "internal_audit",
+        "builder": report_internal_audits_data,
+    },
+    {
+        "key": "calibration",
+        "title": "Kalibrasyon Termin Raporu",
+        "description": "Aktif cihazların gelecek kalibrasyon tarihleri ve risk durumu.",
+        "icon": "bi-rulers",
+        "tone": "success",
+        "module_key": "calibration",
+        "builder": report_calibration_data,
+    },
+    {
+        "key": "risks",
+        "title": "Risk Kayıt Raporu",
+        "description": "Risk seviyesi, RPN puanı, sorumlu ve aksiyon bağlantısı özeti.",
+        "icon": "bi-exclamation-diamond",
+        "tone": "danger",
+        "module_key": "risk_management",
+        "builder": report_risks_data,
+    },
+    {
+        "key": "trainings",
+        "title": "Eğitim / Yeterlilik Raporu",
+        "description": "Atanan eğitimler, katılımcı sayıları ve tamamlanma durumu.",
+        "icon": "bi-mortarboard",
+        "tone": "blue",
+        "module_key": "training",
+        "builder": report_trainings_data,
+    },
+    {
+        "key": "complaints",
+        "title": "Şikayet Raporu",
+        "description": "Müşteri şikayetlerinin kök neden, termin ve kapanış takibi.",
+        "icon": "bi-chat-left-text",
+        "tone": "warning",
+        "module_key": "suggestions",
+        "builder": report_complaints_data,
+    },
+    {
+        "key": "suppliers",
+        "title": "Tedarikçi Değerlendirme Raporu",
+        "description": "Tedarikçi performans puanı, onay durumu ve değerlendirme terminleri.",
+        "icon": "bi-truck",
+        "tone": "success",
+        "module_key": "supplier_management",
+        "builder": report_suppliers_data,
+    },
+    {
+        "key": "management_reviews",
+        "title": "YGG Rapor Listesi",
+        "description": "Yönetimin gözden geçirmesi toplantıları, kararlar ve aksiyon bağlantıları.",
+        "icon": "bi-clipboard-data",
+        "tone": "purple",
+        "module_key": "management_review",
+        "builder": report_management_reviews_data,
+    },
+    {
+        "key": "personnel_contacts",
+        "title": "Personel İletişim Raporu",
+        "description": "Aktif ve silinmiş personel iletişim kayıtlarının güncel çıktısı.",
+        "icon": "bi-person-vcard",
+        "tone": "blue",
+        "module_key": "human_resources",
+        "builder": report_personnel_contacts_data,
+    },
+)
+
+
+def report_center_export_data(report_key):
+    for definition in REPORT_CENTER_REPORTS:
+        if definition["key"] == report_key:
+            module_key = definition.get("module_key")
+            if module_key and not company_module_enabled(module_key):
+                return None
+            data = definition["builder"]()
+            return {**definition, **data}
+    return None
+
+
+def report_center_cards():
+    cards = []
+    for definition in REPORT_CENTER_REPORTS:
+        module_key = definition.get("module_key")
+        if module_key and not company_module_enabled(module_key):
+            continue
+        data = definition["builder"]()
+        cards.append(
+            {
+                **definition,
+                "count": len(data["rows"]),
+                "excel_url": url_for(
+                    "main.download_report_center_excel",
+                    report_key=definition["key"],
+                ),
+            }
+        )
+    return cards
+
+
+def log_report_export(report):
+    log = AuditLog(
+        company_id=current_company_id(),
+        user_id=g.current_user.id if g.current_user else None,
+        entity_type="ReportCenter",
+        entity_id=report["key"],
+        action="exported",
+        summary=f"{report['title']} indirildi",
+        new_values=json.dumps(
+            {
+                "report_key": report["key"],
+                "report_title": report["title"],
+                "scope": report_scope_label(),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        ip_address=request.remote_addr,
+        user_agent=(request.user_agent.string or "")[:255],
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+def report_center_context():
+    cards = report_center_cards()
+    total_rows = sum(card["count"] for card in cards)
+    return {
+        "cards": cards,
+        "total_reports": len(cards),
+        "total_rows": total_rows,
+        "can_export_reports": can_export_reports(),
+        "scope_label": report_scope_label(),
+    }
 
 
 def personnel_contacts_context():
@@ -10226,6 +10874,39 @@ def deactivate_supplier(supplier_id):
     return redirect(url_for("main.supplier_dashboard"))
 
 
+@bp.route("/rapor-merkezi")
+@login_required
+def report_center():
+    if not can_view_report_center():
+        abort(403)
+    return render_template("reports/dashboard.html", **report_center_context())
+
+
+@bp.get("/rapor-merkezi/<report_key>/excel")
+@login_required
+def download_report_center_excel(report_key):
+    if not can_export_reports():
+        abort(403)
+
+    report = report_center_export_data(report_key)
+    if report is None:
+        abort(404)
+
+    workbook = build_simple_xlsx(
+        report["headers"],
+        report["rows"],
+        sheet_name=report["sheet_name"],
+        column_widths=report.get("column_widths"),
+    )
+    log_report_export(report)
+    return send_file(
+        workbook,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=report_filename(report["key"]),
+    )
+
+
 @bp.route("/denetim-logu")
 @login_required
 def audit_log():
@@ -10245,6 +10926,7 @@ def audit_log():
             "created": "Oluşturuldu",
             "updated": "Güncellendi",
             "deleted": "Silindi",
+            "exported": "Dışa Aktarıldı",
         },
     )
 

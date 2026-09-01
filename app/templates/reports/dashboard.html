@@ -1,0 +1,75 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Rapor Merkezi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Rapor Merkezi", "ISO 9001 denetim kanıtları ve yönetici özetleri için modül bazlı Excel çıktıları.", icon="bi-bar-chart-line") %}
+    <span class="vp-status-badge vp-status-blue">
+      <i class="bi bi-buildings"></i>
+      <span>{{ scope_label }}</span>
+    </span>
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-files"></i></span>
+      <span class="stat-label">Hazır Rapor</span>
+      <strong>{{ total_reports }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-table"></i></span>
+      <span class="stat-label">Toplam Satır</span>
+      <strong>{{ total_rows }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-shield-check"></i></span>
+      <span class="stat-label">Kapsam</span>
+      <strong class="h4 mb-0">{{ scope_label }}</strong>
+    </div>
+    <div class="dashboard-stat-card {% if can_export_reports %}stat-success{% else %}stat-danger{% endif %}">
+      <span class="stat-icon"><i class="bi bi-download"></i></span>
+      <span class="stat-label">Excel Yetkisi</span>
+      <strong class="h4 mb-0">{{ "Aktif" if can_export_reports else "Kapalı" }}</strong>
+    </div>
+  </div>
+
+  <section class="row g-3">
+    {% for card in cards %}
+      <div class="col-md-6 col-xxl-4">
+        <article class="document-list-card h-100 p-4">
+          <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <span class="app-card-icon"><i class="bi {{ card.icon }}"></i></span>
+            <span class="vp-status-badge vp-status-{{ card.tone }}">
+              <i class="bi bi-list-ol"></i>
+              <span>{{ card.count }} kayıt</span>
+            </span>
+          </div>
+          <h2 class="h5 mb-2">{{ card.title }}</h2>
+          <p class="text-secondary mb-4">{{ card.description }}</p>
+          <div class="d-flex flex-wrap gap-2 mt-auto">
+            {% if can_export_reports %}
+              <a class="btn btn-primary" href="{{ card.excel_url }}">
+                <i class="bi bi-file-earmark-excel"></i>
+                <span>Excel İndir</span>
+              </a>
+            {% else %}
+              <button class="btn btn-outline-secondary" type="button" disabled>
+                <i class="bi bi-lock"></i>
+                <span>Export Yetkisi Yok</span>
+              </button>
+            {% endif %}
+          </div>
+        </article>
+      </div>
+    {% else %}
+      <div class="col-12">
+        <section class="document-list-card p-5 text-center">
+          <span class="app-card-icon mx-auto mb-3"><i class="bi bi-file-earmark-x"></i></span>
+          <h2 class="h5">Rapor bulunamadı</h2>
+          <p class="text-secondary mb-0">Açık modüllere bağlı raporlar burada listelenecek.</p>
+        </section>
+      </div>
+    {% endfor %}
+  </section>
+{% endblock %}

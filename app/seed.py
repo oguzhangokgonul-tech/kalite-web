@@ -199,6 +199,18 @@ PERMISSION_CATALOG = (
         "description": "Tedarikçi kartlarını denetim izi korunacak şekilde pasife alır.",
     },
     {
+        "key": "reports.view",
+        "label": "Rapor merkezi görüntüleme",
+        "group": "Rapor Merkezi",
+        "description": "Modül bazlı denetim kanıtı ve yönetici özet raporlarını görüntüler.",
+    },
+    {
+        "key": "reports.export",
+        "label": "Rapor merkezi dışa aktarma",
+        "group": "Rapor Merkezi",
+        "description": "Rapor merkezindeki Excel çıktılarını indirir.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -326,6 +338,8 @@ ROLE_DEFINITIONS = (
             "suppliers.evaluate",
             "suppliers.manage",
             "suppliers.delete",
+            "reports.view",
+            "reports.export",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -355,6 +369,8 @@ ROLE_DEFINITIONS = (
             "management_review.view",
             "management_review.manage",
             "suppliers.view",
+            "reports.view",
+            "reports.export",
             "vehicles.view",
         ],
     },
@@ -376,6 +392,7 @@ ROLE_DEFINITIONS = (
             "management_review.view",
             "suppliers.view",
             "suppliers.evaluate",
+            "reports.view",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -1373,6 +1390,8 @@ def ensure_runtime_schema():
             "sales_readiness:month3_management_review",
             "sales_readiness:supplier_module",
             "sales_readiness:month3_supplier",
+            "sales_readiness:report_center",
+            "sales_readiness:month2_reports",
         ):
             db.session.execute(
                 text(

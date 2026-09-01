@@ -196,6 +196,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "report_center",
+        "name": "Rapor Merkezi",
+        "description": "Denetim kanıtı ve yönetici özeti için modül bazlı Excel çıktıları.",
+        "icon": "bi-bar-chart-line",
+        "sort_order": 68,
+        "parent_key": None,
+    },
+    {
         "key": "documents",
         "name": "Doküman Yönetimi",
         "description": "Doküman kategori, yayın, revizyon ve indirme yönetimi.",
