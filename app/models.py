@@ -164,6 +164,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "training",
+        "name": "Eğitim / Yeterlilik",
+        "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
+        "icon": "bi-mortarboard",
+        "sort_order": 58,
+        "parent_key": None,
+    },
+    {
         "key": "internal_audit",
         "name": "İç Denetim Yönetimi",
         "description": "İç denetim oluşturma, cevaplama, çıktı ve IF bağlantısı.",
@@ -853,6 +861,90 @@ class RiskRecord(db.Model):
         if self.rpn >= 8:
             return "Orta"
         return "Düşük"
+
+
+class TrainingRecord(db.Model):
+    __tablename__ = "training_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "training_no",
+            name="uq_training_records_company_training_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    training_no = db.Column(db.String(30), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    training_type = db.Column(db.String(60), nullable=False, default="Eğitim")
+    description = db.Column(db.Text, nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    planned_date = db.Column(db.Date, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    instructor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default="Planlandı")
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    document = db.relationship("Document", foreign_keys=[document_id])
+    instructor = db.relationship("User", foreign_keys=[instructor_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    participants = db.relationship(
+        "TrainingParticipant",
+        back_populates="training",
+        cascade="all, delete-orphan",
+        order_by="TrainingParticipant.id.asc()",
+    )
+
+
+class TrainingParticipant(db.Model):
+    __tablename__ = "training_participants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    training_id = db.Column(db.Integer, db.ForeignKey("training_records.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    personnel_contact_id = db.Column(
+        db.Integer,
+        db.ForeignKey("personnel_contacts.id"),
+        nullable=True,
+        index=True,
+    )
+    status = db.Column(db.String(40), nullable=False, default="Atandı")
+    read_confirmed_at = db.Column(db.DateTime, nullable=True)
+    attended_at = db.Column(db.DateTime, nullable=True)
+    score = db.Column(db.Numeric(5, 2), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    training = db.relationship("TrainingRecord", back_populates="participants")
+    user = db.relationship("User", foreign_keys=[user_id])
+    personnel_contact = db.relationship("PersonnelContact", foreign_keys=[personnel_contact_id])
+
+    @property
+    def display_name(self):
+        if self.user:
+            return self.user.full_name
+        if self.personnel_contact:
+            return self.personnel_contact.full_name
+        return "Katılımcı"
+
+    @property
+    def is_completed(self):
+        return self.status in {"Okundu", "Katıldı", "Başarılı", "Başarısız", "Muaf"}
 
 
 class DocumentCategory(db.Model):

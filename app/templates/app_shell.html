@@ -12,6 +12,7 @@
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
+  {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -154,6 +155,12 @@
         <a class="dashboard-nav-item {% if risk_management_active %}active{% endif %}" href="{{ url_for('main.risk_dashboard') }}">
           <i class="bi bi-exclamation-diamond"></i>
           <span>Risk Yönetimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('training') and (g.current_user.has_permission('training.view') or g.current_user.has_permission('training.manage')) %}
+        <a class="dashboard-nav-item {% if training_active %}active{% endif %}" href="{{ url_for('main.training_dashboard') }}">
+          <i class="bi bi-mortarboard"></i>
+          <span>Eğitim / Yeterlilik</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('internal_audit') %}

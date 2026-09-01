@@ -1,0 +1,230 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Eğitim / Yeterlilik{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Eğitim / Yeterlilik", "Doküman okuma-onay, eğitim atama ve personel yeterlilik kayıtlarını takip edin.", icon="bi-mortarboard") %}
+    {% if can_manage_trainings %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_training') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Eğitim</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-mortarboard"></i></span>
+      <span class="stat-label">Toplam Kayıt</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">Bekleyen Katılımcı</span>
+      <strong>{{ pending_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
+      <span class="stat-label">Tamamlanan Katılımcı</span>
+      <strong>{{ completed_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-file-earmark-check"></i></span>
+      <span class="stat-label">Doküman Okuma</span>
+      <strong>{{ document_read_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Eğitim, doküman veya açıklama ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="type">Tip</label>
+        <select class="form-select" id="type" name="type">
+          <option value="">Tümü</option>
+          {% for type in types %}
+            <option value="{{ type }}" {% if filters.type == type %}selected{% endif %}>{{ type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.training_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Eğitim No</th>
+            <th>Eğitim</th>
+            <th>Tip</th>
+            <th>Doküman</th>
+            <th>Tarih / Termin</th>
+            <th>İlerleme</th>
+            <th>Durum</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for training in trainings %}
+            {% set progress = training_progress(training) %}
+            {% set detail_id = "training_participants_%s"|format(training.id) %}
+            <tr>
+              <td><strong>{{ training.training_no }}</strong></td>
+              <td>
+                <strong class="text-primary">{{ training.title }}</strong>
+                {% if training.description %}
+                  <small class="d-block text-secondary">{{ training.description }}</small>
+                {% endif %}
+                {% if training.instructor %}
+                  <small class="d-block text-secondary">Eğitmen: {{ training.instructor.full_name }}</small>
+                {% endif %}
+              </td>
+              <td>{{ training.training_type }}</td>
+              <td>
+                {% if training.document %}
+                  <a class="text-decoration-none" href="{{ url_for('main.document_detail', document_id=training.document.id) }}">
+                    {{ training.document.document_code }} - {{ training.document.title }}
+                  </a>
+                {% else %}
+                  <span class="text-secondary">Yok</span>
+                {% endif %}
+              </td>
+              <td>
+                <span>{{ training.planned_date.strftime("%d.%m.%Y") if training.planned_date else "-" }}</span>
+                <small class="d-block text-secondary">{{ training.due_date.strftime("%d.%m.%Y") if training.due_date else "Termin yok" }}</small>
+              </td>
+              <td>
+                <strong>{{ progress.completed }} / {{ progress.total }}</strong>
+                <div class="progress mt-2" role="progressbar" aria-valuenow="{{ progress.percent }}" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar" style="width: {{ progress.percent }}%"></div>
+                </div>
+              </td>
+              <td>{{ ui.status_badge(training.status, tone=training_status_tone(training.status)) }}</td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#{{ detail_id }}" aria-expanded="false" aria-controls="{{ detail_id }}">
+                    <i class="bi bi-people"></i>
+                    <span>Katılımcılar</span>
+                  </button>
+                  {% if can_manage_trainings %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_training', training_id=training.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_trainings %}
+                    <form action="{{ url_for('main.delete_training', training_id=training.id) }}" method="post" onsubmit="return confirm('Eğitim kaydını silmek istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-trash"></i>
+                        <span>Sil</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td colspan="8" class="p-0 border-0">
+                <div class="collapse" id="{{ detail_id }}">
+                  <div class="p-3 bg-light border-top">
+                    <div class="row g-3">
+                      {% for participant in training.participants %}
+                        <div class="col-lg-6 col-xxl-4">
+                          <div class="border rounded-3 bg-white p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                              <div>
+                                <strong>{{ participant.display_name }}</strong>
+                                {% if participant.user and participant.user.title %}
+                                  <small class="d-block text-secondary">{{ participant.user.title }}</small>
+                                {% elif participant.personnel_contact and participant.personnel_contact.title %}
+                                  <small class="d-block text-secondary">{{ participant.personnel_contact.title }}</small>
+                                {% endif %}
+                              </div>
+                              {{ ui.status_badge(participant.status, tone=participant_status_tone(participant.status)) }}
+                            </div>
+                            {% if participant.score is not none %}
+                              <small class="d-block text-secondary mb-2">Puan: {{ participant.score }}</small>
+                            {% endif %}
+                            {% if participant.notes %}
+                              <small class="d-block text-secondary mb-2">{{ participant.notes }}</small>
+                            {% endif %}
+
+                            {% if can_manage_trainings %}
+                              <form class="vstack gap-2" method="post" action="{{ url_for('main.update_training_participant', training_id=training.id, participant_id=participant.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div class="d-flex gap-2">
+                                  <select class="form-select form-select-sm" name="status" aria-label="Katılımcı durumu">
+                                    {% for status in participant_statuses %}
+                                      <option value="{{ status }}" {% if participant.status == status %}selected{% endif %}>{{ status }}</option>
+                                    {% endfor %}
+                                  </select>
+                                  <input class="form-control form-control-sm" name="score" value="{{ participant.score or '' }}" placeholder="Puan">
+                                </div>
+                                <input class="form-control form-control-sm" name="notes" value="{{ participant.notes or '' }}" placeholder="Not">
+                                <button class="btn btn-sm btn-outline-primary" type="submit">
+                                  <i class="bi bi-save"></i>
+                                  <span>Sonucu Kaydet</span>
+                                </button>
+                              </form>
+                            {% elif not participant.is_completed and (participant.user_id == g.current_user.id or (g.current_user.personnel_contact_id and participant.personnel_contact_id == g.current_user.personnel_contact_id)) %}
+                              <form method="post" action="{{ url_for('main.confirm_training_participant', training_id=training.id, participant_id=participant.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-primary" type="submit">
+                                  <i class="bi bi-check2-circle"></i>
+                                  <span>{{ "Okudum" if training.training_type == "Doküman Okuma Onayı" else "Katıldım" }}</span>
+                                </button>
+                              </form>
+                            {% endif %}
+                          </div>
+                        </div>
+                      {% else %}
+                        <div class="col-12">
+                          <div class="border rounded-3 bg-white p-3 text-secondary">Katılımcı bulunmuyor.</div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="8">
+                <strong>Henüz eğitim kaydı yok.</strong>
+                <span>Yeni eğitim eklendiğinde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

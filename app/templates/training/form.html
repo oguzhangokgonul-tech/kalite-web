@@ -1,0 +1,119 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = training is defined and training %}
+{% block title %}{{ "Eğitim Düzenle" if is_edit else "Yeni Eğitim" }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Eğitim Düzenle" if is_edit else "Yeni Eğitim", "Eğitim, doküman okuma-onay ve yeterlilik kayıtlarını personele atayın.", icon="bi-mortarboard") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.training_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Eğitim / Yeterlilik</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="training_no">Eğitim No</label>
+        <input class="form-control" id="training_no" value="{{ training.training_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="title">Eğitim Başlığı</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', training.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="training_type">Tip</label>
+        {% set selected_type = form_data.get('training_type', training.training_type if is_edit else 'Eğitim') %}
+        <select class="form-select" id="training_type" name="training_type" data-training-type>
+          {% for type in types %}
+            <option value="{{ type }}" {% if selected_type == type %}selected{% endif %}>{{ type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="document_id">Bağlı Doküman</label>
+        {% set selected_document = form_data.get('document_id', training.document_id if is_edit else '')|string %}
+        <select class="form-select" id="document_id" name="document_id" data-training-document>
+          <option value="">Yok</option>
+          {% for document in documents %}
+            <option value="{{ document.id }}" {% if selected_document == document.id|string %}selected{% endif %}>{{ document.document_code }} - {{ document.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="instructor_user_id">Eğitmen</label>
+        {% set selected_instructor = form_data.get('instructor_user_id', training.instructor_user_id if is_edit else '')|string %}
+        <select class="form-select" id="instructor_user_id" name="instructor_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_instructor == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', training.status if is_edit else 'Planlandı') %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="planned_date">Plan Tarihi</label>
+        {% set planned_value = form_data.get('planned_date', training.planned_date.isoformat() if is_edit and training.planned_date else '') %}
+        <input class="form-control" id="planned_date" name="planned_date" type="date" value="{{ planned_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', training.due_date.isoformat() if is_edit and training.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="description">Açıklama</label>
+        <textarea class="form-control" id="description" name="description" rows="3">{{ form_data.get('description', training.description if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6">
+        <label class="form-label" for="participant_user_ids">Kullanıcı Katılımcıları</label>
+        <select class="form-select" id="participant_user_ids" name="participant_user_ids" multiple size="8">
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if user.id in selected_user_ids %}selected{% endif %}>{{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label" for="participant_contact_ids">Personel Listesi Katılımcıları</label>
+        <select class="form-select" id="participant_contact_ids" name="participant_contact_ids" multiple size="8">
+          {% for contact in personnel_contacts %}
+            <option value="{{ contact.id }}" {% if contact.id in selected_contact_ids %}selected{% endif %}>{{ contact.full_name }}{% if contact.title %} - {{ contact.title }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.training_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "Güncelle" if is_edit else "Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+
+  <script>
+    (() => {
+      const type = document.querySelector("[data-training-type]");
+      const documentSelect = document.querySelector("[data-training-document]");
+      const sync = () => {
+        documentSelect.required = type.value === "Doküman Okuma Onayı";
+      };
+      type.addEventListener("change", sync);
+      sync();
+    })();
+  </script>
+{% endblock %}

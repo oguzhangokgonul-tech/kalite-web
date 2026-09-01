@@ -121,6 +121,24 @@ PERMISSION_CATALOG = (
         "description": "Risk kayıtlarını silebilir.",
     },
     {
+        "key": "training.view",
+        "label": "Eğitimleri görüntüleme",
+        "group": "Eğitim / Yeterlilik",
+        "description": "Atanan eğitimleri, doküman okuma onaylarını ve yeterlilik özetlerini görüntüler.",
+    },
+    {
+        "key": "training.manage",
+        "label": "Eğitim yönetimi",
+        "group": "Eğitim / Yeterlilik",
+        "description": "Eğitim kaydı oluşturur, katılımcı atar ve sonuçları günceller.",
+    },
+    {
+        "key": "training.delete",
+        "label": "Eğitim silme",
+        "group": "Eğitim / Yeterlilik",
+        "description": "Eğitim ve yeterlilik kayıtlarını silebilir.",
+    },
+    {
         "key": "internal_audit.manage",
         "label": "İç denetim yönetimi",
         "group": "İç Denetim",
@@ -235,6 +253,9 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "risk.manage",
             "risk.delete",
+            "training.view",
+            "training.manage",
+            "training.delete",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -259,6 +280,7 @@ ROLE_DEFINITIONS = (
             "actions.view_all",
             "documents.view",
             "risk.view",
+            "training.view",
             "vehicles.view",
         ],
     },
@@ -274,6 +296,7 @@ ROLE_DEFINITIONS = (
             "maintenance.fault_manage",
             "documents.view",
             "risk.view",
+            "training.view",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -288,6 +311,7 @@ ROLE_DEFINITIONS = (
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "documents.view",
+            "training.view",
             "vehicles.view",
         ],
     },
@@ -298,6 +322,7 @@ ROLE_DEFINITIONS = (
         "description": "Yetkili olduğu sayfaları sadece görüntüler.",
         "permissions": [
             "documents.view",
+            "training.view",
             "vehicles.view",
         ],
     },
@@ -551,6 +576,97 @@ def ensure_runtime_schema():
                 "ON risk_records (company_id, risk_no)"
             )
         )
+
+    if "training_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE training_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    training_no VARCHAR(30) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    training_type VARCHAR(60) NOT NULL DEFAULT 'Eğitim',
+                    description TEXT,
+                    document_id INTEGER,
+                    planned_date DATE,
+                    due_date DATE,
+                    instructor_user_id INTEGER,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Planlandı',
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(document_id) REFERENCES documents (id),
+                    FOREIGN KEY(instructor_user_id) REFERENCES users (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("training_records")
+
+    if "training_records" in tables:
+        for index_name, column_name in (
+            ("ix_training_records_company_id", "company_id"),
+            ("ix_training_records_document_id", "document_id"),
+            ("ix_training_records_instructor_user_id", "instructor_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON training_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_training_records_company_training_no "
+                "ON training_records (company_id, training_no)"
+            )
+        )
+
+    if "training_participants" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE training_participants (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    training_id INTEGER NOT NULL,
+                    user_id INTEGER,
+                    personnel_contact_id INTEGER,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Atandı',
+                    read_confirmed_at DATETIME,
+                    attended_at DATETIME,
+                    score NUMERIC(5, 2),
+                    notes TEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(training_id) REFERENCES training_records (id),
+                    FOREIGN KEY(user_id) REFERENCES users (id),
+                    FOREIGN KEY(personnel_contact_id) REFERENCES personnel_contacts (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("training_participants")
+
+    if "training_participants" in tables:
+        for index_name, column_name in (
+            ("ix_training_participants_company_id", "company_id"),
+            ("ix_training_participants_training_id", "training_id"),
+            ("ix_training_participants_user_id", "user_id"),
+            ("ix_training_participants_personnel_contact_id", "personnel_contact_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON training_participants ({column_name})"
+                )
+            )
 
     if "roles" not in tables:
         db.session.execute(
@@ -941,6 +1057,7 @@ def ensure_runtime_schema():
             "sales_readiness:audit_log",
             "sales_readiness:iso_dashboard",
             "sales_readiness:risk_module",
+            "sales_readiness:training_module",
         ):
             db.session.execute(
                 text(

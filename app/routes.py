@@ -90,6 +90,8 @@ from .models import (
     SuggestionEvaluation,
     SuggestionScore,
     SuggestionScoreParameter,
+    TrainingParticipant,
+    TrainingRecord,
     User,
     UserPermission,
     Vehicle,
@@ -354,6 +356,9 @@ def assigned_tasks_badge_count():
             ),
             InternalAudit.status != "TamamlandÄ±",
         ).count()
+        + scoped_query(TrainingParticipant.query, TrainingParticipant)
+        .filter_by(user_id=user_id, status="Atandı")
+        .count()
     )
 
 
@@ -2175,6 +2180,12 @@ MODULE_ENDPOINTS = {
     "main.create_risk": "risk_management",
     "main.edit_risk": "risk_management",
     "main.delete_risk": "risk_management",
+    "main.training_dashboard": "training",
+    "main.create_training": "training",
+    "main.edit_training": "training",
+    "main.delete_training": "training",
+    "main.confirm_training_participant": "training",
+    "main.update_training_participant": "training",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -6032,6 +6043,23 @@ def iso_dashboard_context(all_actions):
         [risk for risk in open_risks if risk.level == "Yüksek"],
         key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
     )
+    training_records = training_query().all() if can_view_trainings() else []
+    training_participants = [
+        participant
+        for training in training_records
+        for participant in training.participants
+        if can_manage_trainings()
+        or participant.user_id == g.current_user.id
+        or (
+            g.current_user.personnel_contact_id
+            and participant.personnel_contact_id == g.current_user.personnel_contact_id
+        )
+    ]
+    pending_training_participants = [
+        participant
+        for participant in training_participants
+        if participant.status == "Atandı"
+    ]
     upcoming_audits = (
         scoped_query(InternalAudit.query, InternalAudit)
         .filter(
@@ -6124,6 +6152,22 @@ def iso_dashboard_context(all_actions):
                     "status": f"RPN {risk.rpn}",
                 }
                 for risk in high_risks[:3]
+            ],
+        },
+        {
+            "title": "Bekleyen Eğitim",
+            "value": len(pending_training_participants),
+            "subtitle": "Okuma/onay ve katılım bekleyen",
+            "tone": "warning" if pending_training_participants else "success",
+            "icon": "bi-mortarboard",
+            "href": url_for("main.training_dashboard"),
+            "items": [
+                {
+                    "label": participant.training.training_no,
+                    "meta": participant.training.title,
+                    "status": participant.display_name,
+                }
+                for participant in pending_training_participants[:3]
             ],
         },
         {
@@ -6622,6 +6666,380 @@ def risk_dashboard_context():
         "can_delete_risks": can_delete_risks(),
         "risk_level_tone": risk_level_tone,
     }
+
+
+TRAINING_TYPES = ("Doküman Okuma Onayı", "Eğitim", "Sınav / Yeterlilik")
+TRAINING_STATUSES = ("Planlandı", "Devam Ediyor", "Tamamlandı", "İptal")
+TRAINING_PARTICIPANT_STATUSES = (
+    "Atandı",
+    "Okundu",
+    "Katıldı",
+    "Başarılı",
+    "Başarısız",
+    "Muaf",
+)
+TRAINING_COMPLETED_PARTICIPANT_STATUSES = {
+    "Okundu",
+    "Katıldı",
+    "Başarılı",
+    "Başarısız",
+    "Muaf",
+}
+
+
+def can_view_trainings():
+    return current_user_can("training.view") or can_manage_trainings()
+
+
+def can_manage_trainings():
+    return current_user_can("training.manage")
+
+
+def can_delete_trainings():
+    return current_user_can("training.delete")
+
+
+def training_query():
+    query = scoped_query(TrainingRecord.query, TrainingRecord)
+    if can_manage_trainings():
+        return query
+    participant_filters = [TrainingParticipant.user_id == g.current_user.id]
+    if g.current_user.personnel_contact_id:
+        participant_filters.append(
+            TrainingParticipant.personnel_contact_id == g.current_user.personnel_contact_id
+        )
+    return query.filter(TrainingRecord.participants.any(or_(*participant_filters)))
+
+
+def training_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "type": request.args.get("type", "").strip(),
+        "status": request.args.get("status", "").strip(),
+    }
+
+
+def filtered_trainings(filters):
+    query = training_query()
+    if filters["type"]:
+        query = query.filter(TrainingRecord.training_type == filters["type"])
+    if filters["status"]:
+        query = query.filter(TrainingRecord.status == filters["status"])
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                TrainingRecord.training_no.ilike(search_value),
+                TrainingRecord.title.ilike(search_value),
+                TrainingRecord.description.ilike(search_value),
+            )
+        )
+    return query.order_by(
+        TrainingRecord.due_date.asc(),
+        TrainingRecord.planned_date.asc(),
+        TrainingRecord.id.desc(),
+    ).all()
+
+
+def next_training_no():
+    prefix = f"EGT-{date.today().year}-"
+    rows = (
+        scoped_query(TrainingRecord.query.with_entities(TrainingRecord.training_no), TrainingRecord)
+        .filter(TrainingRecord.training_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (training_no,) in rows:
+        try:
+            numbers.append(int((training_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def selected_int_values(field_name):
+    values = []
+    for raw_value in request.form.getlist(field_name):
+        try:
+            values.append(int(raw_value))
+        except (TypeError, ValueError):
+            continue
+    return values
+
+
+def parse_training_form():
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "training_type": request.form.get("training_type", "Eğitim").strip() or "Eğitim",
+        "description": request.form.get("description", "").strip(),
+        "planned_date": parse_optional_date("planned_date"),
+        "due_date": parse_optional_date("due_date"),
+        "document_id": request.form.get("document_id", type=int),
+        "instructor_user_id": request.form.get("instructor_user_id", type=int),
+        "status": request.form.get("status", "Planlandı").strip() or "Planlandı",
+    }
+    participant_user_ids = selected_int_values("participant_user_ids")
+    participant_contact_ids = selected_int_values("participant_contact_ids")
+
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["training_type"] not in TRAINING_TYPES:
+        raise ValueError("invalid_type")
+    if values["status"] not in TRAINING_STATUSES:
+        raise ValueError("invalid_status")
+    if values["training_type"] == "Doküman Okuma Onayı" and not values["document_id"]:
+        raise ValueError("document_required")
+    if not participant_user_ids and not participant_contact_ids:
+        raise ValueError("participants_required")
+
+    if values["document_id"]:
+        document = scoped_query(Document.query, Document).filter_by(
+            id=values["document_id"]
+        ).first()
+        if document is None:
+            raise ValueError("invalid_document")
+    if values["instructor_user_id"] and active_user_by_id(values["instructor_user_id"]) is None:
+        raise ValueError("invalid_instructor")
+
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+
+    return values, participant_user_ids, participant_contact_ids
+
+
+def active_personnel_contacts():
+    return (
+        scoped_query(PersonnelContact.query, PersonnelContact)
+        .filter_by(is_active=True)
+        .order_by(PersonnelContact.full_name.asc())
+        .all()
+    )
+
+
+def documents_for_training():
+    return sort_documents_by_code(document_query().filter(Document.archived_at.is_(None)).all())
+
+
+def validate_training_participant_ids(user_ids, contact_ids):
+    active_user_ids = {user.id for user in active_users()}
+    active_contact_ids = {contact.id for contact in active_personnel_contacts()}
+    if any(user_id not in active_user_ids for user_id in user_ids):
+        raise ValueError("invalid_participant")
+    if any(contact_id not in active_contact_ids for contact_id in contact_ids):
+        raise ValueError("invalid_participant")
+
+
+def apply_training_participants(training, user_ids, contact_ids):
+    validate_training_participant_ids(user_ids, contact_ids)
+    desired_keys = {
+        *{("user", user_id) for user_id in user_ids},
+        *{("contact", contact_id) for contact_id in contact_ids},
+    }
+    existing_by_key = {}
+    for participant in training.participants:
+        key = (
+            ("user", participant.user_id)
+            if participant.user_id
+            else ("contact", participant.personnel_contact_id)
+        )
+        existing_by_key[key] = participant
+
+    for participant in list(training.participants):
+        key = (
+            ("user", participant.user_id)
+            if participant.user_id
+            else ("contact", participant.personnel_contact_id)
+        )
+        if key not in desired_keys:
+            db.session.delete(participant)
+
+    for key in sorted(desired_keys):
+        if key in existing_by_key:
+            continue
+        participant_type, participant_id = key
+        participant = TrainingParticipant(
+            training=training,
+            company_id=training.company_id,
+            user_id=participant_id if participant_type == "user" else None,
+            personnel_contact_id=participant_id if participant_type == "contact" else None,
+            status="Atandı",
+        )
+        db.session.add(participant)
+
+
+def participant_status_tone(status):
+    return {
+        "Atandı": "warning",
+        "Okundu": "success",
+        "Katıldı": "success",
+        "Başarılı": "success",
+        "Başarısız": "danger",
+        "Muaf": "muted",
+    }.get(status, "muted")
+
+
+def training_status_tone(status):
+    return {
+        "Planlandı": "warning",
+        "Devam Ediyor": "blue",
+        "Tamamlandı": "success",
+        "İptal": "muted",
+    }.get(status, "muted")
+
+
+def training_progress(training):
+    total = len(training.participants)
+    completed = sum(1 for participant in training.participants if participant.is_completed)
+    return {
+        "total": total,
+        "completed": completed,
+        "percent": round((completed / total) * 100) if total else 0,
+    }
+
+
+def training_dashboard_context():
+    filters = training_filters()
+    trainings = filtered_trainings(filters)
+    all_trainings = training_query().all()
+    participants = [
+        participant
+        for training in all_trainings
+        for participant in training.participants
+    ]
+    pending_count = sum(1 for participant in participants if participant.status == "Atandı")
+    completed_count = sum(
+        1
+        for participant in participants
+        if participant.status in TRAINING_COMPLETED_PARTICIPANT_STATUSES
+    )
+    document_read_count = sum(
+        1
+        for training in all_trainings
+        if training.training_type == "Doküman Okuma Onayı"
+    )
+    return {
+        "trainings": trainings,
+        "total_count": len(all_trainings),
+        "pending_count": pending_count,
+        "completed_count": completed_count,
+        "document_read_count": document_read_count,
+        "filters": filters,
+        "types": TRAINING_TYPES,
+        "statuses": TRAINING_STATUSES,
+        "participant_statuses": TRAINING_PARTICIPANT_STATUSES,
+        "can_manage_trainings": can_manage_trainings(),
+        "can_delete_trainings": can_delete_trainings(),
+        "training_progress": training_progress,
+        "training_status_tone": training_status_tone,
+        "participant_status_tone": participant_status_tone,
+    }
+
+
+def training_form_context(training=None):
+    selected_user_ids = []
+    selected_contact_ids = []
+    if training is not None and request.method != "POST":
+        selected_user_ids = [
+            participant.user_id
+            for participant in training.participants
+            if participant.user_id
+        ]
+        selected_contact_ids = [
+            participant.personnel_contact_id
+            for participant in training.participants
+            if participant.personnel_contact_id
+        ]
+    elif request.method == "POST":
+        selected_user_ids = selected_int_values("participant_user_ids")
+        selected_contact_ids = selected_int_values("participant_contact_ids")
+
+    return {
+        "training": training,
+        "types": TRAINING_TYPES,
+        "statuses": TRAINING_STATUSES,
+        "users": active_users(),
+        "personnel_contacts": active_personnel_contacts(),
+        "documents": documents_for_training(),
+        "selected_user_ids": selected_user_ids,
+        "selected_contact_ids": selected_contact_ids,
+        "form_data": request.form if request.method == "POST" else {},
+    }
+
+
+def get_training_participant(training_id, participant_id):
+    training = training_query().filter_by(id=training_id).first_or_404()
+    ensure_same_company(training)
+    participant = TrainingParticipant.query.filter_by(
+        id=participant_id,
+        training_id=training.id,
+    ).first_or_404()
+    ensure_same_company(participant)
+    return training, participant
+
+
+def can_confirm_training_participant(participant):
+    return (
+        can_manage_trainings()
+        or participant.user_id == g.current_user.id
+        or (
+            g.current_user.personnel_contact_id
+            and participant.personnel_contact_id == g.current_user.personnel_contact_id
+        )
+    )
+
+
+def parse_participant_result():
+    status = request.form.get("status", "Katıldı").strip() or "Katıldı"
+    if status not in TRAINING_PARTICIPANT_STATUSES:
+        raise ValueError("invalid_participant_status")
+    score = request.form.get("score", "").strip()
+    if score:
+        try:
+            score = Decimal(score.replace(",", "."))
+        except (InvalidOperation, AttributeError):
+            raise ValueError("invalid_score")
+    else:
+        score = None
+    notes = request.form.get("notes", "").strip() or None
+    return status, score, notes
+
+
+def set_training_participant_status(participant, status, score=None, notes=None):
+    now = datetime.utcnow()
+    participant.status = status
+    participant.score = score
+    participant.notes = notes
+    if status == "Okundu":
+        participant.read_confirmed_at = participant.read_confirmed_at or now
+    if status in {"Katıldı", "Başarılı", "Başarısız", "Muaf"}:
+        participant.attended_at = participant.attended_at or now
+
+
+def sync_training_status(training):
+    if training.status == "İptal":
+        return
+    if not training.participants:
+        return
+    if all(participant.is_completed for participant in training.participants):
+        training.status = "Tamamlandı"
+    elif any(participant.status != "Atandı" for participant in training.participants):
+        training.status = "Devam Ediyor"
+
+
+def training_form_error_message(error_key):
+    return {
+        "required_fields": "Eğitim başlığı zorunludur.",
+        "invalid_type": "Geçerli bir eğitim tipi seçin.",
+        "invalid_status": "Geçerli bir eğitim durumu seçin.",
+        "document_required": "Doküman okuma onayı için doküman seçin.",
+        "invalid_document": "Geçerli bir doküman seçin.",
+        "invalid_instructor": "Geçerli bir eğitmen seçin.",
+        "participants_required": "En az bir katılımcı seçin.",
+        "invalid_participant": "Katılımcı listesini kontrol edin.",
+        "invalid_participant_status": "Geçerli bir katılımcı durumu seçin.",
+        "invalid_score": "Puan alanına sayısal değer girin.",
+    }.get(error_key, "Eğitim kaydı kaydedilemedi.")
 
 
 def delete_uploaded_file(action):
@@ -8589,6 +9007,112 @@ def delete_risk(risk_id):
     db.session.commit()
     flash("Risk kaydı silindi.", "success")
     return redirect(url_for("main.risk_dashboard"))
+
+
+@bp.route("/egitim-yeterlilik")
+@login_required
+def training_dashboard():
+    if not can_view_trainings():
+        abort(403)
+    return render_template("training/dashboard.html", **training_dashboard_context())
+
+
+@bp.route("/egitim-yeterlilik/yeni", methods=["GET", "POST"])
+@login_required
+def create_training():
+    if not can_manage_trainings():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values, participant_user_ids, participant_contact_ids = parse_training_form()
+            training = TrainingRecord(
+                training_no=next_training_no(),
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(training)
+            db.session.add(training)
+            apply_training_participants(training, participant_user_ids, participant_contact_ids)
+            sync_training_status(training)
+            db.session.commit()
+            flash("Eğitim kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.training_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(training_form_error_message(str(error)), "danger")
+
+    return render_template("training/form.html", **training_form_context())
+
+
+@bp.route("/egitim-yeterlilik/<int:training_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_training(training_id):
+    if not can_manage_trainings():
+        abort(403)
+    training = training_query().filter_by(id=training_id).first_or_404()
+    ensure_same_company(training)
+
+    if request.method == "POST":
+        try:
+            values, participant_user_ids, participant_contact_ids = parse_training_form()
+            for key, value in values.items():
+                setattr(training, key, value)
+            apply_training_participants(training, participant_user_ids, participant_contact_ids)
+            sync_training_status(training)
+            db.session.commit()
+            flash("Eğitim kaydı güncellendi.", "success")
+            return redirect(url_for("main.training_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(training_form_error_message(str(error)), "danger")
+
+    return render_template("training/form.html", **training_form_context(training))
+
+
+@bp.post("/egitim-yeterlilik/<int:training_id>/sil")
+@login_required
+def delete_training(training_id):
+    if not can_delete_trainings():
+        abort(403)
+    training = training_query().filter_by(id=training_id).first_or_404()
+    ensure_same_company(training)
+    db.session.delete(training)
+    db.session.commit()
+    flash("Eğitim kaydı silindi.", "success")
+    return redirect(url_for("main.training_dashboard"))
+
+
+@bp.post("/egitim-yeterlilik/<int:training_id>/katilimci/<int:participant_id>/onayla")
+@login_required
+def confirm_training_participant(training_id, participant_id):
+    training, participant = get_training_participant(training_id, participant_id)
+    if not can_confirm_training_participant(participant):
+        abort(403)
+    status = "Okundu" if training.training_type == "Doküman Okuma Onayı" else "Katıldı"
+    set_training_participant_status(participant, status)
+    sync_training_status(training)
+    db.session.commit()
+    flash("Eğitim/okuma onayı kaydedildi.", "success")
+    return redirect(url_for("main.training_dashboard"))
+
+
+@bp.post("/egitim-yeterlilik/<int:training_id>/katilimci/<int:participant_id>/sonuc")
+@login_required
+def update_training_participant(training_id, participant_id):
+    if not can_manage_trainings():
+        abort(403)
+    training, participant = get_training_participant(training_id, participant_id)
+    try:
+        status, score, notes = parse_participant_result()
+        set_training_participant_status(participant, status, score=score, notes=notes)
+        sync_training_status(training)
+        db.session.commit()
+        flash("Katılımcı sonucu güncellendi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        flash(training_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.training_dashboard"))
 
 
 @bp.route("/denetim-logu")
