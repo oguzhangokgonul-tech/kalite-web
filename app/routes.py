@@ -11310,8 +11310,12 @@ def audit_log():
     if not can_view_audit_log():
         abort(403)
 
+    query = AuditLog.query
+    if not is_superadmin_account():
+        query = query.filter(AuditLog.entity_type != "DatabaseSafety")
+
     logs = (
-        scoped_query(AuditLog.query, AuditLog)
+        scoped_query(query, AuditLog)
         .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         .limit(250)
         .all()

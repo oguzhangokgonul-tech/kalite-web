@@ -142,6 +142,57 @@ def test_audit_log_page_renders_for_manager(app, client):
     assert "Güncellendi" in body
 
 
+def test_audit_log_hides_database_safety_entries_from_non_superadmin(app, client):
+    user = create_user("manager", "roles.manage")
+    db.session.add_all(
+        [
+            AuditLog(
+                user_id=user.id,
+                entity_type="Action",
+                entity_id="1",
+                action="updated",
+                summary="Normal kayit",
+            ),
+            AuditLog(
+                entity_type="DatabaseSafety",
+                action="backup_created",
+                summary="SQLite veritabani yedegi olusturuldu",
+                new_values='{"backup_path": "/var/www/aksiyon-takip/instance/backups/actions.sqlite3"}',
+            ),
+        ]
+    )
+    db.session.commit()
+    login(client, user)
+
+    response = client.get("/denetim-logu")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Normal kayit" in body
+    assert "DatabaseSafety" not in body
+    assert "/var/www/aksiyon-takip" not in body
+
+
+def test_audit_log_shows_database_safety_entries_to_superadmin_account(app, client):
+    user = create_user("superadmin", "roles.manage")
+    db.session.add(
+        AuditLog(
+            entity_type="DatabaseSafety",
+            action="backup_created",
+            summary="SQLite veritabani yedegi olusturuldu",
+        )
+    )
+    db.session.commit()
+    login(client, user)
+
+    response = client.get("/denetim-logu")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "DatabaseSafety" in body
+    assert "SQLite veritabani yedegi olusturuldu" in body
+
+
 def test_runtime_schema_marks_sales_readiness_audit_log_done(app):
     AppSetting.query.delete()
     db.session.commit()

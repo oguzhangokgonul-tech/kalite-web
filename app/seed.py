@@ -1503,6 +1503,7 @@ def ensure_runtime_schema():
             "sales_readiness:module_based_menu",
             "sales_readiness:demo_data_split",
             "sales_readiness:month1_tests",
+            "sales_readiness:month1_sqlite",
         ):
             db.session.execute(
                 text(

@@ -211,6 +211,89 @@ def create_app(config_class=Config):
         if tenant_health_has_failures(checks):
             raise click.ClickException("Tenant health kontrolu basarisiz.")
 
+    @app.cli.command("db-check")
+    @with_appcontext
+    def db_check_command():
+        from .database_ops import (
+            DatabaseOperationError,
+            record_database_audit,
+            sqlite_health_check,
+        )
+
+        try:
+            check = sqlite_health_check()
+        except DatabaseOperationError as error:
+            raise click.ClickException(str(error))
+
+        click.echo(f"Veritabani: {check.source_path}")
+        click.echo(f"Boyut: {check.size_bytes} bayt")
+        click.echo(f"quick_check: {check.quick_check}")
+        click.echo(f"integrity_check: {check.integrity_check}")
+        click.echo(f"Alembic mevcut: {check.alembic_version or '-'}")
+        click.echo(f"Alembic beklenen: {check.expected_revision or '-'}")
+        if check.migration_warning:
+            click.echo("UYARI: Alembic surumu beklenen head ile ayni degil.")
+
+        record_database_audit(
+            "integrity_checked",
+            "SQLite veritabani butunluk kontrolu",
+            {
+                "database_path": str(check.source_path),
+                "size_bytes": check.size_bytes,
+                "quick_check": check.quick_check,
+                "integrity_check": check.integrity_check,
+                "alembic_version": check.alembic_version,
+                "expected_revision": check.expected_revision,
+            },
+        )
+
+        if not check.is_ok:
+            raise click.ClickException("SQLite butunluk kontrolu basarisiz.")
+
+    @app.cli.command("db-backup")
+    @click.option(
+        "--output-dir",
+        type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+        default=None,
+        help="Yedegin yazilacagi klasor. Varsayilan: DATA_DIR/backups.",
+    )
+    @click.option(
+        "--keep-last",
+        type=int,
+        default=None,
+        help="Ayni veritabani icin tutulacak son yedek adedi.",
+    )
+    @with_appcontext
+    def db_backup_command(output_dir, keep_last):
+        from .database_ops import (
+            DatabaseOperationError,
+            create_sqlite_backup,
+            record_database_audit,
+        )
+
+        try:
+            result = create_sqlite_backup(output_dir=output_dir, keep_last=keep_last)
+        except DatabaseOperationError as error:
+            raise click.ClickException(str(error))
+
+        click.echo(f"Yedek olusturuldu: {result.backup_path}")
+        click.echo(f"Kaynak: {result.source_path}")
+        click.echo(f"Boyut: {result.size_bytes} bayt")
+        click.echo(f"quick_check: {result.quick_check}")
+        click.echo(f"integrity_check: {result.integrity_check}")
+
+        record_database_audit(
+            "backup_created",
+            "SQLite veritabani yedegi olusturuldu",
+            {
+                "source_path": str(result.source_path),
+                "backup_path": str(result.backup_path),
+                "size_bytes": result.size_bytes,
+                "quick_check": result.quick_check,
+                "integrity_check": result.integrity_check,
+            },
+        )
+
     @app.cli.command("company-bootstrap")
     @click.argument("company_code")
     @with_appcontext
