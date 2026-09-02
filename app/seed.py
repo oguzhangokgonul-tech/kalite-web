@@ -287,10 +287,14 @@ PERMISSION_CATALOG = (
 DEFAULT_COMPANIES = (
     {
         "code": "000",
+        "package_key": "iso_core",
+        "is_demo": True,
         "name": "Deneme Hesabı",
     },
     {
         "code": "001",
+        "package_key": "production_plus",
+        "is_demo": False,
         "name": "Er Prefabrik",
     },
 )
@@ -620,6 +624,23 @@ def ensure_runtime_schema():
                     f"ON audit_logs ({column_name})"
                 )
             )
+
+    if "companies" in tables:
+        columns = {column["name"] for column in inspector.get_columns("companies")}
+        company_columns = {
+            "package_key": (
+                "ALTER TABLE companies "
+                "ADD COLUMN package_key VARCHAR(40) NOT NULL DEFAULT 'production_plus'"
+            ),
+            "is_demo": (
+                "ALTER TABLE companies "
+                "ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT 0"
+            ),
+        }
+        for column_name, statement in company_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
 
     if "company_departments" not in tables:
         db.session.execute(
@@ -1476,6 +1497,11 @@ def ensure_runtime_schema():
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",
             "sales_readiness:onboarding_wizard",
+            "sales_readiness:core_package",
+            "sales_readiness:optional_production_modules",
+            "sales_readiness:suggestion_core",
+            "sales_readiness:module_based_menu",
+            "sales_readiness:demo_data_split",
         ):
             db.session.execute(
                 text(
@@ -1494,6 +1520,8 @@ def ensure_default_companies():
             company = Company(code=item["code"])
             db.session.add(company)
         company.name = item["name"]
+        company.package_key = item.get("package_key", "production_plus")
+        company.is_demo = bool(item.get("is_demo", False))
         company.is_active = True
     db.session.flush()
 

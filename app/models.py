@@ -36,6 +36,8 @@ class Company(db.Model):
     slug = db.Column(db.String(80), nullable=True, unique=True)
     primary_domain = db.Column(db.String(255), nullable=True, unique=True)
     custom_domain = db.Column(db.String(255), nullable=True, unique=True)
+    package_key = db.Column(db.String(40), nullable=False, default="production_plus")
+    is_demo = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(

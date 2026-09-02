@@ -34,6 +34,8 @@
             <th>&#350;irket</th>
             <th>Adres</th>
             <th>Durum</th>
+            <th>Paket</th>
+            <th>Veri</th>
             <th>Haz&#305;rl&#305;k</th>
             <th>Kullan&#305;c&#305;</th>
             <th>Aksiyon</th>
@@ -64,6 +66,16 @@
               </td>
               <td>{{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}</td>
               <td>
+                <span class="company-code-badge">{{ package_label(company.package_key) }}</span>
+              </td>
+              <td>
+                {% if company.is_demo %}
+                  {{ ui.status_badge("Demo", tone="info", icon="bi-database-check") }}
+                {% else %}
+                  {{ ui.status_badge("Ger&#231;ek"|safe, tone="success", icon="bi-building-check") }}
+                {% endif %}
+              </td>
+              <td>
                 {% if setup_missing %}
                   {{ ui.status_badge("Eksik", tone="warning", icon="bi-exclamation-triangle-fill", title=missing_keys|join(", ")) }}
                 {% else %}
@@ -88,7 +100,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="11" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
+              <td colspan="13" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
             </tr>
           {% endfor %}
         </tbody>

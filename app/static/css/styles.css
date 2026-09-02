@@ -12376,6 +12376,14 @@ textarea.form-control::placeholder {
     border-radius: 14px;
 }
 
+.company-package-panel {
+    margin-top: 24px;
+    padding: 18px;
+    background: #ffffff;
+    border: 1px solid #dce7f5;
+    border-radius: 14px;
+}
+
 .company-module-panel-header {
     display: flex;
     align-items: flex-start;
@@ -12420,6 +12428,12 @@ textarea.form-control::placeholder {
     gap: 10px;
 }
 
+.company-package-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
 .company-module-toggle {
     display: grid;
     grid-template-columns: auto 38px minmax(0, 1fr);
@@ -12432,6 +12446,29 @@ textarea.form-control::placeholder {
     border: 1px solid #d8e4f2;
     border-radius: 12px;
     transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.company-package-option {
+    display: grid;
+    grid-template-columns: auto 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 88px;
+    margin: 0;
+    padding: 12px;
+    background: #fbfdff;
+    border: 1px solid #d8e4f2;
+    border-radius: 12px;
+}
+
+.company-package-option:has(input:checked) {
+    background: #edf5ff;
+    border-color: #9ec5fe;
+    box-shadow: 0 10px 24px rgba(13, 110, 253, 0.08);
+}
+
+.company-package-option .form-check-input {
+    margin: 0;
 }
 
 .company-module-toggle:hover {
@@ -12639,7 +12676,7 @@ textarea.form-control::placeholder {
 
 .onboarding-company-summary {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 12px;
     margin-bottom: 18px;
 }
@@ -12718,6 +12755,10 @@ textarea.form-control::placeholder {
     }
 
     .company-module-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .company-package-grid {
         grid-template-columns: 1fr;
     }
 

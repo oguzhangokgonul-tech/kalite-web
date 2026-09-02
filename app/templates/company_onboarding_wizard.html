@@ -77,6 +77,14 @@
             <span>Durum</span>
             {{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}
           </div>
+          <div>
+            <span>Paket</span>
+            <strong>{{ package_label(company.package_key) }}</strong>
+          </div>
+          <div>
+            <span>Veri Tipi</span>
+            {{ ui.status_badge("Demo" if company.is_demo else "Ger&#231;ek M&#252;&#351;teri"|safe, tone="info" if company.is_demo else "success", icon="bi-database-check") }}
+          </div>
         </div>
 
         <div class="onboarding-summary-section">
@@ -172,20 +180,39 @@
                 </span>
               </label>
             </div>
+            <div class="col-12">
+              <label class="company-active-toggle" for="is_demo">
+                <input class="form-check-input" id="is_demo" name="is_demo" type="checkbox" {% if request.form.get('is_demo') == 'on' %}checked{% endif %}>
+                <span>
+                  <strong>Demo firma</strong>
+                  <small>Demo ortam&#305; ve ger&#231;ek m&#252;&#351;teri verisini ayr&#305; tutmak i&#231;in i&#351;aretlenir.</small>
+                </span>
+              </label>
+            </div>
           </div>
         </section>
 
         <aside class="app-card onboarding-next-card">
           {{ ui.card_header("H&#305;zl&#305; Paket"|safe, "KOB&#304; ISO 9001 demo kurulumu i&#231;in &#231;ekirdek paket varsay&#305;lan gelir."|safe, icon="bi-boxes") }}
           <div class="onboarding-preset-row">
-            <button class="btn btn-outline-primary active" type="button" data-onboarding-preset="core">
-              <i class="bi bi-patch-check"></i>
-              <span>KYS &#199;ekirdek</span>
-            </button>
-            <button class="btn btn-outline-secondary" type="button" data-onboarding-preset="all">
-              <i class="bi bi-grid"></i>
-              <span>&#220;retim Plus</span>
-            </button>
+            {% for package in package_catalog %}
+              <label class="company-package-option" for="wizard_package_{{ package.key }}">
+                <input
+                  class="form-check-input"
+                  id="wizard_package_{{ package.key }}"
+                  name="package_key"
+                  type="radio"
+                  value="{{ package.key }}"
+                  data-package-key="{{ package.key }}"
+                  {% if package.key == package_key %}checked{% endif %}
+                >
+                <span class="company-module-icon"><i class="bi {{ package.icon }}"></i></span>
+                <span class="company-module-copy">
+                  <strong>{{ package.name }}</strong>
+                  <small>{{ package.description }}</small>
+                </span>
+              </label>
+            {% endfor %}
           </div>
           <label class="company-active-toggle mt-3" for="create_document_categories">
             <input class="form-check-input" id="create_document_categories" name="create_document_categories" type="checkbox" checked>
@@ -297,7 +324,8 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const moduleInputs = Array.from(document.querySelectorAll("[data-module-key]"));
-        const presetButtons = Array.from(document.querySelectorAll("[data-onboarding-preset]"));
+        const packageInputs = Array.from(document.querySelectorAll("[data-package-key]"));
+        const customPackageInput = document.querySelector('[data-package-key="{{ custom_package_key }}"]');
         const parentInput = document.querySelector('[data-module-key="quality_tests"]');
         const childInputs = Array.from(document.querySelectorAll("[data-module-parent='quality_tests']"));
 
@@ -314,15 +342,29 @@
           });
         };
 
-        presetButtons.forEach(function (button) {
-          button.addEventListener("click", function () {
-            const preset = button.dataset.onboardingPreset;
-            presetButtons.forEach(function (item) {
-              item.classList.toggle("active", item === button);
-            });
-            moduleInputs.forEach(function (input) {
-              input.checked = preset === "all" ? input.dataset.production === "1" : input.dataset.core === "1";
-            });
+        const applyPackage = function (packageKey) {
+          if (packageKey === "{{ custom_package_key }}") {
+            return;
+          }
+          moduleInputs.forEach(function (input) {
+            input.checked = packageKey === "production_plus" ? input.dataset.production === "1" : input.dataset.core === "1";
+          });
+          syncChildren();
+        };
+
+        packageInputs.forEach(function (input) {
+          input.addEventListener("change", function () {
+            if (input.checked) {
+              applyPackage(input.dataset.packageKey);
+            }
+          });
+        });
+
+        moduleInputs.forEach(function (input) {
+          input.addEventListener("change", function () {
+            if (customPackageInput) {
+              customPackageInput.checked = true;
+            }
             syncChildren();
           });
         });

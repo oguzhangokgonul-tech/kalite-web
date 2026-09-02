@@ -121,6 +121,18 @@ from .tenant import (
     tenant_url_for_company,
 )
 from .company_onboarding import ensure_company_department_schema
+from .company_packages import (
+    CUSTOM_PACKAGE_KEY,
+    DEFAULT_PACKAGE_KEY,
+    ISO_CORE_MODULE_KEYS,
+    PACKAGE_CATALOG,
+    PRODUCTION_PLUS_MODULE_KEYS,
+    ensure_company_package_schema,
+    get_package_module_keys,
+    infer_package_from_modules,
+    normalize_package_key,
+    package_label,
+)
 
 
 bp = Blueprint("main", __name__)
@@ -378,6 +390,7 @@ def assigned_tasks_badge_count():
 @bp.before_app_request
 def load_logged_in_user():
     ensure_personnel_identity_columns()
+    ensure_company_package_schema()
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
     g.current_company = None
@@ -2355,6 +2368,9 @@ def sync_company_modules(company, selected_keys=None):
 def company_module_form_state(company):
     if request.method == "POST":
         return {key: key in selected_company_module_keys_from_form() for key in COMPANY_MODULE_KEYS}
+    if company is None:
+        selected_keys = get_package_module_keys(DEFAULT_PACKAGE_KEY)
+        return {key: key in selected_keys for key in COMPANY_MODULE_KEYS}
     return company_module_state(company)
 
 
@@ -9323,6 +9339,10 @@ def parse_company_form(company=None):
     company.slug = slug
     company.primary_domain = primary_domain
     company.custom_domain = custom_domain or None
+    company.package_key = selected_company_package_key(
+        getattr(company, "package_key", DEFAULT_PACKAGE_KEY)
+    )
+    company.is_demo = selected_company_data_profile()
     company.is_active = request.form.get("is_active") == "on"
     return company
 
@@ -9339,21 +9359,8 @@ def flash_company_form_error(error):
         flash("Åirket formunu kontrol edin.", "danger")
 
 
-ONBOARDING_CORE_MODULE_KEYS = {
-    "organization",
-    "calibration",
-    "human_resources",
-    "suggestions",
-    "if_management",
-    "risk_management",
-    "training",
-    "internal_audit",
-    "management_review",
-    "supplier_management",
-    "report_center",
-    "documents",
-}
-ONBOARDING_PRODUCTION_MODULE_KEYS = set(COMPANY_MODULE_KEYS)
+ONBOARDING_CORE_MODULE_KEYS = ISO_CORE_MODULE_KEYS
+ONBOARDING_PRODUCTION_MODULE_KEYS = PRODUCTION_PLUS_MODULE_KEYS
 ONBOARDING_INITIAL_ROLE_KEYS = (
     "management_representative",
     "management",
@@ -9372,11 +9379,41 @@ def next_company_code():
     return f"{next_code:03d}"[-3:]
 
 
+def selected_company_package_key(default_key=None):
+    default_key = default_key or DEFAULT_PACKAGE_KEY
+    return normalize_package_key(request.form.get("package_key") or default_key)
+
+
+def resolved_company_package_key(selected_keys, requested_package_key):
+    requested_package_key = normalize_package_key(requested_package_key)
+    if requested_package_key == CUSTOM_PACKAGE_KEY:
+        return CUSTOM_PACKAGE_KEY
+    if set(selected_keys) == get_package_module_keys(requested_package_key):
+        return requested_package_key
+    return infer_package_from_modules(selected_keys)
+
+
+def selected_company_data_profile():
+    return request.form.get("is_demo") == "on"
+
+
+def mark_packaging_sales_readiness_without_commit():
+    for item_id in (
+        "core_package",
+        "optional_production_modules",
+        "suggestion_core",
+        "module_based_menu",
+        "demo_data_split",
+    ):
+        mark_sales_readiness_item_done_without_commit(item_id)
+
+
 def onboarding_module_state():
     if request.method == "POST":
         selected_keys = selected_company_module_keys_from_form()
     else:
-        selected_keys = ONBOARDING_CORE_MODULE_KEYS
+        package_key = selected_company_package_key()
+        selected_keys = get_package_module_keys(package_key)
     return {key: key in selected_keys for key in COMPANY_MODULE_KEYS}
 
 
@@ -9517,6 +9554,11 @@ def flash_company_onboarding_error(error):
 
 
 def company_onboarding_context(company=None):
+    current_package_key = (
+        selected_company_package_key(getattr(company, "package_key", DEFAULT_PACKAGE_KEY))
+        if request.method == "POST" or company is not None
+        else DEFAULT_PACKAGE_KEY
+    )
     selected_departments = (
         selected_onboarding_department_names()
         if request.method == "POST"
@@ -9547,6 +9589,10 @@ def company_onboarding_context(company=None):
         "workspace": workspace,
         "existing_departments": existing_departments,
         "next_company_code": request.form.get("code", next_company_code()),
+        "package_catalog": PACKAGE_CATALOG,
+        "package_key": current_package_key,
+        "package_label": package_label,
+        "custom_package_key": CUSTOM_PACKAGE_KEY,
         "module_catalog": company_module_catalog(),
         "module_state": onboarding_module_state() if company is None else company_module_state(company),
         "core_module_keys": ONBOARDING_CORE_MODULE_KEYS,
@@ -15444,6 +15490,7 @@ def companies():
         companies=company_list,
         company_stats=company_stats,
         company_workspace=company_workspace,
+        package_label=package_label,
     )
 
 
@@ -15470,6 +15517,10 @@ def company_onboarding_wizard():
                 department_names=department_names,
             )
             sync_company_modules(company, selected_module_keys)
+            company.package_key = resolved_company_package_key(
+                selected_module_keys,
+                company.package_key,
+            )
             initial_user = create_company_onboarding_user(company)
             db.session.add(initial_user)
             db.session.flush()
@@ -15501,6 +15552,7 @@ def company_onboarding_wizard():
                 )
             )
             mark_sales_readiness_item_done_without_commit("onboarding_wizard")
+            mark_packaging_sales_readiness_without_commit()
             db.session.commit()
             flash(f"{company.label} kurulumu tamamlandi.", "success")
             return redirect(url_for("main.company_onboarding_status", company_id=company.id))
@@ -15581,14 +15633,21 @@ def create_company():
             from .company_onboarding import initialize_company_workspace
 
             company = parse_company_form()
+            selected_module_keys = selected_company_module_keys_from_form()
             db.session.add(company)
             db.session.flush()
             initialize_company_workspace(company)
-            sync_company_modules(company, selected_company_module_keys_from_form())
+            sync_company_modules(company, selected_module_keys)
+            company.package_key = resolved_company_package_key(
+                selected_module_keys,
+                company.package_key,
+            )
+            mark_packaging_sales_readiness_without_commit()
             db.session.commit()
             flash(f"{company.label} ÅŸirketi oluÅŸturuldu.", "success")
             return redirect(url_for("main.companies"))
-        except ValueError as error:
+        except (ValueError, IntegrityError) as error:
+            db.session.rollback()
             flash_company_form_error(error)
 
     return render_template(
@@ -15597,8 +15656,13 @@ def create_company():
         title="Yeni Åirket",
         description="VolkaPortal iÃ§in boÅŸ baÅŸlayacak yeni bir firma oluÅŸturun.",
         form_action=url_for("main.create_company"),
+        package_catalog=PACKAGE_CATALOG,
+        package_key=selected_company_package_key() if request.method == "POST" else DEFAULT_PACKAGE_KEY,
+        custom_package_key=CUSTOM_PACKAGE_KEY,
         module_catalog=company_module_catalog(),
         module_state=company_module_form_state(None),
+        core_module_keys=ISO_CORE_MODULE_KEYS,
+        production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
         submit_label="Åirketi Kaydet",
     )
 
@@ -15612,11 +15676,18 @@ def edit_company(company_id):
     if request.method == "POST":
         try:
             parse_company_form(company)
-            sync_company_modules(company, selected_company_module_keys_from_form())
+            selected_module_keys = selected_company_module_keys_from_form()
+            sync_company_modules(company, selected_module_keys)
+            company.package_key = resolved_company_package_key(
+                selected_module_keys,
+                company.package_key,
+            )
+            mark_packaging_sales_readiness_without_commit()
             db.session.commit()
             flash(f"{company.label} ÅŸirketi gÃ¼ncellendi.", "success")
             return redirect(url_for("main.companies"))
-        except ValueError as error:
+        except (ValueError, IntegrityError) as error:
+            db.session.rollback()
             flash_company_form_error(error)
 
     return render_template(
@@ -15625,8 +15696,13 @@ def edit_company(company_id):
         title="Åirket DÃ¼zenle",
         description=f"{company.label} kaydÄ±nÄ± gÃ¼ncelleyin.",
         form_action=url_for("main.edit_company", company_id=company.id),
+        package_catalog=PACKAGE_CATALOG,
+        package_key=selected_company_package_key(company.package_key) if request.method == "POST" else normalize_package_key(company.package_key),
+        custom_package_key=CUSTOM_PACKAGE_KEY,
         module_catalog=company_module_catalog(),
         module_state=company_module_form_state(company),
+        core_module_keys=ISO_CORE_MODULE_KEYS,
+        production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
         submit_label="DeÄŸiÅŸiklikleri Kaydet",
     )
 

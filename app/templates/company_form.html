@@ -115,6 +115,55 @@
             </span>
           </label>
         </div>
+        <div class="col-12">
+          <label class="company-active-toggle" for="is_demo">
+            <input
+              class="form-check-input"
+              id="is_demo"
+              name="is_demo"
+              type="checkbox"
+              {% if request.method == 'POST' %}
+                {% if request.form.get('is_demo') == 'on' %}checked{% endif %}
+              {% elif company and company.is_demo %}
+                checked
+              {% endif %}
+            >
+            <span>
+              <strong>Demo firma</strong>
+              <small>Demo verisi ve ger&#231;ek m&#252;&#351;teri verisini ay&#305;rmak i&#231;in kullan&#305;l&#305;r.</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="company-package-panel">
+        <div class="company-module-panel-header">
+          <div>
+            <h3>Paket Se&#231;imi</h3>
+            <p>Sat&#305;&#351; paketini se&#231;in. Mod&#252;lleri elle de&#287;i&#351;tirirseniz paket otomatik olarak &#214;zel Paket say&#305;l&#305;r.</p>
+          </div>
+          <span class="company-module-note">M&#252;&#351;teri paketi</span>
+        </div>
+        <div class="company-package-grid">
+          {% for package in package_catalog %}
+            <label class="company-package-option" for="package_{{ package.key }}">
+              <input
+                class="form-check-input"
+                id="package_{{ package.key }}"
+                name="package_key"
+                type="radio"
+                value="{{ package.key }}"
+                data-package-key="{{ package.key }}"
+                {% if package.key == package_key %}checked{% endif %}
+              >
+              <span class="company-module-icon"><i class="bi {{ package.icon }}"></i></span>
+              <span class="company-module-copy">
+                <strong>{{ package.name }}</strong>
+                <small>{{ package.description }}</small>
+              </span>
+            </label>
+          {% endfor %}
+        </div>
       </div>
 
       <div class="company-module-panel">
@@ -137,6 +186,8 @@
                 value="{{ module.key }}"
                 data-module-key="{{ module.key }}"
                 {% if module.parent_key %}data-module-parent="{{ module.parent_key }}"{% endif %}
+                data-core="{{ '1' if module.key in core_module_keys else '0' }}"
+                data-production="{{ '1' if module.key in production_module_keys else '0' }}"
                 {% if module_state.get(module.key, True) %}checked{% endif %}
               >
               <span class="company-module-icon"><i class="bi {{ module.icon }}"></i></span>
@@ -176,13 +227,16 @@
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
+      const moduleInputs = Array.from(document.querySelectorAll("[data-module-key]"));
+      const packageInputs = Array.from(document.querySelectorAll("[data-package-key]"));
       const parentInput = document.querySelector('[data-module-key="quality_tests"]');
       const childInputs = Array.from(document.querySelectorAll("[data-module-parent='quality_tests']"));
-      if (!parentInput || !childInputs.length) {
-        return;
-      }
+      const customPackageInput = document.querySelector('[data-package-key="{{ custom_package_key }}"]');
 
       const syncChildren = function () {
+        if (!parentInput) {
+          return;
+        }
         childInputs.forEach(function (input) {
           input.disabled = !parentInput.checked;
           input.closest(".company-module-toggle").classList.toggle("is-disabled", !parentInput.checked);
@@ -192,7 +246,36 @@
         });
       };
 
-      parentInput.addEventListener("change", syncChildren);
+      const applyPackage = function (packageKey) {
+        if (packageKey === "{{ custom_package_key }}") {
+          return;
+        }
+        moduleInputs.forEach(function (input) {
+          input.checked = packageKey === "production_plus" ? input.dataset.production === "1" : input.dataset.core === "1";
+        });
+        syncChildren();
+      };
+
+      packageInputs.forEach(function (input) {
+        input.addEventListener("change", function () {
+          if (input.checked) {
+            applyPackage(input.dataset.packageKey);
+          }
+        });
+      });
+
+      moduleInputs.forEach(function (input) {
+        input.addEventListener("change", function () {
+          if (customPackageInput) {
+            customPackageInput.checked = true;
+          }
+          syncChildren();
+        });
+      });
+
+      if (parentInput) {
+        parentInput.addEventListener("change", syncChildren);
+      }
       childInputs.forEach(function (input) {
         input.addEventListener("change", function () {
           if (input.checked) {

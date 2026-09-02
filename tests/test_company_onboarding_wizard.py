@@ -74,6 +74,7 @@ def onboarding_payload(**overrides):
         "slug": "pilot-firma",
         "primary_domain": "",
         "custom_domain": "",
+        "package_key": "iso_core",
         "is_active": "on",
         "enabled_modules": [
             "organization",
@@ -140,6 +141,8 @@ def test_company_onboarding_wizard_creates_complete_company_workspace(app, clien
     assert company.slug == "pilot-firma"
     assert company.primary_domain == "pilot-firma.volkaportal.com"
     assert company.is_active
+    assert company.package_key == "iso_core"
+    assert company.is_demo is False
 
     modules = {
         module.module_key: module.is_enabled
