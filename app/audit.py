@@ -16,6 +16,7 @@ TRACKED_MODEL_NAMES = {
     "CalibrationRecord",
     "ComplaintRecord",
     "Company",
+    "CompanyDepartment",
     "CompanyModule",
     "Dof",
     "Document",

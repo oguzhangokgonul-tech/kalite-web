@@ -246,6 +246,35 @@ class CompanyModule(db.Model):
     )
 
 
+class CompanyDepartment(db.Model):
+    __tablename__ = "company_departments"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "name",
+            name="uq_company_departments_company_name",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship(
+        "Company",
+        backref=db.backref("departments", cascade="all, delete-orphan"),
+    )
+
+
 DEPARTMENTS = (
     "Üretim",
     "Kalite",

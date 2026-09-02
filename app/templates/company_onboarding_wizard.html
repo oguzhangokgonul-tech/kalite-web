@@ -1,0 +1,345 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_status = mode == "status" %}
+{% set page_title = "Kurulum Sihirbaz&#305;" if not is_status else "Kurulum Durumu" %}
+{% set page_description = "Yeni m&#252;&#351;teri firmas&#305;n&#305; tek ak&#305;&#351;ta haz&#305;rlay&#305;n." if not is_status else company.label ~ " i&#231;in ba&#351;lang&#305;&#231; kurulum kontrolleri." %}
+
+{% block title %}{{ page_title|safe }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title|safe, page_description|safe, icon="bi-magic") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>&#350;irket Y&#246;netimi</span>
+    </a>
+  {% endcall %}
+
+  {% if is_status %}
+    <section class="onboarding-status-grid">
+      {% set missing_keys = workspace.get("missing_keys", []) if workspace else [] %}
+      {% set setup_cards = [
+        {
+          "title": "Ba&#351;lang&#305;&#231; Saya&#231;lar&#305;",
+          "value": (workspace.expected_keys|length - missing_keys|length) ~ " / " ~ workspace.expected_keys|length,
+          "ready": not missing_keys,
+          "icon": "bi-123",
+          "detail": "Aksiyon, IF ve denetim numaralar&#305; haz&#305;r."
+        },
+        {
+          "title": "Departmanlar",
+          "value": workspace.department_count,
+          "ready": workspace.departments_ready,
+          "icon": "bi-diagram-3",
+          "detail": "Firma bazl&#305; departman kayna&#287;&#305; olu&#351;turuldu."
+        },
+        {
+          "title": "Dok&#252;man Kategorileri",
+          "value": workspace.document_category_count ~ " / 8",
+          "ready": workspace.document_categories_ready,
+          "icon": "bi-folder-check",
+          "detail": "ISO dok&#252;man ak&#305;&#351;&#305; i&#231;in standart kategoriler."
+        },
+        {
+          "title": "Kullan&#305;c&#305;lar",
+          "value": company_users|length,
+          "ready": company_users|length > 0,
+          "icon": "bi-person-check",
+          "detail": "Firma i&#231;in en az bir aktif kullan&#305;c&#305; olmal&#305;."
+        }
+      ] %}
+      {% for card in setup_cards %}
+        <article class="app-card onboarding-status-card {% if card.ready %}is-ready{% else %}is-missing{% endif %}">
+          <span class="onboarding-status-icon"><i class="bi {{ card.icon }}"></i></span>
+          <div>
+            <small>{{ card.title|safe }}</small>
+            <strong>{{ card.value }}</strong>
+            <p>{{ card.detail|safe }}</p>
+          </div>
+          <i class="bi {% if card.ready %}bi-check-circle-fill{% else %}bi-exclamation-triangle-fill{% endif %} onboarding-status-result"></i>
+        </article>
+      {% endfor %}
+    </section>
+
+    <div class="onboarding-layout">
+      <section class="app-card">
+        {{ ui.card_header("Firma Kurulum &#214;zeti"|safe, "Canl&#305;ya alma veya demo &#246;ncesi temel yap&#305;y&#305; kontrol edin."|safe, icon="bi-building-check") }}
+        <div class="onboarding-company-summary">
+          <div>
+            <span>&#350;irket</span>
+            <strong>{{ company.label }}</strong>
+          </div>
+          <div>
+            <span>Adres</span>
+            <strong>{{ company.primary_domain or company.slug or "-" }}</strong>
+          </div>
+          <div>
+            <span>Durum</span>
+            {{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}
+          </div>
+        </div>
+
+        <div class="onboarding-summary-section">
+          <h3>Mod&#252;l Paketi</h3>
+          <div class="onboarding-chip-list">
+            {% for module in module_catalog %}
+              {% if module_state.get(module.key) and not module.parent_key %}
+                <span class="onboarding-chip"><i class="bi {{ module.icon }}"></i>{{ module.name }}</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="onboarding-summary-section">
+          <h3>Departmanlar</h3>
+          <div class="onboarding-chip-list">
+            {% for department in existing_departments %}
+              <span class="onboarding-chip">{{ department.name }}</span>
+            {% else %}
+              <span class="text-muted">Hen&#252;z firma departman&#305; olu&#351;mad&#305;.</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="onboarding-summary-section">
+          <h3>Kullan&#305;c&#305;lar</h3>
+          <div class="onboarding-user-list">
+            {% for user in company_users %}
+              <span>
+                <strong>{{ user.full_name }}</strong>
+                <small>{{ user.username }}{% if user.title %} · {{ user.title }}{% endif %}</small>
+              </span>
+            {% else %}
+              <span class="text-muted">Firma kullan&#305;c&#305;s&#305; bulunamad&#305;.</span>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <aside class="app-card onboarding-next-card">
+        {{ ui.card_header("Sonraki Ad&#305;m"|safe, "Eksik varsa otomatik tamamlay&#305;n; haz&#305;rsa kullan&#305;c&#305; ve mod&#252;l ayarlar&#305;na ge&#231;in."|safe, icon="bi-signpost") }}
+        <form method="post" action="{{ form_action }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-primary w-100" type="submit">
+            <i class="bi bi-wrench-adjustable"></i>
+            <span>Eksikleri Tamamla</span>
+          </button>
+        </form>
+        <a class="btn btn-outline-primary w-100" href="{{ url_for('main.edit_company', company_id=company.id) }}">
+          <i class="bi bi-sliders"></i>
+          <span>Mod&#252;l Ayarlar&#305;</span>
+        </a>
+        <a class="btn btn-outline-secondary w-100" href="{{ url_for('main.users') }}">
+          <i class="bi bi-people"></i>
+          <span>Kullan&#305;c&#305;lar</span>
+        </a>
+      </aside>
+    </div>
+  {% else %}
+    <form method="post" action="{{ form_action }}" class="onboarding-form" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="onboarding-layout">
+        <section class="app-card">
+          {{ ui.card_header("1. Firma Bilgileri"|safe, "Yeni firma, kendi kullan&#305;c&#305;lar&#305; ve kendi verileriyle ayr&#305; ba&#351;lar."|safe, icon="bi-buildings") }}
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label" for="code">&#350;irket Kodu</label>
+              <input class="form-control form-control-lg" id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]{3}" maxlength="3" value="{{ next_company_code }}" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label" for="name">&#350;irket Ad&#305;</label>
+              <input class="form-control form-control-lg" id="name" name="name" type="text" maxlength="160" value="{{ request.form.get('name', '') }}" placeholder="Pilot Firma" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="slug">Adres Ad&#305;</label>
+              <input class="form-control form-control-lg" id="slug" name="slug" type="text" maxlength="80" value="{{ request.form.get('slug', '') }}" placeholder="pilot-firma">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="primary_domain">Ana Domain</label>
+              <input class="form-control form-control-lg" id="primary_domain" name="primary_domain" type="text" maxlength="255" value="{{ request.form.get('primary_domain', '') }}" placeholder="pilot-firma.{{ config.TENANT_BASE_DOMAIN }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="custom_domain">&#214;zel Domain</label>
+              <input class="form-control form-control-lg" id="custom_domain" name="custom_domain" type="text" maxlength="255" value="{{ request.form.get('custom_domain', '') }}" placeholder="kalite.pilotfirma.com">
+            </div>
+            <div class="col-12">
+              <label class="company-active-toggle" for="is_active">
+                <input class="form-check-input" id="is_active" name="is_active" type="checkbox" checked>
+                <span>
+                  <strong>Aktif firma olarak olu&#351;tur</strong>
+                  <small>Pasife al&#305;nan firmalarla normal kullan&#305;c&#305; giri&#351;i yap&#305;lamaz.</small>
+                </span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <aside class="app-card onboarding-next-card">
+          {{ ui.card_header("H&#305;zl&#305; Paket"|safe, "KOB&#304; ISO 9001 demo kurulumu i&#231;in &#231;ekirdek paket varsay&#305;lan gelir."|safe, icon="bi-boxes") }}
+          <div class="onboarding-preset-row">
+            <button class="btn btn-outline-primary active" type="button" data-onboarding-preset="core">
+              <i class="bi bi-patch-check"></i>
+              <span>KYS &#199;ekirdek</span>
+            </button>
+            <button class="btn btn-outline-secondary" type="button" data-onboarding-preset="all">
+              <i class="bi bi-grid"></i>
+              <span>&#220;retim Plus</span>
+            </button>
+          </div>
+          <label class="company-active-toggle mt-3" for="create_document_categories">
+            <input class="form-check-input" id="create_document_categories" name="create_document_categories" type="checkbox" checked>
+            <span>
+              <strong>Standart dok&#252;man kategorilerini kur</strong>
+              <small>Kalite El Kitab&#305;ndan G&#246;rev Tan&#305;mlar&#305;na kadar 8 kategori olu&#351;ur.</small>
+            </span>
+          </label>
+        </aside>
+      </div>
+
+      <section class="app-card">
+        {{ ui.card_header("2. Mod&#252;l Se&#231;imi"|safe, "Kapal&#305; mod&#252;ller firma men&#252;s&#252;nden gizlenir ve direkt URL ile a&#231;&#305;lamaz."|safe, icon="bi-ui-checks-grid") }}
+        <div class="company-module-grid">
+          {% for module in module_catalog %}
+            {% set is_child = module.parent_key %}
+            <label class="company-module-toggle {% if is_child %}company-module-toggle-child{% endif %}" for="module_{{ module.key }}">
+              <input
+                class="form-check-input"
+                id="module_{{ module.key }}"
+                name="enabled_modules"
+                type="checkbox"
+                value="{{ module.key }}"
+                data-module-key="{{ module.key }}"
+                {% if module.parent_key %}data-module-parent="{{ module.parent_key }}"{% endif %}
+                data-core="{{ '1' if module.key in core_module_keys else '0' }}"
+                data-production="{{ '1' if module.key in production_module_keys else '0' }}"
+                {% if module_state.get(module.key, True) %}checked{% endif %}
+              >
+              <span class="company-module-icon"><i class="bi {{ module.icon }}"></i></span>
+              <span class="company-module-copy">
+                <strong>{{ module.name }}</strong>
+                <small>{{ module.description }}</small>
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="app-card">
+        {{ ui.card_header("3. Departmanlar"|safe, "G&#246;rev, rapor, organizasyon ve kalite s&#252;re&#231;lerinde kullan&#305;lacak ba&#351;lang&#305;&#231; departmanlar&#305;."|safe, icon="bi-diagram-3") }}
+        <div class="onboarding-department-grid">
+          {% for department in departments %}
+            <label class="onboarding-check-tile" for="department_{{ loop.index }}">
+              <input class="form-check-input" id="department_{{ loop.index }}" name="departments" type="checkbox" value="{{ department }}" {% if department in selected_departments %}checked{% endif %}>
+              <span>{{ department }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="mt-3">
+          <label class="form-label" for="custom_departments">Ek Departmanlar</label>
+          <textarea class="form-control" id="custom_departments" name="custom_departments" rows="3" placeholder="Her sat&#305;ra bir departman yaz&#305;n">{{ custom_departments }}</textarea>
+        </div>
+      </section>
+
+      <section class="app-card">
+        {{ ui.card_header("4. &#304;lk Kullan&#305;c&#305;"|safe, "M&#252;&#351;teri firmas&#305;na giri&#351; yapacak ilk yetkili kullan&#305;c&#305;y&#305; olu&#351;turun."|safe, icon="bi-person-plus") }}
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="initial_full_name">Ad Soyad</label>
+            <input class="form-control form-control-lg" id="initial_full_name" name="initial_full_name" type="text" maxlength="160" value="{{ request.form.get('initial_full_name', '') }}" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="initial_username">Kullan&#305;c&#305; Ad&#305;</label>
+            <input class="form-control form-control-lg" id="initial_username" name="initial_username" type="text" maxlength="80" value="{{ request.form.get('initial_username', '') }}" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="initial_password">Ge&#231;ici Parola</label>
+            <input class="form-control form-control-lg" id="initial_password" name="initial_password" type="password" minlength="4" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="initial_title">G&#246;rev / &#220;nvan</label>
+            <input class="form-control form-control-lg" id="initial_title" name="initial_title" type="text" maxlength="160" value="{{ request.form.get('initial_title', 'Y&#246;netim Temsilcisi'|safe) }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="initial_email">E-posta</label>
+            <input class="form-control form-control-lg" id="initial_email" name="initial_email" type="email" maxlength="160" value="{{ request.form.get('initial_email', '') }}">
+          </div>
+        </div>
+
+        <div class="onboarding-role-panel">
+          <h3>&#304;lk Kullan&#305;c&#305; Rolleri</h3>
+          <div class="onboarding-role-grid">
+            {% for role in role_choices %}
+              <label class="role-chip" for="role_{{ role.key }}">
+                <input class="form-check-input" id="role_{{ role.key }}" name="initial_role_keys" type="checkbox" value="{{ role.key }}" {% if role.key in selected_role_keys %}checked{% endif %}>
+                <span>
+                  <strong>{{ role.name }}</strong>
+                  {% if role.description %}<small>{{ role.description }}</small>{% endif %}
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+      </section>
+
+      <div class="app-form-actions">
+        <button class="btn btn-success btn-lg" type="submit">
+          <i class="bi bi-check-circle"></i>
+          <span>Kurulumu Tamamla</span>
+        </button>
+        <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.companies') }}">
+          <i class="bi bi-x-lg"></i>
+          <span>Vazge&#231;</span>
+        </a>
+      </div>
+    </form>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const moduleInputs = Array.from(document.querySelectorAll("[data-module-key]"));
+        const presetButtons = Array.from(document.querySelectorAll("[data-onboarding-preset]"));
+        const parentInput = document.querySelector('[data-module-key="quality_tests"]');
+        const childInputs = Array.from(document.querySelectorAll("[data-module-parent='quality_tests']"));
+
+        const syncChildren = function () {
+          if (!parentInput) {
+            return;
+          }
+          childInputs.forEach(function (input) {
+            input.disabled = !parentInput.checked;
+            input.closest(".company-module-toggle").classList.toggle("is-disabled", !parentInput.checked);
+            if (!parentInput.checked) {
+              input.checked = false;
+            }
+          });
+        };
+
+        presetButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            const preset = button.dataset.onboardingPreset;
+            presetButtons.forEach(function (item) {
+              item.classList.toggle("active", item === button);
+            });
+            moduleInputs.forEach(function (input) {
+              input.checked = preset === "all" ? input.dataset.production === "1" : input.dataset.core === "1";
+            });
+            syncChildren();
+          });
+        });
+
+        if (parentInput) {
+          parentInput.addEventListener("change", syncChildren);
+          childInputs.forEach(function (input) {
+            input.addEventListener("change", function () {
+              if (input.checked) {
+                parentInput.checked = true;
+                syncChildren();
+              }
+            });
+          });
+          syncChildren();
+        }
+      });
+    </script>
+  {% endif %}
+{% endblock %}

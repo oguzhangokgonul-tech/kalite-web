@@ -12494,6 +12494,220 @@ textarea.form-control::placeholder {
     transform: none;
 }
 
+.onboarding-form {
+    display: grid;
+    gap: 18px;
+}
+
+.onboarding-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 18px;
+    align-items: start;
+}
+
+.onboarding-next-card {
+    display: grid;
+    gap: 12px;
+    position: sticky;
+    top: 20px;
+}
+
+.onboarding-preset-row {
+    display: grid;
+    gap: 10px;
+}
+
+.onboarding-preset-row .btn {
+    justify-content: flex-start;
+    min-height: 46px;
+    gap: 10px;
+    font-weight: 720;
+}
+
+.onboarding-preset-row .btn.active {
+    color: #0d6efd;
+    background: #edf5ff;
+    border-color: #9ec5fe;
+}
+
+.onboarding-department-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.onboarding-check-tile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    margin: 0;
+    padding: 10px 12px;
+    color: #13243e;
+    background: #ffffff;
+    border: 1px solid #dbe6f4;
+    border-radius: 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.onboarding-role-panel {
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid #e2eaf5;
+}
+
+.onboarding-role-panel h3,
+.onboarding-summary-section h3 {
+    margin: 0 0 10px;
+    color: #10233f;
+    font-size: 0.96rem;
+    font-weight: 780;
+}
+
+.onboarding-role-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+}
+
+.onboarding-status-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.onboarding-status-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 112px;
+}
+
+.onboarding-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    color: #0d6efd;
+    background: #eef5ff;
+    border: 1px solid #cfe1ff;
+    border-radius: 14px;
+    font-size: 1.25rem;
+}
+
+.onboarding-status-card small,
+.onboarding-company-summary span {
+    display: block;
+    color: #66768d;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.onboarding-status-card strong {
+    display: block;
+    margin-top: 2px;
+    color: #10233f;
+    font-size: 1.55rem;
+    font-weight: 820;
+    line-height: 1;
+}
+
+.onboarding-status-card p {
+    margin: 6px 0 0;
+    color: #66768d;
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+.onboarding-status-result {
+    font-size: 1.2rem;
+}
+
+.onboarding-status-card.is-ready .onboarding-status-result {
+    color: #059669;
+}
+
+.onboarding-status-card.is-missing .onboarding-status-result {
+    color: #f59e0b;
+}
+
+.onboarding-company-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.onboarding-company-summary > div {
+    min-height: 76px;
+    padding: 14px;
+    background: #f8fbff;
+    border: 1px solid #dbe6f4;
+    border-radius: 12px;
+}
+
+.onboarding-company-summary strong {
+    display: block;
+    margin-top: 5px;
+    color: #10233f;
+    font-size: 0.96rem;
+    font-weight: 780;
+}
+
+.onboarding-summary-section {
+    margin-top: 18px;
+}
+
+.onboarding-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.onboarding-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 6px 10px;
+    color: #11335f;
+    background: #f4f8ff;
+    border: 1px solid #d7e5fb;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.onboarding-user-list {
+    display: grid;
+    gap: 8px;
+}
+
+.onboarding-user-list span {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    background: #ffffff;
+    border: 1px solid #dbe6f4;
+    border-radius: 12px;
+}
+
+.onboarding-user-list strong {
+    color: #10233f;
+    font-size: 0.86rem;
+}
+
+.onboarding-user-list small {
+    color: #66768d;
+    font-size: 0.76rem;
+}
+
 @media (max-width: 768px) {
     .company-module-panel-header {
         flex-direction: column;
@@ -12509,6 +12723,30 @@ textarea.form-control::placeholder {
 
     .company-module-toggle-child {
         margin-left: 0;
+    }
+
+    .onboarding-layout,
+    .onboarding-status-grid,
+    .onboarding-company-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .onboarding-next-card {
+        position: static;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1180px) {
+    .onboarding-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .onboarding-next-card {
+        position: static;
+    }
+
+    .onboarding-status-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 

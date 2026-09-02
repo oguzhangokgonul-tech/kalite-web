@@ -9,6 +9,7 @@
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
   {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
+  {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
@@ -48,6 +49,10 @@
           <a class="dashboard-nav-item {% if request.endpoint in ['main.companies', 'main.create_company', 'main.edit_company'] %}active{% endif %}" href="{{ url_for('main.companies') }}">
             <i class="bi bi-buildings"></i>
             <span>Şirket Yönetimi</span>
+          </a>
+          <a class="dashboard-nav-item {% if company_onboarding_active %}active{% endif %}" href="{{ url_for('main.company_onboarding_wizard') }}">
+            <i class="bi bi-magic"></i>
+            <span>Kurulum Sihirbaz&#305;</span>
           </a>
           <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>

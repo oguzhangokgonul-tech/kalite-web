@@ -215,20 +215,22 @@ def create_app(config_class=Config):
     @click.argument("company_code")
     @with_appcontext
     def company_bootstrap_command(company_code):
-        from .company_onboarding import initialize_company_workspace
+        from .company_onboarding import initialize_company_onboarding
         from .models import Company
 
         company = Company.query.filter_by(code=company_code).first()
         if company is None:
             raise click.ClickException(f"Sirket bulunamadi: {company_code}")
 
-        created_keys = initialize_company_workspace(company)
+        created_items = initialize_company_onboarding(company)
         db.session.commit()
-        if created_keys:
-            click.echo(f"{company.label} icin {len(created_keys)} baslangic ayari olusturuldu.")
-            for key in created_keys:
-                click.echo(f"- {key}")
+        created_count = sum(len(items) for items in created_items.values())
+        if created_count:
+            click.echo(f"{company.label} icin {created_count} kurulum kalemi olusturuldu.")
+            for group_name, items in created_items.items():
+                for item in items:
+                    click.echo(f"- {group_name}: {item}")
         else:
-            click.echo(f"{company.label} baslangic ayarlari zaten hazir.")
+            click.echo(f"{company.label} kurulum kalemleri zaten hazir.")
 
     return app

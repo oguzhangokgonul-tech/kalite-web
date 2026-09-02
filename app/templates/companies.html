@@ -5,6 +5,10 @@
 
 {% block app_content %}
   {% call ui.page_header("&#350;irket Y&#246;netimi"|safe, "VolkaPortal i&#231;indeki firmalar&#305; ve aktiflik durumlar&#305;n&#305; y&#246;netin."|safe, icon="bi-buildings") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.company_onboarding_wizard') }}">
+      <i class="bi bi-magic"></i>
+      <span>Kurulum Sihirbaz&#305;</span>
+    </a>
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_company') }}">
       <i class="bi bi-plus-lg"></i>
       <span>Yeni &#350;irket Ekle</span>
@@ -44,6 +48,7 @@
             {% set stats = company_stats.get(company.id, {}) %}
             {% set workspace = company_workspace.get(company.id, {}) %}
             {% set missing_keys = workspace.get("missing_keys", []) %}
+            {% set setup_missing = missing_keys or not workspace.get("departments_ready") or not workspace.get("document_categories_ready") %}
             <tr>
               <td><span class="company-code-badge">{{ company.code }}</span></td>
               <td>
@@ -59,7 +64,7 @@
               </td>
               <td>{{ ui.status_badge("Aktif" if company.is_active else "Pasif") }}</td>
               <td>
-                {% if missing_keys %}
+                {% if setup_missing %}
                   {{ ui.status_badge("Eksik", tone="warning", icon="bi-exclamation-triangle-fill", title=missing_keys|join(", ")) }}
                 {% else %}
                   {{ ui.status_badge("Haz&#305;r"|safe, tone="success", icon="bi-check-circle-fill") }}
@@ -71,6 +76,10 @@
               <td>{{ stats.get("audits", 0) }}</td>
               <td>{{ stats.get("documents", 0) }}</td>
               <td class="text-end">
+                <a class="btn btn-outline-info btn-sm" href="{{ url_for('main.company_onboarding_status', company_id=company.id) }}">
+                  <i class="bi bi-list-check"></i>
+                  <span>Kurulum</span>
+                </a>
                 <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.edit_company', company_id=company.id) }}">
                   <i class="bi bi-pencil"></i>
                   <span>D&#252;zenle</span>

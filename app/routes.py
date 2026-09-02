@@ -29,7 +29,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, or_, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from .extensions import db
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
@@ -60,6 +60,7 @@ from .models import (
     CalibrationRecord,
     ComplaintRecord,
     Company,
+    CompanyDepartment,
     CompanyModule,
     COMPANY_MODULE_CATALOG,
     COMPANY_MODULE_KEYS,
@@ -119,6 +120,7 @@ from .tenant import (
     tenant_company_from_host,
     tenant_url_for_company,
 )
+from .company_onboarding import ensure_company_department_schema
 
 
 bp = Blueprint("main", __name__)
@@ -411,6 +413,7 @@ def load_logged_in_user():
                 session["company_id"] = g.current_company.id
         g.enabled_company_modules = company_module_state(g.current_company)
         enforce_company_module_access()
+        ensure_company_department_schema()
         ensure_notification_schema()
         ensure_dof_rejection_schema()
         ensure_dof_files_schema()
@@ -9336,6 +9339,226 @@ def flash_company_form_error(error):
         flash("Åirket formunu kontrol edin.", "danger")
 
 
+ONBOARDING_CORE_MODULE_KEYS = {
+    "organization",
+    "calibration",
+    "human_resources",
+    "suggestions",
+    "if_management",
+    "risk_management",
+    "training",
+    "internal_audit",
+    "management_review",
+    "supplier_management",
+    "report_center",
+    "documents",
+}
+ONBOARDING_PRODUCTION_MODULE_KEYS = set(COMPANY_MODULE_KEYS)
+ONBOARDING_INITIAL_ROLE_KEYS = (
+    "management_representative",
+    "management",
+    "department_manager",
+    "department_staff",
+    "viewer",
+)
+
+
+def next_company_code():
+    numeric_codes = []
+    for (code,) in Company.query.with_entities(Company.code).all():
+        if code and code.isdigit():
+            numeric_codes.append(int(code))
+    next_code = (max(numeric_codes) + 1) if numeric_codes else 1
+    return f"{next_code:03d}"[-3:]
+
+
+def onboarding_module_state():
+    if request.method == "POST":
+        selected_keys = selected_company_module_keys_from_form()
+    else:
+        selected_keys = ONBOARDING_CORE_MODULE_KEYS
+    return {key: key in selected_keys for key in COMPANY_MODULE_KEYS}
+
+
+def onboarding_role_choices():
+    return [
+        role
+        for role in role_hierarchy()
+        if role.key in ONBOARDING_INITIAL_ROLE_KEYS
+    ]
+
+
+def selected_onboarding_role_keys():
+    selected = [
+        role_key
+        for role_key in request.form.getlist("initial_role_keys")
+        if role_key in ONBOARDING_INITIAL_ROLE_KEYS
+    ]
+    return selected or ["management_representative"]
+
+
+def default_onboarding_department_names():
+    preferred = {
+        "Yönetim",
+        "Kalite",
+        "Kalite Yönetim",
+        "Üretim",
+        "Bakım",
+        "Satın alma",
+        "Depo",
+        "Sevkiyat",
+        "İnsan Kaynakları",
+    }
+    selected = [department for department in DEPARTMENTS if department in preferred]
+    return selected or list(DEPARTMENTS)[:8]
+
+
+def parse_onboarding_department_names():
+    selected = [
+        department.strip()
+        for department in request.form.getlist("departments")
+        if department and department.strip()
+    ]
+    custom_departments = [
+        line.strip()
+        for line in request.form.get("custom_departments", "").splitlines()
+        if line.strip()
+    ]
+    departments = list(dict.fromkeys([*selected, *custom_departments]))
+    if not departments:
+        raise ValueError("departments_required")
+    return departments
+
+
+def selected_onboarding_department_names():
+    try:
+        return parse_onboarding_department_names()
+    except ValueError:
+        return []
+
+
+def create_company_onboarding_user(company):
+    full_name = request.form.get("initial_full_name", "").strip()
+    username = normalize_login_identity(request.form.get("initial_username", ""))
+    title = request.form.get("initial_title", "Yönetim Temsilcisi").strip()
+    email = request.form.get("initial_email", "").strip() or None
+    password = request.form.get("initial_password", "")
+
+    if not full_name or not username:
+        raise ValueError("initial_user_required")
+    validate_password_policy(password)
+
+    username_exists = (
+        User.query.filter(
+            db.func.lower(User.username) == username,
+            User.company_id == company.id,
+        ).first()
+        is not None
+    )
+    if username_exists:
+        raise ValueError("initial_username_exists")
+
+    selected_role_keys = selected_onboarding_role_keys()
+    roles = Role.query.filter(Role.key.in_(selected_role_keys)).all()
+    if not roles:
+        raise ValueError("initial_role_required")
+
+    contact = PersonnelContact(
+        company_id=company.id,
+        full_name=full_name[:180],
+        title=title[:160] if title else None,
+        department=title[:160] if title else None,
+        email=email,
+        is_active=True,
+        created_by_user_id=g.current_user.id if g.current_user else None,
+    )
+    user = User(
+        company_id=company.id,
+        username=username[:80],
+        full_name=full_name[:160],
+        title=title[:160] if title else None,
+        email=email,
+        is_active=True,
+        personnel_contact=contact,
+    )
+    user.set_password(password)
+    user.roles = roles
+    sync_user_legacy_permissions(user)
+    return user
+
+
+def mark_sales_readiness_item_done_without_commit(item_id):
+    if item_id not in sales_readiness_item_ids():
+        return
+    key = f"{SALES_READINESS_SETTING_PREFIX}{item_id}"
+    setting = db.session.get(AppSetting, key)
+    if setting is None:
+        db.session.add(AppSetting(key=key, value="1"))
+    else:
+        setting.value = "1"
+
+
+def flash_company_onboarding_error(error):
+    error_key = str(error)
+    if error_key in {"required_fields", "invalid_code", "code_exists"}:
+        flash_company_form_error(error)
+    elif error_key == "departments_required":
+        flash("En az bir departman seçin veya ek departman yazın.", "danger")
+    elif error_key == "initial_user_required":
+        flash("İlk kullanıcı için ad soyad ve kullanıcı adı zorunludur.", "danger")
+    elif error_key == "initial_username_exists":
+        flash("Bu şirkette aynı kullanıcı adı zaten var.", "danger")
+    elif error_key == "password_too_short":
+        flash("İlk kullanıcı parolası en az 4 karakter olmalıdır.", "danger")
+    elif error_key == "initial_role_required":
+        flash("İlk kullanıcı için en az bir rol seçin.", "danger")
+    else:
+        flash("Kurulum sihirbazındaki alanları kontrol edin.", "danger")
+
+
+def company_onboarding_context(company=None):
+    selected_departments = (
+        selected_onboarding_department_names()
+        if request.method == "POST"
+        else default_onboarding_department_names()
+    )
+    selected_role_keys = (
+        selected_onboarding_role_keys()
+        if request.method == "POST"
+        else ["management_representative"]
+    )
+    workspace = None
+    existing_departments = []
+    if company is not None:
+        from .company_onboarding import company_workspace_status
+
+        workspace = company_workspace_status(company)
+        try:
+            existing_departments = (
+                CompanyDepartment.query.filter_by(company_id=company.id, is_active=True)
+                .order_by(CompanyDepartment.sort_order.asc(), CompanyDepartment.name.asc())
+                .all()
+            )
+        except OperationalError:
+            db.session.rollback()
+            existing_departments = []
+    return {
+        "company": company,
+        "workspace": workspace,
+        "existing_departments": existing_departments,
+        "next_company_code": request.form.get("code", next_company_code()),
+        "module_catalog": company_module_catalog(),
+        "module_state": onboarding_module_state() if company is None else company_module_state(company),
+        "core_module_keys": ONBOARDING_CORE_MODULE_KEYS,
+        "production_module_keys": ONBOARDING_PRODUCTION_MODULE_KEYS,
+        "departments": DEPARTMENTS,
+        "selected_departments": set(selected_departments),
+        "custom_departments": request.form.get("custom_departments", ""),
+        "role_choices": onboarding_role_choices(),
+        "selected_role_keys": set(selected_role_keys),
+    }
+
+
 def normalize_login_identity(value):
     return (value or "").strip().lower()[:160]
 
@@ -15222,6 +15445,131 @@ def companies():
         company_stats=company_stats,
         company_workspace=company_workspace,
     )
+
+
+@bp.route("/kurulum-sihirbazi", methods=["GET", "POST"])
+@login_required
+@super_admin_required
+def company_onboarding_wizard():
+    from .company_onboarding import initialize_company_onboarding
+    from .seed import ensure_default_roles
+
+    ensure_default_roles()
+    if request.method == "POST":
+        try:
+            department_names = parse_onboarding_department_names()
+            include_document_categories = request.form.get("create_document_categories") == "on"
+            selected_module_keys = selected_company_module_keys_from_form()
+
+            company = parse_company_form()
+            db.session.add(company)
+            db.session.flush()
+            created_items = initialize_company_onboarding(
+                company,
+                include_document_categories=include_document_categories,
+                department_names=department_names,
+            )
+            sync_company_modules(company, selected_module_keys)
+            initial_user = create_company_onboarding_user(company)
+            db.session.add(initial_user)
+            db.session.flush()
+            db.session.add(
+                AuditLog(
+                    company_id=company.id,
+                    user_id=g.current_user.id if g.current_user else None,
+                    entity_type="CompanyOnboarding",
+                    entity_id=str(company.id),
+                    action="completed",
+                    summary=f"{company.label} kurulum sihirbazi tamamlandi",
+                    new_values=json.dumps(
+                        {
+                            "company_code": company.code,
+                            "modules": sorted(selected_module_keys),
+                            "departments": department_names,
+                            "document_categories_created": created_items.get(
+                                "document_categories",
+                                [],
+                            ),
+                            "settings_created": created_items.get("settings", []),
+                            "initial_user": initial_user.username,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    ip_address=request.remote_addr,
+                    user_agent=(request.user_agent.string or "")[:255],
+                )
+            )
+            mark_sales_readiness_item_done_without_commit("onboarding_wizard")
+            db.session.commit()
+            flash(f"{company.label} kurulumu tamamlandi.", "success")
+            return redirect(url_for("main.company_onboarding_status", company_id=company.id))
+        except (ValueError, IntegrityError) as error:
+            db.session.rollback()
+            flash_company_onboarding_error(error)
+
+    return render_template(
+        "company_onboarding_wizard.html",
+        mode="create",
+        form_action=url_for("main.company_onboarding_wizard"),
+        **company_onboarding_context(),
+    )
+
+
+@bp.get("/companies/<int:company_id>/onboarding")
+@login_required
+@super_admin_required
+def company_onboarding_status(company_id):
+    company = Company.query.get_or_404(company_id)
+    return render_template(
+        "company_onboarding_wizard.html",
+        mode="status",
+        form_action=url_for("main.repair_company_onboarding", company_id=company.id),
+        company_users=(
+            User.query.filter_by(company_id=company.id)
+            .order_by(User.full_name.asc(), User.id.asc())
+            .all()
+        ),
+        **company_onboarding_context(company),
+    )
+
+
+@bp.post("/companies/<int:company_id>/onboarding/repair")
+@login_required
+@super_admin_required
+def repair_company_onboarding(company_id):
+    from .company_onboarding import initialize_company_onboarding
+
+    company = Company.query.get_or_404(company_id)
+    try:
+        created_items = initialize_company_onboarding(
+            company,
+            include_document_categories=True,
+        )
+        db.session.add(
+            AuditLog(
+                company_id=company.id,
+                user_id=g.current_user.id if g.current_user else None,
+                entity_type="CompanyOnboarding",
+                entity_id=str(company.id),
+                action="repaired",
+                summary=f"{company.label} kurulum eksikleri tamamlandi",
+                new_values=json.dumps(
+                    created_items,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                ),
+                ip_address=request.remote_addr,
+                user_agent=(request.user_agent.string or "")[:255],
+            )
+        )
+        mark_sales_readiness_item_done_without_commit("onboarding_wizard")
+        db.session.commit()
+        flash(f"{company.label} kurulum eksikleri kontrol edildi.", "success")
+    except (ValueError, IntegrityError) as error:
+        db.session.rollback()
+        flash_company_onboarding_error(error)
+    return redirect(url_for("main.company_onboarding_status", company_id=company.id))
 
 
 @bp.route("/companies/new", methods=["GET", "POST"])

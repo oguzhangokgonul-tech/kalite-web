@@ -621,6 +621,55 @@ def ensure_runtime_schema():
                 )
             )
 
+    if "company_departments" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE company_departments (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER NOT NULL,
+                    name VARCHAR(160) NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    is_active BOOLEAN NOT NULL DEFAULT 1,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("company_departments")
+
+    if "company_departments" in tables:
+        columns = {
+            column["name"] for column in inspector.get_columns("company_departments")
+        }
+        department_columns = {
+            "company_id": "ALTER TABLE company_departments ADD COLUMN company_id INTEGER NOT NULL DEFAULT 0",
+            "name": "ALTER TABLE company_departments ADD COLUMN name VARCHAR(160) NOT NULL DEFAULT ''",
+            "sort_order": "ALTER TABLE company_departments ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0",
+            "is_active": "ALTER TABLE company_departments ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+            "created_at": "ALTER TABLE company_departments ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE company_departments ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in department_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_company_departments_company_id "
+                "ON company_departments (company_id)"
+            )
+        )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_company_departments_company_name "
+                "ON company_departments (company_id, name)"
+            )
+        )
+
     if "notifications" in tables:
         columns = {column["name"] for column in inspector.get_columns("notifications")}
         notification_columns = {
@@ -1426,6 +1475,7 @@ def ensure_runtime_schema():
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",
+            "sales_readiness:onboarding_wizard",
         ):
             db.session.execute(
                 text(
