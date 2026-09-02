@@ -1502,6 +1502,7 @@ def ensure_runtime_schema():
             "sales_readiness:suggestion_core",
             "sales_readiness:module_based_menu",
             "sales_readiness:demo_data_split",
+            "sales_readiness:month1_tests",
         ):
             db.session.execute(
                 text(

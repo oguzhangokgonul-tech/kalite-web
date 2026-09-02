@@ -2159,6 +2159,7 @@ QUALITY_TEST_ENDPOINTS = {
     "main.quality_test_parameters",
     "main.create_quality_test_record",
     "main.quality_test_measurement",
+    "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
     "main.organization": "organization",
