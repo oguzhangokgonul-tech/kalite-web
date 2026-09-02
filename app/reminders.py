@@ -121,6 +121,7 @@ def _send_record_reminders(
             target_url=target_url,
             due_date=due_date,
             source_label=kind,
+            company_id=company_id,
         ):
             mark_notifications_email_sent([notification])
             emails_sent += 1

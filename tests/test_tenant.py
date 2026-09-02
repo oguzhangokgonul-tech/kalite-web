@@ -152,6 +152,19 @@ def test_company_primary_domain_falls_back_to_slug(app, companies):
     assert domain == "deneme.volkaportal.com"
 
 
+def test_company_primary_domain_prefers_custom_domain(app, companies):
+    erprefabrik, _deneme, _passive = companies
+    erprefabrik.custom_domain = "kalite.erprefabrik.com.tr"
+    db.session.commit()
+
+    with app.app_context():
+        domain = company_primary_domain(erprefabrik)
+        company_url = tenant_url_for_company(erprefabrik, "/documents")
+
+    assert domain == "kalite.erprefabrik.com.tr"
+    assert company_url == "https://kalite.erprefabrik.com.tr/documents"
+
+
 def test_oguzhan_user_is_scoped_to_current_company(app, companies):
     erprefabrik, deneme, _passive = companies
     oguzhan = User(

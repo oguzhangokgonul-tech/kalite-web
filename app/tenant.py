@@ -28,6 +28,12 @@ def host_is_tenant_base(host):
 
 
 def company_primary_domain(company):
+    if not company:
+        return ""
+
+    if company.custom_domain:
+        return normalize_request_host(company.custom_domain)
+
     if company.primary_domain:
         return normalize_request_host(company.primary_domain)
 

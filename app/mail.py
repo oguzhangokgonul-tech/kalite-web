@@ -4,6 +4,10 @@ from email.message import EmailMessage
 
 from flask import current_app, url_for
 
+from .extensions import db
+from .models import Company
+from .tenant import tenant_base_url, tenant_url_for_company
+
 
 _mail_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mail")
 
@@ -32,65 +36,104 @@ def _mail_enabled(settings):
     )
 
 
-def _action_url(action):
-    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
-    if public_base_url:
-        return f"{public_base_url}/actions/{action.id}"
+def _public_base_url():
+    return (current_app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
+
+
+def _record_company_id(record):
+    if record is None:
+        return None
+    company_id = getattr(record, "company_id", None)
+    if company_id:
+        return company_id
+    company = getattr(record, "company", None)
+    return getattr(company, "id", None)
+
+
+def _resolve_company(company=None, company_id=None):
+    if company is not None:
+        return company
+    if not company_id:
+        return None
     try:
-        return url_for("main.action_detail", action_id=action.id, _external=True)
-    except RuntimeError:
+        return db.session.get(Company, company_id)
+    except Exception:
+        current_app.logger.exception("Mail linki icin firma bilgisi okunamadi.")
+        return None
+
+
+def _absolute_target_url(path, *, company=None, company_id=None):
+    if not path:
         return ""
+    value = str(path).strip()
+    if not value or value.startswith("//") or "\r" in value or "\n" in value:
+        return ""
+    if value.startswith(("http://", "https://")):
+        return value
+    if not value.startswith("/"):
+        return ""
+
+    resolved_company = _resolve_company(company=company, company_id=company_id)
+    if resolved_company is not None:
+        company_url = tenant_url_for_company(resolved_company, value)
+        if company_url != value:
+            return company_url
+
+    public_base_url = _public_base_url()
+    if public_base_url:
+        return f"{public_base_url}{value}"
+
+    base_url = tenant_base_url(value)
+    if base_url != value:
+        return base_url
+
+    try:
+        app_base_url = url_for("main.dashboard", _external=True).rstrip("/")
+        return f"{app_base_url}{value}"
+    except RuntimeError:
+        return value
+
+
+def _action_url(action):
+    return _absolute_target_url(
+        f"/actions/{action.id}",
+        company_id=_record_company_id(action),
+    )
 
 
 def _dof_url(dof):
-    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
-    if public_base_url:
-        return f"{public_base_url}/dofs/{dof.id}"
-    try:
-        return url_for("main.dof_detail", dof_id=dof.id, _external=True)
-    except RuntimeError:
-        return ""
+    return _absolute_target_url(
+        f"/dofs/{dof.id}",
+        company_id=_record_company_id(dof),
+    )
 
 
 def _vehicle_url(vehicle):
-    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
-    if public_base_url:
-        return f"{public_base_url}/arac-yonetimi/arac/{vehicle.id}/duzenle"
-    try:
-        return url_for("main.edit_vehicle", vehicle_id=vehicle.id, _external=True)
-    except RuntimeError:
-        return ""
+    return _absolute_target_url(
+        f"/arac-yonetimi/arac/{vehicle.id}/duzenle",
+        company_id=_record_company_id(vehicle),
+    )
 
 
 def _document_revision_request_url(revision_request):
-    public_base_url = current_app.config.get("PUBLIC_BASE_URL")
-    if public_base_url:
-        return f"{public_base_url}/documents/revision-requests/{revision_request.id}"
-    try:
-        return url_for(
-            "main.document_revision_request_detail",
-            request_id=revision_request.id,
-            _external=True,
-        )
-    except RuntimeError:
-        return ""
+    return _absolute_target_url(
+        f"/documents/revision-requests/{revision_request.id}",
+        company_id=_record_company_id(revision_request),
+    )
 
 
-def _generic_target_url(target_url):
+def _generic_target_url(target_url, *, company=None, company_id=None):
     if not target_url:
         return ""
     value = str(target_url).strip()
     if value.startswith("//") or "\r" in value or "\n" in value:
         return ""
     if value.startswith("/"):
-        public_base_url = current_app.config.get("PUBLIC_BASE_URL")
-        if public_base_url:
-            return f"{public_base_url}{value}"
-        try:
-            base_url = url_for("main.dashboard", _external=True).rstrip("/")
-            return f"{base_url}{value}"
-        except RuntimeError:
-            return value
+        return _absolute_target_url(
+            value,
+            company=company,
+            company_id=company_id,
+        )
     if value.startswith(("http://", "https://")):
         return value
     return ""
@@ -212,8 +255,14 @@ def build_generic_notification_email(
     target_url=None,
     due_date=None,
     source_label=None,
+    company_id=None,
+    company=None,
 ):
-    detail_url = _generic_target_url(target_url)
+    detail_url = _generic_target_url(
+        target_url,
+        company=company,
+        company_id=company_id,
+    )
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {title or 'Bildirim'}"
 
@@ -379,6 +428,8 @@ def send_generic_notification_email(
     target_url=None,
     due_date=None,
     source_label=None,
+    company_id=None,
+    company=None,
 ):
     recipients = sorted({user.email for user in users if user.email})
     if not recipients:
@@ -394,6 +445,8 @@ def send_generic_notification_email(
         target_url=target_url,
         due_date=due_date,
         source_label=source_label,
+        company_id=company_id,
+        company=company,
     )
     _mail_executor.submit(
         _send_mail_safely,

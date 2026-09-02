@@ -5,6 +5,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
+from app.mail import build_action_email, build_generic_notification_email
 from app.models import Action, AppSetting, Company, Notification, User
 from app.reminders import run_due_reminders_once_for_company
 from app.seed import ensure_runtime_schema
@@ -31,6 +32,7 @@ def app(tmp_path):
         MAIL_REPLY_TO = ""
         MAIL_TIMEOUT = 1
         MAIL_SUBJECT_PREFIX = "[VolkaPortal]"
+        PREFERRED_URL_SCHEME = "https"
         NOTIFICATION_AUTO_REMINDERS_ENABLED = False
         NOTIFICATION_REMINDER_DAYS_BEFORE = 7
         NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE = 30
@@ -130,6 +132,37 @@ def test_due_reminders_are_company_scoped(app):
     assert len(notifications) == 1
     assert notifications[0].user_id == user_a.id
     assert notifications[0].company_id == company_a.id
+
+
+def test_action_email_detail_link_uses_company_subdomain(app):
+    app.config["PUBLIC_BASE_URL"] = "https://volkaportal.com"
+    company = create_company("401", "Er Prefabrik")
+    company.slug = "erprefabrik"
+    user = create_user("aksiyon-sorumlusu", company=company, email="aksiyon@example.test")
+    action = create_action(company, user)
+    db.session.commit()
+
+    _subject, body = build_action_email(action, "Yeni aksiyon bildirimi")
+
+    assert f"https://erprefabrik.volkaportal.com/actions/{action.id}" in body
+    assert f"https://volkaportal.com/actions/{action.id}" not in body
+
+
+def test_generic_notification_email_detail_link_uses_company_subdomain(app):
+    app.config["PUBLIC_BASE_URL"] = "https://volkaportal.com"
+    company = create_company("402", "Kalibrasyon Firma")
+    company.slug = "kalibrasyon"
+    db.session.commit()
+
+    _subject, body = build_generic_notification_email(
+        "Kalibrasyon termin hatirlatmasi",
+        title="Kalibrasyon",
+        target_url="/kalibrasyon",
+        company_id=company.id,
+    )
+
+    assert "https://kalibrasyon.volkaportal.com/kalibrasyon" in body
+    assert "https://volkaportal.com/kalibrasyon" not in body
 
 
 def test_notification_open_redirects_generic_target_and_marks_read(app, client):
