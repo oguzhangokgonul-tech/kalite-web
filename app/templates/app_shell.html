@@ -243,7 +243,7 @@
         {% if messages %}
           <div class="dashboard-alert-stack">
             {% for category, message in messages %}
-              <div class="alert alert-{{ category }} alert-dismissible fade show mb-0" role="alert">
+              <div class="alert alert-{{ category }} vp-alert alert-dismissible fade show mb-0" role="alert">
                 {% if category == "success" %}
                   <i class="bi bi-check-circle-fill"></i>
                 {% elif category == "danger" %}

@@ -74,8 +74,8 @@
       </div>
     </div>
 
-    <div class="calibration-table-shell">
-      <table class="table dashboard-table calibration-table align-middle mb-0">
+    <div class="calibration-table-shell vp-table-card">
+      <table class="table vp-table dashboard-table calibration-table align-middle mb-0">
         <thead>
           <tr>
             <th>Cihaz Kodu</th>
@@ -116,16 +116,14 @@
               <td data-label="Durum">{{ ui.status_badge(calibration_status_label(record), tone=calibration_status_tone(record)) }}</td>
               {% if can_manage_calibration %}
                 <td data-label="İşlemler">
-                  <div class="dashboard-row-actions justify-content-end">
-                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_calibration_record', record_id=record.id) }}">
+                  <div class="vp-table-actions dashboard-row-actions justify-content-end">
+                    <a class="btn btn-sm vp-action-btn vp-action-edit" href="{{ url_for('main.edit_calibration_record', record_id=record.id) }}" aria-label="Düzenle" title="Düzenle">
                       <i class="bi bi-pencil-square"></i>
-                      <span>Düzenle</span>
                     </a>
                     <form action="{{ url_for('main.delete_calibration_record', record_id=record.id) }}" method="post" onsubmit="return confirm('Kalibrasyon kaydını silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                      <button class="btn btn-sm vp-action-btn vp-action-delete" type="submit" aria-label="Sil" title="Sil">
                         <i class="bi bi-trash"></i>
-                        <span>Sil</span>
                       </button>
                     </form>
                   </div>
@@ -135,8 +133,7 @@
           {% else %}
             <tr>
               <td class="dashboard-empty-row" colspan="{{ 11 if can_manage_calibration else 10 }}">
-                <strong>Henüz kalibrasyon kaydı yok.</strong>
-                <span>Yeni kayıt eklendiğinde burada listelenecek.</span>
+                {{ ui.empty_state("Henüz kalibrasyon kaydı yok.", "Yeni kayıt eklendiğinde burada listelenecek.", "bi-rulers") }}
               </td>
             </tr>
           {% endfor %}

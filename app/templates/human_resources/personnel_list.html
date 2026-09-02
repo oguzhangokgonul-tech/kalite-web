@@ -17,7 +17,7 @@
     {% endif %}
   {% endcall %}
 
-  <section class="document-list-card personnel-list-card">
+  <section class="document-list-card vp-card personnel-list-card">
     <div class="document-list-toolbar">
       <div>
         <h2>Personel İletişim Listesi</h2>
@@ -36,7 +36,7 @@
     </div>
 
     <div class="table-responsive">
-      <table class="table document-table personnel-table align-middle mb-0">
+      <table class="table vp-table document-table personnel-table align-middle mb-0">
         <thead>
           <tr>
             <th>Personel</th>
@@ -74,13 +74,13 @@
               </td>
               {% if can_manage_personnel_contacts %}
                 <td data-label="İşlemler">
-                  <div class="document-row-actions">
-                    <a class="document-action-btn document-action-edit" href="{{ url_for('main.edit_personnel_contact', contact_id=contact.id) }}" title="Düzenle" aria-label="Düzenle">
+                  <div class="vp-table-actions document-row-actions">
+                    <a class="vp-action-btn document-action-btn document-action-edit" href="{{ url_for('main.edit_personnel_contact', contact_id=contact.id) }}" title="Düzenle" aria-label="Düzenle">
                       <i class="bi bi-pencil"></i>
                     </a>
                     <form action="{{ url_for('main.delete_personnel_contact', contact_id=contact.id) }}" method="post" onsubmit="return confirm('Bu personel kaydını silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="document-action-btn document-action-delete" type="submit" title="Sil" aria-label="Sil">
+                      <button class="vp-action-btn document-action-btn document-action-delete" type="submit" title="Sil" aria-label="Sil">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
@@ -91,8 +91,7 @@
           {% else %}
             <tr>
               <td class="dashboard-empty-row" colspan="{{ 5 if can_manage_personnel_contacts else 4 }}">
-                <strong>Personel kaydı bulunamadı.</strong>
-                <span>Yeni personel eklendiğinde burada listelenecek.</span>
+                {{ ui.empty_state("Personel kaydı bulunamadı.", "Yeni personel eklendiğinde burada listelenecek.", "bi-person-plus") }}
               </td>
             </tr>
           {% endfor %}

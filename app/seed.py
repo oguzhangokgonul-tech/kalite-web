@@ -1505,6 +1505,7 @@ def ensure_runtime_schema():
             "sales_readiness:month1_tests",
             "sales_readiness:month1_sqlite",
             "sales_readiness:month1_bugfix",
+            "sales_readiness:month1_ui_standard",
         ):
             db.session.execute(
                 text(

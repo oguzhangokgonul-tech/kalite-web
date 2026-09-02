@@ -2,7 +2,7 @@ from app.extensions import db
 from app.models import AppSetting, COMPANY_MODULE_KEYS
 from app.seed import ensure_runtime_schema
 
-from .helpers import assert_xlsx_response, create_company, create_user, login
+from .helpers import assert_xlsx_response, create_company, create_user, login, make_document
 
 
 def test_superadmin_core_pages_render_without_errors(client):
@@ -101,6 +101,39 @@ def test_runtime_schema_marks_month1_tests_done(app):
     setting = db.session.get(AppSetting, "sales_readiness:month1_tests")
     assert setting is not None
     assert setting.value == "1"
+
+
+def test_runtime_schema_marks_month1_ui_standard_done(app):
+    AppSetting.query.delete()
+    db.session.commit()
+
+    ensure_runtime_schema()
+
+    setting = db.session.get(AppSetting, "sales_readiness:month1_ui_standard")
+    assert setting is not None
+    assert setting.value == "1"
+
+
+def test_ui_standard_classes_render_on_core_pages(app, client):
+    company = create_company("305")
+    make_document(app, company)
+    superadmin = create_user("ui-superadmin", role_key="super_admin")
+    login(client, superadmin, company)
+
+    expectations = {
+        "/": ("vp-table-card", "vp-table", "vp-empty-state"),
+        "/documents": ("vp-table-card", "vp-table", "vp-action-btn"),
+        "/documents/list": ("vp-table-card", "vp-table", "vp-action-btn"),
+        "/kalibrasyon": ("vp-table-card", "vp-table", "vp-empty-state"),
+        "/insan-kaynaklari/personel-listesi": ("vp-card", "vp-table"),
+    }
+
+    for url, required_classes in expectations.items():
+        response = client.get(url)
+        assert response.status_code == 200, url
+        body = response.get_data(as_text=True)
+        for class_name in required_classes:
+            assert class_name in body, (url, class_name)
 
 
 def test_disabled_module_blocks_direct_route_even_with_permission(client):
