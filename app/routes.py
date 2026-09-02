@@ -27,7 +27,6 @@ from flask import (
     session,
     url_for,
 )
-from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
@@ -152,6 +151,11 @@ DOF_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png"}
 DOF_OPENING_FILE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 DOF_EVIDENCE_MAX_BYTES = 10 * 1024 * 1024
 SUB_ACTION_EVIDENCE_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "docx", "xlsx"}
+# Eski canlı kayıtlarda UTF-8/Latin-1 karışıklığından kalan değerleri de say.
+LEGACY_COMPLETED_STATUS = "Tamamland\u00c4\u00b1"
+LEGACY_CANCELLED_STATUS = "\u00c4\u00b0ptal Edildi"
+COMPLETED_STATUS_VALUES = ("Tamamlandı", LEGACY_COMPLETED_STATUS)
+CANCELLED_STATUS_VALUES = ("İptal Edildi", LEGACY_CANCELLED_STATUS)
 DOCUMENT_ALLOWED_EXTENSIONS = {
     "pdf",
     "doc",
@@ -352,6 +356,30 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def file_extension(filename):
+    value = str(filename or "").strip()
+    if "." not in value:
+        return ""
+    return value.rsplit(".", 1)[1].lower()
+
+
+def safe_original_filename(filename, fallback="dosya"):
+    raw_name = str(filename or "").replace("\\", "/").rsplit("/", 1)[-1].strip()
+    cleaned = "".join(
+        char
+        for char in raw_name
+        if char not in '<>:"/\\|?*' and not unicodedata.category(char).startswith("C")
+    ).strip(" .")
+    if cleaned:
+        return cleaned[:255]
+
+    extension = file_extension(raw_name)
+    fallback_name = fallback.strip() or "dosya"
+    if extension and not fallback_name.lower().endswith(f".{extension}"):
+        fallback_name = f"{fallback_name}.{extension}"
+    return fallback_name[:255]
+
+
 def assigned_tasks_badge_count():
     if g.current_user is None:
         return 0
@@ -363,15 +391,26 @@ def assigned_tasks_badge_count():
         .count()
         + scoped_query(ActionSubTask.query, ActionSubTask)
         .filter_by(responsible_id=user_id)
-        .filter(ActionSubTask.status.notin_(["TamamlandÄ±", "Ä°ptal Edildi"]))
+        .filter(
+            ActionSubTask.status.notin_(
+                (*COMPLETED_STATUS_VALUES, *CANCELLED_STATUS_VALUES)
+            )
+        )
         .count()
         + scoped_query(Dof.query, Dof)
         .filter_by(responsible_id=user_id)
-        .filter(Dof.status != "TamamlandÄ±", Dof.approval_step != "completed")
+        .filter(
+            Dof.status.notin_(COMPLETED_STATUS_VALUES),
+            Dof.approval_step != "completed",
+        )
         .count()
         + scoped_query(MaintenanceFault.query, MaintenanceFault)
         .filter_by(responsible_user_id=user_id)
-        .filter(MaintenanceFault.status.notin_(["TamamlandÄ±", "Ä°ptal Edildi"]))
+        .filter(
+            MaintenanceFault.status.notin_(
+                (*COMPLETED_STATUS_VALUES, *CANCELLED_STATUS_VALUES)
+            )
+        )
         .count()
         + scoped_query(InternalAudit.query, InternalAudit)
         .filter(
@@ -379,7 +418,7 @@ def assigned_tasks_badge_count():
                 InternalAudit.auditor_id == user_id,
                 InternalAudit.audited_user_id == user_id,
             ),
-            InternalAudit.status != "TamamlandÄ±",
+            InternalAudit.status.notin_(COMPLETED_STATUS_VALUES),
         ).count()
         + scoped_query(TrainingParticipant.query, TrainingParticipant)
         .filter_by(user_id=user_id, status="Atandı")
@@ -3895,21 +3934,47 @@ def upload_storage_relative_path(filename, folder=None, company_id=None):
 
 def upload_storage_path(filename, folder=None, company_id=None):
     relative_path = upload_storage_relative_path(filename, folder, company_id)
-    absolute_path = Path(current_app.config["UPLOAD_FOLDER"]) / relative_path
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    absolute_path = (upload_root / relative_path).resolve()
+    try:
+        absolute_path.relative_to(upload_root)
+    except ValueError:
+        raise ValueError("invalid_upload_path") from None
     absolute_path.parent.mkdir(parents=True, exist_ok=True)
     return relative_path, absolute_path
 
 
-def uploaded_file_path(stored_name):
+def safe_upload_path(stored_name):
     if not stored_name:
         return None
-    return Path(current_app.config["UPLOAD_FOLDER"]) / stored_name
+    value = str(stored_name).strip()
+    if not value or "\x00" in value:
+        return None
+    value = value.replace("\\", "/")
+    candidate = Path(value)
+    if candidate.is_absolute():
+        return None
+
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    absolute_path = (upload_root / candidate).resolve()
+    try:
+        absolute_path.relative_to(upload_root)
+    except ValueError:
+        return None
+    return absolute_path
+
+
+def uploaded_file_path(stored_name):
+    return safe_upload_path(stored_name)
 
 
 def legacy_uploaded_file_path(stored_name):
     if not stored_name:
         return None
-    return Path(current_app.config["UPLOAD_FOLDER"]) / Path(stored_name).name
+    filename = Path(str(stored_name).replace("\\", "/")).name
+    if not filename or filename in {".", ".."}:
+        return None
+    return safe_upload_path(filename)
 
 
 def existing_uploaded_file_path(stored_name):
@@ -3959,8 +4024,8 @@ def save_dof_opening_files(dof):
     saved_paths = []
     try:
         for uploaded_file in uploaded_files:
-            safe_name = secure_filename(uploaded_file.filename) or "dof-gorsel"
-            extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+            extension = file_extension(uploaded_file.filename)
+            original_name = safe_original_filename(uploaded_file.filename, "dof-gorsel")
             stored_name = f"dof-opening-{uuid4().hex}.{extension}"
             relative_path, upload_path = upload_storage_path(
                 stored_name,
@@ -3975,7 +4040,7 @@ def save_dof_opening_files(dof):
                 DofFile(
                     dof=dof,
                     company_id=dof.company_id,
-                    original_name=safe_name,
+                    original_name=original_name,
                     stored_name=str(relative_path).replace("\\", "/"),
                     mime_type=uploaded_file.mimetype,
                     file_type="opening",
@@ -3994,8 +4059,8 @@ def save_dof_evidence_file(dof):
         return
 
     validate_dof_evidence_file(uploaded_file)
-    safe_name = secure_filename(uploaded_file.filename) or "dof-kanit"
-    extension = safe_name.rsplit(".", 1)[1].lower()
+    original_name = safe_original_filename(uploaded_file.filename, "dof-kanit")
+    extension = file_extension(uploaded_file.filename)
     stored_name = f"dof-{uuid4().hex}.{extension}"
     relative_path, upload_path = upload_storage_path(stored_name, "dof/evidence", dof.company_id)
     uploaded_file.save(upload_path)
@@ -4003,7 +4068,7 @@ def save_dof_evidence_file(dof):
         upload_path.unlink(missing_ok=True)
         raise ValueError("dof_file_too_large")
 
-    dof.evidence_original_name = safe_name
+    dof.evidence_original_name = original_name
     dof.evidence_stored_name = str(relative_path).replace("\\", "/")
     dof.evidence_mime_type = uploaded_file.mimetype
 
@@ -4336,8 +4401,8 @@ def save_document_upload(uploaded_file, category):
     if not document_allowed_file(uploaded_file):
         raise ValueError("invalid_document_file_type")
 
-    original_name = secure_filename(uploaded_file.filename)
-    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    original_name = safe_original_filename(uploaded_file.filename, "dokuman")
+    extension = file_extension(uploaded_file.filename)
     if not original_name:
         original_name = f"dokuman.{extension}"
     stored_name = f"document-{uuid4().hex}.{extension}"
@@ -4364,8 +4429,8 @@ def save_document_revision_request_file(uploaded_file, revision_request):
     if not document_allowed_file(uploaded_file):
         raise ValueError("invalid_document_file_type")
 
-    original_name = secure_filename(uploaded_file.filename)
-    extension = uploaded_file.filename.rsplit(".", 1)[1].lower()
+    original_name = safe_original_filename(uploaded_file.filename, "revizyon-talebi")
+    extension = file_extension(uploaded_file.filename)
     if not original_name:
         original_name = f"revizyon-talebi.{extension}"
     stored_name = f"document-revision-request-{uuid4().hex}.{extension}"
@@ -7292,8 +7357,8 @@ def filtered_dofs(dofs, filters):
 def dof_due_priority_sort_key(dof):
     is_completed = (
         dof.approval_step == "completed"
-        or dof.status == "TamamlandÄ±"
-        or dof.display_status == "TamamlandÄ±"
+        or dof.status in COMPLETED_STATUS_VALUES
+        or dof.display_status in COMPLETED_STATUS_VALUES
     )
     if is_completed:
         return (3, 0, date.max, dof.id)
@@ -8627,20 +8692,23 @@ def delete_uploaded_file(action):
 
 
 def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions", company_id=None):
+    extension = file_extension(uploaded_file.filename)
     extension_allowed = (
-        "." in uploaded_file.filename
-        and uploaded_file.filename.rsplit(".", 1)[1].lower()
-        in (allowed_extensions or ALLOWED_EXTENSIONS)
+        extension
+        and extension in (allowed_extensions or ALLOWED_EXTENSIONS)
     )
     if not extension_allowed:
         raise ValueError("invalid_file_type")
 
-    safe_name = secure_filename(uploaded_file.filename)
-    extension = safe_name.rsplit(".", 1)[1].lower()
+    original_name = safe_original_filename(uploaded_file.filename, "dosya")
     stored_name = f"{uuid4().hex}.{extension}"
     relative_path, upload_path = upload_storage_path(stored_name, folder, company_id)
     uploaded_file.save(upload_path)
-    return safe_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
+    max_bytes = current_app.config.get("MAX_CONTENT_LENGTH")
+    if max_bytes and upload_path.stat().st_size > max_bytes:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("file_too_large")
+    return original_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
 
 
 def save_uploaded_file(action):
@@ -9351,13 +9419,13 @@ def parse_company_form(company=None):
 def flash_company_form_error(error):
     error_key = str(error)
     if error_key == "required_fields":
-        flash("Åirket kodu ve ÅŸirket adÄ± zorunludur.", "danger")
+        flash("Şirket kodu ve şirket adı zorunludur.", "danger")
     elif error_key == "invalid_code":
-        flash("Åirket kodu 000 gibi tam 3 haneli sayÄ± olmalÄ±dÄ±r.", "danger")
+        flash("Şirket kodu 000 gibi tam 3 haneli sayı olmalıdır.", "danger")
     elif error_key == "code_exists":
-        flash("Bu ÅŸirket kodu zaten kullanÄ±lÄ±yor.", "danger")
+        flash("Bu şirket kodu zaten kullanılıyor.", "danger")
     else:
-        flash("Åirket formunu kontrol edin.", "danger")
+        flash("Şirket formunu kontrol edin.", "danger")
 
 
 ONBOARDING_CORE_MODULE_KEYS = ISO_CORE_MODULE_KEYS
@@ -12621,6 +12689,8 @@ def create_suggestion():
             error_key = str(error)
             if error_key == "invalid_file_type":
                 flash("Ek dosya türü desteklenmiyor.", "danger")
+            elif error_key == "file_too_large":
+                flash("Dosya en fazla 25 MB olabilir.", "danger")
             elif error_key == "invalid_department":
                 flash("Geçerli bir bölüm seçin.", "danger")
             elif error_key == "invalid_status":
@@ -12735,6 +12805,8 @@ def edit_suggestion(suggestion_id):
             error_key = str(error)
             if error_key == "invalid_file_type":
                 flash("Ek dosya türü desteklenmiyor.", "danger")
+            elif error_key == "file_too_large":
+                flash("Dosya en fazla 25 MB olabilir.", "danger")
             elif error_key == "invalid_department":
                 flash("Geçerli bir bölüm seçin.", "danger")
             elif error_key == "invalid_status":
@@ -14610,6 +14682,8 @@ def create_action():
                     "Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.",
                     "danger",
                 )
+            elif error_key == "file_too_large":
+                flash("Dosya en fazla 25 MB olabilir.", "danger")
             elif error_key == "sub_action_required_fields":
                 flash("Alt aksiyon eklediyseniz alt aksiyon başlığını doldurun.", "danger")
             elif error_key in {"invalid_sub_action_priority", "invalid_sub_action_status"}:
@@ -14844,11 +14918,14 @@ def edit_action(action_id):
             flash("Aksiyon kaydı güncellendi.", "success")
             return redirect(url_for("main.dashboard"))
         except ValueError as error:
-            if str(error) == "invalid_file_type":
+            error_key = str(error)
+            if error_key == "invalid_file_type":
                 flash(
                     "Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.",
                     "danger",
                 )
+            elif error_key == "file_too_large":
+                flash("Dosya en fazla 25 MB olabilir.", "danger")
             else:
                 flash("Lütfen form alanlarını geçerli biçimde doldurun.", "danger")
 
@@ -14900,6 +14977,8 @@ def create_sub_action(action_id):
         error_key = str(error)
         if error_key == "invalid_file_type":
             flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+        elif error_key == "file_too_large":
+            flash("Dosya en fazla 25 MB olabilir.", "danger")
         elif error_key == "evidence_required":
             flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kanıt dosyası yüklenmelidir.", "danger")
         elif error_key == "closing_note_required":
@@ -14988,6 +15067,8 @@ def edit_sub_action(sub_action_id):
             error_key = str(error)
             if error_key == "invalid_file_type":
                 flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+            elif error_key == "file_too_large":
+                flash("Dosya en fazla 25 MB olabilir.", "danger")
             elif error_key == "evidence_required":
                 flash("Kanıt zorunlu olan alt aksiyon tamamlanırken kanıt dosyası yüklenmelidir.", "danger")
             elif error_key == "closing_note_required":
@@ -15022,8 +15103,11 @@ def complete_sub_action(sub_action_id):
         sub_action.closing_note = closing_note
     try:
         save_sub_action_evidence_file(sub_action)
-    except ValueError:
-        flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
+    except ValueError as error:
+        if str(error) == "file_too_large":
+            flash("Dosya en fazla 25 MB olabilir.", "danger")
+        else:
+            flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
     if sub_action.evidence_required and not sub_action.evidence_stored_name:
@@ -15115,8 +15199,11 @@ def request_action_closure(action_id):
 
     try:
         save_closure_evidence_files(action)
-    except ValueError:
-        flash("Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.", "danger")
+    except ValueError as error:
+        if str(error) == "file_too_large":
+            flash("Dosya en fazla 25 MB olabilir.", "danger")
+        else:
+            flash("Sadece PDF, Word, Excel veya görsel dosyası yükleyebilirsiniz.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
     action.closure_approval_requested = True
@@ -15649,7 +15736,7 @@ def create_company():
             )
             mark_packaging_sales_readiness_without_commit()
             db.session.commit()
-            flash(f"{company.label} ÅŸirketi oluÅŸturuldu.", "success")
+            flash(f"{company.label} şirketi oluşturuldu.", "success")
             return redirect(url_for("main.companies"))
         except (ValueError, IntegrityError) as error:
             db.session.rollback()
@@ -15658,8 +15745,8 @@ def create_company():
     return render_template(
         "company_form.html",
         company=None,
-        title="Yeni Åirket",
-        description="VolkaPortal iÃ§in boÅŸ baÅŸlayacak yeni bir firma oluÅŸturun.",
+        title="Yeni Şirket",
+        description="VolkaPortal için boş başlayacak yeni bir firma oluşturun.",
         form_action=url_for("main.create_company"),
         package_catalog=PACKAGE_CATALOG,
         package_key=selected_company_package_key() if request.method == "POST" else DEFAULT_PACKAGE_KEY,
@@ -15668,7 +15755,7 @@ def create_company():
         module_state=company_module_form_state(None),
         core_module_keys=ISO_CORE_MODULE_KEYS,
         production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
-        submit_label="Åirketi Kaydet",
+        submit_label="Şirketi Kaydet",
     )
 
 
@@ -15689,7 +15776,7 @@ def edit_company(company_id):
             )
             mark_packaging_sales_readiness_without_commit()
             db.session.commit()
-            flash(f"{company.label} ÅŸirketi gÃ¼ncellendi.", "success")
+            flash(f"{company.label} şirketi güncellendi.", "success")
             return redirect(url_for("main.companies"))
         except (ValueError, IntegrityError) as error:
             db.session.rollback()
@@ -15698,8 +15785,8 @@ def edit_company(company_id):
     return render_template(
         "company_form.html",
         company=company,
-        title="Åirket DÃ¼zenle",
-        description=f"{company.label} kaydÄ±nÄ± gÃ¼ncelleyin.",
+        title="Şirket Düzenle",
+        description=f"{company.label} kaydını güncelleyin.",
         form_action=url_for("main.edit_company", company_id=company.id),
         package_catalog=PACKAGE_CATALOG,
         package_key=selected_company_package_key(company.package_key) if request.method == "POST" else normalize_package_key(company.package_key),
@@ -15708,7 +15795,7 @@ def edit_company(company_id):
         module_state=company_module_form_state(company),
         core_module_keys=ISO_CORE_MODULE_KEYS,
         production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
-        submit_label="DeÄŸiÅŸiklikleri Kaydet",
+        submit_label="Değişiklikleri Kaydet",
     )
 
 
