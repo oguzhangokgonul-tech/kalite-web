@@ -5,7 +5,11 @@
 {% block topbar_title %}Ana Sayfa{% endblock %}
 
 {% macro status_badge(action) %}
-  {% if action.is_completed %}
+  {% if action.effectiveness_required and action.effectiveness_result == "Etkin Değil" %}
+    {{ ui.status_badge("Etkin Değil") }}
+  {% elif action.effectiveness_required and action.is_completed and action.effectiveness_result != "Etkin" %}
+    {{ ui.status_badge("Etkinlik Kontrolü Bekliyor") }}
+  {% elif action.is_completed %}
     {{ ui.status_badge("Tamamlandı") }}
   {% elif action.closure_approval_requested %}
     {{ ui.status_badge("Kapanma Onayı Beklemede") }}

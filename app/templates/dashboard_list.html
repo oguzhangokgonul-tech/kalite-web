@@ -97,11 +97,15 @@
 
     <div class="action-list">
       {% for action in actions %}
-        <article class="action-row {% if action.is_completed %}action-row-success{% elif action.closure_approval_requested %}action-row-warning{% elif action.closure_rejection_reason or action.delay_days > 0 %}action-row-danger{% endif %}">
+        <article class="action-row {% if action.effectiveness_required and action.effectiveness_result == 'Etkin Değil' %}action-row-danger{% elif action.effectiveness_required and action.is_completed and action.effectiveness_result != 'Etkin' %}action-row-warning{% elif action.is_completed %}action-row-success{% elif action.closure_approval_requested %}action-row-warning{% elif action.closure_rejection_reason or action.delay_days > 0 %}action-row-danger{% endif %}">
           <div class="action-row-main">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
               <a class="action-title" href="{{ url_for('main.action_detail', action_id=action.id) }}">{{ action.number_label }} {{ action.title }}</a>
-              {% if action.is_completed %}
+              {% if action.effectiveness_required and action.effectiveness_result == "Etkin Değil" %}
+                {{ ui.status_badge("Etkin Değil") }}
+              {% elif action.effectiveness_required and action.is_completed and action.effectiveness_result != "Etkin" %}
+                {{ ui.status_badge("Etkinlik Kontrolü Bekliyor") }}
+              {% elif action.is_completed %}
                 {{ ui.status_badge("Tamamlandı") }}
               {% elif action.closure_approval_requested %}
                 {{ ui.status_badge("Kapanma Onayı Beklemede") }}

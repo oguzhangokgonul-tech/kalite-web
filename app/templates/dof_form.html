@@ -118,6 +118,58 @@
           <textarea class="form-control" id="nonconformity_description" name="nonconformity_description" rows="3" maxlength="2000" data-dof-count="nonconformity_description" placeholder="Uygunsuzluğu açıklayın...">{{ form_data.get("nonconformity_description", "") }}</textarea>
           <div class="dof-counter">{{ text_counter("nonconformity_description") }}</div>
         </div>
+      </div>
+
+      <div class="dof-section-divider"></div>
+
+      <div class="app-card-header">
+        <span class="app-card-icon dof-card-icon"><i class="bi bi-clipboard2-check"></i></span>
+        <div>
+          <h3>CAPA Standardı</h3>
+          <p>Kök neden, alınan aksiyonlar ve etkinlik kontrolünü aynı kayıt altında takip edin.</p>
+        </div>
+      </div>
+
+      <div class="dof-grid">
+        <div>
+          <label class="form-label" for="root_cause_method">Kök Neden Yöntemi</label>
+          <select class="form-select" id="root_cause_method" name="root_cause_method">
+            <option value="">Seçiniz</option>
+            {% for method in root_cause_methods %}
+              <option value="{{ method }}" {% if form_data.get('root_cause_method') == method %}selected{% endif %}>{{ method }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label d-block" for="effectiveness_required">Etkinlik kontrolü gerekli mi?</label>
+          <div class="form-check form-switch mt-2">
+            <input class="form-check-input" type="checkbox" id="effectiveness_required" name="effectiveness_required" value="1" {% if form_data.get('effectiveness_required') in ['1', 'on', 'true', 'yes'] %}checked{% endif %}>
+            <label class="form-check-label" for="effectiveness_required">Evet</label>
+          </div>
+        </div>
+        <div>
+          <label class="form-label" for="effectiveness_owner_user_id">Etkinlik kontrol sorumlusu</label>
+          <select class="form-select" id="effectiveness_owner_user_id" name="effectiveness_owner_user_id">
+            <option value="">Seçiniz</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if form_data.get('effectiveness_owner_user_id') == user.id|string %}selected{% endif %}>
+                {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="effectiveness_due_date">Etkinlik kontrol termini</label>
+          <input class="form-control" id="effectiveness_due_date" name="effectiveness_due_date" type="date" value="{{ field_value('effectiveness_due_date')|trim }}">
+        </div>
+      </div>
+
+      <div class="dof-textarea-stack mt-3">
+        <div class="dof-textarea-field">
+          <label class="form-label" for="containment_action">Acil Düzeltme / Geçici Önlem</label>
+          <textarea class="form-control" id="containment_action" name="containment_action" rows="3" maxlength="2000" data-dof-count="containment_action" placeholder="Uygunsuzluğun etkisini sınırlamak için alınan ilk önlemleri yazın...">{{ form_data.get("containment_action", "") }}</textarea>
+          <div class="dof-counter">{{ text_counter("containment_action") }}</div>
+        </div>
         <div class="dof-textarea-field">
           <label class="form-label" for="root_cause_analysis">Kök Neden Analizi</label>
           <textarea class="form-control" id="root_cause_analysis" name="root_cause_analysis" rows="3" maxlength="2000" data-dof-count="root_cause_analysis" placeholder="Kök nedenleri analiz edin...">{{ form_data.get("root_cause_analysis", "") }}</textarea>
@@ -169,6 +221,7 @@
           <li class="is-active"><strong>İF Açılması</strong><span>Form kaydedilecek</span></li>
           <li><strong>Yönetim Temsilcisi</strong><span>Beklemede</span></li>
           <li><strong>Genel Müdür Yardımcısı</strong><span>Beklemede</span></li>
+          <li><strong>Etkinlik Kontrolü</strong><span>Gerekirse takip edilir</span></li>
         </ol>
       </section>
     </aside>

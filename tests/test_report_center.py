@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 from io import BytesIO
+import json
 from pathlib import Path
 import zipfile
 from xml.etree import ElementTree as ET
@@ -8,7 +9,21 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import Action, AppSetting, AuditLog, Company, Role, User, UserPermission
+from app.models import (
+    Action,
+    AppSetting,
+    AuditLog,
+    Company,
+    Dof,
+    Document,
+    DocumentAcknowledgement,
+    DocumentCategory,
+    Role,
+    TrainingParticipant,
+    TrainingRecord,
+    User,
+    UserPermission,
+)
 from app.seed import ensure_default_roles, ensure_runtime_schema
 
 
@@ -40,10 +55,10 @@ def login(client, user):
         session["user_id"] = user.id
 
 
-def create_user(username, *permission_keys, company=None):
+def create_user(username, *permission_keys, company=None, full_name=None):
     user = User(
         username=username,
-        full_name=username.title(),
+        full_name=full_name or username.title(),
         password_hash="not-used",
         company_id=company.id if company else None,
         is_active=True,
@@ -87,11 +102,14 @@ def test_report_center_view_permission_does_not_allow_export(app, client):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "Rapor Merkezi" in body
-    assert "Export Yetkisi Yok" in body
+    assert "Çıktı Yetkisi Yok" in body
 
     export_response = client.get("/rapor-merkezi/actions_overdue/excel")
 
     assert export_response.status_code == 403
+    pdf_response = client.get("/rapor-merkezi/actions_overdue/pdf")
+
+    assert pdf_response.status_code == 403
 
 
 def test_report_center_export_is_scoped_to_current_company_and_audited(app, client):
@@ -150,6 +168,155 @@ def test_report_center_export_is_scoped_to_current_company_and_audited(app, clie
     assert log.company_id == company_a.id
     assert log.user_id == user.id
     assert log.entity_id == "actions_overdue"
+    assert json.loads(log.new_values)["format"] == "excel"
+
+
+def test_report_center_pdf_view_is_scoped_and_audited(app, client):
+    company_a = Company(code="103", name="A Firması", slug="a-firmasi-pdf")
+    company_b = Company(code="104", name="B Firması", slug="b-firmasi-pdf")
+    db.session.add_all([company_a, company_b])
+    db.session.commit()
+    user = create_user("pdf-reporter", "reports.view", "reports.export", company=company_a)
+    today = date.today()
+    db.session.add_all(
+        [
+            Action(
+                company_id=company_a.id,
+                action_number=1,
+                title="A firması PDF aksiyonu",
+                responsible_owner="Kalite Sorumlusu",
+                responsible_user_id=user.id,
+                department="Kalite",
+                termin_date=today - timedelta(days=2),
+            ),
+            Action(
+                company_id=company_b.id,
+                action_number=2,
+                title="B firması PDF görünmeyen aksiyon",
+                responsible_owner="Bakım Sorumlusu",
+                department="Bakım",
+                termin_date=today - timedelta(days=4),
+            ),
+        ]
+    )
+    db.session.commit()
+    login(client, user)
+
+    response = client.get("/rapor-merkezi/actions_overdue/pdf")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/html"
+    body = response.get_data(as_text=True)
+    assert "Aksiyon Gecikme Raporu" in body
+    assert "PDF Olarak Kaydet" in body
+    assert "A firması PDF aksiyonu" in body
+    assert "B firması PDF görünmeyen aksiyon" not in body
+
+    log = AuditLog.query.filter_by(entity_type="ReportCenter", action="exported").one()
+    assert log.company_id == company_a.id
+    assert log.user_id == user.id
+    assert log.entity_id == "actions_overdue"
+    assert json.loads(log.new_values)["format"] == "pdf"
+
+
+def test_report_center_exports_capa_and_document_acknowledgement_reports(app, client):
+    company = Company(code="105", name="Rapor Firması", slug="rapor-firmasi")
+    db.session.add(company)
+    db.session.commit()
+    reporter = create_user("full-reporter", "reports.view", "reports.export", company=company)
+    reader = create_user("document-reader", company=company, full_name="Ayşe Çelik")
+    pending_reader = create_user("pending-reader", company=company, full_name="Mehmet Yılmaz")
+    category = DocumentCategory(
+        company_id=company.id,
+        code="03",
+        name="Prosedürler",
+        slug="prosedurler",
+        sort_order=3,
+        is_active=True,
+    )
+    document = Document(
+        company_id=company.id,
+        category=category,
+        document_code="PR.70",
+        title="Okuma Onayı Prosedürü",
+        revision_no="2",
+        publish_date=date.today(),
+        status="Yayında",
+        file_name="pr70.pdf",
+        original_file_name="pr70.pdf",
+        file_path="company-105/documents/pr70.pdf",
+        file_type="pdf",
+    )
+    training = TrainingRecord(
+        company_id=company.id,
+        training_no="EGT-2026-0070",
+        title="PR.70 Okuma Onayı",
+        training_type="Doküman Okuma Onayı",
+        document=document,
+        created_by_user_id=reporter.id,
+    )
+    db.session.add_all(
+        [
+            category,
+            document,
+            DocumentAcknowledgement(
+                company_id=company.id,
+                document=document,
+                user=reader,
+                document_code_snapshot="PR.70",
+                document_title_snapshot="Okuma Onayı Prosedürü",
+                revision_no_snapshot="2",
+            ),
+            training,
+            TrainingParticipant(
+                company_id=company.id,
+                training=training,
+                user_id=pending_reader.id,
+                status="Atandı",
+            ),
+            Dof(
+                company_id=company.id,
+                dof_no="IF-2026-0700",
+                title="CAPA kayıt başlığı",
+                department="Kalite",
+                responsible_id=reader.id,
+                opening_date=date.today(),
+                due_date=date.today(),
+                priority="Orta",
+                source="İç Denetim",
+                status="Etkinlik Kontrolü Bekliyor",
+                approval_step="effectiveness_review",
+                root_cause_method="5 Neden",
+                containment_action="Geçici önlem",
+                root_cause_analysis="Kök neden analizi",
+                corrective_action="Düzeltici faaliyet",
+                closing_evidence="Kapanış kanıtı",
+                effectiveness_required=True,
+                effectiveness_owner_user_id=reader.id,
+                effectiveness_due_date=date.today(),
+                effectiveness_result="Bekliyor",
+            ),
+        ]
+    )
+    db.session.commit()
+    login(client, reporter)
+
+    capa_response = client.get("/rapor-merkezi/dof_capa_effectiveness/excel")
+    acknowledgement_response = client.get("/rapor-merkezi/document_acknowledgements/excel")
+
+    assert capa_response.status_code == 200
+    assert acknowledgement_response.status_code == 200
+    capa_rows = sheet_values(capa_response.data)
+    acknowledgement_rows = sheet_values(acknowledgement_response.data)
+    capa_text = "\n".join("\t".join(row) for row in capa_rows)
+    acknowledgement_text = "\n".join("\t".join(row) for row in acknowledgement_rows)
+    assert "IF-2026-0700" in capa_text
+    assert "Kök neden analizi" in capa_text
+    assert "Okuma Onayı Prosedürü" in acknowledgement_text
+    assert "Ayşe Çelik" in acknowledgement_text
+    assert "Onaylandı" in acknowledgement_text
+    assert "Mehmet Yılmaz" in acknowledgement_text
+    assert "Bekliyor" in acknowledgement_text
 
 
 def test_report_center_sidebar_link_follows_report_permission(app, client):

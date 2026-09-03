@@ -58,6 +58,7 @@ from .models import (
     AppSetting,
     AuditLog,
     CalibrationRecord,
+    CAPA_TYPES,
     ComplaintRecord,
     Company,
     CompanyDepartment,
@@ -68,15 +69,18 @@ from .models import (
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
+    DOF_EFFECTIVENESS_STATUS,
     DOF_PRIORITIES,
     DOF_SOURCES,
     Document,
+    DocumentAcknowledgement,
     DocumentCategory,
     DocumentRevisionRequest,
     DocumentRevisionRequestFile,
     Dof,
     DofComment,
     DofFile,
+    EFFECTIVENESS_RESULTS,
     InternalAudit,
     InternalAuditAnswer,
     InternalAuditQuestion,
@@ -95,6 +99,7 @@ from .models import (
     RiskRecord,
     Role,
     RolePermission,
+    ROOT_CAUSE_METHODS,
     SUGGESTION_STATUSES,
     Suggestion,
     SuggestionEvaluation,
@@ -616,11 +621,39 @@ def ensure_dof_rejection_schema():
                 "rejected_by_user_id": "ALTER TABLE dofs ADD COLUMN rejected_by_user_id INTEGER",
                 "rejected_at": "ALTER TABLE dofs ADD COLUMN rejected_at DATETIME",
                 "rejected_step": "ALTER TABLE dofs ADD COLUMN rejected_step VARCHAR(40)",
+                "containment_action": "ALTER TABLE dofs ADD COLUMN containment_action TEXT",
+                "root_cause_method": "ALTER TABLE dofs ADD COLUMN root_cause_method VARCHAR(80)",
+                "effectiveness_required": (
+                    "ALTER TABLE dofs ADD COLUMN "
+                    "effectiveness_required BOOLEAN NOT NULL DEFAULT 0"
+                ),
+                "effectiveness_owner_user_id": (
+                    "ALTER TABLE dofs ADD COLUMN effectiveness_owner_user_id INTEGER"
+                ),
+                "effectiveness_due_date": (
+                    "ALTER TABLE dofs ADD COLUMN effectiveness_due_date DATE"
+                ),
+                "effectiveness_result": (
+                    "ALTER TABLE dofs ADD COLUMN effectiveness_result VARCHAR(40)"
+                ),
+                "effectiveness_note": "ALTER TABLE dofs ADD COLUMN effectiveness_note TEXT",
+                "effectiveness_checked_by_user_id": (
+                    "ALTER TABLE dofs ADD COLUMN effectiveness_checked_by_user_id INTEGER"
+                ),
+                "effectiveness_checked_at": (
+                    "ALTER TABLE dofs ADD COLUMN effectiveness_checked_at DATETIME"
+                ),
             }
             with db.engine.begin() as connection:
                 for column_name, statement in column_sql.items():
                     if column_name not in columns:
                         connection.execute(text(statement))
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_dofs_effectiveness_owner_user_id "
+                        "ON dofs (effectiveness_owner_user_id)"
+                    )
+                )
                 if "dof_comments" not in tables:
                     connection.execute(
                         text(
@@ -635,6 +668,14 @@ def ensure_dof_rejection_schema():
                             )
                             """
                         )
+                    )
+                if "app_settings" in tables:
+                    connection.execute(
+                        text(
+                            "INSERT OR IGNORE INTO app_settings (key, value) "
+                            "VALUES (:key, '1')"
+                        ),
+                        {"key": "sales_readiness:month2_capa_fields"},
                     )
         current_app.extensions["dof_rejection_schema_checked"] = True
     except OperationalError:
@@ -859,6 +900,48 @@ def ensure_action_sub_task_schema():
         inspector = inspect(db.engine)
         tables = set(inspector.get_table_names())
         with db.engine.begin() as connection:
+            if "actions" in tables:
+                action_columns = {
+                    column["name"] for column in inspector.get_columns("actions")
+                }
+                action_column_sql = {
+                    "dof_id": "ALTER TABLE actions ADD COLUMN dof_id INTEGER",
+                    "capa_type": "ALTER TABLE actions ADD COLUMN capa_type VARCHAR(60)",
+                    "effectiveness_required": (
+                        "ALTER TABLE actions ADD COLUMN "
+                        "effectiveness_required BOOLEAN NOT NULL DEFAULT 0"
+                    ),
+                    "effectiveness_owner_user_id": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_owner_user_id INTEGER"
+                    ),
+                    "effectiveness_due_date": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_due_date DATE"
+                    ),
+                    "effectiveness_result": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_result VARCHAR(40)"
+                    ),
+                    "effectiveness_note": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_note TEXT"
+                    ),
+                    "effectiveness_checked_by_user_id": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_checked_by_user_id INTEGER"
+                    ),
+                    "effectiveness_checked_at": (
+                        "ALTER TABLE actions ADD COLUMN effectiveness_checked_at DATETIME"
+                    ),
+                }
+                for column_name, statement in action_column_sql.items():
+                    if column_name not in action_columns:
+                        connection.execute(text(statement))
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_actions_dof_id ON actions (dof_id)")
+                )
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_actions_effectiveness_owner_user_id "
+                        "ON actions (effectiveness_owner_user_id)"
+                    )
+                )
             if "action_sub_tasks" not in tables:
                 connection.execute(
                     text(
@@ -1107,6 +1190,61 @@ def ensure_document_schema():
                     if column_name not in columns:
                         connection.execute(text(statement))
 
+            if "document_acknowledgements" not in tables:
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE document_acknowledgements (
+                            id INTEGER PRIMARY KEY,
+                            company_id INTEGER,
+                            document_id INTEGER NOT NULL,
+                            user_id INTEGER NOT NULL,
+                            training_participant_id INTEGER,
+                            document_code_snapshot VARCHAR(80) NOT NULL,
+                            document_title_snapshot VARCHAR(200) NOT NULL,
+                            revision_no_snapshot VARCHAR(40) NOT NULL DEFAULT '',
+                            acknowledged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            ip_address VARCHAR(80),
+                            user_agent VARCHAR(255),
+                            note TEXT,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(company_id, document_id, user_id, revision_no_snapshot)
+                        )
+                        """
+                    )
+                )
+                tables.add("document_acknowledgements")
+            else:
+                columns = {
+                    column["name"]
+                    for column in inspector.get_columns("document_acknowledgements")
+                }
+                acknowledgement_columns = {
+                    "company_id": "ALTER TABLE document_acknowledgements ADD COLUMN company_id INTEGER",
+                    "document_id": "ALTER TABLE document_acknowledgements ADD COLUMN document_id INTEGER NOT NULL DEFAULT 0",
+                    "user_id": "ALTER TABLE document_acknowledgements ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0",
+                    "training_participant_id": "ALTER TABLE document_acknowledgements ADD COLUMN training_participant_id INTEGER",
+                    "document_code_snapshot": "ALTER TABLE document_acknowledgements ADD COLUMN document_code_snapshot VARCHAR(80) NOT NULL DEFAULT ''",
+                    "document_title_snapshot": "ALTER TABLE document_acknowledgements ADD COLUMN document_title_snapshot VARCHAR(200) NOT NULL DEFAULT ''",
+                    "revision_no_snapshot": "ALTER TABLE document_acknowledgements ADD COLUMN revision_no_snapshot VARCHAR(40) NOT NULL DEFAULT ''",
+                    "acknowledged_at": "ALTER TABLE document_acknowledgements ADD COLUMN acknowledged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                    "ip_address": "ALTER TABLE document_acknowledgements ADD COLUMN ip_address VARCHAR(80)",
+                    "user_agent": "ALTER TABLE document_acknowledgements ADD COLUMN user_agent VARCHAR(255)",
+                    "note": "ALTER TABLE document_acknowledgements ADD COLUMN note TEXT",
+                    "created_at": "ALTER TABLE document_acknowledgements ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                }
+                for column_name, statement in acknowledgement_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
+            if "document_acknowledgements" in tables:
+                for statement in (
+                    "CREATE INDEX IF NOT EXISTS ix_document_acknowledgements_company_id ON document_acknowledgements (company_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_document_acknowledgements_document_id ON document_acknowledgements (document_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_document_acknowledgements_user_id ON document_acknowledgements (user_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_document_acknowledgements_training_participant_id ON document_acknowledgements (training_participant_id)",
+                ):
+                    connection.execute(text(statement))
+
             if "notifications" in tables:
                 columns = {column["name"] for column in inspector.get_columns("notifications")}
                 if "document_revision_request_id" not in columns:
@@ -1116,6 +1254,14 @@ def ensure_document_schema():
                             "ADD COLUMN document_revision_request_id INTEGER"
                         )
                     )
+            if "app_settings" in tables:
+                connection.execute(
+                    text(
+                        "INSERT OR IGNORE INTO app_settings (key, value) "
+                        "VALUES (:key, '1')"
+                    ),
+                    {"key": "sales_readiness:month2_document_read"},
+                )
         current_app.extensions["document_schema_checked"] = True
         ensure_document_categories()
     except OperationalError:
@@ -2218,6 +2364,7 @@ MODULE_ENDPOINTS = {
     "main.dof_detail": "if_management",
     "main.approve_dof_management": "if_management",
     "main.approve_dof_deputy": "if_management",
+    "main.review_dof_effectiveness": "if_management",
     "main.reject_dof": "if_management",
     "main.revise_dof": "if_management",
     "main.download_dof_evidence_file": "if_management",
@@ -2245,6 +2392,7 @@ MODULE_ENDPOINTS = {
     "main.deactivate_supplier": "supplier_management",
     "main.report_center": "report_center",
     "main.download_report_center_excel": "report_center",
+    "main.report_center_pdf": "report_center",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -2264,6 +2412,8 @@ MODULE_ENDPOINTS = {
     "main.document_detail": "documents",
     "main.edit_document": "documents",
     "main.request_document_revision": "documents",
+    "main.acknowledge_document": "documents",
+    "main.document_acknowledgements": "documents",
     "main.document_revision_request_detail": "documents",
     "main.download_document_revision_request_file": "documents",
     "main.approve_document_revision_request": "documents",
@@ -2505,6 +2655,7 @@ def can_view_dof(dof):
         and (
             can_view_all_dofs()
             or dof.responsible_id == g.current_user.id
+            or dof.effectiveness_owner_user_id == g.current_user.id
             or dof.created_by_user_id == g.current_user.id
         )
     )
@@ -2594,6 +2745,20 @@ def can_request_dof_approval(dof):
     return can_edit_dof_draft(dof) or can_revise_rejected_dof(dof)
 
 
+def can_review_dof_effectiveness(dof):
+    if g.current_user is None or dof is None:
+        return False
+    return (
+        dof.effectiveness_required
+        and dof.approval_step == "effectiveness_review"
+        and dof.status == DOF_EFFECTIVENESS_STATUS
+        and (
+            dof.effectiveness_owner_user_id == g.current_user.id
+            or can_view_all_dofs()
+        )
+    )
+
+
 def can_manage_orientation():
     return g.current_user is not None and (
         current_user_can("organization.manage") or current_user_can("users.manage")
@@ -2604,6 +2769,20 @@ def can_complete_action(action):
     if g.current_user is None:
         return False
     return can_approve_closure_action(action)
+
+
+def can_review_action_effectiveness(action):
+    if g.current_user is None or action is None or not action.effectiveness_required:
+        return False
+    if not action.is_completed:
+        return False
+    if effectiveness_is_done(action.effectiveness_result):
+        return False
+    return (
+        action.effectiveness_owner_user_id == g.current_user.id
+        or is_oguzhan_admin()
+        or current_user_can("actions.edit")
+    )
 
 
 def can_request_closure_action(action):
@@ -2659,6 +2838,8 @@ def can_view_action(action):
         is_oguzhan_admin()
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
+        or action.effectiveness_owner_user_id == g.current_user.id
+        or (action.source_dof is not None and can_view_dof(action.source_dof))
         or any(
             g.current_user.id in item.participant_user_ids()
             for item in action.sub_actions
@@ -2757,6 +2938,7 @@ def visible_actions_query():
             Action.responsible_user_id == g.current_user.id,
             Action.related_user_1_id == g.current_user.id,
             Action.related_user_2_id == g.current_user.id,
+            Action.effectiveness_owner_user_id == g.current_user.id,
             Action.sub_actions.any(
                 or_(
                     ActionSubTask.responsible_id == g.current_user.id,
@@ -2807,28 +2989,29 @@ def oguzhan_user():
     return query.first()
 
 
-def company_counter_key(key):
-    company_id = current_company_id()
+def company_counter_key(key, company_id=None):
+    company_id = current_company_id() if company_id is None else company_id
     return f"company:{company_id}:{key}" if company_id else key
 
 
-def company_scoped_counter_query(query, model):
-    company_id = current_company_id()
+def company_scoped_counter_query(query, model, company_id=None):
+    company_id = current_company_id() if company_id is None else company_id
     if company_id and hasattr(model, "company_id"):
         return query.filter(model.company_id == company_id)
     return query
 
 
-def reserve_action_number():
+def reserve_action_number(company_id=None):
     max_number = (
         company_scoped_counter_query(
             db.session.query(db.func.max(db.func.coalesce(Action.action_number, Action.id))),
             Action,
+            company_id=company_id,
         )
         .scalar()
         or 0
     )
-    setting_key = company_counter_key("next_action_number")
+    setting_key = company_counter_key("next_action_number", company_id=company_id)
     setting = db.session.get(AppSetting, setting_key)
     if setting is None:
         setting = AppSetting(key=setting_key, value=str(max_number + 1))
@@ -3871,6 +4054,104 @@ def parse_optional_active_user(field_name):
     return user
 
 
+def checkbox_enabled(field_name):
+    return request.form.get(field_name, "").strip().lower() in {"1", "on", "true", "yes"}
+
+
+def parse_optional_dof(field_name="dof_id"):
+    value = request.form.get(field_name, "").strip() or request.args.get(field_name, "").strip()
+    if not value:
+        return None
+    try:
+        dof_id = int(value)
+    except ValueError:
+        raise ValueError("invalid_dof") from None
+    dof = scoped_query(Dof.query, Dof).filter_by(id=dof_id).first()
+    if dof is None or not can_view_dof(dof):
+        raise ValueError("invalid_dof")
+    return dof
+
+
+def effectiveness_is_done(value):
+    return value == "Etkin"
+
+
+def effectiveness_is_waiting(value):
+    return not value or value == "Bekliyor"
+
+
+def action_is_finally_completed(action):
+    return action.is_completed and (
+        not action.effectiveness_required
+        or effectiveness_is_done(action.effectiveness_result)
+    )
+
+
+def apply_dof_effectiveness_fields(dof, is_draft=False):
+    root_cause_method = request.form.get("root_cause_method", "").strip()
+    containment_action = request.form.get("containment_action", "").strip()
+    effectiveness_required = checkbox_enabled("effectiveness_required")
+    effectiveness_owner = parse_optional_active_user("effectiveness_owner_user_id")
+    effectiveness_due_date = parse_optional_date("effectiveness_due_date")
+
+    if root_cause_method and root_cause_method not in ROOT_CAUSE_METHODS:
+        raise ValueError("invalid_root_cause_method")
+    if len(containment_action) > 2000:
+        raise ValueError("text_too_long")
+    if effectiveness_required and not is_draft and (
+        not effectiveness_owner or not effectiveness_due_date
+    ):
+        raise ValueError("effectiveness_required_fields")
+
+    dof.root_cause_method = root_cause_method or None
+    dof.containment_action = containment_action or None
+    dof.effectiveness_required = effectiveness_required
+    if effectiveness_required:
+        dof.effectiveness_owner_user_id = (
+            effectiveness_owner.id if effectiveness_owner else None
+        )
+        dof.effectiveness_due_date = effectiveness_due_date
+        if effectiveness_is_waiting(dof.effectiveness_result):
+            dof.effectiveness_result = "Bekliyor"
+    else:
+        dof.effectiveness_owner_user_id = None
+        dof.effectiveness_due_date = None
+        dof.effectiveness_result = None
+        dof.effectiveness_note = None
+        dof.effectiveness_checked_by_user_id = None
+        dof.effectiveness_checked_at = None
+
+
+def apply_action_capa_fields(action):
+    source_dof = parse_optional_dof()
+    capa_type = request.form.get("capa_type", "").strip()
+    effectiveness_required = checkbox_enabled("effectiveness_required")
+    effectiveness_owner = parse_optional_active_user("effectiveness_owner_user_id")
+    effectiveness_due_date = parse_optional_date("effectiveness_due_date")
+
+    if capa_type and capa_type not in CAPA_TYPES:
+        raise ValueError("invalid_capa_type")
+    if effectiveness_required and (not effectiveness_owner or not effectiveness_due_date):
+        raise ValueError("effectiveness_required_fields")
+
+    action.dof_id = source_dof.id if source_dof else None
+    action._parsed_source_dof = source_dof
+    action.capa_type = capa_type or ("Düzeltici Faaliyet" if source_dof else None)
+    action.effectiveness_required = effectiveness_required
+    if effectiveness_required:
+        action.effectiveness_owner_user_id = effectiveness_owner.id
+        action.effectiveness_due_date = effectiveness_due_date
+        if effectiveness_is_waiting(action.effectiveness_result):
+            action.effectiveness_result = "Bekliyor"
+    else:
+        action.effectiveness_owner_user_id = None
+        action.effectiveness_due_date = None
+        action.effectiveness_result = None
+        action.effectiveness_note = None
+        action.effectiveness_checked_by_user_id = None
+        action.effectiveness_checked_at = None
+
+
 def validate_dof_evidence_file(uploaded_file):
     if "." not in uploaded_file.filename:
         raise ValueError("invalid_dof_file_type")
@@ -4133,6 +4414,162 @@ def can_view_documents():
 
 def can_delete_document(document=None):
     return current_user_can("documents.delete")
+
+
+def document_revision_key(document):
+    return (document.revision_no or "").strip()
+
+
+def document_is_archived(document):
+    return document.status == DOCUMENT_STATUSES[3] or document.archived_at is not None
+
+
+def document_acknowledgement_session_key(document):
+    revision_key = document_revision_key(document) or "0"
+    return f"document-read:{document.id}:{revision_key}"
+
+
+def mark_document_opened_for_acknowledgement(document):
+    if not document_is_archived(document):
+        session[document_acknowledgement_session_key(document)] = True
+
+
+def has_opened_document_for_acknowledgement(document):
+    return bool(session.get(document_acknowledgement_session_key(document)))
+
+
+def current_document_acknowledgement(document, user=None):
+    user = user or g.current_user
+    if user is None:
+        return None
+    return (
+        scoped_query(DocumentAcknowledgement.query, DocumentAcknowledgement)
+        .filter_by(
+            document_id=document.id,
+            user_id=user.id,
+            revision_no_snapshot=document_revision_key(document),
+        )
+        .first()
+    )
+
+
+def document_acknowledgement_request_meta():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    ip_address = forwarded_for.split(",", 1)[0].strip() if forwarded_for else request.remote_addr
+    user_agent = request.headers.get("User-Agent", "")
+    return (
+        ip_address[:80] if ip_address else None,
+        user_agent[:255] if user_agent else None,
+    )
+
+
+def create_or_update_document_acknowledgement(document, user=None, participant=None, note=None):
+    user = user or g.current_user
+    if user is None:
+        return None, False
+    acknowledgement = current_document_acknowledgement(document, user=user)
+    if acknowledgement is not None:
+        if participant is not None and acknowledgement.training_participant_id is None:
+            acknowledgement.training_participant_id = participant.id
+        return acknowledgement, False
+
+    ip_address, user_agent = document_acknowledgement_request_meta()
+    acknowledgement = DocumentAcknowledgement(
+        company_id=document.company_id,
+        document_id=document.id,
+        user_id=user.id,
+        training_participant_id=participant.id if participant is not None else None,
+        document_code_snapshot=document.document_code or "",
+        document_title_snapshot=document.title or "",
+        revision_no_snapshot=document_revision_key(document),
+        acknowledged_at=datetime.utcnow(),
+        ip_address=ip_address,
+        user_agent=user_agent,
+        note=note,
+    )
+    db.session.add(acknowledgement)
+    return acknowledgement, True
+
+
+def document_read_training_participants(document):
+    return (
+        scoped_query(TrainingParticipant.query, TrainingParticipant)
+        .join(TrainingRecord, TrainingParticipant.training_id == TrainingRecord.id)
+        .filter(
+            TrainingRecord.document_id == document.id,
+            TrainingRecord.training_type == TRAINING_TYPES[0],
+        )
+        .order_by(TrainingParticipant.id.asc())
+        .all()
+    )
+
+
+def current_user_matches_training_participant(participant):
+    if g.current_user is None:
+        return False
+    if participant.user_id == g.current_user.id:
+        return True
+    return bool(
+        g.current_user.personnel_contact_id
+        and participant.personnel_contact_id == g.current_user.personnel_contact_id
+    )
+
+
+def mark_current_user_document_training_read(document):
+    if g.current_user is None:
+        return []
+    participant_filters = [TrainingParticipant.user_id == g.current_user.id]
+    if g.current_user.personnel_contact_id:
+        participant_filters.append(
+            TrainingParticipant.personnel_contact_id == g.current_user.personnel_contact_id
+        )
+    participants = (
+        scoped_query(TrainingParticipant.query, TrainingParticipant)
+        .join(TrainingRecord, TrainingParticipant.training_id == TrainingRecord.id)
+        .filter(
+            TrainingRecord.document_id == document.id,
+            TrainingRecord.training_type == TRAINING_TYPES[0],
+            or_(*participant_filters),
+        )
+        .all()
+    )
+    for participant in participants:
+        if not participant.is_completed:
+            set_training_participant_status(participant, "Okundu")
+            sync_training_status(participant.training)
+    return participants
+
+
+def document_acknowledgement_summary(document):
+    revision_key = document_revision_key(document)
+    acknowledgements = (
+        scoped_query(DocumentAcknowledgement.query, DocumentAcknowledgement)
+        .filter_by(document_id=document.id, revision_no_snapshot=revision_key)
+        .order_by(DocumentAcknowledgement.acknowledged_at.desc())
+        .all()
+    )
+    acknowledged_user_ids = {item.user_id for item in acknowledgements}
+    pending_participants = [
+        participant
+        for participant in document_read_training_participants(document)
+        if participant.status != "Muaf" and participant.user_id not in acknowledged_user_ids
+    ]
+    return {
+        "revision_key": revision_key,
+        "acknowledgements": acknowledgements,
+        "acknowledged_count": len(acknowledgements),
+        "pending_participants": pending_participants,
+        "pending_count": len(pending_participants),
+        "assigned_count": len(acknowledgements) + len(pending_participants),
+    }
+
+
+def unlink_document_acknowledgement_participant(participant):
+    if participant is None or participant.id is None:
+        return
+    scoped_query(DocumentAcknowledgement.query, DocumentAcknowledgement).filter_by(
+        training_participant_id=participant.id
+    ).update({"training_participant_id": None}, synchronize_session=False)
 
 
 DOCUMENT_REVISION_PENDING_STATUS = "Yönetim Temsilcisi Onayı Bekleniyor"
@@ -5233,8 +5670,9 @@ def report_scope_label():
     return "Mevcut Firma"
 
 
-def report_filename(report_key):
-    return f"{report_key.replace('_', '-')}-{date.today():%Y%m%d}.xlsx"
+def report_filename(report_key, extension="xlsx"):
+    safe_extension = str(extension or "xlsx").strip().lstrip(".") or "xlsx"
+    return f"{report_key.replace('_', '-')}-{date.today():%Y%m%d}.{safe_extension}"
 
 
 def report_user_name(user):
@@ -5242,7 +5680,15 @@ def report_user_name(user):
 
 
 def report_action_status(action):
-    if action.is_completed:
+    if action.effectiveness_required and action.effectiveness_result == "Etkin Değil":
+        return "Etkin Değil"
+    if (
+        action.effectiveness_required
+        and action.is_completed
+        and not effectiveness_is_done(action.effectiveness_result)
+    ):
+        return "Etkinlik Kontrolü Bekliyor"
+    if action_is_finally_completed(action):
         return "Tamamlandı"
     if action.closure_approval_requested:
         return "Kapanma Onayı Beklemede"
@@ -5295,6 +5741,52 @@ def report_actions_overdue_data():
     }
 
 
+def report_actions_master_data():
+    actions = (
+        scoped_query(Action.query, Action)
+        .order_by(Action.action_number.asc(), Action.id.asc())
+        .all()
+    )
+    rows = [
+        (
+            action.number_label,
+            action.title,
+            action.department,
+            action.responsible_owner,
+            format_date(action.termin_date),
+            action.calculate_delay_days(),
+            report_action_status(action),
+            action.capa_type or "-",
+            action.source_dof.dof_no if action.source_dof else "-",
+            "Evet" if action.effectiveness_required else "Hayır",
+            report_user_name(action.effectiveness_owner),
+            format_date(action.effectiveness_due_date),
+            action.effectiveness_result or "-",
+        )
+        for action in actions
+    ]
+    return {
+        "headers": (
+            "Aksiyon No",
+            "Başlık",
+            "Departman",
+            "Sorumlu",
+            "Termin",
+            "Gecikme Günü",
+            "Durum",
+            "CAPA Tipi",
+            "Bağlı IF/DÖF",
+            "Etkinlik Gerekli",
+            "Etkinlik Sorumlusu",
+            "Etkinlik Termin",
+            "Etkinlik Sonucu",
+        ),
+        "rows": rows,
+        "sheet_name": "Aksiyon Genel",
+        "column_widths": (16, 36, 18, 24, 16, 16, 28, 22, 18, 18, 24, 18, 20),
+    }
+
+
 def report_dofs_status_data():
     dofs = attach_dof_view_state(
         scoped_query(Dof.query, Dof).order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
@@ -5327,6 +5819,80 @@ def report_dofs_status_data():
         "rows": rows,
         "sheet_name": "IF DOF Durumu",
         "column_widths": (16, 34, 18, 24, 16, 16, 28, 16),
+    }
+
+
+def report_dof_capa_effectiveness_data():
+    dofs = attach_dof_view_state(
+        scoped_query(Dof.query, Dof).order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+    )
+    dofs = sorted(dofs, key=dof_due_priority_sort_key)
+    rows = [
+        (
+            dof.dof_no,
+            dof.title or "-",
+            dof.department or "-",
+            report_user_name(dof.responsible),
+            dof.display_status,
+            dof.root_cause_method or "-",
+            dof.containment_action or "-",
+            dof.root_cause_analysis or "-",
+            dof.corrective_action or "-",
+            dof.preventive_action or "-",
+            dof.closing_evidence or "-",
+            "Evet" if dof.effectiveness_required else "Hayır",
+            report_user_name(dof.effectiveness_owner),
+            format_date(dof.effectiveness_due_date),
+            dof.effectiveness_result or "-",
+            report_user_name(dof.effectiveness_checked_by),
+            format_date(dof.effectiveness_checked_at),
+            len(dof.linked_actions),
+        )
+        for dof in dofs
+    ]
+    return {
+        "headers": (
+            "IF/DÖF No",
+            "Başlık",
+            "Departman",
+            "Sorumlu",
+            "Durum",
+            "Kök Neden Yöntemi",
+            "Geçici Önlem",
+            "Kök Neden Analizi",
+            "Düzeltici Faaliyet",
+            "Önleyici Faaliyet",
+            "Kapanış Kanıtı",
+            "Etkinlik Gerekli",
+            "Etkinlik Sorumlusu",
+            "Etkinlik Termin",
+            "Etkinlik Sonucu",
+            "Kontrol Eden",
+            "Kontrol Tarihi",
+            "Bağlı Aksiyon",
+        ),
+        "rows": rows,
+        "sheet_name": "CAPA Etkinlik",
+        "column_widths": (
+            16,
+            32,
+            18,
+            24,
+            28,
+            24,
+            42,
+            42,
+            42,
+            42,
+            42,
+            18,
+            24,
+            18,
+            20,
+            24,
+            18,
+            14,
+        ),
     }
 
 
@@ -5393,6 +5959,65 @@ def report_document_revisions_data():
         "rows": rows,
         "sheet_name": "Revizyon Talepleri",
         "column_widths": (18, 36, 24, 34, 18, 18, 50),
+    }
+
+
+def report_document_acknowledgements_data():
+    documents = sort_documents_by_code(document_query().all())
+    rows = []
+    for document in documents:
+        for acknowledgement in document.acknowledgements:
+            rows.append(
+                (
+                    acknowledgement.document_code_snapshot or document.document_code,
+                    acknowledgement.document_title_snapshot or document.title,
+                    acknowledgement.revision_no_snapshot or "0",
+                    report_user_name(acknowledgement.user),
+                    "Onaylandı",
+                    format_date(acknowledgement.acknowledged_at),
+                    (
+                        "Eğitim okuma onayı"
+                        if acknowledgement.training_participant_id
+                        else "Doğrudan okuma onayı"
+                    ),
+                    acknowledgement.note or "-",
+                )
+            )
+
+        summary = document_acknowledgement_summary(document)
+        for participant in summary["pending_participants"]:
+            training = participant.training
+            rows.append(
+                (
+                    document.document_code,
+                    document.title,
+                    summary["revision_key"] or "0",
+                    participant.display_name,
+                    "Bekliyor",
+                    "-",
+                    training.training_no if training else "Eğitim ataması",
+                    participant.notes or "-",
+                )
+            )
+
+    rows = sorted(
+        rows,
+        key=lambda row: (row[0], row[2], 0 if row[4] == "Bekliyor" else 1, row[3]),
+    )
+    return {
+        "headers": (
+            "Doküman Kodu",
+            "Doküman Adı",
+            "Revizyon",
+            "Personel",
+            "Durum",
+            "Onay Tarihi",
+            "Kaynak",
+            "Not",
+        ),
+        "rows": rows,
+        "sheet_name": "Okuma Onay",
+        "column_widths": (18, 38, 12, 26, 16, 18, 24, 40),
     }
 
 
@@ -5683,6 +6308,14 @@ def report_personnel_contacts_data():
 
 REPORT_CENTER_REPORTS = (
     {
+        "key": "actions_master",
+        "title": "Aksiyon Genel Raporu",
+        "description": "Tüm aksiyonların sorumlu, termin, durum, CAPA ve etkinlik kontrol özeti.",
+        "icon": "bi-check2-circle",
+        "tone": "blue",
+        "builder": report_actions_master_data,
+    },
+    {
         "key": "actions_overdue",
         "title": "Aksiyon Gecikme Raporu",
         "description": "Termin tarihi geçmiş ve açık kalan aksiyonların listesi.",
@@ -5698,6 +6331,15 @@ REPORT_CENTER_REPORTS = (
         "tone": "blue",
         "module_key": "if_management",
         "builder": report_dofs_status_data,
+    },
+    {
+        "key": "dof_capa_effectiveness",
+        "title": "CAPA Etkinlik Kontrol Raporu",
+        "description": "IF/DÖF kayıtlarında kök neden, faaliyet, kapanış kanıtı ve etkinlik sonucu.",
+        "icon": "bi-clipboard2-check",
+        "tone": "warning",
+        "module_key": "if_management",
+        "builder": report_dof_capa_effectiveness_data,
     },
     {
         "key": "documents_master",
@@ -5716,6 +6358,15 @@ REPORT_CENTER_REPORTS = (
         "tone": "warning",
         "module_key": "documents",
         "builder": report_document_revisions_data,
+    },
+    {
+        "key": "document_acknowledgements",
+        "title": "Doküman Okuma / Onay Raporu",
+        "description": "Doküman revizyonları için okuyan ve okuma bekleyen personel listesi.",
+        "icon": "bi-check2-square",
+        "tone": "success",
+        "module_key": "documents",
+        "builder": report_document_acknowledgements_data,
     },
     {
         "key": "internal_audits",
@@ -5818,20 +6469,26 @@ def report_center_cards():
                     "main.download_report_center_excel",
                     report_key=definition["key"],
                 ),
+                "pdf_url": url_for(
+                    "main.report_center_pdf",
+                    report_key=definition["key"],
+                ),
             }
         )
     return cards
 
 
-def log_report_export(report):
+def log_report_export(report, export_format="excel"):
+    normalized_format = str(export_format or "excel").lower()
     record_audit_event(
         "ReportCenter",
         "exported",
-        f"{report['title']} indirildi",
+        f"{report['title']} {normalized_format.upper()} çıktısı alındı",
         entity_id=report["key"],
         details={
             "report_key": report["key"],
             "report_title": report["title"],
+            "format": normalized_format,
             "scope": report_scope_label(),
         },
     )
@@ -6410,6 +7067,11 @@ def action_snapshot(action):
         "department": action.department,
         "description": action.description or "",
         "termin_date": action.termin_date,
+        "dof_id": action.dof_id,
+        "capa_type": action.capa_type or "",
+        "effectiveness_required": bool(action.effectiveness_required),
+        "effectiveness_owner_user_id": action.effectiveness_owner_user_id,
+        "effectiveness_due_date": action.effectiveness_due_date,
         "file_original_name": action.file_original_name,
     }
 
@@ -6438,6 +7100,34 @@ def describe_action_changes(before, action):
     if before["termin_date"] != action.termin_date:
         changes.append(
             f"termini {format_date(before['termin_date'])} -> {format_date(action.termin_date)}"
+        )
+    if before["dof_id"] != action.dof_id:
+        old_dof = Dof.query.get(before["dof_id"]) if before["dof_id"] else None
+        new_dof = Dof.query.get(action.dof_id) if action.dof_id else None
+        changes.append(
+            "bağlı İF "
+            f"{old_dof.dof_no if old_dof else '-'} -> "
+            f"{new_dof.dof_no if new_dof else '-'}"
+        )
+    if before["capa_type"] != (action.capa_type or ""):
+        changes.append("CAPA tipi güncellendi")
+    if before["effectiveness_required"] != bool(action.effectiveness_required):
+        changes.append(
+            "etkinlik kontrolü "
+            f"{'Evet' if before['effectiveness_required'] else 'Hayır'} -> "
+            f"{'Evet' if action.effectiveness_required else 'Hayır'}"
+        )
+    if before["effectiveness_owner_user_id"] != action.effectiveness_owner_user_id:
+        changes.append(
+            "etkinlik kontrol sorumlusu "
+            f"{user_name(before['effectiveness_owner_user_id'])} -> "
+            f"{user_name(action.effectiveness_owner_user_id)}"
+        )
+    if before["effectiveness_due_date"] != action.effectiveness_due_date:
+        changes.append(
+            "etkinlik kontrol termini "
+            f"{format_date(before['effectiveness_due_date'])} -> "
+            f"{format_date(action.effectiveness_due_date)}"
         )
     if before["description"] != (action.description or ""):
         changes.append("açıklaması güncellendi")
@@ -6775,6 +7465,26 @@ def iso_dashboard_context(all_actions):
         ],
         key=lambda action: (-action.delay_days, action.termin_date or date.min, action.id),
     )
+    pending_effectiveness_dofs = sorted(
+        [
+            dof
+            for dof in all_dofs
+            if dof.effectiveness_required
+            and dof.approval_step == "effectiveness_review"
+            and not effectiveness_is_done(dof.effectiveness_result)
+        ],
+        key=lambda dof: (dof.effectiveness_due_date or date.max, dof.id),
+    )
+    pending_effectiveness_actions = sorted(
+        [
+            action
+            for action in all_actions
+            if action.effectiveness_required
+            and (action.is_completed or action.effectiveness_result == "Etkin Değil")
+            and not effectiveness_is_done(action.effectiveness_result)
+        ],
+        key=lambda action: (action.effectiveness_due_date or date.max, action.id),
+    )
     pending_revision_requests = (
         scoped_query(DocumentRevisionRequest.query, DocumentRevisionRequest)
         .filter(DocumentRevisionRequest.status == DOCUMENT_REVISION_PENDING_STATUS)
@@ -6923,6 +7633,39 @@ def iso_dashboard_context(all_actions):
                 }
                 for action in delayed_actions[:3]
             ],
+        },
+        {
+            "title": "Etkinlik Kontrolü",
+            "value": len(pending_effectiveness_dofs) + len(pending_effectiveness_actions),
+            "subtitle": "Kapanış sonrası doğrulama bekleyen",
+            "tone": (
+                "danger"
+                if any(
+                    item.effectiveness_result == "Etkin Değil"
+                    for item in [*pending_effectiveness_dofs, *pending_effectiveness_actions]
+                )
+                else "warning"
+                if pending_effectiveness_dofs or pending_effectiveness_actions
+                else "success"
+            ),
+            "icon": "bi-clipboard2-check",
+            "href": url_for("main.assigned_tasks", status="pending"),
+            "items": [
+                {
+                    "label": item.dof_no,
+                    "meta": item.title or item.nonconformity_description or "İF etkinlik kontrolü",
+                    "status": format_date(item.effectiveness_due_date),
+                }
+                for item in pending_effectiveness_dofs[:2]
+            ]
+            + [
+                {
+                    "label": item.number_label,
+                    "meta": item.title,
+                    "status": format_date(item.effectiveness_due_date),
+                }
+                for item in pending_effectiveness_actions[:2]
+            ][: max(0, 3 - min(len(pending_effectiveness_dofs), 2))],
         },
         {
             "title": "Revizyon Bekleyen Doküman",
@@ -7091,6 +7834,22 @@ def filtered_actions(actions, filters):
 
     result = []
     for action in actions:
+        pending_effectiveness = (
+            action.effectiveness_required
+            and action.is_completed
+            and not effectiveness_is_done(action.effectiveness_result)
+            and action.effectiveness_result != "Etkin Değil"
+        )
+        rejected_effectiveness = (
+            action.effectiveness_required
+            and action.effectiveness_result == "Etkin Değil"
+        )
+        delayed_effectiveness = (
+            pending_effectiveness
+            and action.effectiveness_due_date
+            and action.effectiveness_due_date < date.today()
+        )
+        finally_completed = action_is_finally_completed(action)
         if search and search not in " ".join(
             [
                 action.title or "",
@@ -7107,25 +7866,29 @@ def filtered_actions(actions, filters):
         if responsible_user_id and action.responsible_user_id != responsible_user_id:
             continue
         if status == "open" and (
-            action.is_completed
+            finally_completed
             or action.closure_approval_requested
             or action.closure_rejection_reason
+            or pending_effectiveness
+            or rejected_effectiveness
             or action.delay_days > 0
         ):
             continue
-        if status == "pending" and (
-            action.is_completed or not action.closure_approval_requested
+        if status == "pending" and not (
+            (action.closure_approval_requested and not action.is_completed)
+            or pending_effectiveness
         ):
             continue
-        if status == "rejected" and (
-            action.is_completed
-            or action.closure_approval_requested
-            or not action.closure_rejection_reason
+        if status == "rejected" and not (
+            (action.closure_rejection_reason and not action.closure_approval_requested)
+            or rejected_effectiveness
         ):
             continue
-        if status == "delayed" and (action.is_completed or action.delay_days == 0):
+        if status == "delayed" and not (
+            (not action.is_completed and action.delay_days > 0) or delayed_effectiveness
+        ):
             continue
-        if status == "completed" and not action.is_completed:
+        if status == "completed" and not finally_completed:
             continue
         result.append(action)
 
@@ -7137,6 +7900,8 @@ def dof_display_status(dof, today=None):
         return "Taslak"
     if dof.status == "Revizyon Bekleniyor" or dof.approval_step == "revision_requested":
         return "Revizyon Bekleniyor"
+    if dof.status == DOF_EFFECTIVENESS_STATUS or dof.approval_step == "effectiveness_review":
+        return DOF_EFFECTIVENESS_STATUS
     if dof.status == "Tamamlandı" or dof.approval_step == "completed":
         return "Tamamlandı"
     if dof.approval_step in {
@@ -7149,19 +7914,31 @@ def dof_display_status(dof, today=None):
 
 def dof_delay_days(dof, today=None):
     today = today or date.today()
-    if dof.status in {"Taslak", "Tamamlandı"} or not dof.due_date:
+    if dof.status in {"Taslak", "Tamamlandı"}:
         return 0
-    return max((today - dof.due_date).days, 0)
+    target_date = (
+        dof.effectiveness_due_date
+        if dof.approval_step == "effectiveness_review" and dof.effectiveness_due_date
+        else dof.due_date
+    )
+    if not target_date:
+        return 0
+    return max((today - target_date).days, 0)
 
 
 def dof_due_status(dof, today=None):
     today = today or date.today()
-    if not dof.due_date:
+    target_date = (
+        dof.effectiveness_due_date
+        if dof.approval_step == "effectiveness_review" and dof.effectiveness_due_date
+        else dof.due_date
+    )
+    if not target_date:
         return {"text": "Termin yok", "tone": "muted"}
     if dof.status == "Tamamlandı" or dof.approval_step == "completed":
         return {"text": "Tamamlandı", "tone": "success"}
 
-    remaining_days = (dof.due_date - today).days
+    remaining_days = (target_date - today).days
     if remaining_days > 0:
         return {
             "text": f"{remaining_days} gün kaldı",
@@ -7212,7 +7989,7 @@ def dof_approval_steps(dof):
             "is_active": step == "management_representative"
             or rejected_step == "management_representative",
             "is_complete": bool(dof.management_approved_at)
-            or step in {"general_manager_deputy", "completed"},
+            or step in {"general_manager_deputy", "effectiveness_review", "completed"},
             "is_rejected": rejected_step == "management_representative",
             "actor": (
                 dof.rejected_by.full_name
@@ -7241,7 +8018,8 @@ def dof_approval_steps(dof):
             ),
             "is_active": step == "general_manager_deputy"
             or rejected_step == "general_manager_deputy",
-            "is_complete": bool(dof.deputy_approved_at) or step == "completed",
+            "is_complete": bool(dof.deputy_approved_at)
+            or step in {"effectiveness_review", "completed"},
             "is_rejected": rejected_step == "general_manager_deputy",
             "actor": (
                 dof.rejected_by.full_name
@@ -7258,6 +8036,44 @@ def dof_approval_steps(dof):
                 else dof.deputy_approved_at
             ),
         },
+        {
+            "key": "effectiveness_review",
+            "title": "Etkinlik Kontrolü",
+            "status": "Reddedildi"
+            if rejected_step == "effectiveness_review"
+            else (
+                "Tamamlandı"
+                if effectiveness_is_done(dof.effectiveness_result)
+                else (
+                    "Kontrol Bekliyor"
+                    if dof.effectiveness_required
+                    and step == "effectiveness_review"
+                    else "Gerekmiyor"
+                )
+            ),
+            "is_active": step == "effectiveness_review"
+            or rejected_step == "effectiveness_review",
+            "is_complete": (
+                not dof.effectiveness_required
+                or effectiveness_is_done(dof.effectiveness_result)
+                or step == "completed"
+            ),
+            "is_rejected": rejected_step == "effectiveness_review",
+            "actor": (
+                dof.rejected_by.full_name
+                if rejected_step == "effectiveness_review" and dof.rejected_by
+                else (
+                    dof.effectiveness_checked_by.full_name
+                    if dof.effectiveness_checked_by
+                    else ""
+                )
+            ),
+            "date": (
+                dof.rejected_at
+                if rejected_step == "effectiveness_review"
+                else dof.effectiveness_checked_at
+            ),
+        },
     ]
 
 
@@ -7268,6 +8084,7 @@ def visible_dofs_query():
     return query.filter(
         or_(
             Dof.responsible_id == g.current_user.id,
+            Dof.effectiveness_owner_user_id == g.current_user.id,
             Dof.created_by_user_id == g.current_user.id,
         )
     )
@@ -7319,6 +8136,8 @@ def filtered_dofs(dofs, filters):
             continue
         if status == "revision" and dof.display_status != "Revizyon Bekleniyor":
             continue
+        if status == "effectiveness" and dof.display_status != DOF_EFFECTIVENESS_STATUS:
+            continue
         if status == "completed" and dof.display_status != "Tamamlandı":
             continue
         if status == "delayed" and (
@@ -7347,6 +8166,34 @@ def dof_due_priority_sort_key(dof):
         return (1, 0, dof.due_date, dof.id)
 
     return (2, 0, date.max, dof.id)
+
+
+def dof_final_approval_missing_fields(dof):
+    missing = []
+    if not (dof.root_cause_analysis or "").strip():
+        missing.append("Kök Neden Analizi")
+    if not (dof.corrective_action or "").strip():
+        missing.append("Düzeltici Faaliyet")
+    if not (dof.closing_evidence or "").strip():
+        missing.append("Kapanış Kanıtı Açıklaması")
+    if dof.effectiveness_required:
+        if not dof.effectiveness_owner_user_id:
+            missing.append("Etkinlik Kontrol Sorumlusu")
+        if not dof.effectiveness_due_date:
+            missing.append("Etkinlik Kontrol Termini")
+    return missing
+
+
+def dof_effectiveness_detail_url(dof):
+    return url_for("main.dof_detail", dof_id=dof.id, _anchor="dof-effectiveness")
+
+
+def action_effectiveness_detail_url(action):
+    return url_for(
+        "main.action_detail",
+        action_id=action.id,
+        _anchor="action-effectiveness",
+    )
 
 
 RISK_STATUSES = ("Açık", "İzlemede", "Aksiyon Açıldı", "Kapandı")
@@ -7716,6 +8563,7 @@ def apply_training_participants(training, user_ids, contact_ids):
             else ("contact", participant.personnel_contact_id)
         )
         if key not in desired_keys:
+            unlink_document_acknowledgement_participant(participant)
             db.session.delete(participant)
 
     for key in sorted(desired_keys):
@@ -8929,7 +9777,7 @@ def refresh_all_actions():
     return actions
 
 
-def parse_action_form(action=None):
+def parse_action_form(action=None, save_file=True):
     action = action or Action()
     title = request.form.get("title", "").strip()
     responsible_user_id = request.form.get("responsible_user_id", "").strip()
@@ -8962,8 +9810,75 @@ def parse_action_form(action=None):
     termin_value = request.form.get("termin_date", "")
     action.termin_date = datetime.strptime(termin_value, "%Y-%m-%d").date()
     action.refresh_delay()
-    save_uploaded_file(action)
+    apply_action_capa_fields(action)
+    if save_file:
+        save_uploaded_file(action)
     return action
+
+
+def action_form_defaults(action=None, linked_dof=None):
+    if action is not None:
+        return {
+            "title": action.title or "",
+            "responsible_user_id": str(action.responsible_user_id or ""),
+            "related_user_1_id": str(action.related_user_1_id or ""),
+            "related_user_2_id": str(action.related_user_2_id or ""),
+            "department": action.department or "",
+            "description": action.description or "",
+            "termin_date": action.termin_date.isoformat() if action.termin_date else "",
+            "dof_id": str(action.dof_id or ""),
+            "capa_type": action.capa_type or "",
+            "effectiveness_required": "1" if action.effectiveness_required else "",
+            "effectiveness_owner_user_id": str(action.effectiveness_owner_user_id or ""),
+            "effectiveness_due_date": (
+                action.effectiveness_due_date.isoformat()
+                if action.effectiveness_due_date
+                else ""
+            ),
+        }
+
+    if linked_dof is not None:
+        return {
+            "title": f"{linked_dof.dof_no} - {linked_dof.title or 'DÖF Aksiyonu'}",
+            "responsible_user_id": str(linked_dof.responsible_id or ""),
+            "related_user_1_id": "",
+            "related_user_2_id": "",
+            "department": linked_dof.department or "",
+            "description": linked_dof.corrective_action
+            or linked_dof.nonconformity_description
+            or "",
+            "termin_date": (
+                linked_dof.due_date.isoformat()
+                if linked_dof.due_date
+                else date.today().isoformat()
+            ),
+            "dof_id": str(linked_dof.id),
+            "capa_type": "Düzeltici Faaliyet",
+            "effectiveness_required": "1" if linked_dof.effectiveness_required else "",
+            "effectiveness_owner_user_id": str(
+                linked_dof.effectiveness_owner_user_id or linked_dof.responsible_id or ""
+            ),
+            "effectiveness_due_date": (
+                linked_dof.effectiveness_due_date.isoformat()
+                if linked_dof.effectiveness_due_date
+                else ""
+            ),
+        }
+
+    return {
+        "title": "",
+        "responsible_user_id": "",
+        "related_user_1_id": "",
+        "related_user_2_id": "",
+        "department": "",
+        "description": "",
+        "termin_date": date.today().isoformat(),
+        "dof_id": "",
+        "capa_type": "",
+        "effectiveness_required": "",
+        "effectiveness_owner_user_id": "",
+        "effectiveness_due_date": "",
+    }
 
 
 def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
@@ -8987,9 +9902,11 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
     corrective_action = request.form.get("corrective_action", "").strip()
     preventive_action = request.form.get("preventive_action", "").strip()
     closing_evidence = request.form.get("closing_evidence", "").strip()
+    apply_dof_effectiveness_fields(dof, is_draft=is_draft)
 
     for text_value in (
         nonconformity_description,
+        dof.containment_action or "",
         root_cause_analysis,
         corrective_action,
         preventive_action,
@@ -9068,9 +9985,18 @@ def dof_form_data_from_record(dof):
         "source": dof.source or "",
         "nonconformity_description": dof.nonconformity_description or "",
         "root_cause_analysis": dof.root_cause_analysis or "",
+        "root_cause_method": dof.root_cause_method or "",
+        "containment_action": dof.containment_action or "",
         "corrective_action": dof.corrective_action or "",
         "preventive_action": dof.preventive_action or "",
         "closing_evidence": dof.closing_evidence or "",
+        "effectiveness_required": "1" if dof.effectiveness_required else "",
+        "effectiveness_owner_user_id": str(dof.effectiveness_owner_user_id or ""),
+        "effectiveness_due_date": (
+            dof.effectiveness_due_date.isoformat()
+            if dof.effectiveness_due_date
+            else ""
+        ),
     }
 
 
@@ -9085,9 +10011,14 @@ def dof_revision_snapshot(dof):
         "source": dof.source or "",
         "nonconformity_description": dof.nonconformity_description or "",
         "root_cause_analysis": dof.root_cause_analysis or "",
+        "root_cause_method": dof.root_cause_method or "",
+        "containment_action": dof.containment_action or "",
         "corrective_action": dof.corrective_action or "",
         "preventive_action": dof.preventive_action or "",
         "closing_evidence": dof.closing_evidence or "",
+        "effectiveness_required": bool(dof.effectiveness_required),
+        "effectiveness_owner_user_id": dof.effectiveness_owner_user_id,
+        "effectiveness_due_date": dof.effectiveness_due_date,
         "evidence_original_name": dof.evidence_original_name or "",
     }
 
@@ -9107,9 +10038,11 @@ def parse_dof_revision_form(dof):
     corrective_action = request.form.get("corrective_action", "").strip()
     preventive_action = request.form.get("preventive_action", "").strip()
     closing_evidence = request.form.get("closing_evidence", "").strip()
+    apply_dof_effectiveness_fields(dof, is_draft=False)
 
     for text_value in (
         nonconformity_description,
+        dof.containment_action or "",
         root_cause_analysis,
         corrective_action,
         preventive_action,
@@ -9159,10 +10092,14 @@ def describe_dof_revision_changes(before, dof):
         "priority": "öncelik",
         "source": "kaynak",
         "nonconformity_description": "uygunsuzluk açıklaması",
+        "root_cause_method": "kök neden yöntemi",
+        "containment_action": "acil düzeltme / geçici önlem",
         "root_cause_analysis": "kök neden analizi",
         "corrective_action": "düzeltici faaliyet",
         "preventive_action": "önleyici faaliyet",
         "closing_evidence": "kapanış kanıtı açıklaması",
+        "effectiveness_required": "etkinlik kontrolü gerekliliği",
+        "effectiveness_due_date": "etkinlik kontrol termini",
     }
     after = dof_revision_snapshot(dof)
     changes = []
@@ -9176,10 +10113,27 @@ def describe_dof_revision_changes(before, dof):
             f"{new_user.full_name if new_user else '-'}"
         )
 
+    if before["effectiveness_owner_user_id"] != after["effectiveness_owner_user_id"]:
+        old_user = (
+            User.query.get(before["effectiveness_owner_user_id"])
+            if before["effectiveness_owner_user_id"]
+            else None
+        )
+        new_user = (
+            User.query.get(after["effectiveness_owner_user_id"])
+            if after["effectiveness_owner_user_id"]
+            else None
+        )
+        changes.append(
+            "etkinlik kontrol sorumlusu "
+            f"{old_user.full_name if old_user else '-'} -> "
+            f"{new_user.full_name if new_user else '-'}"
+        )
+
     for field, label in labels.items():
         old_value = before[field]
         new_value = after[field]
-        if field in {"opening_date", "due_date"}:
+        if field in {"opening_date", "due_date", "effectiveness_due_date"}:
             old_value = format_date(old_value)
             new_value = format_date(new_value)
         if old_value != new_value:
@@ -10191,7 +11145,7 @@ def dashboard_context():
     delayed_count = sum(
         1 for action in all_actions if not action.is_completed and action.delay_days > 0
     )
-    completed_count = sum(1 for action in all_actions if action.is_completed)
+    completed_count = sum(1 for action in all_actions if action_is_finally_completed(action))
     pending_approval_count = sum(
         1
         for action in all_actions
@@ -10238,6 +11192,9 @@ def dof_dashboard_context():
     revision_count = sum(
         1 for dof in all_dofs if dof.display_status == "Revizyon Bekleniyor"
     )
+    effectiveness_count = sum(
+        1 for dof in all_dofs if dof.display_status == DOF_EFFECTIVENESS_STATUS
+    )
     completed_count = sum(1 for dof in all_dofs if dof.display_status == "Tamamlandı")
     delayed_count = sum(
         1
@@ -10251,6 +11208,7 @@ def dof_dashboard_context():
         "draft_count": draft_count,
         "approval_count": approval_count,
         "revision_count": revision_count,
+        "effectiveness_count": effectiveness_count,
         "completed_count": completed_count,
         "delayed_count": delayed_count,
         "departments": DEPARTMENTS,
@@ -10340,7 +11298,15 @@ def due_meta(due_date, is_completed=False):
 
 
 def action_task_status(action):
-    if action.is_completed:
+    if action.effectiveness_required and action.effectiveness_result == "Etkin Değil":
+        return "Etkin Değil", "rejected"
+    if (
+        action.effectiveness_required
+        and action.is_completed
+        and not effectiveness_is_done(action.effectiveness_result)
+    ):
+        return "Etkinlik Kontrolü Bekliyor", "pending"
+    if action_is_finally_completed(action):
         return "Tamamlandı", "completed"
     if action.closure_approval_requested:
         return "Kapanma Onayı Beklemede", "pending"
@@ -10352,7 +11318,17 @@ def action_task_status(action):
 
 
 def action_task_priority(action):
-    if action.is_completed:
+    if action.effectiveness_required and action.effectiveness_result == "Etkin Değil":
+        return "Yüksek"
+    if (
+        action.effectiveness_required
+        and action.is_completed
+        and not effectiveness_is_done(action.effectiveness_result)
+    ):
+        if action.effectiveness_due_date and action.effectiveness_due_date <= date.today():
+            return "Yüksek"
+        return "Orta"
+    if action_is_finally_completed(action):
         return "Düşük"
     if action.delay_days > 0:
         return "Yüksek"
@@ -10377,6 +11353,10 @@ def dof_task_status(dof):
         return display_status, "draft"
     if display_status == "Revizyon Bekleniyor":
         return display_status, "revision"
+    if display_status == DOF_EFFECTIVENESS_STATUS:
+        if dof_delay_days(dof) > 0:
+            return "Gecikti", "delayed"
+        return display_status, "pending"
     if dof_delay_days(dof) > 0 and display_status != "Tamamlandı":
         return "Gecikti", "delayed"
     if display_status == "Onay Bekliyor":
@@ -10509,6 +11489,15 @@ def assigned_action_tasks(scope):
 
     rows = []
     for action in actions:
+        if (
+            scope != "created"
+            and action.effectiveness_required
+            and action.effectiveness_owner_user_id == user_id
+            and action.is_completed
+            and not effectiveness_is_done(action.effectiveness_result)
+            and action.effectiveness_result != "Etkin Değil"
+        ):
+            continue
         action.refresh_delay()
         status, status_key = action_task_status(action)
         rows.append(
@@ -10530,6 +11519,54 @@ def assigned_action_tasks(scope):
                 sort_id=action.id,
             )
         )
+
+    if scope != "created":
+        effectiveness_actions = (
+            scoped_query(Action.query, Action)
+            .filter(
+                Action.effectiveness_required.is_(True),
+                Action.is_completed.is_(True),
+                Action.effectiveness_owner_user_id == user_id,
+            )
+            .all()
+        )
+        for action in effectiveness_actions:
+            if (
+                effectiveness_is_done(action.effectiveness_result)
+                or action.effectiveness_result == "Etkin Değil"
+            ):
+                continue
+            status = (
+                "Etkin Değil"
+                if action.effectiveness_result == "Etkin Değil"
+                else "Etkinlik Kontrolü Bekliyor"
+            )
+            status_key = "rejected" if action.effectiveness_result == "Etkin Değil" else "pending"
+            if (
+                status_key == "pending"
+                and action.effectiveness_due_date
+                and action.effectiveness_due_date < date.today()
+            ):
+                status, status_key = "Gecikti", "delayed"
+            rows.append(
+                assigned_task_row(
+                    module_key="action",
+                    module_label="Aksiyon",
+                    module_icon="clipboard2-check",
+                    module_tone="action",
+                    title=f"Etkinlik Kontrolü: {action.number_label} {action.title}",
+                    description=action.effectiveness_note or action.description,
+                    reference_no=action_reference(action),
+                    department=action.department,
+                    due_date=action.effectiveness_due_date,
+                    status=status,
+                    status_key=status_key,
+                    priority="Yüksek" if status_key in {"delayed", "rejected"} else "Orta",
+                    detail_url=action_effectiveness_detail_url(action),
+                    created_at=action.created_at,
+                    sort_id=action.id,
+                )
+            )
 
     for sub_action in sub_actions:
         action = sub_action.parent_action
@@ -10569,6 +11606,14 @@ def assigned_dof_tasks(scope):
 
     rows = []
     for dof in attach_dof_view_state(dofs):
+        if (
+            scope != "created"
+            and dof.effectiveness_required
+            and dof.effectiveness_owner_user_id == user_id
+            and dof.approval_step == "effectiveness_review"
+            and not effectiveness_is_done(dof.effectiveness_result)
+        ):
+            continue
         status, status_key = dof_task_status(dof)
         rows.append(
             assigned_task_row(
@@ -10589,6 +11634,42 @@ def assigned_dof_tasks(scope):
                 sort_id=dof.id,
             )
         )
+    if scope != "created":
+        effectiveness_dofs = (
+            scoped_query(Dof.query, Dof)
+            .filter(
+                Dof.effectiveness_required.is_(True),
+                Dof.effectiveness_owner_user_id == user_id,
+                Dof.approval_step == "effectiveness_review",
+            )
+            .all()
+        )
+        for dof in attach_dof_view_state(effectiveness_dofs):
+            if effectiveness_is_done(dof.effectiveness_result):
+                continue
+            status = DOF_EFFECTIVENESS_STATUS
+            status_key = "pending"
+            if dof.effectiveness_due_date and dof.effectiveness_due_date < date.today():
+                status, status_key = "Gecikti", "delayed"
+            rows.append(
+                assigned_task_row(
+                    module_key="dof",
+                    module_label="IF Kaydı",
+                    module_icon="clipboard2-check",
+                    module_tone="if",
+                    title=f"Etkinlik Kontrolü: {dof.dof_no}",
+                    description=dof.effectiveness_note or dof.title or dof.nonconformity_description,
+                    reference_no=dof.dof_no,
+                    department=dof.department,
+                    due_date=dof.effectiveness_due_date,
+                    status=status,
+                    status_key=status_key,
+                    priority="Yüksek" if status_key == "delayed" else dof.priority or "Orta",
+                    detail_url=dof_effectiveness_detail_url(dof),
+                    created_at=dof.created_at,
+                    sort_id=dof.id,
+                )
+            )
     return rows
 
 
@@ -11650,6 +12731,8 @@ def delete_training(training_id):
         abort(403)
     training = training_query().filter_by(id=training_id).first_or_404()
     ensure_same_company(training)
+    for participant in training.participants:
+        unlink_document_acknowledgement_participant(participant)
     db.session.delete(training)
     db.session.commit()
     flash("Eğitim kaydı silindi.", "success")
@@ -11662,8 +12745,14 @@ def confirm_training_participant(training_id, participant_id):
     training, participant = get_training_participant(training_id, participant_id)
     if not can_confirm_training_participant(participant):
         abort(403)
+    is_self_confirmation = current_user_matches_training_participant(participant)
     status = "Okundu" if training.training_type == "Doküman Okuma Onayı" else "Katıldı"
     set_training_participant_status(participant, status)
+    if training.training_type == TRAINING_TYPES[0] and training.document and is_self_confirmation:
+        create_or_update_document_acknowledgement(
+            training.document,
+            participant=participant,
+        )
     sync_training_status(training)
     db.session.commit()
     flash("Eğitim/okuma onayı kaydedildi.", "success")
@@ -11938,12 +13027,32 @@ def download_report_center_excel(report_key):
         sheet_name=report["sheet_name"],
         column_widths=report.get("column_widths"),
     )
-    log_report_export(report)
+    log_report_export(report, "excel")
     return send_file(
         workbook,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name=report_filename(report["key"]),
+        download_name=report_filename(report["key"], "xlsx"),
+    )
+
+
+@bp.get("/rapor-merkezi/<report_key>/pdf")
+@login_required
+def report_center_pdf(report_key):
+    if not can_export_reports():
+        abort(403)
+
+    report = report_center_export_data(report_key)
+    if report is None:
+        abort(404)
+
+    log_report_export(report, "pdf")
+    return render_template(
+        "reports/print.html",
+        report=report,
+        scope_label=report_scope_label(),
+        generated_at=datetime.utcnow(),
+        suggested_filename=report_filename(report["key"], "pdf"),
     )
 
 
@@ -12356,6 +13465,7 @@ def document_detail(document_id):
     if not document.preview_status:
         generate_document_preview(document)
         db.session.commit()
+    mark_document_opened_for_acknowledgement(document)
     return render_template(
         "documents/detail.html",
         document=document,
@@ -12368,6 +13478,56 @@ def document_detail(document_id):
         format_file_size=format_file_size,
         can_manage_documents=can_manage_documents(),
         can_delete_document=can_delete_document(document),
+        can_acknowledge_document=not document_is_archived(document),
+        document_acknowledgement=current_document_acknowledgement(document),
+        acknowledgement_summary=document_acknowledgement_summary(document)
+        if can_manage_documents()
+        else None,
+    )
+
+
+@bp.post("/documents/<int:document_id>/acknowledge")
+@login_required
+def acknowledge_document(document_id):
+    if not can_view_documents():
+        abort(403)
+    document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
+    if document_is_archived(document):
+        flash("Arşiv dokümanları için okuma onayı verilemez.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+    if not has_opened_document_for_acknowledgement(document):
+        flash("Okuma onayı vermeden önce dokümanı açıp inceleyin.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
+
+    participants = mark_current_user_document_training_read(document)
+    participant = participants[0] if participants else None
+    acknowledgement, created = create_or_update_document_acknowledgement(
+        document,
+        participant=participant,
+    )
+    if acknowledgement is not None and participant is not None:
+        acknowledgement.training_participant_id = participant.id
+    db.session.commit()
+    if created:
+        flash("Doküman okuma/onay kaydınız oluşturuldu.", "success")
+    else:
+        flash("Bu revizyon için okuma/onay kaydınız zaten bulunuyor.", "info")
+    return redirect(url_for("main.document_detail", document_id=document.id))
+
+
+@bp.get("/documents/<int:document_id>/acknowledgements")
+@login_required
+def document_acknowledgements(document_id):
+    if not can_manage_documents():
+        abort(403)
+    document = Document.query.get_or_404(document_id)
+    ensure_same_company(document)
+    return render_template(
+        "documents/acknowledgements.html",
+        document=document,
+        acknowledgement_summary=document_acknowledgement_summary(document),
+        format_date=format_date,
     )
 
 
@@ -14819,6 +15979,12 @@ def create_dof():
                 flash("Uygunsuzluk görsellerinin her biri en fazla 10 MB olabilir.", "danger")
             elif error_key == "required_fields":
                 flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
+            elif error_key == "invalid_root_cause_method":
+                flash("Kök neden yöntemi geçerli değil.", "danger")
+            elif error_key == "effectiveness_required_fields":
+                flash("Etkinlik kontrolü için sorumlu ve termin seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Tarih alanlarından biri geçerli değil.", "danger")
             elif error_key == "text_too_long":
                 flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
             else:
@@ -14846,6 +16012,7 @@ def create_dof():
         departments=DEPARTMENTS,
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
+        root_cause_methods=ROOT_CAUSE_METHODS,
         today=date.today().isoformat(),
         form_data=form_data,
         form_action=url_for("main.create_dof"),
@@ -14970,6 +16137,12 @@ def edit_dof_draft(dof_id):
                 flash("Kaydetmek için yıldızlı zorunlu alanları doldurun.", "danger")
             elif error_key == "closing_actions_required":
                 flash("Onaya göndermek için Uygunsuzluğu Kapatmak İçin Alınan Aksiyonlar alanını doldurun.", "danger")
+            elif error_key == "invalid_root_cause_method":
+                flash("Kök neden yöntemi geçerli değil.", "danger")
+            elif error_key == "effectiveness_required_fields":
+                flash("Etkinlik kontrolü için sorumlu ve termin seçin.", "danger")
+            elif error_key == "invalid_date":
+                flash("Tarih alanlarından biri geçerli değil.", "danger")
             elif error_key == "text_too_long":
                 flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
             else:
@@ -14982,6 +16155,7 @@ def edit_dof_draft(dof_id):
         departments=DEPARTMENTS,
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
+        root_cause_methods=ROOT_CAUSE_METHODS,
         today=date.today().isoformat(),
         form_data=form_data,
         form_action=url_for("main.edit_dof_draft", dof_id=dof.id),
@@ -15020,10 +16194,14 @@ def dof_detail(dof_id):
         can_edit_draft=can_edit_dof_draft(dof),
         can_edit=can_edit_dof(dof),
         can_delete=can_delete_dof(dof),
+        can_create_linked_action=current_user_can("actions.create"),
+        can_review_effectiveness=can_review_dof_effectiveness(dof),
         users=active_users(),
         departments=DEPARTMENTS,
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
+        root_cause_methods=ROOT_CAUSE_METHODS,
+        effectiveness_results=EFFECTIVENESS_RESULTS,
     )
 
 
@@ -15065,25 +16243,143 @@ def approve_dof_deputy(dof_id):
     if not can_approve_dof_deputy(dof):
         abort(403)
 
+    missing_fields = dof_final_approval_missing_fields(dof)
+    if missing_fields:
+        flash(
+            "İF kapanışı için şu CAPA alanlarını tamamlayın: "
+            + ", ".join(missing_fields),
+            "danger",
+        )
+        return redirect(url_for("main.edit_dof_draft", dof_id=dof.id))
+
     now = datetime.utcnow()
     dof.deputy_approved_by_user_id = g.current_user.id
     dof.deputy_approved_at = now
-    dof.completed_at = now
-    dof.approval_step = "completed"
-    dof.status = "Tamamlandı"
-    add_dof_comment(
-        dof,
-        f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi ve İF kapandı.",
-        comment_type="approval",
-        actor=g.current_user,
-    )
-    notify_dof_users(
-        dof_primary_users(dof),
-        dof,
-        f"{dof_label(dof)} kapatıldı.",
+    if dof.effectiveness_required:
+        dof.completed_at = None
+        dof.approval_step = "effectiveness_review"
+        dof.status = DOF_EFFECTIVENESS_STATUS
+        dof.effectiveness_result = "Bekliyor"
+        dof.effectiveness_checked_by_user_id = None
+        dof.effectiveness_checked_at = None
+        add_dof_comment(
+            dof,
+            (
+                f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi. "
+                "İF etkinlik kontrolü beklemeye alındı."
+            ),
+            comment_type="approval",
+            actor=g.current_user,
+        )
+        notify_dof_users(
+            [dof.effectiveness_owner],
+            dof,
+            f"{dof_label(dof)} için etkinlik kontrolünüz bekleniyor.",
+        )
+        flash("İF onaylandı ve etkinlik kontrolü beklemeye alındı.", "success")
+    else:
+        dof.completed_at = now
+        dof.approval_step = "completed"
+        dof.status = "Tamamlandı"
+        add_dof_comment(
+            dof,
+            f"{g.current_user.full_name} Genel Müdür Yardımcısı onayını verdi ve İF kapandı.",
+            comment_type="approval",
+            actor=g.current_user,
+        )
+        notify_dof_users(
+            dof_primary_users(dof),
+            dof,
+            f"{dof_label(dof)} kapatıldı.",
+        )
+        flash("İF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
+    db.session.commit()
+    return redirect(url_for("main.dof_detail", dof_id=dof.id))
+
+
+@bp.post("/dofs/<int:dof_id>/effectiveness")
+@login_required
+def review_dof_effectiveness(dof_id):
+    dof = Dof.query.get_or_404(dof_id)
+    ensure_same_company(dof)
+    attach_dof_view_state([dof])
+    if not can_review_dof_effectiveness(dof):
+        abort(403)
+
+    result = request.form.get("effectiveness_result", "").strip()
+    note = request.form.get("effectiveness_note", "").strip()
+    if result not in {"Etkin", "Etkin Değil"}:
+        flash("Etkinlik kontrol sonucu seçin.", "danger")
+        return redirect(dof_effectiveness_detail_url(dof))
+    if result == "Etkin Değil" and not note:
+        flash("Etkin değil sonucunda kontrol açıklaması zorunludur.", "danger")
+        return redirect(dof_effectiveness_detail_url(dof))
+    if len(note) > 2000:
+        flash("Etkinlik kontrol açıklaması en fazla 2000 karakter olabilir.", "danger")
+        return redirect(dof_effectiveness_detail_url(dof))
+
+    now = datetime.utcnow()
+    dof.effectiveness_result = result
+    dof.effectiveness_note = note or None
+    dof.effectiveness_checked_by_user_id = g.current_user.id
+    dof.effectiveness_checked_at = now
+
+    if result == "Etkin":
+        dof.status = "Tamamlandı"
+        dof.approval_step = "completed"
+        dof.completed_at = now
+        dof.rejection_reason = None
+        dof.rejected_by_user_id = None
+        dof.rejected_at = None
+        dof.rejected_step = None
+        add_dof_comment(
+            dof,
+            f"{g.current_user.full_name} etkinlik kontrolünü etkin olarak kapattı.",
+            comment_type="effectiveness",
+            actor=g.current_user,
+        )
+        notify_dof_users(
+            dof_primary_users(dof),
+            dof,
+            f"{dof_label(dof)} etkinlik kontrolü tamamlandı.",
+            exclude_user_id=g.current_user.id,
+        )
+        flash("Etkinlik kontrolü tamamlandı ve İF kapatıldı.", "success")
+    else:
+        dof.status = "Revizyon Bekleniyor"
+        dof.approval_step = "revision_requested"
+        dof.completed_at = None
+        dof.rejection_reason = note
+        dof.rejected_by_user_id = g.current_user.id
+        dof.rejected_at = now
+        dof.rejected_step = "effectiveness_review"
+        add_dof_comment(
+            dof,
+            (
+                f"{g.current_user.full_name} etkinlik kontrolünü etkin değil olarak kaydetti: "
+                f"\"{short_text(note)}\""
+            ),
+            comment_type="effectiveness",
+            actor=g.current_user,
+        )
+        notify_dof_users(
+            dof_primary_users(dof),
+            dof,
+            f"{dof_label(dof)} etkinlik kontrolü etkin değil. Revizyon bekleniyor.",
+            exclude_user_id=g.current_user.id,
+        )
+        flash("Etkinlik kontrolü etkin değil olarak kaydedildi; İF revizyon bekliyor.", "warning")
+
+    record_audit_event(
+        "Dof",
+        "effectiveness_reviewed",
+        f"{dof.dof_no} etkinlik kontrolü kaydedildi",
+        entity_id=dof.id,
+        new_values={"effectiveness_result": result, "effectiveness_note": note},
+        company_id=dof.company_id,
+        commit=False,
     )
     db.session.commit()
-    flash("İF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
     return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
 
@@ -15170,6 +16466,12 @@ def revise_dof(dof_id):
             flash("Kanıt dosyası en fazla 10 MB olabilir.", "danger")
         elif error_key == "required_fields":
             flash("Tekrar onay talep etmek için zorunlu alanları doldurun.", "danger")
+        elif error_key == "invalid_root_cause_method":
+            flash("Kök neden yöntemi geçerli değil.", "danger")
+        elif error_key == "effectiveness_required_fields":
+            flash("Etkinlik kontrolü için sorumlu ve termin seçin.", "danger")
+        elif error_key == "invalid_date":
+            flash("Tarih alanlarından biri geçerli değil.", "danger")
         elif error_key == "text_too_long":
             flash("Açıklama alanları en fazla 2000 karakter olabilir.", "danger")
         else:
@@ -15183,6 +16485,11 @@ def revise_dof(dof_id):
     dof.rejected_by_user_id = None
     dof.rejected_at = None
     dof.rejected_step = None
+    if dof.effectiveness_required:
+        dof.effectiveness_result = "Bekliyor"
+        dof.effectiveness_note = None
+        dof.effectiveness_checked_by_user_id = None
+        dof.effectiveness_checked_at = None
     if target_step == "management_representative":
         dof.management_approved_by_user_id = None
         dof.management_approved_at = None
@@ -15294,13 +16601,20 @@ def delete_dof(dof_id):
 @login_required
 @permission_required("can_create_actions")
 def create_action():
+    linked_dof = None
     if request.method == "POST":
         try:
-            action = parse_action_form()
-            assign_current_company(action)
-            action.action_number = reserve_action_number()
+            action = parse_action_form(save_file=False)
+            linked_dof = getattr(action, "_parsed_source_dof", None)
+            if linked_dof is not None:
+                action.company_id = linked_dof.company_id
+            else:
+                assign_current_company(action)
+            action.action_number = reserve_action_number(company_id=action.company_id)
+            save_uploaded_file(action)
             db.session.add(action)
             db.session.flush()
+            linked_dof = getattr(action, "_parsed_source_dof", None) or action.source_dof
             created_sub_actions = create_inline_sub_actions(action)
             add_action_history(
                 action,
@@ -15308,6 +16622,25 @@ def create_action():
                 f"{g.current_user.full_name} aksiyonu oluşturdu.",
                 actor=g.current_user,
             )
+            if linked_dof is not None:
+                add_dof_comment(
+                    linked_dof,
+                    (
+                        f"{g.current_user.full_name} bağlı aksiyon oluşturdu: "
+                        f"{action.number_label} {action.title}"
+                    ),
+                    comment_type="action",
+                    actor=g.current_user,
+                )
+                record_audit_event(
+                    "Dof",
+                    "linked_action_created",
+                    f"{linked_dof.dof_no} kaydına bağlı aksiyon oluşturuldu",
+                    entity_id=linked_dof.id,
+                    new_values={"action_id": action.id, "action_no": action.number_label},
+                    company_id=linked_dof.company_id,
+                    commit=False,
+                )
             if created_sub_actions:
                 add_action_history(
                     action,
@@ -15327,6 +16660,13 @@ def create_action():
                         f"{action.number_label} {action.title} aksiyonu altında "
                         f"'{sub_action.title}' alt aksiyonunda sorumlu/ilgili olarak atandınız."
                     ),
+                    exclude_user_id=g.current_user.id,
+                )
+            if linked_dof is not None:
+                notify_dof_users(
+                    dof_primary_users(linked_dof),
+                    linked_dof,
+                    f"{linked_dof.dof_no} kaydı için {action.number_label} bağlı aksiyon açıldı.",
                     exclude_user_id=g.current_user.id,
                 )
             db.session.commit()
@@ -15350,16 +16690,40 @@ def create_action():
                     "Kanıt zorunlu alt aksiyonu ilk kayıtta tamamlandı olarak açamazsınız.",
                     "danger",
                 )
+            elif error_key == "invalid_dof":
+                flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "invalid_capa_type":
+                flash("CAPA tipi geçerli değil.", "danger")
+            elif error_key == "effectiveness_required_fields":
+                flash("Etkinlik kontrolü için sorumlu ve termin seçin.", "danger")
             else:
                 flash("Lütfen form alanlarını geçerli biçimde doldurun.", "danger")
+
+    form_data = action_form_defaults()
+    if request.method == "POST":
+        form_data.update(request.form)
+        if request.form.get("dof_id"):
+            linked_dof = scoped_query(Dof.query, Dof).filter_by(
+                id=request.form.get("dof_id", type=int)
+            ).first()
+    else:
+        try:
+            linked_dof = parse_optional_dof()
+        except ValueError:
+            flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            linked_dof = None
+        form_data = action_form_defaults(linked_dof=linked_dof)
 
     return render_template(
         "action_form.html",
         action=None,
+        linked_dof=linked_dof,
+        form_data=form_data,
         users=active_users(),
         departments=DEPARTMENTS,
         today=date.today().isoformat(),
         title="Yeni Aksiyon",
+        capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
@@ -15383,11 +16747,13 @@ def action_detail(action_id):
         can_comment=can_comment_action(action),
         can_reassign=can_reassign_action(action),
         can_revise_termin=can_revise_termin(action),
+        can_review_effectiveness=can_review_action_effectiveness(action),
         can_create_sub_action=can_create_sub_action(action),
         can_edit_sub_action=can_edit_sub_action,
         can_full_edit_sub_action=can_full_edit_sub_action,
         can_delete_sub_action=can_delete_sub_action,
         can_complete_sub_action=can_complete_sub_action,
+        effectiveness_results=EFFECTIVENESS_RESULTS,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
@@ -15583,16 +16949,29 @@ def edit_action(action_id):
                 )
             elif error_key == "file_too_large":
                 flash("Dosya en fazla 25 MB olabilir.", "danger")
+            elif error_key == "invalid_dof":
+                flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "invalid_capa_type":
+                flash("CAPA tipi geçerli değil.", "danger")
+            elif error_key == "effectiveness_required_fields":
+                flash("Etkinlik kontrolü için sorumlu ve termin seçin.", "danger")
             else:
                 flash("Lütfen form alanlarını geçerli biçimde doldurun.", "danger")
+
+    form_data = action_form_defaults(action)
+    if request.method == "POST":
+        form_data.update(request.form)
 
     return render_template(
         "action_form.html",
         action=action,
+        linked_dof=action.source_dof,
+        form_data=form_data,
         users=active_users(),
         departments=DEPARTMENTS,
         today=date.today().isoformat(),
         title="Aksiyon Düzenle",
+        capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
@@ -15914,19 +17293,124 @@ def complete_action(action_id):
         return redirect(url_for("main.action_detail", action_id=action.id))
 
     action.mark_completed()
+    if action.effectiveness_required:
+        if not action.effectiveness_owner_user_id:
+            action.effectiveness_owner_user_id = action.responsible_user_id
+        if not action.effectiveness_due_date:
+            action.effectiveness_due_date = action.termin_date + timedelta(days=30)
+        action.effectiveness_result = "Bekliyor"
+        action.effectiveness_note = None
+        action.effectiveness_checked_by_user_id = None
+        action.effectiveness_checked_at = None
     add_action_history(
         action,
         "completed",
         f"{g.current_user.full_name} kapatma onayını verdi ve aksiyonu tamamladı.",
         actor=g.current_user,
     )
+    if action.effectiveness_required:
+        add_action_history(
+            action,
+            "effectiveness_pending",
+            "Aksiyon etkinlik kontrolü beklemeye alındı.",
+            actor=g.current_user,
+        )
     notify_action_participants(
         action,
         f"{action.number_label} {action.title} aksiyonunun kapanışı Oğuzhan tarafından onaylandı.",
         exclude_user_id=g.current_user.id,
     )
+    if action.effectiveness_required and action.effectiveness_owner:
+        notify_users(
+            {action.effectiveness_owner_user_id},
+            action,
+            f"{action.number_label} {action.title} için etkinlik kontrolünüz bekleniyor.",
+            exclude_user_id=g.current_user.id,
+        )
     db.session.commit()
     flash("Kapatma onayı verildi ve aksiyon tamamlandı.", "success")
+    return redirect(url_for("main.action_detail", action_id=action.id))
+
+
+@bp.post("/actions/<int:action_id>/effectiveness")
+@login_required
+def review_action_effectiveness(action_id):
+    action = Action.query.get_or_404(action_id)
+    ensure_same_company(action)
+    if not can_review_action_effectiveness(action):
+        abort(403)
+
+    result = request.form.get("effectiveness_result", "").strip()
+    note = request.form.get("effectiveness_note", "").strip()
+    if result not in {"Etkin", "Etkin Değil"}:
+        flash("Etkinlik kontrol sonucu seçin.", "danger")
+        return redirect(action_effectiveness_detail_url(action))
+    if result == "Etkin Değil" and not note:
+        flash("Etkin değil sonucunda kontrol açıklaması zorunludur.", "danger")
+        return redirect(action_effectiveness_detail_url(action))
+    if len(note) > 2000:
+        flash("Etkinlik kontrol açıklaması en fazla 2000 karakter olabilir.", "danger")
+        return redirect(action_effectiveness_detail_url(action))
+
+    action.effectiveness_result = result
+    action.effectiveness_note = note or None
+    action.effectiveness_checked_by_user_id = g.current_user.id
+    action.effectiveness_checked_at = datetime.utcnow()
+    if result == "Etkin Değil":
+        action.is_completed = False
+        action.completed_at = None
+        action.closure_approval_requested = False
+        action.closure_requested_at = None
+        action.closure_requested_by_user_id = None
+        action.closure_evidence_note = None
+        action.closure_rejected_at = datetime.utcnow()
+        action.closure_rejected_by_user_id = g.current_user.id
+        action.closure_rejection_reason = note
+        history_note = (
+            f"{g.current_user.full_name} etkinlik kontrolünü etkin değil olarak "
+            "kaydetti; aksiyon yeniden açıldı."
+        )
+        notification_message = (
+            f"{action.number_label} {action.title} etkinlik kontrolü etkin değil; "
+            "aksiyon yeniden açıldı."
+        )
+        flash_message = "Etkinlik kontrolü etkin değil kaydedildi; aksiyon yeniden açıldı."
+        flash_category = "warning"
+    else:
+        action.closure_rejected_at = None
+        action.closure_rejected_by_user_id = None
+        action.closure_rejection_reason = None
+        history_note = (
+            f"{g.current_user.full_name} etkinlik kontrolünü "
+            f"{result.lower()} olarak kaydetti."
+        )
+        notification_message = (
+            f"{action.number_label} {action.title} etkinlik kontrolü: {result}."
+        )
+        flash_message = "Aksiyon etkinlik kontrolü kaydedildi."
+        flash_category = "success"
+    add_action_history(
+        action,
+        "effectiveness_reviewed",
+        history_note,
+        actor=g.current_user,
+    )
+    notify_action_participants(
+        action,
+        notification_message,
+        exclude_user_id=g.current_user.id,
+    )
+    record_audit_event(
+        "Action",
+        "effectiveness_reviewed",
+        f"{action.number_label} etkinlik kontrolü kaydedildi",
+        entity_id=action.id,
+        new_values={"effectiveness_result": result, "effectiveness_note": note},
+        company_id=action.company_id,
+        commit=False,
+    )
+    db.session.commit()
+    flash(flash_message, flash_category)
     return redirect(url_for("main.action_detail", action_id=action.id))
 
 

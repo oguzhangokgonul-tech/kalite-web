@@ -347,11 +347,22 @@ DOF_SOURCES = (
     "Yönetim Gözden Geçirme",
     "Diğer",
 )
-DOF_STATUSES = ("Taslak", "Onay Akışı Bekleniyor", "Revizyon Bekleniyor", "Tamamlandı")
+CAPA_TYPES = ("Düzeltme", "Düzeltici Faaliyet", "Önleyici Faaliyet")
+ROOT_CAUSE_METHODS = ("5 Neden", "Balık Kılçığı", "Pareto", "Diğer")
+EFFECTIVENESS_RESULTS = ("Bekliyor", "Etkin", "Etkin Değil")
+DOF_EFFECTIVENESS_STATUS = "Etkinlik Kontrolü Bekliyor"
+DOF_STATUSES = (
+    "Taslak",
+    "Onay Akışı Bekleniyor",
+    "Revizyon Bekleniyor",
+    DOF_EFFECTIVENESS_STATUS,
+    "Tamamlandı",
+)
 DOF_APPROVAL_STEPS = (
     "draft",
     "management_representative",
     "general_manager_deputy",
+    "effectiveness_review",
     "revision_requested",
     "completed",
 )
@@ -632,6 +643,19 @@ class Action(db.Model):
         nullable=True,
     )
     closure_rejection_reason = db.Column(db.Text, nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True, index=True)
+    capa_type = db.Column(db.String(60), nullable=True)
+    effectiveness_required = db.Column(db.Boolean, nullable=False, default=False)
+    effectiveness_owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    effectiveness_due_date = db.Column(db.Date, nullable=True)
+    effectiveness_result = db.Column(db.String(40), nullable=True)
+    effectiveness_note = db.Column(db.Text, nullable=True)
+    effectiveness_checked_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    effectiveness_checked_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -654,6 +678,19 @@ class Action(db.Model):
     closure_rejected_by = db.relationship(
         "User",
         foreign_keys=[closure_rejected_by_user_id],
+    )
+    source_dof = db.relationship(
+        "Dof",
+        back_populates="linked_actions",
+        foreign_keys=[dof_id],
+    )
+    effectiveness_owner = db.relationship(
+        "User",
+        foreign_keys=[effectiveness_owner_user_id],
+    )
+    effectiveness_checked_by = db.relationship(
+        "User",
+        foreign_keys=[effectiveness_checked_by_user_id],
     )
     closure_files = db.relationship(
         "ActionClosureFile",
@@ -692,6 +729,7 @@ class Action(db.Model):
                 self.responsible_user_id,
                 self.related_user_1_id,
                 self.related_user_2_id,
+                self.effectiveness_owner_user_id,
             )
             if user_id
         }
@@ -775,9 +813,22 @@ class Dof(db.Model):
     source = db.Column(db.String(120), nullable=True)
     nonconformity_description = db.Column(db.Text, nullable=True)
     root_cause_analysis = db.Column(db.Text, nullable=True)
+    root_cause_method = db.Column(db.String(80), nullable=True)
+    containment_action = db.Column(db.Text, nullable=True)
     corrective_action = db.Column(db.Text, nullable=True)
     preventive_action = db.Column(db.Text, nullable=True)
     closing_evidence = db.Column(db.Text, nullable=True)
+    effectiveness_required = db.Column(db.Boolean, nullable=False, default=False)
+    effectiveness_owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    effectiveness_due_date = db.Column(db.Date, nullable=True)
+    effectiveness_result = db.Column(db.String(40), nullable=True)
+    effectiveness_note = db.Column(db.Text, nullable=True)
+    effectiveness_checked_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    effectiveness_checked_at = db.Column(db.DateTime, nullable=True)
     evidence_original_name = db.Column(db.String(255), nullable=True)
     evidence_stored_name = db.Column(db.String(255), nullable=True)
     evidence_mime_type = db.Column(db.String(120), nullable=True)
@@ -810,6 +861,14 @@ class Dof(db.Model):
     )
 
     responsible = db.relationship("User", foreign_keys=[responsible_id])
+    effectiveness_owner = db.relationship(
+        "User",
+        foreign_keys=[effectiveness_owner_user_id],
+    )
+    effectiveness_checked_by = db.relationship(
+        "User",
+        foreign_keys=[effectiveness_checked_by_user_id],
+    )
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     management_approved_by = db.relationship(
         "User",
@@ -836,6 +895,11 @@ class Dof(db.Model):
         back_populates="dof",
         cascade="all, delete-orphan",
         order_by="DofFile.created_at.asc()",
+    )
+    linked_actions = db.relationship(
+        "Action",
+        back_populates="source_dof",
+        foreign_keys="Action.dof_id",
     )
 
 
@@ -1289,6 +1353,12 @@ class Document(db.Model):
         cascade="all, delete-orphan",
         order_by="DocumentRevisionRequest.created_at.desc()",
     )
+    acknowledgements = db.relationship(
+        "DocumentAcknowledgement",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="DocumentAcknowledgement.acknowledged_at.desc()",
+    )
 
 
 class DocumentRevisionRequest(db.Model):
@@ -1320,6 +1390,42 @@ class DocumentRevisionRequest(db.Model):
         cascade="all, delete-orphan",
         order_by="DocumentRevisionRequestFile.created_at.asc()",
     )
+
+
+class DocumentAcknowledgement(db.Model):
+    __tablename__ = "document_acknowledgements"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "document_id",
+            "user_id",
+            "revision_no_snapshot",
+            name="uq_document_acknowledgements_company_doc_user_revision",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    training_participant_id = db.Column(
+        db.Integer,
+        db.ForeignKey("training_participants.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    document_code_snapshot = db.Column(db.String(80), nullable=False)
+    document_title_snapshot = db.Column(db.String(200), nullable=False)
+    revision_no_snapshot = db.Column(db.String(40), nullable=False, default="")
+    acknowledged_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    ip_address = db.Column(db.String(80), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    document = db.relationship("Document", back_populates="acknowledgements")
+    user = db.relationship("User", foreign_keys=[user_id])
+    training_participant = db.relationship("TrainingParticipant", foreign_keys=[training_participant_id])
 
 
 class DocumentRevisionRequestFile(db.Model):

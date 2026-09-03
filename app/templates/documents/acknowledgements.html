@@ -1,0 +1,96 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ document.document_code }} Okuma Takibi{% endblock %}
+
+{% block app_content %}
+  {% set breadcrumb %}
+    <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+      <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+      <i class="bi bi-chevron-right"></i>
+      <a href="{{ url_for('main.document_detail', document_id=document.id) }}">{{ document.document_code }}</a>
+      <i class="bi bi-chevron-right"></i>
+      <span>Okuma Takibi</span>
+    </nav>
+  {% endset %}
+  {% call ui.page_header("Doküman Okuma Takibi", breadcrumb, class_name="documents-page-heading", icon="bi-check2-square", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.document_detail', document_id=document.id) }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Dokümana Dön</span>
+    </a>
+  {% endcall %}
+
+  <section class="documents-table-card documents-ack-page-card">
+    <div class="documents-ack-page-header">
+      <div>
+        <span class="documents-ack-page-eyebrow">Revizyon {{ acknowledgement_summary.revision_key or "0" }}</span>
+        <h2>{{ document.document_code }} - {{ document.title }}</h2>
+      </div>
+      <div class="documents-ack-page-stats">
+        <span><strong>{{ acknowledgement_summary.acknowledged_count }}</strong> onay</span>
+        <span><strong>{{ acknowledgement_summary.pending_count }}</strong> bekleyen</span>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table vp-table documents-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Personel</th>
+            <th>Durum</th>
+            <th>Revizyon</th>
+            <th>Tarih</th>
+            <th>Kaynak</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for acknowledgement in acknowledgement_summary.acknowledgements %}
+            <tr>
+              <td data-label="Personel">
+                <div class="documents-ack-person">
+                  <span class="documents-ack-avatar">{{ acknowledgement.user.full_name[:2]|upper if acknowledgement.user else "OK" }}</span>
+                  <strong>{{ acknowledgement.user.full_name if acknowledgement.user else "Kullanıcı" }}</strong>
+                </div>
+              </td>
+              <td data-label="Durum"><span class="documents-ack-badge success">Okundu / Onaylandı</span></td>
+              <td data-label="Revizyon">{{ acknowledgement.revision_no_snapshot or "0" }}</td>
+              <td data-label="Tarih">{{ acknowledgement.acknowledged_at.strftime("%d.%m.%Y %H:%M") if acknowledgement.acknowledged_at else "-" }}</td>
+              <td data-label="Kaynak">
+                {% if acknowledgement.training_participant_id %}
+                  Eğitim okuma onayı
+                {% else %}
+                  Doküman detayı
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+
+          {% for participant in acknowledgement_summary.pending_participants %}
+            <tr>
+              <td data-label="Personel">
+                <div class="documents-ack-person">
+                  <span class="documents-ack-avatar pending">{{ participant.display_name[:2]|upper }}</span>
+                  <strong>{{ participant.display_name }}</strong>
+                </div>
+              </td>
+              <td data-label="Durum"><span class="documents-ack-badge pending">Bekliyor</span></td>
+              <td data-label="Revizyon">{{ acknowledgement_summary.revision_key or "0" }}</td>
+              <td data-label="Tarih">-</td>
+              <td data-label="Kaynak">{{ participant.training.training_no if participant.training else "Eğitim ataması" }}</td>
+            </tr>
+          {% endfor %}
+
+          {% if not acknowledgement_summary.acknowledgements and not acknowledgement_summary.pending_participants %}
+            <tr>
+              <td class="documents-empty-row" colspan="5">
+                {{ ui.empty_state("Bu revizyon için okuma kaydı yok.", "Okuma onayı verildiğinde veya eğitim ataması oluşturulduğunda burada görünecek.", "bi-check2-square") }}
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

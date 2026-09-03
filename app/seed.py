@@ -1222,6 +1222,41 @@ def ensure_runtime_schema():
         if "closure_rejection_reason" not in columns:
             db.session.execute(text("ALTER TABLE actions ADD COLUMN closure_rejection_reason TEXT"))
             changed = True
+        action_capa_columns = {
+            "dof_id": "ALTER TABLE actions ADD COLUMN dof_id INTEGER",
+            "capa_type": "ALTER TABLE actions ADD COLUMN capa_type VARCHAR(60)",
+            "effectiveness_required": (
+                "ALTER TABLE actions ADD COLUMN "
+                "effectiveness_required BOOLEAN NOT NULL DEFAULT 0"
+            ),
+            "effectiveness_owner_user_id": (
+                "ALTER TABLE actions ADD COLUMN effectiveness_owner_user_id INTEGER"
+            ),
+            "effectiveness_due_date": (
+                "ALTER TABLE actions ADD COLUMN effectiveness_due_date DATE"
+            ),
+            "effectiveness_result": (
+                "ALTER TABLE actions ADD COLUMN effectiveness_result VARCHAR(40)"
+            ),
+            "effectiveness_note": "ALTER TABLE actions ADD COLUMN effectiveness_note TEXT",
+            "effectiveness_checked_by_user_id": (
+                "ALTER TABLE actions ADD COLUMN effectiveness_checked_by_user_id INTEGER"
+            ),
+            "effectiveness_checked_at": (
+                "ALTER TABLE actions ADD COLUMN effectiveness_checked_at DATETIME"
+            ),
+        }
+        for column_name, statement in action_capa_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_actions_dof_id ON actions (dof_id)"))
+        db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_actions_effectiveness_owner_user_id "
+                "ON actions (effectiveness_owner_user_id)"
+            )
+        )
 
     if "action_closure_files" not in tables:
         db.session.execute(
@@ -1360,6 +1395,40 @@ def ensure_runtime_schema():
         if "completed_at" not in columns:
             db.session.execute(text("ALTER TABLE dofs ADD COLUMN completed_at DATETIME"))
             changed = True
+        dof_capa_columns = {
+            "containment_action": "ALTER TABLE dofs ADD COLUMN containment_action TEXT",
+            "root_cause_method": "ALTER TABLE dofs ADD COLUMN root_cause_method VARCHAR(80)",
+            "effectiveness_required": (
+                "ALTER TABLE dofs ADD COLUMN "
+                "effectiveness_required BOOLEAN NOT NULL DEFAULT 0"
+            ),
+            "effectiveness_owner_user_id": (
+                "ALTER TABLE dofs ADD COLUMN effectiveness_owner_user_id INTEGER"
+            ),
+            "effectiveness_due_date": (
+                "ALTER TABLE dofs ADD COLUMN effectiveness_due_date DATE"
+            ),
+            "effectiveness_result": (
+                "ALTER TABLE dofs ADD COLUMN effectiveness_result VARCHAR(40)"
+            ),
+            "effectiveness_note": "ALTER TABLE dofs ADD COLUMN effectiveness_note TEXT",
+            "effectiveness_checked_by_user_id": (
+                "ALTER TABLE dofs ADD COLUMN effectiveness_checked_by_user_id INTEGER"
+            ),
+            "effectiveness_checked_at": (
+                "ALTER TABLE dofs ADD COLUMN effectiveness_checked_at DATETIME"
+            ),
+        }
+        for column_name, statement in dof_capa_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        db.session.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_dofs_effectiveness_owner_user_id "
+                "ON dofs (effectiveness_owner_user_id)"
+            )
+        )
 
     if changed:
         db.session.commit()
@@ -1508,6 +1577,8 @@ def ensure_runtime_schema():
             "sales_readiness:month1_ui_standard",
             "sales_readiness:month1_tasks",
             "sales_readiness:month2_audit_log",
+            "sales_readiness:month2_document_read",
+            "sales_readiness:month2_capa_fields",
         ):
             db.session.execute(
                 text(

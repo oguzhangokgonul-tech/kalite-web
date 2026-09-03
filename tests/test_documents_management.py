@@ -1,8 +1,19 @@
 from datetime import date
 
 from app.extensions import db
-from app.models import DOCUMENT_STATUSES, Document, DocumentRevisionRequest, Notification
+from app.models import (
+    DOCUMENT_STATUSES,
+    AppSetting,
+    AuditLog,
+    Document,
+    DocumentAcknowledgement,
+    DocumentRevisionRequest,
+    Notification,
+    TrainingParticipant,
+    TrainingRecord,
+)
 from app.routes import DOCUMENT_REVISION_APPROVED_STATUS, DOCUMENT_REVISION_PENDING_STATUS
+from app.seed import ensure_runtime_schema
 
 from .helpers import (
     create_company,
@@ -144,3 +155,194 @@ def test_documents_list_search_filter_uses_current_company(app, client):
     body = response.get_data(as_text=True)
     assert "Gorunen Proses" in body
     assert "Gorunmeyen Proses" not in body
+
+
+def test_document_acknowledgement_requires_view_and_is_revision_scoped(app, client):
+    company = create_company("316")
+    user = create_user(
+        "document-reader",
+        company=company,
+        permissions=("documents.view",),
+        full_name="Ayse Celik",
+    )
+    document = make_document(
+        app,
+        company,
+        document_code="PR.20",
+        title="Okuma Onayi Proseduru",
+        revision_no="0",
+    )
+
+    login(client, user)
+    response = client.post(f"/documents/{document.id}/acknowledge")
+
+    assert response.status_code == 302
+    assert DocumentAcknowledgement.query.count() == 0
+
+    client.get(f"/documents/{document.id}")
+    response = client.post(f"/documents/{document.id}/acknowledge", follow_redirects=True)
+
+    assert response.status_code == 200
+    acknowledgement = DocumentAcknowledgement.query.one()
+    assert acknowledgement.company_id == company.id
+    assert acknowledgement.document_id == document.id
+    assert acknowledgement.user_id == user.id
+    assert acknowledgement.document_code_snapshot == "PR.20"
+    assert acknowledgement.document_title_snapshot == "Okuma Onayi Proseduru"
+    assert acknowledgement.revision_no_snapshot == "0"
+    assert AuditLog.query.filter_by(
+        entity_type="DocumentAcknowledgement",
+        entity_id=str(acknowledgement.id),
+        action="created",
+    ).count() == 1
+
+    client.post(f"/documents/{document.id}/acknowledge", follow_redirects=True)
+    assert DocumentAcknowledgement.query.count() == 1
+
+    document.revision_no = "1"
+    db.session.commit()
+    client.get(f"/documents/{document.id}")
+    client.post(f"/documents/{document.id}/acknowledge", follow_redirects=True)
+
+    assert DocumentAcknowledgement.query.count() == 2
+    assert sorted(
+        item.revision_no_snapshot for item in DocumentAcknowledgement.query.all()
+    ) == ["0", "1"]
+
+
+def test_document_acknowledgement_tracking_shows_pending_and_completed_users(app, client):
+    company = create_company("317")
+    manager = create_user(
+        "document-manager",
+        company=company,
+        permissions=("documents.manage", "training.manage", "training.view"),
+    )
+    participant_user = create_user(
+        "training-reader",
+        company=company,
+        permissions=("documents.view", "training.view"),
+        full_name="Turgut Ozel Pekyilmaz",
+    )
+    document = make_document(app, company, document_code="PR.21", revision_no="2")
+    training = TrainingRecord(
+        company_id=company.id,
+        training_no="EGT-2026-0001",
+        title="PR.21 Okuma Onayi",
+        training_type="Doküman Okuma Onayı",
+        document_id=document.id,
+        created_by_user_id=manager.id,
+    )
+    participant = TrainingParticipant(
+        company_id=company.id,
+        training=training,
+        user_id=participant_user.id,
+        status="Atandı",
+    )
+    db.session.add_all([training, participant])
+    db.session.commit()
+
+    login(client, manager)
+    response = client.get(f"/documents/{document.id}/acknowledgements")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Turgut Ozel Pekyilmaz" in body
+    assert "Bekliyor" in body
+
+    login(client, participant_user)
+    client.get(f"/documents/{document.id}")
+    response = client.post(f"/documents/{document.id}/acknowledge", follow_redirects=True)
+
+    assert response.status_code == 200
+    db.session.refresh(participant)
+    assert participant.status == "Okundu"
+    acknowledgement = DocumentAcknowledgement.query.one()
+    assert acknowledgement.training_participant_id == participant.id
+
+    login(client, manager)
+    response = client.get(f"/documents/{document.id}/acknowledgements")
+    body = response.get_data(as_text=True)
+
+    assert "Okundu / Onaylandı" in body
+    assert "Bekliyor" not in body
+
+
+def test_training_document_read_confirmation_creates_document_acknowledgement(app, client):
+    company = create_company("318")
+    manager = create_user(
+        "training-manager",
+        company=company,
+        permissions=("training.manage", "training.view", "training.delete", "documents.view"),
+    )
+    participant_user = create_user(
+        "training-participant",
+        company=company,
+        permissions=("training.view", "documents.view"),
+    )
+    document = make_document(app, company, document_code="PR.22", revision_no="3")
+    training = TrainingRecord(
+        company_id=company.id,
+        training_no="EGT-2026-0002",
+        title="PR.22 Okuma Onayi",
+        training_type="Doküman Okuma Onayı",
+        document_id=document.id,
+        created_by_user_id=manager.id,
+    )
+    participant = TrainingParticipant(
+        company_id=company.id,
+        training=training,
+        user_id=participant_user.id,
+        status="Atandı",
+    )
+    db.session.add_all([training, participant])
+    db.session.commit()
+
+    login(client, participant_user)
+    response = client.post(
+        f"/egitim-yeterlilik/{training.id}/katilimci/{participant.id}/onayla",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    db.session.refresh(participant)
+    db.session.refresh(training)
+    acknowledgement = DocumentAcknowledgement.query.one()
+    assert participant.status == "Okundu"
+    assert training.status == "Tamamlandı"
+    assert acknowledgement.document_id == document.id
+    assert acknowledgement.user_id == participant_user.id
+    assert acknowledgement.training_participant_id == participant.id
+    assert acknowledgement.revision_no_snapshot == "3"
+
+    login(client, manager)
+    response = client.post(f"/egitim-yeterlilik/{training.id}/sil", follow_redirects=True)
+
+    assert response.status_code == 200
+    acknowledgement = DocumentAcknowledgement.query.one()
+    assert acknowledgement.training_participant_id is None
+
+
+def test_runtime_schema_marks_sales_readiness_document_read_done(app):
+    AppSetting.query.delete()
+    db.session.commit()
+
+    ensure_runtime_schema()
+
+    setting = db.session.get(AppSetting, "sales_readiness:month2_document_read")
+    assert setting is not None
+    assert setting.value == "1"
+
+
+def test_document_schema_marks_sales_readiness_document_read_done_on_request(app, client):
+    company = create_company("319")
+    user = create_user("document-readiness", company=company, permissions=("documents.view",))
+    AppSetting.query.delete()
+    db.session.commit()
+
+    login(client, user)
+    response = client.get("/documents")
+
+    assert response.status_code == 200
+    setting = db.session.get(AppSetting, "sales_readiness:month2_document_read")
+    assert setting is not None
+    assert setting.value == "1"

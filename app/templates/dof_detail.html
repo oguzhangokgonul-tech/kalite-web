@@ -53,6 +53,12 @@
 
 {% block app_content %}
   {% call ui.page_header(dof.dof_no, "Düzeltici ve önleyici faaliyet kayıt detayı", class_name="dof-detail-heading", icon="bi-clipboard2-pulse") %}
+      {% if can_create_linked_action %}
+        <a class="btn btn-outline-primary" href="{{ url_for('main.create_action', dof_id=dof.id) }}">
+          <i class="bi bi-link-45deg"></i>
+          <span>Bağlı Aksiyon Oluştur</span>
+        </a>
+      {% endif %}
       {% if can_edit %}
         <a class="btn btn-primary" href="{{ url_for('main.edit_dof_draft', dof_id=dof.id) }}">
           <i class="bi bi-pencil-square"></i>
@@ -104,6 +110,8 @@
   <div class="dof-detail-layout">
     <div class="dof-detail-main">
       {{ content_card("bi-card-text", "tone-teal", "Uygunsuzluk Açıklaması", "İF kaydına ait açıklama alanı", dof.nonconformity_description) }}
+      {{ content_card("bi-bezier2", "tone-purple", "Kök Neden Yöntemi", "Kök neden analizi için seçilen yöntem", dof.root_cause_method) }}
+      {{ content_card("bi-shield-exclamation", "tone-blue", "Acil Düzeltme / Geçici Önlem", "Uygunsuzluğun etkisini sınırlayan ilk aksiyonlar", dof.containment_action) }}
       {{ content_card("bi-diagram-2", "tone-green", "Kök Neden Analizi", "İF kaydına ait açıklama alanı", dof.root_cause_analysis) }}
       {{ content_card("bi-wrench-adjustable", "tone-blue", "Düzeltici Faaliyet", "İF kaydına ait açıklama alanı", dof.corrective_action) }}
       {{ content_card("bi-shield-check", "tone-purple", "Önleyici Faaliyet", "İF kaydına ait açıklama alanı", dof.preventive_action) }}
@@ -180,6 +188,86 @@
           </form>
         </section>
       {% endif %}
+
+      <section class="dof-detail-side-card" id="dof-effectiveness">
+        <div class="dof-detail-side-title">
+          <i class="bi bi-clipboard2-check"></i>
+          <div>
+            <h3>Etkinlik Kontrolü</h3>
+            <p>Kapanış sonrası aksiyonun gerçekten işe yarayıp yaramadığını takip eder.</p>
+          </div>
+        </div>
+        <div class="dof-detail-summary">
+          <div>
+            <span>Gerekli mi?</span>
+            <strong>{{ "Evet" if dof.effectiveness_required else "Hayır" }}</strong>
+          </div>
+          <div>
+            <span>Sorumlu</span>
+            <strong>{{ dof.effectiveness_owner.full_name if dof.effectiveness_owner else "-" }}</strong>
+          </div>
+          <div>
+            <span>Termin</span>
+            <strong>{{ dof.effectiveness_due_date.strftime("%d.%m.%Y") if dof.effectiveness_due_date else "-" }}</strong>
+          </div>
+          <div>
+            <span>Sonuç</span>
+            {{ ui.status_badge(dof.effectiveness_result or "Beklemede") }}
+          </div>
+        </div>
+        {% if dof.effectiveness_note %}
+          <p class="mt-3 mb-0">{{ dof.effectiveness_note }}</p>
+        {% endif %}
+        {% if dof.effectiveness_checked_by or dof.effectiveness_checked_at %}
+          <small class="text-secondary d-block mt-2">
+            {{ dof.effectiveness_checked_by.full_name if dof.effectiveness_checked_by else "-" }}
+            {% if dof.effectiveness_checked_at %} - {{ dof.effectiveness_checked_at.strftime("%d.%m.%Y %H:%M") }}{% endif %}
+          </small>
+        {% endif %}
+        {% if can_review_effectiveness %}
+          <form class="mt-3" method="post" action="{{ url_for('main.review_dof_effectiveness', dof_id=dof.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="form-label" for="effectiveness_result">Kontrol sonucu</label>
+            <select class="form-select" id="effectiveness_result" name="effectiveness_result" required>
+              <option value="">Seçiniz</option>
+              {% for result in effectiveness_results %}
+                {% if result != "Bekliyor" %}
+                  <option value="{{ result }}">{{ result }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <label class="form-label mt-3" for="effectiveness_note">Kontrol açıklaması</label>
+            <textarea class="form-control" id="effectiveness_note" name="effectiveness_note" rows="4" maxlength="2000" placeholder="Özellikle Etkin Değil sonucunda açıklama yazın."></textarea>
+            <button class="btn btn-success w-100 mt-3" type="submit">
+              <i class="bi bi-check2-circle"></i>
+              <span>Etkinlik Kontrolünü Kaydet</span>
+            </button>
+          </form>
+        {% endif %}
+      </section>
+
+      <section class="dof-detail-side-card">
+        <div class="dof-detail-side-title">
+          <i class="bi bi-link-45deg"></i>
+          <div>
+            <h3>Bağlı Aksiyonlar</h3>
+            <p>Bu İF kaydından açılan aksiyonlar.</p>
+          </div>
+        </div>
+        {% if dof.linked_actions %}
+          <div class="vstack gap-2">
+            {% for action in dof.linked_actions %}
+              <a class="dof-evidence-link" href="{{ url_for('main.action_detail', action_id=action.id) }}">
+                <span class="dof-evidence-file-icon"><i class="bi bi-clipboard-check"></i></span>
+                <span class="dof-evidence-name">{{ action.number_label }} {{ action.title }}</span>
+                <i class="bi bi-chevron-right ms-auto"></i>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="dof-detail-empty-note">Bağlı aksiyon yok.</div>
+        {% endif %}
+      </section>
 
       <section class="dof-detail-side-card">
         <div class="dof-detail-side-title">
@@ -285,6 +373,35 @@
               {% endfor %}
             </select>
           </div>
+          <div>
+            <label class="form-label" for="revision_root_cause_method">Kök Neden Yöntemi</label>
+            <select class="form-select" id="revision_root_cause_method" name="root_cause_method">
+              <option value="">Seçiniz</option>
+              {% for method in root_cause_methods %}
+                <option value="{{ method }}" {% if dof.root_cause_method == method %}selected{% endif %}>{{ method }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label d-block" for="revision_effectiveness_required">Etkinlik kontrolü gerekli mi?</label>
+            <div class="form-check form-switch mt-2">
+              <input class="form-check-input" id="revision_effectiveness_required" name="effectiveness_required" type="checkbox" value="1" {% if dof.effectiveness_required %}checked{% endif %}>
+              <label class="form-check-label" for="revision_effectiveness_required">Evet</label>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="revision_effectiveness_owner_user_id">Etkinlik kontrol sorumlusu</label>
+            <select class="form-select" id="revision_effectiveness_owner_user_id" name="effectiveness_owner_user_id">
+              <option value="">Seçiniz</option>
+              {% for user in users %}
+                <option value="{{ user.id }}" {% if dof.effectiveness_owner_user_id == user.id %}selected{% endif %}>{{ user.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="revision_effectiveness_due_date">Etkinlik kontrol termini</label>
+            <input class="form-control" id="revision_effectiveness_due_date" name="effectiveness_due_date" type="date" value="{{ dof.effectiveness_due_date.isoformat() if dof.effectiveness_due_date else '' }}">
+          </div>
         </div>
 
         <div class="dof-textarea-stack mt-3">
@@ -295,6 +412,10 @@
           <div class="dof-textarea-field">
             <label class="form-label" for="revision_root_cause_analysis">Kök Neden Analizi</label>
             <textarea class="form-control" id="revision_root_cause_analysis" name="root_cause_analysis" rows="3" maxlength="2000">{{ dof.root_cause_analysis or "" }}</textarea>
+          </div>
+          <div class="dof-textarea-field">
+            <label class="form-label" for="revision_containment_action">Acil Düzeltme / Geçici Önlem</label>
+            <textarea class="form-control" id="revision_containment_action" name="containment_action" rows="3" maxlength="2000">{{ dof.containment_action or "" }}</textarea>
           </div>
           <div class="dof-two-column">
             <div class="dof-textarea-field">

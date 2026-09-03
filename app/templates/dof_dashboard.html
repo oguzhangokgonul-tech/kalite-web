@@ -16,6 +16,8 @@
     {% else %}
       {% set status.text = "Onay Bekliyor" %}
     {% endif %}
+  {% elif dof.display_status == "Etkinlik Kontrolü Bekliyor" %}
+    {% set status.text = "Etkinlik Kontrolü Bekliyor" %}
   {% endif %}
   {{ ui.status_badge(status.text) }}
 {% endmacro %}
@@ -84,6 +86,11 @@
       <span class="stat-label">Revizyon Bekleyen</span>
       <strong>{{ revision_count }}</strong>
     </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-clipboard2-check"></i></span>
+      <span class="stat-label">Etkinlik Bekleyen</span>
+      <strong>{{ effectiveness_count }}</strong>
+    </div>
     <div class="dashboard-stat-card stat-danger">
       <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
       <span class="stat-label">Geciken İF</span>
@@ -127,6 +134,7 @@
           <option value="">Tümü</option>
           <option value="approval" {% if filters.status == "approval" %}selected{% endif %}>Onay bekleyen</option>
           <option value="revision" {% if filters.status == "revision" %}selected{% endif %}>Revizyon bekleyen</option>
+          <option value="effectiveness" {% if filters.status == "effectiveness" %}selected{% endif %}>Etkinlik bekleyen</option>
           <option value="draft" {% if filters.status == "draft" %}selected{% endif %}>Taslak</option>
           <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Tamamlanan</option>
           <option value="delayed" {% if filters.status == "delayed" %}selected{% endif %}>Geciken</option>

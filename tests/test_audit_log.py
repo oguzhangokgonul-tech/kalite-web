@@ -122,6 +122,7 @@ def test_audit_log_tracks_critical_supporting_models(app):
         "ActionComment",
         "ActionHistory",
         "AppSetting",
+        "DocumentAcknowledgement",
         "DocumentRevisionRequestFile",
         "DofComment",
         "DofFile",

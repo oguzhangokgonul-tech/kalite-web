@@ -83,9 +83,12 @@ def test_report_center_exports_key_reports_as_xlsx(client):
     login(client, reporter)
 
     for report_key in [
+        "actions_master",
         "actions_overdue",
         "dofs_status",
+        "dof_capa_effectiveness",
         "documents_master",
+        "document_acknowledgements",
         "calibration",
         "personnel_contacts",
     ]:

@@ -16,7 +16,7 @@
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.deactivate_supplier'] %}
-  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel'] %}
+  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -198,7 +198,7 @@
         </a>
         {% endif %}
         {% if g.company_module_enabled('documents') %}
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.request_document_revision', 'main.document_revision_request_detail', 'main.download_document_revision_request_file', 'main.approve_document_revision_request', 'main.revise_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
+        <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.request_document_revision', 'main.acknowledge_document', 'main.document_acknowledgements', 'main.document_revision_request_detail', 'main.download_document_revision_request_file', 'main.approve_document_revision_request', 'main.revise_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
           <i class="bi bi-file-earmark-text"></i>
           <span>Doküman Yönetimi</span>
         </a>

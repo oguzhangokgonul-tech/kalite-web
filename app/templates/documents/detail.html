@@ -52,6 +52,9 @@
           </button>
           <div class="dropdown-menu dropdown-menu-end">
             <a class="dropdown-item" href="{{ url_for('main.download_document', document_id=document.id) }}">Orijinal dosyayı indir</a>
+            {% if can_manage_documents %}
+              <a class="dropdown-item" href="{{ url_for('main.document_acknowledgements', document_id=document.id) }}">Okuma Takibi</a>
+            {% endif %}
             {% if document.status != "Arşiv" %}
               <a class="dropdown-item" href="{{ url_for('main.request_document_revision', document_id=document.id) }}">Revizyon Talep Et</a>
             {% endif %}
@@ -124,6 +127,46 @@
             <strong>{{ ui.status_badge(document.status) }}</strong>
           </div>
         </div>
+      </div>
+
+      <div class="documents-side-card documents-ack-card">
+        <h3>Okuma Onayı</h3>
+        {% if document_acknowledgement %}
+          <div class="documents-ack-status success">
+            <i class="bi bi-check2-circle"></i>
+            <div>
+              <strong>Bu revizyon onaylandı.</strong>
+              <span>{{ document_acknowledgement.acknowledged_at.strftime("%d.%m.%Y %H:%M") if document_acknowledgement.acknowledged_at else "-" }}</span>
+            </div>
+          </div>
+        {% elif can_acknowledge_document %}
+          <p>Dokümanı incelediyseniz bu revizyon için okuma/onay kaydı oluşturabilirsiniz.</p>
+          <form class="documents-ack-form" method="post" action="{{ url_for('main.acknowledge_document', document_id=document.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-check2-square"></i>
+              <span>Okudum ve Onayladım</span>
+            </button>
+          </form>
+        {% else %}
+          <div class="documents-ack-status muted">
+            <i class="bi bi-archive"></i>
+            <div>
+              <strong>Arşiv dokümanı</strong>
+              <span>Arşivdeki dokümanlara yeni okuma onayı verilmez.</span>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if can_manage_documents and acknowledgement_summary %}
+          <a class="documents-ack-summary-link" href="{{ url_for('main.document_acknowledgements', document_id=document.id) }}">
+            <span>
+              <i class="bi bi-list-check"></i>
+              Okuma Takibi
+            </span>
+            <small>{{ acknowledgement_summary.acknowledged_count }} onay, {{ acknowledgement_summary.pending_count }} bekleyen</small>
+          </a>
+        {% endif %}
       </div>
 
       <div class="documents-side-card">

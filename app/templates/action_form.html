@@ -4,6 +4,17 @@
 {% block title %}{{ title }}{% endblock %}
 {% block topbar_title %}{{ title }}{% endblock %}
 
+{% set form_values = form_data if form_data is defined else {} %}
+{% set selected_responsible = form_values.get('responsible_user_id') or (action.responsible_user_id|string if action else '') %}
+{% set selected_related_1 = form_values.get('related_user_1_id') or (action.related_user_1_id|string if action else '') %}
+{% set selected_related_2 = form_values.get('related_user_2_id') or (action.related_user_2_id|string if action else '') %}
+{% set selected_department = form_values.get('department') or (action.department if action else '') %}
+{% set selected_capa_type = form_values.get('capa_type') or (action.capa_type if action else '') %}
+{% set selected_effectiveness_owner = form_values.get('effectiveness_owner_user_id') or (action.effectiveness_owner_user_id|string if action else '') %}
+{% set linked_record = linked_dof if linked_dof is defined and linked_dof else (action.source_dof if action and action.source_dof else none) %}
+{% set linked_dof_id = form_values.get('dof_id') or (linked_record.id if linked_record else '') %}
+{% set effectiveness_checked = (form_values.get('effectiveness_required') or '') in ['1', 'on', 'true', 'yes'] %}
+
 {% block app_content %}
   {% call ui.page_header(title, "Aksiyon detaylarını, sorumlusunu ve termin tarihini girin.", icon="bi-clipboard-plus") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.dashboard') }}">
@@ -14,6 +25,9 @@
 
   <form class="app-form-card" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if linked_dof_id %}
+      <input type="hidden" name="dof_id" value="{{ linked_dof_id }}">
+    {% endif %}
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-clipboard-plus"></i></span>
       <div>
@@ -22,17 +36,28 @@
       </div>
     </div>
 
+    {% if linked_record %}
+      <div class="alert alert-primary d-flex align-items-center gap-2" role="status">
+        <i class="bi bi-link-45deg"></i>
+        <span>
+          Bağlı İF:
+          <a class="alert-link" href="{{ url_for('main.dof_detail', dof_id=linked_record.id) }}">{{ linked_record.dof_no }}</a>
+          {% if linked_record.title %}- {{ linked_record.title }}{% endif %}
+        </span>
+      </div>
+    {% endif %}
+
     <div class="app-form-grid">
       <div>
         <label class="form-label" for="title">Aksiyon başlığı</label>
-        <input class="form-control" id="title" name="title" value="{{ action.title if action else '' }}" required maxlength="160">
+        <input class="form-control" id="title" name="title" value="{{ form_values.get('title') or (action.title if action else '') }}" required maxlength="160">
       </div>
       <div>
         <label class="form-label" for="responsible_user_id">Aksiyon sorumlusu</label>
         <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
           <option value="">Seçiniz</option>
           {% for user in users %}
-            <option value="{{ user.id }}" {% if action and action.responsible_user_id == user.id %}selected{% endif %}>
+            <option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>
               {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
             </option>
           {% endfor %}
@@ -43,7 +68,7 @@
         <select class="form-select" id="related_user_1_id" name="related_user_1_id">
           <option value="">Seçiniz</option>
           {% for user in users %}
-            <option value="{{ user.id }}" {% if action and action.related_user_1_id == user.id %}selected{% endif %}>
+            <option value="{{ user.id }}" {% if selected_related_1 == user.id|string %}selected{% endif %}>
               {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
             </option>
           {% endfor %}
@@ -54,7 +79,7 @@
         <select class="form-select" id="related_user_2_id" name="related_user_2_id">
           <option value="">Seçiniz</option>
           {% for user in users %}
-            <option value="{{ user.id }}" {% if action and action.related_user_2_id == user.id %}selected{% endif %}>
+            <option value="{{ user.id }}" {% if selected_related_2 == user.id|string %}selected{% endif %}>
               {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
             </option>
           {% endfor %}
@@ -65,17 +90,48 @@
         <select class="form-select" id="department" name="department" required>
           <option value="">Seçiniz</option>
           {% for department in departments %}
-            <option value="{{ department }}" {% if action and action.department == department %}selected{% endif %}>{{ department }}</option>
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
           {% endfor %}
         </select>
       </div>
       <div>
         <label class="form-label" for="termin_date">Termin</label>
-        <input class="form-control" id="termin_date" name="termin_date" type="date" value="{{ action.termin_date.isoformat() if action else today }}" required>
+        <input class="form-control" id="termin_date" name="termin_date" type="date" value="{{ form_values.get('termin_date') or (action.termin_date.isoformat() if action else today) }}" required>
+      </div>
+      <div>
+        <label class="form-label" for="capa_type">CAPA Tipi</label>
+        <select class="form-select" id="capa_type" name="capa_type">
+          <option value="">Seçiniz</option>
+          {% for capa_type in capa_types %}
+            <option value="{{ capa_type }}" {% if selected_capa_type == capa_type %}selected{% endif %}>{{ capa_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label d-block" for="effectiveness_required">Etkinlik kontrolü gerekli mi?</label>
+        <div class="form-check form-switch mt-2">
+          <input class="form-check-input" id="effectiveness_required" name="effectiveness_required" type="checkbox" value="1" {% if effectiveness_checked %}checked{% endif %}>
+          <label class="form-check-label" for="effectiveness_required">Evet</label>
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="effectiveness_owner_user_id">Etkinlik kontrol sorumlusu</label>
+        <select class="form-select" id="effectiveness_owner_user_id" name="effectiveness_owner_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_effectiveness_owner == user.id|string %}selected{% endif %}>
+              {{ user.full_name }}{% if user.title %} - {{ user.title }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="effectiveness_due_date">Etkinlik kontrol termini</label>
+        <input class="form-control" id="effectiveness_due_date" name="effectiveness_due_date" type="date" value="{{ form_values.get('effectiveness_due_date') or (action.effectiveness_due_date.isoformat() if action and action.effectiveness_due_date else '') }}">
       </div>
       <div class="app-form-full">
         <label class="form-label" for="description">Açıklama</label>
-        <textarea class="form-control" id="description" name="description" rows="5">{{ action.description if action else '' }}</textarea>
+        <textarea class="form-control" id="description" name="description" rows="5">{{ form_values.get('description') or (action.description if action else '') }}</textarea>
       </div>
       <div class="app-form-full">
         <label class="form-label" for="action_file">Aksiyon dosyası</label>
