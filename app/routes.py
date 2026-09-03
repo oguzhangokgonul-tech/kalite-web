@@ -384,45 +384,10 @@ def assigned_tasks_badge_count():
     if g.current_user is None:
         return 0
 
-    user_id = g.current_user.id
-    return (
-        scoped_query(Action.query, Action)
-        .filter_by(responsible_user_id=user_id, is_completed=False)
-        .count()
-        + scoped_query(ActionSubTask.query, ActionSubTask)
-        .filter_by(responsible_id=user_id)
-        .filter(
-            ActionSubTask.status.notin_(
-                (*COMPLETED_STATUS_VALUES, *CANCELLED_STATUS_VALUES)
-            )
-        )
-        .count()
-        + scoped_query(Dof.query, Dof)
-        .filter_by(responsible_id=user_id)
-        .filter(
-            Dof.status.notin_(COMPLETED_STATUS_VALUES),
-            Dof.approval_step != "completed",
-        )
-        .count()
-        + scoped_query(MaintenanceFault.query, MaintenanceFault)
-        .filter_by(responsible_user_id=user_id)
-        .filter(
-            MaintenanceFault.status.notin_(
-                (*COMPLETED_STATUS_VALUES, *CANCELLED_STATUS_VALUES)
-            )
-        )
-        .count()
-        + scoped_query(InternalAudit.query, InternalAudit)
-        .filter(
-            or_(
-                InternalAudit.auditor_id == user_id,
-                InternalAudit.audited_user_id == user_id,
-            ),
-            InternalAudit.status.notin_(COMPLETED_STATUS_VALUES),
-        ).count()
-        + scoped_query(TrainingParticipant.query, TrainingParticipant)
-        .filter_by(user_id=user_id, status="Atandı")
-        .count()
+    return sum(
+        1
+        for task in assigned_all_tasks("assigned")
+        if task["status_key"] not in {"completed", "cancelled"}
     )
 
 
@@ -10540,7 +10505,7 @@ def assigned_action_tasks(scope):
                 module_key="action",
                 module_label="Aksiyon",
                 module_icon="check-circle",
-                module_tone="success",
+                module_tone="action",
                 title=f"{action.number_label} {action.title}",
                 description=action.description,
                 reference_no=action_reference(action),
@@ -10565,7 +10530,7 @@ def assigned_action_tasks(scope):
                 module_key="action",
                 module_label="Aksiyon",
                 module_icon="check-circle",
-                module_tone="success",
+                module_tone="action",
                 title=sub_action.title,
                 description=sub_action.description
                 or f"{action.number_label} {action.title} aksiyonuna bağlı alt aksiyon.",
@@ -10599,7 +10564,7 @@ def assigned_dof_tasks(scope):
                 module_key="dof",
                 module_label="IF Kaydı",
                 module_icon="bookmark-check",
-                module_tone="purple",
+                module_tone="if",
                 title=dof.dof_no,
                 description=dof.nonconformity_description or dof.title,
                 reference_no=dof.dof_no,
@@ -10643,7 +10608,7 @@ def assigned_internal_audit_tasks(scope):
                 module_key="internal_audit",
                 module_label="İç Denetim",
                 module_icon="clipboard-check",
-                module_tone="warning",
+                module_tone="audit",
                 title=audit.title,
                 description=" | ".join(part for part in description_parts if part),
                 reference_no=audit.audit_no,
@@ -10694,7 +10659,7 @@ def assigned_maintenance_tasks(scope):
                 module_key="maintenance",
                 module_label="Bakım",
                 module_icon="wrench-adjustable",
-                module_tone="info",
+                module_tone="maintenance",
                 title=fault.title,
                 description=" | ".join(part for part in description_parts if part),
                 reference_no=fault.number_label,
@@ -10713,12 +10678,575 @@ def assigned_maintenance_tasks(scope):
     return rows
 
 
+def assigned_date(value):
+    if isinstance(value, datetime):
+        return value.date()
+    return value
+
+
+def assigned_training_tasks(scope):
+    if not company_module_enabled("training") or not can_view_trainings():
+        return []
+
+    user_id = g.current_user.id
+    rows = []
+    if scope == "created":
+        if not can_view_trainings():
+            return []
+        trainings = (
+            scoped_query(TrainingRecord.query, TrainingRecord)
+            .filter_by(created_by_user_id=user_id)
+            .all()
+        )
+        for training in trainings:
+            status = training.status or "Planlandı"
+            if status == TRAINING_STATUSES[2]:
+                status_key = "completed"
+            elif status == TRAINING_STATUSES[3]:
+                status_key = "cancelled"
+            else:
+                status_key = "open"
+            if status_key == "open" and training.due_date and training.due_date < date.today():
+                status, status_key = "Gecikti", "delayed"
+            rows.append(
+                assigned_task_row(
+                    module_key="training",
+                    module_label="Eğitim",
+                    module_icon="mortarboard",
+                    module_tone="training",
+                    title=training.title,
+                    description=training.training_type,
+                    reference_no=training.training_no,
+                    department="Eğitim",
+                    due_date=training.due_date or training.planned_date,
+                    status=status,
+                    status_key=status_key,
+                    priority="Orta",
+                    detail_url=url_for(
+                        "main.training_dashboard",
+                        search=training.training_no,
+                    ),
+                    created_at=training.created_at,
+                    sort_id=training.id,
+                )
+            )
+        return rows
+
+    participant_filters = [TrainingParticipant.user_id == user_id]
+    if g.current_user.personnel_contact_id:
+        participant_filters.append(
+            TrainingParticipant.personnel_contact_id == g.current_user.personnel_contact_id
+        )
+    participants = (
+        scoped_query(TrainingParticipant.query, TrainingParticipant)
+        .filter(or_(*participant_filters))
+        .all()
+    )
+    seen_training_ids = set()
+    for participant in participants:
+        training = participant.training
+        if training is None or training.id in seen_training_ids:
+            continue
+        seen_training_ids.add(training.id)
+        status = participant.status or "Atandı"
+        status_key = "completed" if participant.is_completed else "pending"
+        if training.status == TRAINING_STATUSES[3]:
+            status, status_key = training.status, "cancelled"
+        elif status_key != "completed" and training.due_date and training.due_date < date.today():
+            status, status_key = "Gecikti", "delayed"
+        rows.append(
+            assigned_task_row(
+                module_key="training",
+                module_label="Eğitim",
+                module_icon="mortarboard",
+                module_tone="training",
+                title=training.title,
+                description=f"{training.training_type} | {participant.display_name}",
+                reference_no=training.training_no,
+                department="Eğitim",
+                due_date=training.due_date or training.planned_date,
+                status=status,
+                status_key=status_key,
+                priority="Orta",
+                detail_url=url_for("main.training_dashboard", search=training.training_no),
+                created_at=participant.created_at,
+                sort_id=participant.id,
+            )
+        )
+    return rows
+
+
+def assigned_risk_tasks(scope):
+    if not company_module_enabled("risk_management") or not can_view_risks():
+        return []
+
+    user_id = g.current_user.id
+    query = scoped_query(RiskRecord.query, RiskRecord)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter_by(owner_user_id=user_id)
+
+    rows = []
+    for risk in query.all():
+        status = risk.status or "Açık"
+        status_key = "completed" if status == RISK_STATUSES[-1] else "open"
+        if status_key == "open" and risk.due_date and risk.due_date < date.today():
+            status, status_key = "Gecikti", "delayed"
+        rows.append(
+            assigned_task_row(
+                module_key="risk",
+                module_label="Risk",
+                module_icon="exclamation-diamond",
+                module_tone="risk",
+                title=risk.title,
+                description=risk.description or risk.process,
+                reference_no=risk.risk_no,
+                department=risk.department,
+                due_date=risk.due_date,
+                status=status,
+                status_key=status_key,
+                priority=risk.level,
+                detail_url=url_for("main.risk_dashboard", search=risk.risk_no),
+                created_at=risk.created_at,
+                sort_id=risk.id,
+            )
+        )
+    return rows
+
+
+def assigned_complaint_tasks(scope):
+    if not company_module_enabled("suggestions") or not can_view_complaints():
+        return []
+
+    user_id = g.current_user.id
+    query = scoped_query(ComplaintRecord.query, ComplaintRecord)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter_by(responsible_user_id=user_id)
+
+    rows = []
+    for complaint in query.all():
+        status = complaint.status or "Açık"
+        status_key = "completed" if complaint.is_closed else "open"
+        if status_key == "open" and complaint.delay_days:
+            status, status_key = "Gecikti", "delayed"
+        rows.append(
+            assigned_task_row(
+                module_key="complaint",
+                module_label="Şikayet",
+                module_icon="chat-left-text",
+                module_tone="complaint",
+                title=complaint.subject,
+                description=complaint.customer_name,
+                reference_no=complaint.complaint_no,
+                department=complaint.department,
+                due_date=complaint.due_date,
+                status=status,
+                status_key=status_key,
+                priority=complaint.priority,
+                detail_url=url_for(
+                    "main.complaints_dashboard",
+                    search=complaint.complaint_no,
+                ),
+                created_at=complaint.created_at,
+                sort_id=complaint.id,
+            )
+        )
+    return rows
+
+
+def assigned_management_review_tasks(scope):
+    if not company_module_enabled("management_review") or not can_view_management_reviews():
+        return []
+
+    user_id = g.current_user.id
+    query = scoped_query(ManagementReview.query, ManagementReview)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter(
+            or_(
+                ManagementReview.chair_user_id == user_id,
+                ManagementReview.recorder_user_id == user_id,
+            )
+        )
+
+    rows = []
+    for review in query.all():
+        status = review.status or "Planlandı"
+        if status == MANAGEMENT_REVIEW_STATUSES[2]:
+            status_key = "completed"
+        elif status == MANAGEMENT_REVIEW_STATUSES[3]:
+            status_key = "cancelled"
+        else:
+            status_key = "open"
+        if status_key == "open" and review.delay_days:
+            status, status_key = "Gecikti", "delayed"
+        rows.append(
+            assigned_task_row(
+                module_key="management_review",
+                module_label="YGG",
+                module_icon="clipboard-data",
+                module_tone="management",
+                title=review.title,
+                description=review.review_period or review.agenda,
+                reference_no=review.review_no,
+                department="Yönetim",
+                due_date=review.meeting_date,
+                status=status,
+                status_key=status_key,
+                priority="Orta",
+                detail_url=url_for("main.management_review_report", review_id=review.id),
+                created_at=review.created_at,
+                sort_id=review.id,
+                date_label="Toplantı",
+            )
+        )
+    return rows
+
+
+def assigned_document_revision_tasks(scope):
+    if not company_module_enabled("documents"):
+        return []
+
+    user_id = g.current_user.id
+    query = scoped_query(DocumentRevisionRequest.query, DocumentRevisionRequest)
+    if scope == "created":
+        query = query.filter_by(requested_by_user_id=user_id)
+    else:
+        if not can_manage_documents():
+            return []
+        query = query.filter_by(status=DOCUMENT_REVISION_PENDING_STATUS)
+
+    rows = []
+    for request_item in query.all():
+        document = request_item.document
+        if document is None:
+            continue
+        status = request_item.status or DOCUMENT_REVISION_PENDING_STATUS
+        if status == DOCUMENT_REVISION_APPROVED_STATUS:
+            status_key = "completed"
+        elif status == DOCUMENT_REVISION_REJECTED_STATUS:
+            status_key = "rejected"
+        else:
+            status, status_key = "Onay Bekliyor", "pending"
+        rows.append(
+            assigned_task_row(
+                module_key="document_revision",
+                module_label="Doküman",
+                module_icon="file-earmark-text",
+                module_tone="document",
+                title=f"{document.document_code} Revizyon Talebi",
+                description=request_item.explanation,
+                reference_no=document.document_code,
+                department=document.department or "Doküman Yönetimi",
+                due_date=assigned_date(request_item.created_at),
+                status=status,
+                status_key=status_key,
+                priority="Orta",
+                detail_url=url_for(
+                    "main.document_revision_request_detail",
+                    request_id=request_item.id,
+                ),
+                created_at=request_item.created_at,
+                sort_id=request_item.id,
+                date_label="Talep",
+                due_is_deadline=False,
+            )
+        )
+    return rows
+
+
+def assigned_suggestion_tasks(scope):
+    if not company_module_enabled("suggestions"):
+        return []
+
+    user_id = g.current_user.id
+    rows = []
+    seen_ids = set()
+
+    def add_suggestion_task(suggestion, status, status_key, title_suffix=""):
+        if suggestion.id in seen_ids:
+            return
+        seen_ids.add(suggestion.id)
+        rows.append(
+            assigned_task_row(
+                module_key="suggestion",
+                module_label="Öneri",
+                module_icon="lightbulb",
+                module_tone="suggestion",
+                title=f"{suggestion.number_label}{title_suffix}",
+                description=suggestion.definition,
+                reference_no=suggestion.qdms_no or suggestion.number_label,
+                department=suggestion.department or "Öneri",
+                due_date=assigned_date(suggestion.created_at),
+                status=status,
+                status_key=status_key,
+                priority="Orta",
+                detail_url=url_for("main.suggestion_detail", suggestion_id=suggestion.id),
+                created_at=suggestion.created_at,
+                sort_id=suggestion.id,
+                date_label="Kayıt",
+                due_is_deadline=False,
+            )
+        )
+
+    if scope == "created":
+        suggestions = (
+            scoped_query(Suggestion.query, Suggestion)
+            .filter_by(created_by_user_id=user_id)
+            .all()
+        )
+        for suggestion in suggestions:
+            status = suggestion.status or SUGGESTION_PENDING_APPROVAL_STATUS
+            status_key = (
+                "completed"
+                if status == SUGGESTION_COMPLETED_STATUS
+                else "pending"
+                if status == SUGGESTION_PENDING_APPROVAL_STATUS
+                else "open"
+            )
+            add_suggestion_task(suggestion, status, status_key)
+        return rows
+
+    if can_manage_suggestion_evaluators():
+        pending_suggestions = (
+            scoped_query(Suggestion.query, Suggestion)
+            .filter_by(status=SUGGESTION_PENDING_APPROVAL_STATUS)
+            .all()
+        )
+        for suggestion in pending_suggestions:
+            add_suggestion_task(
+                suggestion,
+                "Yönetim Temsilcisi Onayı Bekliyor",
+                "pending",
+            )
+
+    if current_user_can(SUGGESTION_EVALUATE_PERMISSION) or can_manage_suggestion_evaluators():
+        evaluable_suggestions = (
+            scoped_query(Suggestion.query, Suggestion)
+            .filter_by(status=SUGGESTION_IN_EVALUATION_STATUS)
+            .all()
+        )
+        for suggestion in evaluable_suggestions:
+            if suggestion_user_completed_evaluation(suggestion, user_id):
+                continue
+            add_suggestion_task(
+                suggestion,
+                "Değerlendirme Bekliyor",
+                "pending",
+                " Değerlendir",
+            )
+
+    return rows
+
+
+def assigned_calibration_tasks(scope):
+    if not company_module_enabled("calibration") or not can_manage_calibration():
+        return []
+
+    user_id = g.current_user.id
+    today = date.today()
+    query = scoped_query(CalibrationRecord.query, CalibrationRecord)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter(
+            CalibrationRecord.is_active.is_(True),
+            CalibrationRecord.next_calibration_date.isnot(None),
+            CalibrationRecord.next_calibration_date <= today + timedelta(days=30),
+        )
+
+    rows = []
+    for record in query.all():
+        due_status = calibration_day_status(record.next_calibration_date)
+        label = calibration_status_label(record)
+        if not record.is_active or record.status == "PASİF":
+            status, status_key = label, "cancelled"
+        elif due_status["days"] is not None and due_status["days"] < 0:
+            status, status_key = label, "delayed"
+        elif due_status["days"] is not None and due_status["days"] <= 30:
+            status, status_key = "Kalibrasyon Yaklaşıyor", "pending"
+        else:
+            status, status_key = label, "open"
+        rows.append(
+            assigned_task_row(
+                module_key="calibration",
+                module_label="Kalibrasyon",
+                module_icon="rulers",
+                module_tone="calibration",
+                title=record.device_name,
+                description=record.brand_model or record.serial_no,
+                reference_no=record.device_code,
+                department=record.location or "Kalibrasyon",
+                due_date=record.next_calibration_date,
+                status=status,
+                status_key=status_key,
+                priority="Yüksek" if status_key == "delayed" else "Orta",
+                detail_url=url_for("main.edit_calibration_record", record_id=record.id),
+                created_at=record.created_at,
+                sort_id=record.id,
+            )
+        )
+    return rows
+
+
+def assigned_quality_test_tasks(scope):
+    if (
+        not company_module_enabled("quality_test_concrete")
+        or not can_create_quality_test_record()
+    ):
+        return []
+
+    user_id = g.current_user.id
+    today = date.today()
+    query = scoped_query(QualityTestRecord.query, QualityTestRecord).filter_by(
+        test_type="beton-deneyi"
+    )
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+
+    rows = []
+    for record in query.all():
+        current_day = record.current_measurement_day
+        due_date = record.current_measurement_due_date
+        if scope != "created" and (
+            current_day is None
+            or due_date is None
+            or due_date > today + timedelta(days=30)
+        ):
+            continue
+        if current_day is None:
+            status, status_key = "Ölçümler Tamamlandı", "completed"
+            detail_url = url_for("main.quality_test_page", slug="beton-deneyi")
+        elif record.measurement_tone(today) == "danger":
+            status, status_key = "Ölçüm Gecikti", "delayed"
+            detail_url = url_for(
+                "main.quality_test_measurement",
+                slug="beton-deneyi",
+                record_id=record.id,
+            )
+        else:
+            status, status_key = record.current_measurement_label, "pending"
+            detail_url = url_for(
+                "main.quality_test_measurement",
+                slug="beton-deneyi",
+                record_id=record.id,
+            )
+        rows.append(
+            assigned_task_row(
+                module_key="quality_test",
+                module_label="Beton Deneyi",
+                module_icon="box-seam",
+                module_tone="quality",
+                title=record.number_label,
+                description=" | ".join(
+                    part
+                    for part in (
+                        record.customer,
+                        record.sample_name,
+                        record.concrete_class,
+                    )
+                    if part
+                ),
+                reference_no=record.number_label,
+                department="Kalite Deneyleri",
+                due_date=due_date,
+                status=status,
+                status_key=status_key,
+                priority="Yüksek" if status_key == "delayed" else "Orta",
+                detail_url=detail_url,
+                created_at=record.created_at,
+                sort_id=record.id,
+                date_label="Ölçüm",
+            )
+        )
+    return rows
+
+
+def assigned_supplier_tasks(scope):
+    if not company_module_enabled("supplier_management"):
+        return []
+
+    user_id = g.current_user.id
+    today = date.today()
+    if scope == "created":
+        if not can_view_suppliers():
+            return []
+        suppliers = (
+            scoped_query(SupplierRecord.query, SupplierRecord)
+            .filter_by(created_by_user_id=user_id)
+            .all()
+        )
+    else:
+        if not can_evaluate_suppliers():
+            return []
+        suppliers = supplier_query().all()
+
+    rows = []
+    pending_supplier_status = SUPPLIER_STATUSES[0]
+    risky_statuses = {SUPPLIER_STATUSES[0], SUPPLIER_STATUSES[2], SUPPLIER_STATUSES[3]}
+    for supplier in suppliers:
+        if scope != "created":
+            is_due = (
+                supplier.next_evaluation_date
+                and supplier.next_evaluation_date <= today + timedelta(days=30)
+            )
+            if supplier.status not in risky_statuses and not is_due:
+                continue
+
+        status = supplier.status or pending_supplier_status
+        if supplier.is_passive:
+            status_key = "cancelled"
+            detail_url = url_for("main.supplier_dashboard", visibility="passive")
+        elif supplier.delay_days:
+            status, status_key = "Değerlendirme Gecikti", "delayed"
+            detail_url = url_for("main.evaluate_supplier", supplier_id=supplier.id)
+        elif status == pending_supplier_status:
+            status_key = "pending"
+            detail_url = url_for("main.evaluate_supplier", supplier_id=supplier.id)
+        else:
+            status_key = "open"
+            detail_url = url_for("main.evaluate_supplier", supplier_id=supplier.id)
+        rows.append(
+            assigned_task_row(
+                module_key="supplier",
+                module_label="Tedarikçi",
+                module_icon="truck",
+                module_tone="supplier",
+                title=supplier.name,
+                description=supplier.product_group,
+                reference_no=supplier.supplier_no,
+                department=supplier.department,
+                due_date=supplier.next_evaluation_date,
+                status=status,
+                status_key=status_key,
+                priority="Yüksek" if status_key == "delayed" else "Orta",
+                detail_url=detail_url,
+                created_at=supplier.created_at,
+                sort_id=supplier.id,
+            )
+        )
+    return rows
+
+
 def assigned_all_tasks(scope):
     return (
         assigned_action_tasks(scope)
         + assigned_internal_audit_tasks(scope)
         + assigned_dof_tasks(scope)
         + assigned_maintenance_tasks(scope)
+        + assigned_training_tasks(scope)
+        + assigned_risk_tasks(scope)
+        + assigned_complaint_tasks(scope)
+        + assigned_management_review_tasks(scope)
+        + assigned_document_revision_tasks(scope)
+        + assigned_suggestion_tasks(scope)
+        + assigned_calibration_tasks(scope)
+        + assigned_quality_test_tasks(scope)
+        + assigned_supplier_tasks(scope)
     )
 
 
@@ -10728,15 +11256,55 @@ def assigned_module_filter_matches(task, module):
     return task["module_key"] == module
 
 
+ASSIGNED_TAB_MODULES = {
+    "actions": {"action"},
+    "audits": {"internal_audit"},
+    "dofs": {"dof"},
+    "maintenance": {"maintenance"},
+    "quality": {
+        "dof",
+        "internal_audit",
+        "risk",
+        "training",
+        "document_revision",
+    },
+    "operations": {"maintenance", "calibration", "quality_test"},
+    "feedback": {"suggestion", "complaint", "supplier"},
+    "management": {"management_review"},
+}
+
+
+ASSIGNED_MODULE_OPTIONS = [
+    ("", "Tümü"),
+    ("action", "Aksiyon"),
+    ("dof", "IF Kaydı"),
+    ("internal_audit", "İç Denetim"),
+    ("maintenance", "Bakım"),
+    ("training", "Eğitim"),
+    ("risk", "Risk"),
+    ("document_revision", "Doküman Revizyonu"),
+    ("suggestion", "Öneri"),
+    ("complaint", "Şikayet"),
+    ("calibration", "Kalibrasyon"),
+    ("quality_test", "Beton Deneyi"),
+    ("supplier", "Tedarikçi"),
+    ("management_review", "YGG"),
+]
+
+
+ASSIGNED_TASK_TABS = [
+    ("all", "Tümü"),
+    ("actions", "Aksiyon"),
+    ("quality", "KYS İşleri"),
+    ("operations", "Operasyon"),
+    ("feedback", "Öneri / Şikayet"),
+    ("management", "YGG"),
+]
+
+
 def assigned_tab_filter_matches(task, tab):
-    if tab == "actions":
-        return task["module_key"] == "action"
-    if tab == "audits":
-        return task["module_key"] == "internal_audit"
-    if tab == "dofs":
-        return task["module_key"] == "dof"
-    if tab == "maintenance":
-        return task["module_key"] == "maintenance"
+    if tab in ASSIGNED_TAB_MODULES:
+        return task["module_key"] in ASSIGNED_TAB_MODULES[tab]
     return True
 
 
@@ -10802,7 +11370,8 @@ def assigned_tasks_context():
     filters = assigned_filters()
     if filters["scope"] not in {"assigned", "created"}:
         filters["scope"] = "assigned"
-    if filters["tab"] not in {"all", "actions", "audits", "dofs", "maintenance"}:
+    valid_tabs = {"all", *ASSIGNED_TAB_MODULES.keys()}
+    if filters["tab"] not in valid_tabs:
         filters["tab"] = "all"
 
     all_tasks = sorted(assigned_all_tasks(filters["scope"]), key=assigned_task_sort_key)
@@ -10839,13 +11408,7 @@ def assigned_tasks_context():
         "completed_count": completed_count,
         "filters": filters,
         "departments": departments,
-        "module_options": [
-            ("", "Tümü"),
-            ("action", "Aksiyon"),
-            ("internal_audit", "İç Denetim"),
-            ("dof", "IF Kaydı"),
-            ("maintenance", "Bakım"),
-        ],
+        "module_options": ASSIGNED_MODULE_OPTIONS,
         "status_options": [
             ("", "Tümü"),
             ("open", "Açık / Devam ediyor"),
@@ -10857,13 +11420,7 @@ def assigned_tasks_context():
             ("cancelled", "İptal edilen"),
             ("rejected", "Reddedilen"),
         ],
-        "tabs": [
-            ("all", "Tümü"),
-            ("actions", "Aksiyonlar"),
-            ("audits", "İç Denetimler"),
-            ("dofs", "IF Kayıtları"),
-            ("maintenance", "Bakım"),
-        ],
+        "tabs": ASSIGNED_TASK_TABS,
         "page": page,
         "per_page": per_page,
         "total_pages": total_pages,

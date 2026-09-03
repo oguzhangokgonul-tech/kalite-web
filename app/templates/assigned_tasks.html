@@ -5,19 +5,8 @@
 {% block topbar_title %}Görevlerim{% endblock %}
 
 {% macro module_badge(task) %}
-  {% if task.module_key == "internal_audit" %}
-    {% set module_class = "audit" %}
-    {% set module_icon = "clipboard-check" %}
-  {% elif task.module_key == "dof" %}
-    {% set module_class = "if" %}
-    {% set module_icon = "file-earmark-text" %}
-  {% elif task.module_key == "maintenance" %}
-    {% set module_class = "maintenance" %}
-    {% set module_icon = "wrench-adjustable" %}
-  {% else %}
-    {% set module_class = "action" %}
-    {% set module_icon = "lightning-charge" %}
-  {% endif %}
+  {% set module_class = task.module_tone or task.module_key or "action" %}
+  {% set module_icon = task.module_icon or "lightning-charge" %}
   <span class="assigned-page-module-badge assigned-page-module-{{ module_class }}">
     <i class="bi bi-{{ module_icon }}"></i>
     <span>{{ task.module_label }}</span>
