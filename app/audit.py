@@ -7,24 +7,33 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Session
 from sqlalchemy import event
 
+from .extensions import db
 from .models import AuditLog
 
 
 TRACKED_MODEL_NAMES = {
     "Action",
+    "ActionClosureFile",
+    "ActionComment",
+    "ActionHistory",
     "ActionSubTask",
+    "AppSetting",
     "CalibrationRecord",
     "ComplaintRecord",
     "Company",
     "CompanyDepartment",
     "CompanyModule",
     "Dof",
+    "DofComment",
+    "DofFile",
     "Document",
     "DocumentCategory",
     "DocumentRevisionRequest",
+    "DocumentRevisionRequestFile",
     "InternalAudit",
     "InternalAuditAnswer",
     "InternalAuditQuestion",
+    "LoginAttempt",
     "MaintenanceFault",
     "MaintenanceMachine",
     "ManagementReview",
@@ -36,6 +45,7 @@ TRACKED_MODEL_NAMES = {
     "RolePermission",
     "Suggestion",
     "SuggestionEvaluation",
+    "SuggestionScore",
     "SuggestionScoreParameter",
     "SupplierEvaluation",
     "SupplierRecord",
@@ -180,6 +190,68 @@ def audit_scalar(value):
     return value
 
 
+def audit_payload(value):
+    if isinstance(value, dict):
+        return {str(key): audit_payload(item) for key, item in sorted(value.items())}
+    if isinstance(value, (list, tuple)):
+        return [audit_payload(item) for item in value]
+    if isinstance(value, set):
+        return [audit_payload(item) for item in sorted(value)]
+    return audit_scalar(value)
+
+
+def audit_payload_json(value):
+    if not value:
+        return None
+    return json.dumps(audit_payload(value), ensure_ascii=False, sort_keys=True)
+
+
+class _ManualAuditContext:
+    def __init__(self, company_id=None):
+        self.company_id = company_id
+
+
+def record_audit_event(
+    entity_type,
+    action,
+    summary=None,
+    *,
+    entity_id=None,
+    details=None,
+    old_values=None,
+    new_values=None,
+    company_id=None,
+    user_id=None,
+    commit=True,
+):
+    context_user_id, context_company_id, ip_address, user_agent = audit_request_context(
+        _ManualAuditContext(company_id)
+    )
+    if user_id is None:
+        user_id = context_user_id
+    if company_id is None:
+        company_id = context_company_id
+    if new_values is None and details is not None:
+        new_values = details
+
+    audit_log = AuditLog(
+        company_id=company_id,
+        user_id=user_id,
+        entity_type=str(entity_type)[:120],
+        entity_id=str(entity_id)[:80] if entity_id is not None else None,
+        action=str(action)[:40],
+        summary=str(summary or "")[:255] if summary else None,
+        old_values=audit_payload_json(old_values),
+        new_values=audit_payload_json(new_values),
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+    db.session.add(audit_log)
+    if commit:
+        db.session.commit()
+    return audit_log
+
+
 def audit_request_context(obj):
     user_id = None
     company_id = getattr(obj, "company_id", None)
@@ -203,8 +275,9 @@ def audit_request_context(obj):
         ip_address = forwarded_for.split(",", 1)[0].strip()[:80]
     elif request.remote_addr:
         ip_address = request.remote_addr[:80]
-    if request.user_agent and request.user_agent.string:
-        user_agent = request.user_agent.string[:255]
+    raw_user_agent = request.headers.get("User-Agent")
+    if raw_user_agent:
+        user_agent = raw_user_agent[:255]
     return user_id, company_id, ip_address, user_agent
 
 

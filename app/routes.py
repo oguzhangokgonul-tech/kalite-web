@@ -30,6 +30,7 @@ from flask import (
 from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
+from .audit import record_audit_event
 from .extensions import db
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import (
@@ -3973,6 +3974,26 @@ def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attach
     )
 
 
+def record_download_audit(entity_type, entity_id, summary, **details):
+    record_audit_event(
+        entity_type,
+        "downloaded",
+        summary,
+        entity_id=entity_id,
+        details=details,
+    )
+
+
+def record_report_view_audit(entity_type, entity_id, summary, **details):
+    record_audit_event(
+        entity_type,
+        "viewed",
+        summary,
+        entity_id=entity_id,
+        details=details,
+    )
+
+
 def dof_opening_file_uploads():
     uploaded_files = request.files.getlist("opening_files")
     return [uploaded_file for uploaded_file in uploaded_files if uploaded_file.filename]
@@ -5803,27 +5824,17 @@ def report_center_cards():
 
 
 def log_report_export(report):
-    log = AuditLog(
-        company_id=current_company_id(),
-        user_id=g.current_user.id if g.current_user else None,
-        entity_type="ReportCenter",
+    record_audit_event(
+        "ReportCenter",
+        "exported",
+        f"{report['title']} indirildi",
         entity_id=report["key"],
-        action="exported",
-        summary=f"{report['title']} indirildi",
-        new_values=json.dumps(
-            {
-                "report_key": report["key"],
-                "report_title": report["title"],
-                "scope": report_scope_label(),
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        ),
-        ip_address=request.remote_addr,
-        user_agent=(request.user_agent.string or "")[:255],
+        details={
+            "report_key": report["key"],
+            "report_title": report["title"],
+            "scope": report_scope_label(),
+        },
     )
-    db.session.add(log)
-    db.session.commit()
 
 
 def report_center_context():
@@ -11758,6 +11769,13 @@ def management_review_report(review_id):
         abort(403)
     review = management_review_query().filter_by(id=review_id).first_or_404()
     ensure_same_company(review)
+    record_report_view_audit(
+        "ManagementReview",
+        review.id,
+        f"{review.review_no} YGG raporu acildi",
+        review_no=review.review_no,
+        title=review.title,
+    )
     return render_template(
         "management_review/report.html",
         **management_review_report_context(review),
@@ -11953,6 +11971,8 @@ def audit_log():
             "updated": "Güncellendi",
             "deleted": "Silindi",
             "exported": "Dışa Aktarıldı",
+            "downloaded": "İndirildi",
+            "viewed": "Görüntülendi",
         },
     )
 
@@ -12520,11 +12540,20 @@ def download_document_revision_request_file(file_id):
     revision_request = request_file.revision_request
     if not can_manage_documents() and revision_request.requested_by_user_id != g.current_user.id:
         abort(403)
-    return send_stored_upload(
+    response = send_stored_upload(
         request_file.file_path,
         as_attachment=True,
         download_name=request_file.original_file_name,
     )
+    record_download_audit(
+        "DocumentRevisionRequestFile",
+        request_file.id,
+        f"{request_file.original_file_name} revizyon talebi eki indirildi",
+        revision_request_id=revision_request.id,
+        document_id=revision_request.document_id,
+        original_file_name=request_file.original_file_name,
+    )
+    return response
 
 
 @bp.post("/documents/revision-requests/<int:request_id>/approve")
@@ -12628,11 +12657,21 @@ def download_document(document_id):
         abort(403)
     document = Document.query.get_or_404(document_id)
     ensure_same_company(document)
-    return send_stored_upload(
+    response = send_stored_upload(
         document.file_path,
         as_attachment=True,
         download_name=document.original_file_name,
     )
+    record_download_audit(
+        "Document",
+        document.id,
+        f"{document.document_code} dokumani indirildi",
+        document_code=document.document_code,
+        title=document.title,
+        original_file_name=document.original_file_name,
+        revision_no=document.revision_no,
+    )
+    return response
 
 
 @bp.get("/documents/<int:document_id>/preview")
@@ -12646,13 +12685,21 @@ def preview_document(document_id):
         flash(document_preview_message(document), "warning")
         return redirect(url_for("main.document_detail", document_id=document.id))
 
+    preview_name = document.preview_file_name or f"{document.document_code}_preview.pdf"
     response = send_stored_upload(
         document.preview_file_path,
         mimetype="application/pdf",
         as_attachment=False,
         download_name=document.preview_file_name or f"{document.document_code}_preview.pdf",
     )
-    preview_name = document.preview_file_name or f"{document.document_code}_preview.pdf"
+    record_report_view_audit(
+        "Document",
+        document.id,
+        f"{document.document_code} dokuman onizlemesi acildi",
+        document_code=document.document_code,
+        title=document.title,
+        preview_file_name=preview_name,
+    )
     response.headers["Content-Disposition"] = f'inline; filename="{preview_name}"'
     return response
 
@@ -13447,11 +13494,19 @@ def download_suggestion_attachment(suggestion_id):
     if not suggestion.attachment_stored_name:
         flash("Bu öneriye ait ek dosya bulunamadı.", "warning")
         return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
-    return send_stored_upload(
+    response = send_stored_upload(
         suggestion.attachment_stored_name,
         as_attachment=True,
         download_name=suggestion.attachment_original_name,
     )
+    record_download_audit(
+        "Suggestion",
+        suggestion.id,
+        f"{suggestion.number_label} oneri eki indirildi",
+        suggestion_no=suggestion.number_label,
+        original_file_name=suggestion.attachment_original_name,
+    )
+    return response
 
 
 @bp.route("/oneri-sikayet/oneri/parametreler", methods=["GET", "POST"])
@@ -13740,8 +13795,18 @@ def personnel_contacts():
 @login_required
 def download_personnel_contacts_report():
     filename = f"personel-iletisim-listesi-{date.today():%Y%m%d}.xlsx"
+    workbook = personnel_contacts_report_workbook()
+    record_audit_event(
+        "PersonnelContact",
+        "exported",
+        "Personel iletisim listesi raporu indirildi",
+        details={
+            "filename": filename,
+            "record_count": scoped_query(PersonnelContact.query, PersonnelContact).count(),
+        },
+    )
     return send_file(
-        personnel_contacts_report_workbook(),
+        workbook,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=filename,
@@ -14376,6 +14441,14 @@ def internal_audit_report(audit_id):
     ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
+    record_report_view_audit(
+        "InternalAudit",
+        audit.id,
+        f"{audit.audit_no} iç denetim raporu açıldı",
+        audit_no=audit.audit_no,
+        title=audit.title,
+        report_variant="full",
+    )
     return render_template(
         "internal_audit_report.html",
         **internal_audit_report_context(audit),
@@ -14390,6 +14463,14 @@ def internal_audit_personnel_report(audit_id):
     ensure_same_company(audit)
     if not can_view_internal_audit(audit):
         abort(403)
+    record_report_view_audit(
+        "InternalAudit",
+        audit.id,
+        f"{audit.audit_no} personel iç denetim raporu açıldı",
+        audit_no=audit.audit_no,
+        title=audit.title,
+        report_variant="personnel",
+    )
     return render_template(
         "internal_audit_report.html",
         **internal_audit_report_context(audit),
@@ -15141,11 +15222,20 @@ def download_dof_evidence_file(dof_id):
         flash("Bu İF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
-    return send_stored_upload(
+    response = send_stored_upload(
         dof.evidence_stored_name,
         as_attachment=True,
         download_name=dof.evidence_original_name,
     )
+    record_download_audit(
+        "Dof",
+        dof.id,
+        f"{dof.dof_no} IF kapanis kaniti indirildi",
+        dof_no=dof.dof_no,
+        title=dof.title,
+        original_file_name=dof.evidence_original_name,
+    )
+    return response
 
 
 @bp.get("/dofs/<int:dof_id>/files/<int:file_id>/download")
@@ -15157,11 +15247,21 @@ def download_dof_file(dof_id, file_id):
         abort(403)
 
     dof_file = DofFile.query.filter_by(id=file_id, dof_id=dof.id).first_or_404()
-    return send_stored_upload(
+    response = send_stored_upload(
         dof_file.stored_name,
         as_attachment=True,
         download_name=dof_file.original_name,
     )
+    record_download_audit(
+        "DofFile",
+        dof_file.id,
+        f"{dof.dof_no} IF acilis eki indirildi",
+        dof_id=dof.id,
+        dof_no=dof.dof_no,
+        original_file_name=dof_file.original_name,
+        file_type=dof_file.file_type,
+    )
+    return response
 
 
 @bp.route("/dofs/<int:dof_id>/delete", methods=["GET", "POST"])
@@ -15726,11 +15826,19 @@ def download_sub_action_evidence(sub_action_id):
     if not sub_action.evidence_stored_name:
         flash("Bu alt aksiyon için kanıt dosyası bulunmuyor.", "warning")
         return redirect(url_for("main.sub_action_detail", sub_action_id=sub_action.id))
-    return send_stored_upload(
+    response = send_stored_upload(
         sub_action.evidence_stored_name,
         as_attachment=True,
         download_name=sub_action.evidence_original_name,
     )
+    record_download_audit(
+        "ActionSubTask",
+        sub_action.id,
+        f"{sub_action.title} alt aksiyon kaniti indirildi",
+        action_id=sub_action.parent_action_id,
+        original_file_name=sub_action.evidence_original_name,
+    )
+    return response
 
 
 @bp.post("/actions/<int:action_id>/request-closure")
@@ -15894,11 +16002,20 @@ def download_action_file(action_id):
         flash("Bu kayda ait yüklenmiş dosya bulunamadı.", "warning")
         return redirect(url_for("main.dashboard"))
 
-    return send_stored_upload(
+    response = send_stored_upload(
         action.file_stored_name,
         as_attachment=True,
         download_name=action.file_original_name,
     )
+    record_download_audit(
+        "Action",
+        action.id,
+        f"{action.number_label} aksiyon eki indirildi",
+        action_no=action.number_label,
+        title=action.title,
+        original_file_name=action.file_original_name,
+    )
+    return response
 
 
 @bp.get("/actions/<int:action_id>/closure-evidence/<int:file_id>/download")
@@ -15914,11 +16031,20 @@ def download_closure_evidence_file(action_id, file_id):
         action_id=action.id,
     ).first_or_404()
 
-    return send_stored_upload(
+    response = send_stored_upload(
         closure_file.stored_name,
         as_attachment=True,
         download_name=closure_file.original_name,
     )
+    record_download_audit(
+        "ActionClosureFile",
+        closure_file.id,
+        f"{action.number_label} aksiyon kapanis kaniti indirildi",
+        action_id=action.id,
+        action_no=action.number_label,
+        original_file_name=closure_file.original_name,
+    )
+    return response
 
 
 @bp.get("/actions/<int:action_id>/closure-evidence/download")
@@ -15943,11 +16069,20 @@ def download_latest_closure_evidence_file(action_id):
         flash("Bu aksiyona ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
-    return send_stored_upload(
+    response = send_stored_upload(
         action.closure_file_stored_name,
         as_attachment=True,
         download_name=action.closure_file_original_name,
     )
+    record_download_audit(
+        "Action",
+        action.id,
+        f"{action.number_label} eski aksiyon kapanis kaniti indirildi",
+        action_no=action.number_label,
+        title=action.title,
+        original_file_name=action.closure_file_original_name,
+    )
+    return response
 
 
 @bp.route("/users")

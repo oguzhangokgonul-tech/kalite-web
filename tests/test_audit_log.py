@@ -5,9 +5,15 @@ import json
 import pytest
 
 from app import create_app
+from app.audit import TRACKED_MODEL_NAMES, record_audit_event
 from app.extensions import db
 from app.models import Action, AppSetting, AuditLog, User, UserPermission
 from app.seed import ensure_runtime_schema
+from .helpers import (
+    create_company as helper_create_company,
+    create_user as helper_create_user,
+    make_document,
+)
 
 
 @pytest.fixture()
@@ -110,6 +116,75 @@ def test_audit_log_does_not_store_sensitive_password_hash(app):
         assert "new-secret-hash" not in payload
 
 
+def test_audit_log_tracks_critical_supporting_models(app):
+    assert {
+        "ActionClosureFile",
+        "ActionComment",
+        "ActionHistory",
+        "AppSetting",
+        "DocumentRevisionRequestFile",
+        "DofComment",
+        "DofFile",
+        "LoginAttempt",
+        "SuggestionScore",
+    }.issubset(TRACKED_MODEL_NAMES)
+    assert "Notification" not in TRACKED_MODEL_NAMES
+
+
+def test_manual_audit_event_records_request_context(app):
+    user = create_user("audit-event-user", "roles.manage")
+
+    with app.test_request_context(
+        "/download",
+        headers={"User-Agent": "pytest-agent", "X-Forwarded-For": "10.0.0.1"},
+    ):
+        from flask import g
+
+        g.current_user = user
+        g.current_company = None
+        record_audit_event(
+            "Document",
+            "downloaded",
+            "PR.01 dokumani indirildi",
+            entity_id=7,
+            details={"file_name": "dokuman.pdf", "downloaded_at": date(2026, 9, 3)},
+        )
+
+    log = AuditLog.query.filter_by(
+        entity_type="Document",
+        entity_id="7",
+        action="downloaded",
+    ).one()
+    assert log.user_id == user.id
+    assert log.ip_address == "10.0.0.1"
+    assert log.user_agent == "pytest-agent"
+    assert json.loads(log.new_values)["downloaded_at"] == "2026-09-03"
+
+
+def test_document_download_writes_audit_log(app, client):
+    company = helper_create_company("371")
+    user = helper_create_user(
+        "document-audit-user",
+        company=company,
+        permissions=("documents.view",),
+    )
+    document = make_document(app, company, uploader=user, document_code="PR.77")
+    login(client, user)
+    with client.session_transaction() as session:
+        session["company_id"] = company.id
+
+    response = client.get(f"/documents/{document.id}/download")
+
+    assert response.status_code == 200
+    log = AuditLog.query.filter_by(
+        entity_type="Document",
+        entity_id=str(document.id),
+        action="downloaded",
+    ).one()
+    assert "PR.77" in log.summary
+    assert json.loads(log.new_values)["document_code"] == "PR.77"
+
+
 def test_audit_log_page_requires_management_permission(app, client):
     user = create_user("viewer")
     login(client, user)
@@ -202,3 +277,7 @@ def test_runtime_schema_marks_sales_readiness_audit_log_done(app):
     setting = db.session.get(AppSetting, "sales_readiness:audit_log")
     assert setting is not None
     assert setting.value == "1"
+
+    month2_setting = db.session.get(AppSetting, "sales_readiness:month2_audit_log")
+    assert month2_setting is not None
+    assert month2_setting.value == "1"
