@@ -5662,6 +5662,14 @@ def can_view_report_center():
     return current_user_can("reports.view") or can_export_reports()
 
 
+def can_view_management_due_dashboard():
+    return (
+        can_view_report_center()
+        or current_user_can("actions.view_all")
+        or is_oguzhan_admin()
+    )
+
+
 def report_scope_label():
     if getattr(g, "current_company", None) is not None:
         return g.current_company.label
@@ -5697,6 +5705,407 @@ def report_action_status(action):
     if action.calculate_delay_days() > 0:
         return "Gecikti"
     return "Açık"
+
+
+MANAGEMENT_DUE_WINDOW_DAYS = 30
+
+
+def management_due_status(target_date, today=None):
+    today = today or date.today()
+    if not target_date:
+        return {
+            "days": None,
+            "label": "Termin yok",
+            "tone": "muted",
+            "sort_group": 4,
+        }
+
+    days = (target_date - today).days
+    if days < 0:
+        return {
+            "days": days,
+            "label": f"{abs(days)} gün geçti",
+            "tone": "danger",
+            "sort_group": 0,
+        }
+    if days == 0:
+        return {"days": days, "label": "Bugün", "tone": "warning", "sort_group": 1}
+    if days <= 7:
+        return {
+            "days": days,
+            "label": f"{days} gün kaldı",
+            "tone": "warning",
+            "sort_group": 2,
+        }
+    if days <= MANAGEMENT_DUE_WINDOW_DAYS:
+        return {
+            "days": days,
+            "label": f"{days} gün kaldı",
+            "tone": "blue",
+            "sort_group": 3,
+        }
+    return {
+        "days": days,
+        "label": f"{days} gün kaldı",
+        "tone": "muted",
+        "sort_group": 4,
+    }
+
+
+def management_due_item(
+    *,
+    module,
+    reference_no,
+    title,
+    department="-",
+    responsible="-",
+    due_date=None,
+    date_label="Termin",
+    status="-",
+    priority="Orta",
+    detail_url=None,
+    icon="bi-calendar-event",
+    sort_id=0,
+    today=None,
+):
+    due_state = management_due_status(due_date, today=today)
+    days = due_state["days"]
+    if days is None or days > MANAGEMENT_DUE_WINDOW_DAYS:
+        return None
+
+    return {
+        "module": module,
+        "reference_no": reference_no or "-",
+        "title": title or "-",
+        "department": department or "-",
+        "responsible": responsible or "-",
+        "due_date": due_date,
+        "due_label": format_date(due_date),
+        "date_label": date_label,
+        "status": status or "-",
+        "priority": priority or "Orta",
+        "detail_url": detail_url,
+        "icon": icon,
+        "due_days": days,
+        "due_text": due_state["label"],
+        "due_tone": due_state["tone"],
+        "sort_group": due_state["sort_group"],
+        "sort_id": sort_id or 0,
+    }
+
+
+def management_due_item_sort_key(item):
+    days = item["due_days"]
+    if days is None:
+        return (4, date.max, item["sort_id"])
+    if days < 0:
+        return (0, days, item["sort_id"])
+    return (item["sort_group"], item["due_date"] or date.max, item["sort_id"])
+
+
+def append_management_due_item(items, **kwargs):
+    item = management_due_item(**kwargs)
+    if item:
+        items.append(item)
+
+
+def management_due_items(all_actions=None, limit=None, visible_scope=True):
+    today = date.today()
+    items = []
+    actions = (
+        all_actions
+        if all_actions is not None
+        else scoped_query(Action.query, Action)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all()
+    )
+    for action in actions:
+        if action_is_finally_completed(action):
+            continue
+        status, _status_key = action_task_status(action)
+        if (
+            action.effectiveness_required
+            and action.is_completed
+            and not effectiveness_is_done(action.effectiveness_result)
+        ):
+            append_management_due_item(
+                items,
+                module="Aksiyon Etkinlik",
+                reference_no=action.number_label,
+                title=action.title,
+                department=action.department,
+                responsible=(
+                    report_user_name(action.effectiveness_owner)
+                    if action.effectiveness_owner
+                    else action.responsible_owner
+                ),
+                due_date=action.effectiveness_due_date,
+                date_label="Etkinlik Termini",
+                status=status,
+                priority=action_task_priority(action),
+                detail_url=action_effectiveness_detail_url(action),
+                icon="bi-clipboard2-check",
+                sort_id=action.id,
+                today=today,
+            )
+            continue
+
+        if not action.is_completed:
+            append_management_due_item(
+                items,
+                module="Aksiyon",
+                reference_no=action.number_label,
+                title=action.title,
+                department=action.department,
+                responsible=action.responsible_owner,
+                due_date=action.termin_date,
+                status=status,
+                priority=action_task_priority(action),
+                detail_url=url_for("main.action_detail", action_id=action.id),
+                icon="bi-check2-circle",
+                sort_id=action.id,
+                today=today,
+            )
+
+    if company_module_enabled("if_management"):
+        dof_query = visible_dofs_query() if visible_scope else scoped_query(Dof.query, Dof)
+        dofs = attach_dof_view_state(dof_query.order_by(Dof.due_date.asc(), Dof.id.asc()).all())
+        for dof in dofs:
+            if dof.display_status in {"Tamamlandı", "Taslak"}:
+                continue
+            due_date = (
+                dof.effectiveness_due_date
+                if dof.approval_step == "effectiveness_review" and dof.effectiveness_due_date
+                else dof.due_date
+            )
+            append_management_due_item(
+                items,
+                module="IF/DÖF",
+                reference_no=dof.dof_no,
+                title=dof.title or dof.nonconformity_description,
+                department=dof.department,
+                responsible=(
+                    report_user_name(dof.effectiveness_owner)
+                    if dof.approval_step == "effectiveness_review" and dof.effectiveness_owner
+                    else report_user_name(dof.responsible)
+                ),
+                due_date=due_date,
+                date_label=(
+                    "Etkinlik Termini"
+                    if dof.approval_step == "effectiveness_review"
+                    else "Termin"
+                ),
+                status=dof.display_status,
+                priority=dof.priority,
+                detail_url=url_for("main.dof_detail", dof_id=dof.id),
+                icon="bi-shield-check",
+                sort_id=dof.id,
+                today=today,
+            )
+
+    if company_module_enabled("internal_audit"):
+        audits = (
+            scoped_query(InternalAudit.query, InternalAudit)
+            .filter(InternalAudit.status != "Tamamlandı", InternalAudit.planned_date.isnot(None))
+            .all()
+        )
+        for audit in audits:
+            append_management_due_item(
+                items,
+                module="İç Denetim",
+                reference_no=audit.audit_no,
+                title=audit.title or audit.evaluated_department,
+                department=audit.evaluated_department,
+                responsible=report_user_name(audit.auditor),
+                due_date=audit.planned_date,
+                date_label="Plan Tarihi",
+                status=audit.status,
+                priority="Orta",
+                detail_url=url_for("main.internal_audit"),
+                icon="bi-clipboard-check",
+                sort_id=audit.id,
+                today=today,
+            )
+
+    if company_module_enabled("calibration"):
+        for record in calibration_query().filter(CalibrationRecord.is_active.is_(True)).all():
+            calibration_days = calibration_day_status(record.next_calibration_date)["days"]
+            append_management_due_item(
+                items,
+                module="Kalibrasyon",
+                reference_no=record.device_code,
+                title=record.device_name,
+                department=record.location,
+                responsible="Kalibrasyon",
+                due_date=record.next_calibration_date,
+                date_label="Gelecek Kalibrasyon",
+                status=calibration_status_label(record),
+                priority="Yüksek" if calibration_days is not None and calibration_days < 0 else "Orta",
+                detail_url=url_for("main.calibration_dashboard"),
+                icon="bi-rulers",
+                sort_id=record.id,
+                today=today,
+            )
+
+    training_records = []
+    if company_module_enabled("training"):
+        if visible_scope:
+            training_records = training_query().all() if can_view_trainings() else []
+        else:
+            training_records = scoped_query(TrainingRecord.query, TrainingRecord).all()
+    for training in training_records:
+        if training.status in {"Tamamlandı", "İptal"}:
+            continue
+        append_management_due_item(
+            items,
+            module="Eğitim",
+            reference_no=training.training_no,
+            title=training.title,
+            department="-",
+            responsible=report_user_name(training.instructor),
+            due_date=training.due_date,
+            status=training.status,
+            priority="Orta",
+            detail_url=url_for("main.training_dashboard"),
+            icon="bi-mortarboard",
+            sort_id=training.id,
+            today=today,
+        )
+
+    if company_module_enabled("risk_management"):
+        for risk in risk_query().all():
+            if risk.status == "Kapandı":
+                continue
+            append_management_due_item(
+                items,
+                module="Risk",
+                reference_no=risk.risk_no,
+                title=risk.title,
+                department=risk.department,
+                responsible=report_user_name(risk.owner),
+                due_date=risk.due_date,
+                status=risk.status,
+                priority=risk.level,
+                detail_url=url_for("main.risk_dashboard"),
+                icon="bi-exclamation-diamond",
+                sort_id=risk.id,
+                today=today,
+            )
+
+    if company_module_enabled("suggestions"):
+        for complaint in complaint_query().all():
+            if complaint.is_closed:
+                continue
+            append_management_due_item(
+                items,
+                module="Şikayet",
+                reference_no=complaint.complaint_no,
+                title=complaint.subject,
+                department=complaint.department,
+                responsible=report_user_name(complaint.responsible),
+                due_date=complaint.due_date,
+                status=complaint.status,
+                priority=complaint.priority,
+                detail_url=url_for("main.complaints_dashboard"),
+                icon="bi-chat-left-text",
+                sort_id=complaint.id,
+                today=today,
+            )
+
+    if company_module_enabled("supplier_management"):
+        for supplier in supplier_query().all():
+            if supplier.is_passive:
+                continue
+            append_management_due_item(
+                items,
+                module="Tedarikçi",
+                reference_no=supplier.supplier_no,
+                title=supplier.name,
+                department=supplier.department,
+                responsible=supplier.contact_person,
+                due_date=supplier.next_evaluation_date,
+                date_label="Değerlendirme",
+                status=supplier.status,
+                priority="Yüksek" if supplier.status == "Askıda" else "Orta",
+                detail_url=url_for("main.supplier_dashboard"),
+                icon="bi-truck",
+                sort_id=supplier.id,
+                today=today,
+            )
+
+    if company_module_enabled("management_review"):
+        for review in management_review_query().all():
+            if review.is_completed:
+                continue
+            append_management_due_item(
+                items,
+                module="YGG",
+                reference_no=review.review_no,
+                title=review.title,
+                department="-",
+                responsible=report_user_name(review.chair),
+                due_date=review.meeting_date,
+                date_label="Toplantı",
+                status=review.status,
+                priority="Orta",
+                detail_url=url_for("main.management_review_dashboard"),
+                icon="bi-clipboard-data",
+                sort_id=review.id,
+                today=today,
+            )
+
+    items = sorted(items, key=management_due_item_sort_key)
+    if limit is not None:
+        return items[:limit]
+    return items
+
+
+def management_due_summary(items):
+    return {
+        "overdue": sum(1 for item in items if item["due_days"] < 0),
+        "today": sum(1 for item in items if item["due_days"] == 0),
+        "next_7": sum(1 for item in items if 0 < item["due_days"] <= 7),
+        "next_30": sum(1 for item in items if 7 < item["due_days"] <= 30),
+        "total": len(items),
+    }
+
+
+def report_management_due_summary_data():
+    items = management_due_items(visible_scope=False)
+    rows = [
+        (
+            item["module"],
+            item["reference_no"],
+            item["title"],
+            item["department"],
+            item["responsible"],
+            item["date_label"],
+            item["due_label"],
+            item["due_text"],
+            item["status"],
+            item["priority"],
+            item["detail_url"] or "-",
+        )
+        for item in items
+    ]
+    return {
+        "headers": (
+            "Modül",
+            "Referans No",
+            "Başlık",
+            "Departman",
+            "Sorumlu",
+            "Termin Tipi",
+            "Termin",
+            "Gecikme / Kalan",
+            "Durum",
+            "Öncelik",
+            "Bağlantı",
+        ),
+        "rows": rows,
+        "sheet_name": "Yonetici Termin",
+        "column_widths": (18, 18, 38, 20, 24, 20, 16, 18, 26, 14, 38),
+    }
 
 
 def report_actions_overdue_data():
@@ -6307,6 +6716,14 @@ def report_personnel_contacts_data():
 
 
 REPORT_CENTER_REPORTS = (
+    {
+        "key": "management_due_summary",
+        "title": "Yönetici Termin Raporu",
+        "description": "Tüm modüllerde geciken ve 30 gün içinde yaklaşan terminlerin tek yönetici özeti.",
+        "icon": "bi-calendar2-week",
+        "tone": "danger",
+        "builder": report_management_due_summary_data,
+    },
     {
         "key": "actions_master",
         "title": "Aksiyon Genel Raporu",
@@ -7442,7 +7859,7 @@ def dashboard_filters():
     }
 
 
-def iso_dashboard_context(all_actions):
+def iso_dashboard_context(all_actions, include_due_panel=True):
     today = date.today()
     all_dofs = attach_dof_view_state(
         visible_dofs_query().order_by(Dof.due_date.asc(), Dof.id.asc()).all()
@@ -7813,10 +8230,19 @@ def iso_dashboard_context(all_actions):
             ],
         },
     ]
+    all_due_items = (
+        management_due_items(all_actions=all_actions, visible_scope=True)
+        if include_due_panel
+        else []
+    )
+    due_items = all_due_items[:8]
+    due_summary = management_due_summary(all_due_items)
     return {
         "cards": cards,
         "risk_count": sum(card["value"] for card in cards),
         "healthy_count": sum(1 for card in cards if card["value"] == 0),
+        "due_items": due_items,
+        "due_summary": due_summary,
     }
 
 
@@ -11152,7 +11578,11 @@ def dashboard_context():
         if not action.is_completed and action.closure_approval_requested
     )
     total_count = len(all_actions)
-    iso_dashboard = iso_dashboard_context(all_actions)
+    can_view_management_due = can_view_management_due_dashboard()
+    iso_dashboard = iso_dashboard_context(
+        all_actions,
+        include_due_panel=can_view_management_due,
+    )
 
     return {
         "actions": actions,
@@ -11166,6 +11596,8 @@ def dashboard_context():
         "pending_approval_count": pending_approval_count,
         "total_count": total_count,
         "iso_dashboard": iso_dashboard,
+        "can_view_management_due_dashboard": can_view_management_due,
+        "can_export_reports": can_export_reports(),
         "can_complete_action": can_complete_action,
         "can_request_closure_action": can_request_closure_action,
         "can_approve_closure_action": can_approve_closure_action,

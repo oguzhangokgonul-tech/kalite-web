@@ -1579,6 +1579,7 @@ def ensure_runtime_schema():
             "sales_readiness:month2_audit_log",
             "sales_readiness:month2_document_read",
             "sales_readiness:month2_capa_fields",
+            "sales_readiness:month2_management_dashboard",
         ):
             db.session.execute(
                 text(

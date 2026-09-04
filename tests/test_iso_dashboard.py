@@ -64,6 +64,24 @@ def create_manager():
     return user
 
 
+def test_management_due_panel_is_hidden_for_plain_personnel(app, client):
+    user = User(
+        username="personnel",
+        full_name="Personel Kullanıcı",
+        password_hash="not-used",
+        is_active=True,
+    )
+    db.session.add(user)
+    db.session.commit()
+    login(client, user)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "ISO 9001 Yönetici Özeti" in response.get_data(as_text=True)
+    assert "Yönetici Termin Paneli" not in response.get_data(as_text=True)
+
+
 def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
     today = date.today()
     manager = create_manager()
@@ -92,6 +110,15 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
                 responsible_user_id=manager.id,
                 department="Kalite",
                 termin_date=today - timedelta(days=4),
+            ),
+            Action(
+                action_number=2,
+                title="Tamamlanan aksiyon termin panelinde olmamalı",
+                responsible_owner=manager.full_name,
+                responsible_user_id=manager.id,
+                department="Kalite",
+                termin_date=today - timedelta(days=40),
+                is_completed=True,
             ),
             Dof(
                 dof_no="IF-0001",
@@ -160,6 +187,9 @@ def test_iso_dashboard_renders_cross_module_risk_summary(app, client):
     assert "Yaklaşan İç Denetim" in body
     assert "YGG Takibi" in body
     assert "Kalibrasyon Riski" in body
+    assert "Yönetici Termin Paneli" in body
+    assert "4 gün geçti" in body
+    assert "40 gün geçti" not in body
     assert "Geciken aksiyon" in body
     assert "Açık uygunsuzluk" in body
     assert "Yönetim Prosedürü" in body
@@ -176,5 +206,16 @@ def test_runtime_schema_marks_sales_readiness_iso_dashboard_done(app):
     ensure_runtime_schema()
 
     setting = db.session.get(AppSetting, "sales_readiness:iso_dashboard")
+    assert setting is not None
+    assert setting.value == "1"
+
+
+def test_runtime_schema_marks_sales_readiness_management_dashboard_done(app):
+    AppSetting.query.delete()
+    db.session.commit()
+
+    ensure_runtime_schema()
+
+    setting = db.session.get(AppSetting, "sales_readiness:month2_management_dashboard")
     assert setting is not None
     assert setting.value == "1"

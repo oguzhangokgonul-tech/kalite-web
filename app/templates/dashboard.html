@@ -119,6 +119,100 @@
         </div>
       {% endfor %}
     </div>
+
+    {% if can_view_management_due_dashboard %}
+    <div class="border rounded-3 bg-white p-3 mt-4">
+      <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-3">
+        <div>
+          <h3 class="h6 mb-1">Yönetici Termin Paneli</h3>
+          <p class="text-secondary small mb-0">Geciken ve 30 gün içinde yaklaşan işler, en kritik tarih en üstte olacak şekilde sıralanır.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <span class="vp-status-badge vp-status-danger">
+            <i class="bi bi-exclamation-circle"></i>
+            <span>{{ iso_dashboard.due_summary.overdue }} geciken</span>
+          </span>
+          <span class="vp-status-badge vp-status-warning">
+            <i class="bi bi-calendar-event"></i>
+            <span>{{ iso_dashboard.due_summary.today }} bugün</span>
+          </span>
+          <span class="vp-status-badge vp-status-warning">
+            <i class="bi bi-calendar-week"></i>
+            <span>{{ iso_dashboard.due_summary.next_7 }} 7 gün</span>
+          </span>
+          <span class="vp-status-badge vp-status-blue">
+            <i class="bi bi-calendar2-week"></i>
+            <span>{{ iso_dashboard.due_summary.next_30 }} 30 gün</span>
+          </span>
+          {% if can_export_reports %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.report_center_pdf', report_key='management_due_summary') }}" target="_blank" rel="noopener">
+              <i class="bi bi-printer"></i>
+              <span>Termin Raporu</span>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table vp-table align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Modül</th>
+              <th>Kayıt</th>
+              <th>Sorumlu</th>
+              <th>Termin</th>
+              <th>Durum</th>
+              <th class="text-end">İşlem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in iso_dashboard.due_items %}
+              <tr>
+                <td>
+                  <span class="d-inline-flex align-items-center gap-2 fw-semibold">
+                    <i class="bi {{ item.icon }} text-primary"></i>
+                    <span>{{ item.module }}</span>
+                  </span>
+                </td>
+                <td>
+                  <div class="fw-semibold text-primary">{{ item.reference_no }}</div>
+                  <div class="small text-secondary text-truncate" style="max-width: 360px;">{{ item.title }}</div>
+                </td>
+                <td>
+                  <div>{{ item.responsible }}</div>
+                  <small class="text-secondary">{{ item.department }}</small>
+                </td>
+                <td>
+                  <div class="fw-semibold">{{ item.due_label }}</div>
+                  <small class="text-secondary">{{ item.date_label }}</small>
+                </td>
+                <td>
+                  <span class="vp-status-badge vp-status-{{ item.due_tone }}">
+                    <span>{{ item.due_text }}</span>
+                  </span>
+                </td>
+                <td class="text-end">
+                  {% if item.detail_url %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ item.detail_url }}">
+                      <i class="bi bi-arrow-right"></i>
+                      <span>Aç</span>
+                    </a>
+                  {% else %}
+                    <span class="text-secondary small">-</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="6" class="text-center text-secondary py-4">
+                  Geciken veya 30 gün içinde yaklaşan kritik termin yok.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
   </section>
 
   <form class="dashboard-filter-card" method="get">

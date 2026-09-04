@@ -219,6 +219,110 @@ def test_report_center_pdf_view_is_scoped_and_audited(app, client):
     assert json.loads(log.new_values)["format"] == "pdf"
 
 
+def test_management_due_summary_report_exports_scoped_deadlines(app, client):
+    company_a = Company(code="113", name="Termin Firması", slug="termin-firmasi")
+    company_b = Company(code="114", name="Başka Firma", slug="baska-firma")
+    db.session.add_all([company_a, company_b])
+    db.session.commit()
+    user = create_user("due-reporter", "reports.view", "reports.export", company=company_a)
+    today = date.today()
+    db.session.add_all(
+        [
+            Action(
+                company_id=company_a.id,
+                action_number=10,
+                title="45 gün geciken yönetici işi",
+                responsible_owner="Kalite Sorumlusu",
+                responsible_user_id=user.id,
+                department="Kalite",
+                termin_date=today - timedelta(days=45),
+            ),
+            Action(
+                company_id=company_a.id,
+                action_number=13,
+                title="5 gün geciken yönetici işi",
+                responsible_owner="Kalite Sorumlusu",
+                responsible_user_id=user.id,
+                department="Kalite",
+                termin_date=today - timedelta(days=5),
+            ),
+            Action(
+                company_id=company_a.id,
+                action_number=14,
+                title="31 gün sonraki yönetici işi",
+                responsible_owner="Kalite Sorumlusu",
+                responsible_user_id=user.id,
+                department="Kalite",
+                termin_date=today + timedelta(days=31),
+            ),
+            Action(
+                company_id=company_a.id,
+                action_number=11,
+                title="Tamamlanan yönetici işi raporda yok",
+                responsible_owner="Kalite Sorumlusu",
+                responsible_user_id=user.id,
+                department="Kalite",
+                termin_date=today - timedelta(days=60),
+                is_completed=True,
+            ),
+            Action(
+                company_id=company_b.id,
+                action_number=12,
+                title="Başka firma yönetici işi",
+                responsible_owner="Bakım Sorumlusu",
+                department="Bakım",
+                termin_date=today - timedelta(days=90),
+            ),
+        ]
+    )
+    db.session.commit()
+    login(client, user)
+
+    response = client.get("/rapor-merkezi/management_due_summary/excel")
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert response.headers["Content-Disposition"].startswith(
+        "attachment; filename=management-due-summary-"
+    )
+    rows = sheet_values(response.data)
+    assert rows[0] == [
+        "Modül",
+        "Referans No",
+        "Başlık",
+        "Departman",
+        "Sorumlu",
+        "Termin Tipi",
+        "Termin",
+        "Gecikme / Kalan",
+        "Durum",
+        "Öncelik",
+        "Bağlantı",
+    ]
+    flattened = "\n".join("\t".join(row) for row in rows)
+    assert "45 gün geciken yönetici işi" in flattened
+    assert rows[1][2] == "45 gün geciken yönetici işi"
+    assert rows[2][2] == "5 gün geciken yönetici işi"
+    assert "45 gün geçti" in flattened
+    assert "31 gün sonraki yönetici işi" not in flattened
+    assert "Tamamlanan yönetici işi raporda yok" not in flattened
+    assert "Başka firma yönetici işi" not in flattened
+
+    log = AuditLog.query.filter_by(
+        entity_type="ReportCenter",
+        action="exported",
+        entity_id="management_due_summary",
+    ).one()
+    assert log.company_id == company_a.id
+    assert log.user_id == user.id
+    assert json.loads(log.new_values)["format"] == "excel"
+
+    pdf_response = client.get("/rapor-merkezi/management_due_summary/pdf")
+
+    assert pdf_response.status_code == 200
+    assert "Yönetici Termin Raporu" in pdf_response.get_data(as_text=True)
+
+
 def test_report_center_exports_capa_and_document_acknowledgement_reports(app, client):
     company = Company(code="105", name="Rapor Firması", slug="rapor-firmasi")
     db.session.add(company)
