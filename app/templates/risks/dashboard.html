@@ -4,6 +4,7 @@
 {% block title %}Risk Yönetimi{% endblock %}
 
 {% block app_content %}
+  {% set show_actions = can_manage_risks or can_delete_risks or can_create_actions %}
   {% call ui.page_header("Risk Yönetimi", "ISO 9001 risklerini RPN puanı, termin ve aksiyon bağlantılarıyla takip edin.", icon="bi-exclamation-diamond") %}
     {% if can_manage_risks %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_risk') }}">
@@ -99,7 +100,7 @@
             <th>Durum</th>
             <th>Bağlantı</th>
             <th>Termin</th>
-            {% if can_manage_risks or can_delete_risks %}
+            {% if show_actions %}
               <th class="text-end">İşlemler</th>
             {% endif %}
           </tr>
@@ -147,9 +148,20 @@
                 </div>
               </td>
               <td>{{ risk.due_date.strftime("%d.%m.%Y") if risk.due_date else "-" }}</td>
-              {% if can_manage_risks or can_delete_risks %}
+              {% if show_actions %}
                 <td>
                   <div class="dashboard-row-actions justify-content-end">
+                    {% if risk.action %}
+                      <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.action_detail', action_id=risk.action.id) }}">
+                        <i class="bi bi-arrow-up-right-square"></i>
+                        <span>Aksiyona Git</span>
+                      </a>
+                    {% elif can_manage_risks and can_create_actions %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_action', risk_id=risk.id) }}">
+                        <i class="bi bi-plus-circle"></i>
+                        <span>Aksiyon Oluştur</span>
+                      </a>
+                    {% endif %}
                     {% if can_manage_risks %}
                       <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_risk', risk_id=risk.id) }}">
                         <i class="bi bi-pencil-square"></i>
@@ -171,7 +183,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="{{ 10 if can_manage_risks or can_delete_risks else 9 }}">
+              <td class="dashboard-empty-row" colspan="{{ 10 if show_actions else 9 }}">
                 <strong>Henüz risk kaydı yok.</strong>
                 <span>Yeni risk eklendiğinde burada listelenecek.</span>
               </td>

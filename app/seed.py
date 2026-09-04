@@ -1555,6 +1555,7 @@ def ensure_runtime_schema():
             "sales_readiness:audit_log",
             "sales_readiness:iso_dashboard",
             "sales_readiness:risk_module",
+            "sales_readiness:month3_risk",
             "sales_readiness:training_module",
             "sales_readiness:complaint_module",
             "sales_readiness:month3_complaints",

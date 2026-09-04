@@ -2641,6 +2641,25 @@ def is_general_manager(user=None):
     return "genel mudur" in normalized_title and "yardimci" not in normalized_title
 
 
+def has_visible_linked_risk(**filters):
+    if g.current_user is None:
+        return False
+    if not (current_user_can("risk.view") or current_user_can("risk.manage")):
+        return False
+    if not company_module_enabled("risk_management"):
+        return False
+    try:
+        return (
+            scoped_query(RiskRecord.query, RiskRecord)
+            .filter_by(**filters)
+            .first()
+            is not None
+        )
+    except OperationalError:
+        db.session.rollback()
+        return False
+
+
 def can_view_all_dofs():
     return (
         is_management_representative()
@@ -2657,6 +2676,7 @@ def can_view_dof(dof):
             or dof.responsible_id == g.current_user.id
             or dof.effectiveness_owner_user_id == g.current_user.id
             or dof.created_by_user_id == g.current_user.id
+            or has_visible_linked_risk(dof_id=dof.id)
         )
     )
 
@@ -2840,6 +2860,7 @@ def can_view_action(action):
         or is_related_to_current_user(action)
         or action.effectiveness_owner_user_id == g.current_user.id
         or (action.source_dof is not None and can_view_dof(action.source_dof))
+        or has_visible_linked_risk(action_id=action.id)
         or any(
             g.current_user.id in item.participant_user_ids()
             for item in action.sub_actions
@@ -4124,11 +4145,21 @@ def apply_dof_effectiveness_fields(dof, is_draft=False):
 
 def apply_action_capa_fields(action):
     source_dof = parse_optional_dof()
+    source_risk = parse_optional_risk()
     capa_type = request.form.get("capa_type", "").strip()
     effectiveness_required = checkbox_enabled("effectiveness_required")
     effectiveness_owner = parse_optional_active_user("effectiveness_owner_user_id")
     effectiveness_due_date = parse_optional_date("effectiveness_due_date")
 
+    if (
+        source_dof is not None
+        and source_risk is not None
+        and (
+            source_dof.company_id != source_risk.company_id
+            or (source_risk.dof_id and source_risk.dof_id != source_dof.id)
+        )
+    ):
+        raise ValueError("invalid_risk")
     if capa_type and capa_type not in CAPA_TYPES:
         raise ValueError("invalid_capa_type")
     if effectiveness_required and (not effectiveness_owner or not effectiveness_due_date):
@@ -4136,6 +4167,7 @@ def apply_action_capa_fields(action):
 
     action.dof_id = source_dof.id if source_dof else None
     action._parsed_source_dof = source_dof
+    action._parsed_source_risk = source_risk
     action.capa_type = capa_type or ("Düzeltici Faaliyet" if source_dof else None)
     action.effectiveness_required = effectiveness_required
     if effectiveness_required:
@@ -6525,6 +6557,8 @@ def report_risks_data():
             risk.status,
             report_user_name(risk.owner),
             format_date(risk.due_date),
+            risk.action.number_label if risk.action else "-",
+            risk.dof.dof_no if risk.dof else "-",
         )
         for risk in risks
     ]
@@ -6541,10 +6575,12 @@ def report_risks_data():
             "Durum",
             "Sorumlu",
             "Termin",
+            "Bağlı Aksiyon",
+            "Bağlı IF/DÖF",
         ),
         "rows": rows,
         "sheet_name": "Riskler",
-        "column_widths": (16, 34, 18, 26, 12, 12, 10, 14, 18, 24, 16),
+        "column_widths": (16, 34, 18, 26, 12, 12, 10, 14, 18, 24, 16, 18, 18),
     }
 
 
@@ -8658,6 +8694,28 @@ def risk_query():
     return scoped_query(RiskRecord.query, RiskRecord)
 
 
+def parse_optional_risk(field_name="risk_id", *, require_manage=True, allow_existing_action=False):
+    value = request.form.get(field_name, "").strip() or request.args.get(field_name, "").strip()
+    if not value:
+        return None
+    if not company_module_enabled("risk_management"):
+        raise ValueError("invalid_risk")
+    if require_manage and not can_manage_risks():
+        raise ValueError("invalid_risk")
+    if not require_manage and not can_view_risks():
+        raise ValueError("invalid_risk")
+    try:
+        risk_id = int(value)
+    except ValueError:
+        raise ValueError("invalid_risk") from None
+    risk = risk_query().filter_by(id=risk_id).first()
+    if risk is None:
+        raise ValueError("invalid_risk")
+    if risk.action_id and not allow_existing_action:
+        raise ValueError("risk_already_linked")
+    return risk
+
+
 def filtered_risks(filters):
     query = risk_query()
     if filters["search"]:
@@ -8735,6 +8793,10 @@ def parse_risk_form():
 
 
 def risk_form_context(risk=None):
+    form_data = request.form if request.method == "POST" else {
+        "action_id": request.args.get("action_id", "").strip(),
+        "dof_id": request.args.get("dof_id", "").strip(),
+    }
     return {
         "risk": risk,
         "statuses": RISK_STATUSES,
@@ -8748,8 +8810,26 @@ def risk_form_context(risk=None):
         "dofs": attach_dof_view_state(
             visible_dofs_query().order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
         ),
-        "form_data": request.form if request.method == "POST" else {},
+        "form_data": form_data,
     }
+
+
+def linked_risks_for_action(action):
+    if not company_module_enabled("risk_management") or not can_view_risks():
+        return []
+    return sorted(
+        risk_query().filter_by(action_id=action.id).all(),
+        key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
+    )
+
+
+def linked_risks_for_dof(dof):
+    if not company_module_enabled("risk_management") or not can_view_risks():
+        return []
+    return sorted(
+        risk_query().filter_by(dof_id=dof.id).all(),
+        key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id),
+    )
 
 
 def validate_risk_links(risk):
@@ -8801,6 +8881,7 @@ def risk_dashboard_context():
         "departments": DEPARTMENTS,
         "can_manage_risks": can_manage_risks(),
         "can_delete_risks": can_delete_risks(),
+        "can_create_actions": current_user_can("actions.create"),
         "risk_level_tone": risk_level_tone,
     }
 
@@ -10242,7 +10323,7 @@ def parse_action_form(action=None, save_file=True):
     return action
 
 
-def action_form_defaults(action=None, linked_dof=None):
+def action_form_defaults(action=None, linked_dof=None, linked_risk=None):
     if action is not None:
         return {
             "title": action.title or "",
@@ -10253,6 +10334,7 @@ def action_form_defaults(action=None, linked_dof=None):
             "description": action.description or "",
             "termin_date": action.termin_date.isoformat() if action.termin_date else "",
             "dof_id": str(action.dof_id or ""),
+            "risk_id": "",
             "capa_type": action.capa_type or "",
             "effectiveness_required": "1" if action.effectiveness_required else "",
             "effectiveness_owner_user_id": str(action.effectiveness_owner_user_id or ""),
@@ -10261,6 +10343,43 @@ def action_form_defaults(action=None, linked_dof=None):
                 if action.effectiveness_due_date
                 else ""
             ),
+        }
+
+    if linked_risk is not None:
+        linked_dof = linked_dof or linked_risk.dof
+        description_parts = [
+            linked_risk.description,
+            f"Sebep: {linked_risk.cause}" if linked_risk.cause else "",
+            f"Etkisi: {linked_risk.consequence}" if linked_risk.consequence else "",
+        ]
+        return {
+            "title": f"{linked_risk.risk_no} - {linked_risk.title or 'Risk Aksiyonu'}",
+            "responsible_user_id": str(
+                linked_risk.owner_user_id
+                or (linked_dof.responsible_id if linked_dof else "")
+                or ""
+            ),
+            "related_user_1_id": "",
+            "related_user_2_id": "",
+            "department": linked_risk.department
+            or (linked_dof.department if linked_dof else "")
+            or "",
+            "description": "\n".join(part for part in description_parts if part),
+            "termin_date": (
+                linked_risk.due_date.isoformat()
+                if linked_risk.due_date
+                else (
+                    linked_dof.due_date.isoformat()
+                    if linked_dof and linked_dof.due_date
+                    else date.today().isoformat()
+                )
+            ),
+            "dof_id": str(linked_risk.dof_id or (linked_dof.id if linked_dof else "") or ""),
+            "risk_id": str(linked_risk.id),
+            "capa_type": "Önleyici Faaliyet",
+            "effectiveness_required": "",
+            "effectiveness_owner_user_id": "",
+            "effectiveness_due_date": "",
         }
 
     if linked_dof is not None:
@@ -10279,6 +10398,7 @@ def action_form_defaults(action=None, linked_dof=None):
                 else date.today().isoformat()
             ),
             "dof_id": str(linked_dof.id),
+            "risk_id": "",
             "capa_type": "Düzeltici Faaliyet",
             "effectiveness_required": "1" if linked_dof.effectiveness_required else "",
             "effectiveness_owner_user_id": str(
@@ -10300,6 +10420,7 @@ def action_form_defaults(action=None, linked_dof=None):
         "description": "",
         "termin_date": date.today().isoformat(),
         "dof_id": "",
+        "risk_id": "",
         "capa_type": "",
         "effectiveness_required": "",
         "effectiveness_owner_user_id": "",
@@ -16627,6 +16748,9 @@ def dof_detail(dof_id):
         can_edit=can_edit_dof(dof),
         can_delete=can_delete_dof(dof),
         can_create_linked_action=current_user_can("actions.create"),
+        can_manage_risks=can_manage_risks(),
+        linked_risks=linked_risks_for_dof(dof),
+        risk_level_tone=risk_level_tone,
         can_review_effectiveness=can_review_dof_effectiveness(dof),
         users=active_users(),
         departments=DEPARTMENTS,
@@ -17034,12 +17158,16 @@ def delete_dof(dof_id):
 @permission_required("can_create_actions")
 def create_action():
     linked_dof = None
+    linked_risk = None
     if request.method == "POST":
         try:
             action = parse_action_form(save_file=False)
             linked_dof = getattr(action, "_parsed_source_dof", None)
+            linked_risk = getattr(action, "_parsed_source_risk", None)
             if linked_dof is not None:
                 action.company_id = linked_dof.company_id
+            elif linked_risk is not None:
+                action.company_id = linked_risk.company_id
             else:
                 assign_current_company(action)
             action.action_number = reserve_action_number(company_id=action.company_id)
@@ -17047,6 +17175,7 @@ def create_action():
             db.session.add(action)
             db.session.flush()
             linked_dof = getattr(action, "_parsed_source_dof", None) or action.source_dof
+            linked_risk = getattr(action, "_parsed_source_risk", None)
             created_sub_actions = create_inline_sub_actions(action)
             add_action_history(
                 action,
@@ -17071,6 +17200,32 @@ def create_action():
                     entity_id=linked_dof.id,
                     new_values={"action_id": action.id, "action_no": action.number_label},
                     company_id=linked_dof.company_id,
+                    commit=False,
+                )
+            if linked_risk is not None:
+                linked_risk.action_id = action.id
+                if linked_risk.status in {"Açık", "İzlemede"}:
+                    linked_risk.status = "Aksiyon Açıldı"
+                add_action_history(
+                    action,
+                    "risk_linked",
+                    (
+                        f"{g.current_user.full_name} aksiyonu "
+                        f"{linked_risk.risk_no} risk kaydına bağladı."
+                    ),
+                    actor=g.current_user,
+                )
+                record_audit_event(
+                    "RiskRecord",
+                    "linked_action_created",
+                    f"{linked_risk.risk_no} kaydına bağlı aksiyon oluşturuldu",
+                    entity_id=linked_risk.id,
+                    new_values={
+                        "action_id": action.id,
+                        "action_no": action.number_label,
+                        "status": linked_risk.status,
+                    },
+                    company_id=linked_risk.company_id,
                     commit=False,
                 )
             if created_sub_actions:
@@ -17124,6 +17279,10 @@ def create_action():
                 )
             elif error_key == "invalid_dof":
                 flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "invalid_risk":
+                flash("Bağlanacak risk kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "risk_already_linked":
+                flash("Risk kaydı zaten bir aksiyona bağlı.", "danger")
             elif error_key == "invalid_capa_type":
                 flash("CAPA tipi geçerli değil.", "danger")
             elif error_key == "effectiveness_required_fields":
@@ -17138,18 +17297,54 @@ def create_action():
             linked_dof = scoped_query(Dof.query, Dof).filter_by(
                 id=request.form.get("dof_id", type=int)
             ).first()
+        if request.form.get("risk_id"):
+            try:
+                linked_risk = parse_optional_risk(allow_existing_action=True)
+            except ValueError:
+                linked_risk = None
+            if linked_risk is not None and linked_dof is None and linked_risk.dof:
+                linked_dof = linked_risk.dof
     else:
         try:
             linked_dof = parse_optional_dof()
         except ValueError:
             flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
             linked_dof = None
-        form_data = action_form_defaults(linked_dof=linked_dof)
+        try:
+            linked_risk = parse_optional_risk()
+        except ValueError as error:
+            if request.args.get("risk_id"):
+                if str(error) == "risk_already_linked":
+                    existing_risk = None
+                    try:
+                        existing_risk = parse_optional_risk(allow_existing_action=True)
+                    except ValueError:
+                        existing_risk = None
+                    if (
+                        existing_risk is not None
+                        and existing_risk.action is not None
+                        and can_view_action(existing_risk.action)
+                    ):
+                        flash(
+                            "Risk kaydı zaten bir aksiyona bağlı. Mevcut aksiyona yönlendirildiniz.",
+                            "warning",
+                        )
+                        return redirect(
+                            url_for("main.action_detail", action_id=existing_risk.action.id)
+                        )
+                    flash("Risk kaydı zaten bir aksiyona bağlı.", "danger")
+                else:
+                    flash("Bağlanacak risk kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            linked_risk = None
+        if linked_risk is not None and linked_dof is None and linked_risk.dof:
+            linked_dof = linked_risk.dof
+        form_data = action_form_defaults(linked_dof=linked_dof, linked_risk=linked_risk)
 
     return render_template(
         "action_form.html",
         action=None,
         linked_dof=linked_dof,
+        linked_risk=linked_risk,
         form_data=form_data,
         users=active_users(),
         departments=DEPARTMENTS,
@@ -17185,6 +17380,9 @@ def action_detail(action_id):
         can_full_edit_sub_action=can_full_edit_sub_action,
         can_delete_sub_action=can_delete_sub_action,
         can_complete_sub_action=can_complete_sub_action,
+        can_manage_risks=can_manage_risks(),
+        linked_risks=linked_risks_for_action(action),
+        risk_level_tone=risk_level_tone,
         effectiveness_results=EFFECTIVENESS_RESULTS,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
@@ -17383,6 +17581,10 @@ def edit_action(action_id):
                 flash("Dosya en fazla 25 MB olabilir.", "danger")
             elif error_key == "invalid_dof":
                 flash("Bağlanacak İF kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "invalid_risk":
+                flash("Bağlanacak risk kaydı bulunamadı veya erişim yetkiniz yok.", "danger")
+            elif error_key == "risk_already_linked":
+                flash("Risk kaydı zaten bir aksiyona bağlı.", "danger")
             elif error_key == "invalid_capa_type":
                 flash("CAPA tipi geçerli değil.", "danger")
             elif error_key == "effectiveness_required_fields":

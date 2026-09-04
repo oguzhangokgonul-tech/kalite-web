@@ -114,6 +114,68 @@
     {% endif %}
   </div>
 
+  {% if linked_risks or can_manage_risks %}
+    <div class="app-card">
+      <div class="app-card-header">
+        <span class="app-card-icon"><i class="bi bi-exclamation-diamond"></i></span>
+        <div>
+          <h3>Bağlı Riskler</h3>
+          <p>Bu aksiyonla ilişkilendirilen risk kayıtları</p>
+        </div>
+      </div>
+      {% if linked_risks %}
+        <div class="table-responsive">
+          <table class="table dashboard-table align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Risk No</th>
+                <th>Başlık</th>
+                <th>RPN</th>
+                <th>Durum</th>
+                <th>Termin</th>
+                <th class="text-end">İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for risk in linked_risks %}
+                <tr>
+                  <td><strong>{{ risk.risk_no }}</strong></td>
+                  <td>
+                    <strong class="text-primary">{{ risk.title }}</strong>
+                    {% if risk.process %}
+                      <small class="d-block text-secondary">{{ risk.process }}</small>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {{ ui.status_badge(risk.rpn|string, tone=risk_level_tone(risk.level), icon="bi-speedometer2", title=risk.level) }}
+                  </td>
+                  <td>{{ ui.status_badge(risk.status) }}</td>
+                  <td>{{ risk.due_date.strftime("%d.%m.%Y") if risk.due_date else "-" }}</td>
+                  <td class="text-end">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.risk_dashboard', search=risk.risk_no) }}">
+                      <i class="bi bi-arrow-right"></i>
+                      <span>Aç</span>
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-secondary mb-0">Bu aksiyona bağlı risk yok.</p>
+      {% endif %}
+      {% if can_manage_risks %}
+        <div class="app-card-footer">
+          <a class="btn btn-outline-primary" href="{{ url_for('main.create_risk', action_id=action.id) }}">
+            <i class="bi bi-link-45deg"></i>
+            <span>Bu Aksiyona Risk Bağla</span>
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
   {% if action.effectiveness_required or action.effectiveness_result or action.effectiveness_note %}
     <div class="app-card" id="action-effectiveness">
       <div class="app-card-header">

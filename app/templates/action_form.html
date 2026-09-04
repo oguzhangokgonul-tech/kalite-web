@@ -13,6 +13,8 @@
 {% set selected_effectiveness_owner = form_values.get('effectiveness_owner_user_id') or (action.effectiveness_owner_user_id|string if action else '') %}
 {% set linked_record = linked_dof if linked_dof is defined and linked_dof else (action.source_dof if action and action.source_dof else none) %}
 {% set linked_dof_id = form_values.get('dof_id') or (linked_record.id if linked_record else '') %}
+{% set linked_risk_record = linked_risk if linked_risk is defined and linked_risk else none %}
+{% set linked_risk_id = form_values.get('risk_id') or (linked_risk_record.id if linked_risk_record else '') %}
 {% set effectiveness_checked = (form_values.get('effectiveness_required') or '') in ['1', 'on', 'true', 'yes'] %}
 
 {% block app_content %}
@@ -27,6 +29,9 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% if linked_dof_id %}
       <input type="hidden" name="dof_id" value="{{ linked_dof_id }}">
+    {% endif %}
+    {% if linked_risk_id %}
+      <input type="hidden" name="risk_id" value="{{ linked_risk_id }}">
     {% endif %}
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-clipboard-plus"></i></span>
@@ -43,6 +48,17 @@
           Bağlı İF:
           <a class="alert-link" href="{{ url_for('main.dof_detail', dof_id=linked_record.id) }}">{{ linked_record.dof_no }}</a>
           {% if linked_record.title %}- {{ linked_record.title }}{% endif %}
+        </span>
+      </div>
+    {% endif %}
+
+    {% if linked_risk_record %}
+      <div class="alert alert-info d-flex align-items-center gap-2" role="status">
+        <i class="bi bi-exclamation-diamond"></i>
+        <span>
+          Bağlı Risk:
+          <a class="alert-link" href="{{ url_for('main.risk_dashboard', search=linked_risk_record.risk_no) }}">{{ linked_risk_record.risk_no }}</a>
+          {% if linked_risk_record.title %}- {{ linked_risk_record.title }}{% endif %}
         </span>
       </div>
     {% endif %}

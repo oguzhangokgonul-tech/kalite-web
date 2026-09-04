@@ -269,6 +269,42 @@
         {% endif %}
       </section>
 
+      {% if linked_risks or can_manage_risks %}
+        <section class="dof-detail-side-card">
+          <div class="dof-detail-side-title">
+            <i class="bi bi-exclamation-diamond"></i>
+            <div>
+              <h3>Bağlı Riskler</h3>
+              <p>Bu İF kaydıyla ilişkilendirilen risk kayıtları.</p>
+            </div>
+          </div>
+          {% if linked_risks %}
+            <div class="vstack gap-2">
+              {% for risk in linked_risks %}
+                <a class="dof-evidence-link" href="{{ url_for('main.risk_dashboard', search=risk.risk_no) }}">
+                  <span class="dof-evidence-file-icon"><i class="bi bi-exclamation-diamond"></i></span>
+                  <span class="dof-evidence-name">
+                    <strong>{{ risk.risk_no }}</strong> {{ risk.title }}
+                    <small class="d-block text-secondary">
+                      RPN {{ risk.rpn }} - {{ risk.level }} - {{ risk.status }}
+                    </small>
+                  </span>
+                  <i class="bi bi-chevron-right ms-auto"></i>
+                </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dof-detail-empty-note">Bağlı risk yok.</div>
+          {% endif %}
+          {% if can_manage_risks %}
+            <a class="btn btn-outline-primary w-100 mt-3" href="{{ url_for('main.create_risk', dof_id=dof.id) }}">
+              <i class="bi bi-link-45deg"></i>
+              <span>Bu IF/DÖF'e Risk Bağla</span>
+            </a>
+          {% endif %}
+        </section>
+      {% endif %}
+
       <section class="dof-detail-side-card">
         <div class="dof-detail-side-title">
           <i class="bi bi-paperclip"></i>
