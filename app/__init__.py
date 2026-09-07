@@ -294,6 +294,198 @@ def create_app(config_class=Config):
             },
         )
 
+    @app.cli.command("full-backup")
+    @click.option(
+        "--output-dir",
+        type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+        default=None,
+        help="Tam yedegin yazilacagi klasor. Varsayilan: FULL_BACKUP_DIR.",
+    )
+    @click.option(
+        "--keep-last",
+        type=int,
+        default=None,
+        help="Tutulacak son tam yedek adedi.",
+    )
+    @click.option(
+        "--without-uploads",
+        is_flag=True,
+        help="Sadece veritabani yedegi al; upload dosyalarini pakete koyma.",
+    )
+    @with_appcontext
+    def full_backup_command(output_dir, keep_last, without_uploads):
+        from .database_ops import (
+            DatabaseOperationError,
+            create_full_backup,
+            record_database_audit,
+        )
+        from .models import AppSetting
+
+        try:
+            result = create_full_backup(
+                output_dir=output_dir,
+                keep_last=keep_last,
+                include_uploads=not without_uploads,
+            )
+        except DatabaseOperationError as error:
+            raise click.ClickException(str(error))
+
+        click.echo(f"Tam yedek olusturuldu: {result.backup_path}")
+        click.echo(f"Kaynak veritabani: {result.source_path}")
+        click.echo(f"Paket boyutu: {result.size_bytes} bayt")
+        click.echo(f"Upload dosyasi: {result.upload_file_count}")
+        click.echo(f"quick_check: {result.quick_check}")
+        click.echo(f"integrity_check: {result.integrity_check}")
+
+        setting = db.session.get(AppSetting, "sales_readiness:month4_backup")
+        if setting is None:
+            db.session.add(AppSetting(key="sales_readiness:month4_backup", value="1"))
+        else:
+            setting.value = "1"
+
+        record_database_audit(
+            "full_backup_created",
+            "Tam sistem yedegi olusturuldu",
+            {
+                "source_path": str(result.source_path),
+                "backup_path": str(result.backup_path),
+                "size_bytes": result.size_bytes,
+                "upload_file_count": result.upload_file_count,
+                "upload_total_bytes": result.upload_total_bytes,
+                "quick_check": result.quick_check,
+                "integrity_check": result.integrity_check,
+            },
+        )
+
+    @app.cli.command("backup-verify")
+    @click.argument(
+        "backup_path",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    )
+    @with_appcontext
+    def backup_verify_command(backup_path):
+        from .database_ops import record_database_audit, validate_backup_package
+
+        result = validate_backup_package(backup_path)
+        click.echo(f"Yedek: {result.backup_path}")
+        click.echo(f"Durum: {'OK' if result.is_ok else 'HATALI'}")
+        click.echo(f"Checksum dosyasi: {result.checksum_count}")
+        click.echo(f"Upload dosyasi: {result.upload_file_count}")
+        click.echo(f"quick_check: {result.quick_check or '-'}")
+        click.echo(f"integrity_check: {result.integrity_check or '-'}")
+        if result.issues:
+            click.echo("Sorunlar:")
+            for issue in result.issues:
+                click.echo(f"- {issue}")
+
+        record_database_audit(
+            "backup_verified",
+            "Tam sistem yedegi dogrulandi",
+            {
+                "backup_path": str(result.backup_path),
+                "is_ok": result.is_ok,
+                "issues": list(result.issues),
+                "checksum_count": result.checksum_count,
+                "upload_file_count": result.upload_file_count,
+                "quick_check": result.quick_check,
+                "integrity_check": result.integrity_check,
+            },
+        )
+        if not result.is_ok:
+            raise click.ClickException("Yedek dogrulamasi basarisiz.")
+
+    @app.cli.command("restore-backup")
+    @click.argument(
+        "backup_path",
+        type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    )
+    @click.option(
+        "--apply",
+        "apply_restore",
+        is_flag=True,
+        help="Gercek geri yukleme yap. Varsayilan dry-run'dir.",
+    )
+    @click.option(
+        "--confirm",
+        default="",
+        help="Gercek geri yukleme onay metni.",
+    )
+    @with_appcontext
+    def restore_backup_command(backup_path, apply_restore, confirm):
+        from .database_ops import (
+            DatabaseOperationError,
+            FULL_BACKUP_CONFIRMATION_TEXT,
+            record_database_audit,
+            restore_full_backup_apply,
+            restore_full_backup_dry_run,
+        )
+
+        if not apply_restore:
+            result = restore_full_backup_dry_run(backup_path)
+            click.echo(f"Dry-run tamamlandi: {result.backup_path}")
+            click.echo(f"Durum: {'OK' if not result.issues else 'HATALI'}")
+            click.echo(f"Upload dosyasi: {result.restored_upload_files}")
+            click.echo(f"quick_check: {result.quick_check or '-'}")
+            click.echo(f"integrity_check: {result.integrity_check or '-'}")
+            if result.issues:
+                click.echo("Sorunlar:")
+                for issue in result.issues:
+                    click.echo(f"- {issue}")
+                record_database_audit(
+                    "restore_dry_run",
+                    "Tam sistem yedegi dry-run kontrolu basarisiz",
+                    {
+                        "backup_path": str(result.backup_path),
+                        "issues": list(result.issues),
+                    },
+                )
+                raise click.ClickException("Dry-run basarisiz.")
+
+            record_database_audit(
+                "restore_dry_run",
+                "Tam sistem yedegi dry-run kontrolu basarili",
+                {
+                    "backup_path": str(result.backup_path),
+                    "upload_file_count": result.restored_upload_files,
+                    "quick_check": result.quick_check,
+                    "integrity_check": result.integrity_check,
+                },
+            )
+            click.echo(
+                "Gercek geri yukleme icin: "
+                f"--apply --confirm {FULL_BACKUP_CONFIRMATION_TEXT}"
+            )
+            return
+
+        try:
+            result = restore_full_backup_apply(backup_path, confirm=confirm)
+        except DatabaseOperationError as error:
+            record_database_audit(
+                "restore_failed",
+                "Tam sistem yedegi geri yukleme basarisiz",
+                {"backup_path": str(backup_path), "error": str(error)},
+            )
+            raise click.ClickException(str(error))
+
+        click.echo(f"Geri yukleme tamamlandi: {result.backup_path}")
+        click.echo(f"On yedek: {result.pre_restore_backup_path}")
+        click.echo(f"Veritabani: {result.restored_database_path}")
+        click.echo(f"Upload dosyasi: {result.restored_upload_files}")
+        click.echo(f"quick_check: {result.quick_check}")
+        click.echo(f"integrity_check: {result.integrity_check}")
+        record_database_audit(
+            "restore_completed",
+            "Tam sistem yedegi geri yukleme tamamlandi",
+            {
+                "backup_path": str(result.backup_path),
+                "pre_restore_backup_path": str(result.pre_restore_backup_path),
+                "database_path": str(result.restored_database_path),
+                "upload_file_count": result.restored_upload_files,
+                "quick_check": result.quick_check,
+                "integrity_check": result.integrity_check,
+            },
+        )
+
     @app.cli.command("company-bootstrap")
     @click.argument("company_code")
     @with_appcontext

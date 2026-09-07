@@ -1,0 +1,97 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Sistem Yedekleri{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Sistem Yedekleri", "Veritabani, yuklenen dosyalar, manifest ve checksum iceren tam sistem yedeklerini yonetin.", icon="bi-cloud-arrow-up") %}
+    <form method="post" action="{{ url_for('main.create_system_backup') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary btn-lg" type="submit">
+        <i class="bi bi-plus-circle"></i>
+        <span>Tam Yedek Olustur</span>
+      </button>
+    </form>
+  {% endcall %}
+
+  <section class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="document-list-card h-100 p-4">
+        <div class="d-flex align-items-start gap-3">
+          <span class="app-card-icon"><i class="bi bi-shield-check"></i></span>
+          <div>
+            <h2 class="h5 mb-2">Geri Yukleme Guvenligi</h2>
+            <p class="text-secondary mb-3">
+              Web ekraninda geri yukleme bilerek kapali tutulur. Canli veriyi ezebilecek
+              restore islemi sadece sunucuda CLI ile, dry-run kontrolunden sonra ve acik
+              onay metniyle yapilir.
+            </p>
+            <div class="bg-light border rounded-3 p-3 small font-monospace text-break mb-2">
+              sudo -u aksiyon ./venv/bin/python -m flask --app run.py restore-backup /yedek/yolu.zip
+            </div>
+            <div class="bg-light border rounded-3 p-3 small font-monospace text-break">
+              sudo -u aksiyon env RESTORE_ENABLED=true ./venv/bin/python -m flask --app run.py restore-backup /yedek/yolu.zip --apply --confirm {{ restore_confirm_text }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="document-list-card h-100 p-4">
+        <span class="text-secondary small fw-semibold">Yedek Klasoru</span>
+        <strong class="d-block mt-2 text-break">{{ backup_dir }}</strong>
+        <span class="text-secondary small d-block mt-3">
+          Liste sadece superadmin hesabinda gorunur. Yedekler filtreye veya secili firmaya bagli degildir.
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Yedek Dosyasi</th>
+            <th>Olusturma Tarihi</th>
+            <th>Boyut</th>
+            <th class="text-end">Islemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for backup in backups %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <span class="app-card-icon"><i class="bi bi-file-earmark-zip"></i></span>
+                  <strong class="text-break">{{ backup.name }}</strong>
+                </div>
+              </td>
+              <td>{{ backup.created_at }}</td>
+              <td>{{ backup.size_label }}</td>
+              <td class="text-end">
+                <div class="d-inline-flex gap-2">
+                  <form method="post" action="{{ url_for('main.verify_system_backup', backup_name=backup.name) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn vp-action-link vp-action-success vp-action-btn" type="submit" title="Dogrula" aria-label="Dogrula">
+                      <i class="bi bi-check2-circle"></i>
+                    </button>
+                  </form>
+                  <a class="btn vp-action-link vp-action-primary vp-action-btn" href="{{ url_for('main.download_system_backup', backup_name=backup.name) }}" title="Indir" aria-label="Indir">
+                    <i class="bi bi-download"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="4">
+                {{ ui.empty_state("Henuz tam sistem yedegi yok.", "Ilk yedegi olusturmak icin Tam Yedek Olustur butonunu kullanin.", icon="bi-cloud-arrow-up") }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

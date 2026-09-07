@@ -131,6 +131,28 @@ Port 5000 doluysa 5001 gibi boş bir port kullanabilirsiniz:
 .\venv\Scripts\python.exe -m flask --app run.py run --host 0.0.0.0 --port 5001
 ```
 
+## Yedekleme ve Geri Yukleme
+
+Canli deploy oncesinde tam sistem yedegi alin:
+
+```bash
+flask --app run.py full-backup
+```
+
+Yedegi dogrulamak icin:
+
+```bash
+flask --app run.py backup-verify /path/to/volkaportal-backup.zip
+```
+
+Geri yukleme varsayilan olarak dry-run calisir ve canli veriyi degistirmez:
+
+```bash
+flask --app run.py restore-backup /path/to/volkaportal-backup.zip
+```
+
+Detayli canli prosedur: `docs/BACKUP_RESTORE.md`
+
 ## E-posta Bildirimleri
 
 Aksiyon açıldığında, kapatıldığında, yorum eklendiğinde veya aksiyon güncellendiğinde ilgili kullanıcılara e-posta gönderilebilir. Sistem SMTP ile çalışır; bu yüzden Google Workspace, Microsoft 365, şirket SMTP sunucusu veya SendGrid/Brevo/Amazon SES gibi herhangi bir SMTP servisi kullanılabilir. E-postalar arka planda gönderilir; SMTP yavaşlasa veya hata verse bile aksiyon kaydetme ekranı beklemez.

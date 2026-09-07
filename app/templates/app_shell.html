@@ -11,6 +11,7 @@
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
   {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
+  {% set system_backups_active = request.endpoint in ['main.system_backups', 'main.create_system_backup', 'main.download_system_backup', 'main.verify_system_backup'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
@@ -67,6 +68,10 @@
           <a class="dashboard-nav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
             <i class="bi bi-rocket-takeoff"></i>
             <span>Satışa Hazırlık</span>
+          </a>
+          <a class="dashboard-nav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
+            <i class="bi bi-cloud-arrow-up"></i>
+            <span>Sistem Yedekleri</span>
           </a>
         {% endif %}
         {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}

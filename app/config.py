@@ -8,6 +8,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "instance"))
 DATABASE_PATH = (DATA_DIR / "actions.db").as_posix()
 UPLOAD_FOLDER = DATA_DIR / "uploads"
 DATABASE_BACKUP_PATH = DATA_DIR / "backups"
+FULL_BACKUP_PATH = DATA_DIR / "backups" / "full"
 APP_ENV = os.environ.get("APP_ENV", os.environ.get("FLASK_ENV", "development")).lower()
 IS_PRODUCTION = APP_ENV == "production"
 SECRET_KEY = os.environ.get("SECRET_KEY")
@@ -33,6 +34,20 @@ class Config:
         str(DATABASE_BACKUP_PATH),
     )
     DATABASE_BACKUP_KEEP_LAST = int(os.environ.get("DATABASE_BACKUP_KEEP_LAST", "20"))
+    FULL_BACKUP_DIR = os.environ.get("FULL_BACKUP_DIR", str(FULL_BACKUP_PATH))
+    FULL_BACKUP_KEEP_LAST = int(os.environ.get("FULL_BACKUP_KEEP_LAST", "10"))
+    BACKUP_INCLUDE_UPLOADS = os.environ.get("BACKUP_INCLUDE_UPLOADS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    RESTORE_ENABLED = os.environ.get("RESTORE_ENABLED", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", str(UPLOAD_FOLDER))
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")

@@ -5692,6 +5692,10 @@ def can_manage_sales_readiness():
     return is_superadmin_account()
 
 
+def can_manage_system_backups():
+    return is_superadmin_account()
+
+
 def can_view_audit_log():
     return g.current_user is not None and (
         g.current_user_is_super_admin
@@ -13695,6 +13699,133 @@ def sales_readiness():
         return redirect(url_for("main.sales_readiness"))
 
     return render_template("sales_readiness.html", **sales_readiness_context())
+
+
+def system_backup_rows():
+    from .database_ops import list_full_backups
+
+    rows = []
+    for backup_path in list_full_backups():
+        stat = backup_path.stat()
+        rows.append(
+            {
+                "name": backup_path.name,
+                "size_label": format_storage_size(stat.st_size),
+                "created_at": datetime.fromtimestamp(stat.st_mtime).strftime(
+                    "%d.%m.%Y %H:%M"
+                ),
+            }
+        )
+    return rows
+
+
+@bp.get("/sistem/yedekler")
+@login_required
+def system_backups():
+    if not can_manage_system_backups():
+        abort(403)
+
+    from .database_ops import FULL_BACKUP_CONFIRMATION_TEXT, configured_full_backup_dir
+
+    return render_template(
+        "system_backups.html",
+        backups=system_backup_rows(),
+        backup_dir=configured_full_backup_dir(),
+        restore_confirm_text=FULL_BACKUP_CONFIRMATION_TEXT,
+    )
+
+
+@bp.post("/sistem/yedekler/olustur")
+@login_required
+def create_system_backup():
+    if not can_manage_system_backups():
+        abort(403)
+
+    from .database_ops import (
+        DatabaseOperationError,
+        create_full_backup,
+        record_database_audit,
+    )
+
+    try:
+        result = create_full_backup()
+    except DatabaseOperationError as error:
+        flash(str(error), "danger")
+        return redirect(url_for("main.system_backups"))
+
+    mark_sales_readiness_item_done_without_commit("month4_backup")
+    record_database_audit(
+        "full_backup_created",
+        "Tam sistem yedegi web ekranindan olusturuldu",
+        {
+            "backup_path": str(result.backup_path),
+            "size_bytes": result.size_bytes,
+            "upload_file_count": result.upload_file_count,
+            "quick_check": result.quick_check,
+            "integrity_check": result.integrity_check,
+        },
+    )
+    flash("Tam sistem yedegi olusturuldu ve dogrulandi.", "success")
+    return redirect(url_for("main.system_backups"))
+
+
+@bp.get("/sistem/yedekler/<path:backup_name>/indir")
+@login_required
+def download_system_backup(backup_name):
+    if not can_manage_system_backups():
+        abort(403)
+
+    from .database_ops import full_backup_path_from_name
+
+    backup_path = full_backup_path_from_name(backup_name)
+    if backup_path is None or not backup_path.exists():
+        abort(404)
+    return send_from_directory(
+        str(backup_path.parent),
+        backup_path.name,
+        as_attachment=True,
+        download_name=backup_path.name,
+        mimetype="application/zip",
+    )
+
+
+@bp.post("/sistem/yedekler/<path:backup_name>/dogrula")
+@login_required
+def verify_system_backup(backup_name):
+    if not can_manage_system_backups():
+        abort(403)
+
+    from .database_ops import (
+        full_backup_path_from_name,
+        record_database_audit,
+        validate_backup_package,
+    )
+
+    backup_path = full_backup_path_from_name(backup_name)
+    if backup_path is None or not backup_path.exists():
+        abort(404)
+    result = validate_backup_package(backup_path)
+    record_database_audit(
+        "backup_verified",
+        "Tam sistem yedegi web ekranindan dogrulandi",
+        {
+            "backup_path": str(result.backup_path),
+            "is_ok": result.is_ok,
+            "issues": list(result.issues),
+            "checksum_count": result.checksum_count,
+            "upload_file_count": result.upload_file_count,
+            "quick_check": result.quick_check,
+            "integrity_check": result.integrity_check,
+        },
+    )
+    if result.is_ok:
+        flash(
+            "Yedek paketi dogrulandi: checksum ve veritabani kontrolleri basarili.",
+            "success",
+        )
+    else:
+        flash("Yedek dogrulamasi basarisiz: " + "; ".join(result.issues), "danger")
+    return redirect(url_for("main.system_backups"))
 
 
 @bp.route("/risk-yonetimi")
