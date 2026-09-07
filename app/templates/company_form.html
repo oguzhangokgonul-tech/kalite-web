@@ -18,7 +18,7 @@
   <section class="app-card company-form-card">
     {{ ui.card_header("&#350;irket Bilgileri"|safe, "&#350;irket kodu 000, 001, 002 format&#305;nda tam 3 haneli olmal&#305;d&#305;r."|safe, icon="bi-buildings") }}
 
-    <form method="post" action="{{ form_action }}" novalidate>
+    <form method="post" action="{{ form_action }}" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="row g-3">
@@ -133,6 +133,66 @@
               <small>Demo verisi ve ger&#231;ek m&#252;&#351;teri verisini ay&#305;rmak i&#231;in kullan&#305;l&#305;r.</small>
             </span>
           </label>
+        </div>
+      </div>
+
+      {% set primary_color_value = request.form.get('brand_primary_color', company.brand_primary_color if company and company.brand_primary_color else '#1e5bff') %}
+      {% set accent_color_value = request.form.get('brand_accent_color', company.brand_accent_color if company and company.brand_accent_color else '#00bbaa') %}
+      {% set user_limit_value = request.form.get('user_limit', company.user_limit if company and company.user_limit else 25) %}
+      {% set storage_quota_value = request.form.get('storage_quota_mb', company.storage_quota_mb if company and company.storage_quota_mb else 1024) %}
+      <div class="company-package-panel company-license-panel">
+        <div class="company-module-panel-header">
+          <div>
+            <h3>Marka ve Lisans</h3>
+            <p>Firma logosu, renkleri, kullan&#305;c&#305; limiti ve depolama kotas&#305; bu alandan y&#246;netilir.</p>
+          </div>
+          <span class="company-module-note">SaaS ayarlar&#305;</span>
+        </div>
+        <div class="company-license-grid">
+          <div class="company-logo-field">
+            <label class="form-label" for="company_logo">Firma Logosu</label>
+            <div class="company-logo-control">
+              <span class="company-logo-preview">
+                {% if company and company.logo_file_path %}
+                  <img src="{{ url_for('main.company_logo', company_id=company.id) }}" alt="{{ company.name }}">
+                {% else %}
+                  <i class="bi bi-image"></i>
+                {% endif %}
+              </span>
+              <div>
+                <input class="form-control" id="company_logo" name="company_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
+                <div class="form-text">PNG, JPG veya WEBP. Maks. 2 MB.</div>
+                {% if company and company.logo_file_path %}
+                  <label class="form-check company-logo-remove" for="remove_company_logo">
+                    <input class="form-check-input" id="remove_company_logo" name="remove_company_logo" type="checkbox">
+                    <span>Mevcut logoyu kald&#305;r</span>
+                  </label>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="brand_primary_color">Ana Renk</label>
+            <div class="company-color-input">
+              <input class="form-control form-control-color" id="brand_primary_color_picker" type="color" value="{{ primary_color_value }}">
+              <input class="form-control" id="brand_primary_color" name="brand_primary_color" type="text" maxlength="7" value="{{ primary_color_value }}" placeholder="#1e5bff">
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="brand_accent_color">Vurgu Rengi</label>
+            <div class="company-color-input">
+              <input class="form-control form-control-color" id="brand_accent_color_picker" type="color" value="{{ accent_color_value }}">
+              <input class="form-control" id="brand_accent_color" name="brand_accent_color" type="text" maxlength="7" value="{{ accent_color_value }}" placeholder="#00bbaa">
+            </div>
+          </div>
+          <div>
+            <label class="form-label" for="user_limit">Kullan&#305;c&#305; Limiti</label>
+            <input class="form-control form-control-lg" id="user_limit" name="user_limit" type="number" min="1" step="1" value="{{ user_limit_value }}">
+          </div>
+          <div>
+            <label class="form-label" for="storage_quota_mb">Depolama Kotas&#305; (MB)</label>
+            <input class="form-control form-control-lg" id="storage_quota_mb" name="storage_quota_mb" type="number" min="1" step="1" value="{{ storage_quota_value }}">
+          </div>
         </div>
       </div>
 
@@ -281,6 +341,21 @@
           if (input.checked) {
             parentInput.checked = true;
             syncChildren();
+          }
+        });
+      });
+      [["brand_primary_color", "brand_primary_color_picker"], ["brand_accent_color", "brand_accent_color_picker"]].forEach(function (ids) {
+        const textInput = document.getElementById(ids[0]);
+        const colorInput = document.getElementById(ids[1]);
+        if (!textInput || !colorInput) {
+          return;
+        }
+        colorInput.addEventListener("input", function () {
+          textInput.value = colorInput.value;
+        });
+        textInput.addEventListener("input", function () {
+          if (/^#[0-9a-fA-F]{6}$/.test(textInput.value)) {
+            colorInput.value = textInput.value;
           }
         });
       });

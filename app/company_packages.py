@@ -126,6 +126,17 @@ def ensure_company_package_schema():
                             "ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT 0"
                         )
                     )
+                company_columns = {
+                    "logo_file_path": "ALTER TABLE companies ADD COLUMN logo_file_path VARCHAR(500)",
+                    "logo_original_name": "ALTER TABLE companies ADD COLUMN logo_original_name VARCHAR(255)",
+                    "brand_primary_color": "ALTER TABLE companies ADD COLUMN brand_primary_color VARCHAR(7)",
+                    "brand_accent_color": "ALTER TABLE companies ADD COLUMN brand_accent_color VARCHAR(7)",
+                    "user_limit": "ALTER TABLE companies ADD COLUMN user_limit INTEGER DEFAULT 25",
+                    "storage_quota_mb": "ALTER TABLE companies ADD COLUMN storage_quota_mb INTEGER DEFAULT 1024",
+                }
+                for column_name, statement in company_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(statement))
         current_app.extensions["company_package_schema_checked"] = True
     except OperationalError:
         db.session.rollback()

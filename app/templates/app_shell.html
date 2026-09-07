@@ -32,7 +32,11 @@
     </div>
     <div class="offcanvas-body">
       <a class="dashboard-sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="{{ config.SITE_NAME }} ana sayfa">
+        {% if g.current_company and g.current_company.logo_file_path %}
+          <img class="dashboard-brand-logo sidebar-logo-expanded" src="{{ url_for('main.company_logo', company_id=g.current_company.id) }}" alt="{{ g.current_company.name }}" width="400" height="105">
+        {% else %}
         <img class="dashboard-brand-logo sidebar-logo-expanded" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-400.png') }}" alt="VolkaPortal — Kurumsal Süreç Yönetim Platformu" width="400" height="105">
+        {% endif %}
       </a>
       <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">

@@ -85,6 +85,14 @@
             <span>Veri Tipi</span>
             {{ ui.status_badge("Demo" if company.is_demo else "Ger&#231;ek M&#252;&#351;teri"|safe, tone="info" if company.is_demo else "success", icon="bi-database-check") }}
           </div>
+          <div>
+            <span>Kullan&#305;c&#305; Limiti</span>
+            <strong>{{ company_users|selectattr("is_active")|list|length }} / {{ company.user_limit or "Limitsiz" }}</strong>
+          </div>
+          <div>
+            <span>Depolama</span>
+            <strong>{{ company_storage.used_label if company_storage else "0 B" }} / {{ company_storage.quota_label if company_storage else "Limitsiz" }}</strong>
+          </div>
         </div>
 
         <div class="onboarding-summary-section">
@@ -144,7 +152,7 @@
       </aside>
     </div>
   {% else %}
-    <form method="post" action="{{ form_action }}" class="onboarding-form" novalidate>
+    <form method="post" action="{{ form_action }}" class="onboarding-form" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="onboarding-layout">
@@ -170,6 +178,27 @@
             <div class="col-md-6">
               <label class="form-label" for="custom_domain">&#214;zel Domain</label>
               <input class="form-control form-control-lg" id="custom_domain" name="custom_domain" type="text" maxlength="255" value="{{ request.form.get('custom_domain', '') }}" placeholder="kalite.pilotfirma.com">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="company_logo">Firma Logosu</label>
+              <input class="form-control form-control-lg" id="company_logo" name="company_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
+              <div class="form-text">PNG, JPG veya WEBP. Maks. 2 MB.</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="brand_primary_color">Ana Renk</label>
+              <input class="form-control form-control-lg" id="brand_primary_color" name="brand_primary_color" type="text" maxlength="7" value="{{ request.form.get('brand_primary_color', '#1e5bff') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="brand_accent_color">Vurgu Rengi</label>
+              <input class="form-control form-control-lg" id="brand_accent_color" name="brand_accent_color" type="text" maxlength="7" value="{{ request.form.get('brand_accent_color', '#00bbaa') }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="user_limit">Kullan&#305;c&#305; Limiti</label>
+              <input class="form-control form-control-lg" id="user_limit" name="user_limit" type="number" min="1" step="1" value="{{ request.form.get('user_limit', 25) }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label" for="storage_quota_mb">Depolama Kotas&#305; (MB)</label>
+              <input class="form-control form-control-lg" id="storage_quota_mb" name="storage_quota_mb" type="number" min="1" step="1" value="{{ request.form.get('storage_quota_mb', 1024) }}">
             </div>
             <div class="col-12">
               <label class="company-active-toggle" for="is_active">

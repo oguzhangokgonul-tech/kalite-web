@@ -7,6 +7,12 @@
 
 {% block app_content %}
   {% call ui.page_header("Kullanıcılar", "Kullanıcı ve yetki tanımlarını yönetin.", icon="bi-people") %}
+    {% if user_limit_summary %}
+      <span class="btn btn-outline-secondary btn-lg disabled">
+        <i class="bi bi-person-check"></i>
+        <span>{{ user_limit_summary.active_users }} / {{ user_limit_summary.user_limit_label }}</span>
+      </span>
+    {% endif %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_user') }}">
       <i class="bi bi-person-plus"></i>
       <span>Yeni kullanıcı</span>

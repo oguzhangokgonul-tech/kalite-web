@@ -188,3 +188,4 @@ def test_runtime_schema_marks_packaging_readiness_items_done(app):
     assert f"{SALES_READINESS_SETTING_PREFIX}suggestion_core" in completed
     assert f"{SALES_READINESS_SETTING_PREFIX}module_based_menu" in completed
     assert f"{SALES_READINESS_SETTING_PREFIX}demo_data_split" in completed
+    assert f"{SALES_READINESS_SETTING_PREFIX}month4_company_package" in completed

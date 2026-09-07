@@ -37,7 +37,8 @@
             <th>Paket</th>
             <th>Veri</th>
             <th>Haz&#305;rl&#305;k</th>
-            <th>Kullan&#305;c&#305;</th>
+            <th>Kullan&#305;c&#305; Limiti</th>
+            <th>Depolama</th>
             <th>Aksiyon</th>
             <th>IF</th>
             <th>&#304;&#231; Denetim</th>
@@ -82,7 +83,23 @@
                   {{ ui.status_badge("Haz&#305;r"|safe, tone="success", icon="bi-check-circle-fill") }}
                 {% endif %}
               </td>
-              <td>{{ stats.get("users", 0) }}</td>
+              <td>
+                <div class="company-usage-cell">
+                  <strong>{{ stats.get("active_users", 0) }} / {{ stats.get("user_limit_label", "Limitsiz") }}</strong>
+                  <small>{{ stats.get("users", 0) }} toplam hesap</small>
+                </div>
+              </td>
+              <td>
+                {% set storage = stats.get("storage", {}) %}
+                <div class="company-usage-cell">
+                  <strong>{{ storage.get("used_label", "0 B") }} / {{ storage.get("quota_label", "Limitsiz") }}</strong>
+                  {% if storage.get("percent") is not none %}
+                    <span class="company-usage-meter"><span style="width: {{ storage.get("percent") }}%"></span></span>
+                  {% else %}
+                    <small>Kota yok</small>
+                  {% endif %}
+                </div>
+              </td>
               <td>{{ stats.get("actions", 0) }}</td>
               <td>{{ stats.get("dofs", 0) }}</td>
               <td>{{ stats.get("audits", 0) }}</td>
@@ -100,7 +117,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="13" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
+              <td colspan="14" class="text-center text-muted py-4">Hen&#252;z &#351;irket kayd&#305; yok.</td>
             </tr>
           {% endfor %}
         </tbody>

@@ -178,6 +178,12 @@ DOCUMENT_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
 DOCUMENT_OFFICE_EXTENSIONS = {"doc", "docx", "xls", "xlsx", "ppt", "pptx"}
 DOCUMENT_PREVIEW_STATUSES = {"pending", "ready", "failed", "not_supported"}
 DOCUMENT_MAX_BYTES = 25 * 1024 * 1024
+COMPANY_LOGO_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+COMPANY_LOGO_MAX_BYTES = 2 * 1024 * 1024
+DEFAULT_COMPANY_USER_LIMIT = 25
+DEFAULT_COMPANY_STORAGE_QUOTA_MB = 1024
+DEFAULT_COMPANY_PRIMARY_COLOR = "#1e5bff"
+DEFAULT_COMPANY_ACCENT_COLOR = "#00bbaa"
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
 SALES_READINESS_SECTIONS = (
@@ -414,6 +420,8 @@ def load_logged_in_user():
     g.current_user_is_superadmin_account = False
     g.enabled_company_modules = default_company_module_state(True)
     g.company_module_enabled = company_module_enabled
+    g.company_brand_primary_color = None
+    g.company_brand_accent_color = None
     ensure_login_attempt_schema()
     if g.current_user is not None:
         g.current_user_initials = user_initials(g.current_user)
@@ -434,6 +442,7 @@ def load_logged_in_user():
             g.current_user_is_superadmin_account = False
             g.current_company = g.tenant_company
             g.enabled_company_modules = company_module_state(g.current_company)
+            refresh_company_branding()
             if request.endpoint != "main.login":
                 flash(
                     "Bu şirket alanına erişmek için ilgili şirket hesabıyla giriş yapın.",
@@ -466,6 +475,7 @@ def load_logged_in_user():
                 return redirect(url_for("main.login", next=request.full_path))
             return
         g.enabled_company_modules = company_module_state(g.current_company)
+        refresh_company_branding()
         enforce_company_module_access()
         ensure_company_department_schema()
         ensure_notification_schema()
@@ -4319,6 +4329,241 @@ def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attach
     )
 
 
+def valid_hex_color(value):
+    return bool(value and HEX_COLOR_PATTERN.match(str(value).strip()))
+
+
+def normalize_company_color(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    if not valid_hex_color(value):
+        raise ValueError("invalid_brand_color")
+    return value.lower()
+
+
+def company_brand_color(value):
+    value = (value or "").strip()
+    return value.lower() if valid_hex_color(value) else None
+
+
+def refresh_company_branding():
+    company = getattr(g, "current_company", None)
+    g.company_brand_primary_color = company_brand_color(
+        getattr(company, "brand_primary_color", None)
+    )
+    g.company_brand_accent_color = company_brand_color(
+        getattr(company, "brand_accent_color", None)
+    )
+
+
+def parse_optional_positive_int(field_name, default=None):
+    raw_value = request.form.get(field_name, "")
+    if raw_value is None or str(raw_value).strip() == "":
+        return default
+    try:
+        value = int(str(raw_value).strip())
+    except ValueError:
+        raise ValueError(field_name) from None
+    if value < 1:
+        raise ValueError(field_name)
+    return value
+
+
+def company_storage_folder(company_id):
+    if not company_id:
+        return None
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    folder = (upload_root / f"company-{company_id:03d}").resolve()
+    try:
+        folder.relative_to(upload_root)
+    except ValueError:
+        return None
+    return folder
+
+
+def file_size_or_zero(path):
+    try:
+        return path.stat().st_size if path and path.exists() and path.is_file() else 0
+    except OSError:
+        return 0
+
+
+def folder_size_bytes(path):
+    if not path or not path.exists():
+        return 0
+    total = 0
+    for item in path.rglob("*"):
+        total += file_size_or_zero(item)
+    return total
+
+
+def company_storage_usage_bytes(company_id):
+    return folder_size_bytes(company_storage_folder(company_id))
+
+
+def company_storage_quota_bytes(company):
+    quota_mb = getattr(company, "storage_quota_mb", None)
+    if not quota_mb:
+        return None
+    try:
+        quota_mb = int(quota_mb)
+    except (TypeError, ValueError):
+        return None
+    if quota_mb < 1:
+        return None
+    return quota_mb * 1024 * 1024
+
+
+def format_storage_size(size_bytes):
+    size_bytes = int(size_bytes or 0)
+    if size_bytes >= 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    if size_bytes >= 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes} B"
+
+
+def company_storage_summary(company):
+    used_bytes = company_storage_usage_bytes(company.id)
+    quota_bytes = company_storage_quota_bytes(company)
+    percent = None
+    if quota_bytes:
+        percent = min(100, round((used_bytes / quota_bytes) * 100))
+    return {
+        "used_bytes": used_bytes,
+        "quota_bytes": quota_bytes,
+        "used_label": format_storage_size(used_bytes),
+        "quota_label": format_storage_size(quota_bytes) if quota_bytes else "Limitsiz",
+        "percent": percent,
+    }
+
+
+def uploaded_stream_size(uploaded_file):
+    stream = getattr(uploaded_file, "stream", None)
+    if stream is not None:
+        try:
+            position = stream.tell()
+            stream.seek(0, 2)
+            size = stream.tell()
+            stream.seek(position)
+            return size
+        except (AttributeError, OSError, ValueError):
+            pass
+    content_length = getattr(uploaded_file, "content_length", None)
+    try:
+        return int(content_length) if content_length else None
+    except (TypeError, ValueError):
+        return None
+
+
+def assert_company_storage_quota(company_id, additional_bytes=0, replacing_paths=None):
+    if not company_id:
+        return
+    company = db.session.get(Company, company_id)
+    quota_bytes = company_storage_quota_bytes(company)
+    if quota_bytes is None:
+        return
+    used_bytes = company_storage_usage_bytes(company_id)
+    replacing_bytes = sum(
+        file_size_or_zero(existing_uploaded_file_path(path))
+        for path in (replacing_paths or [])
+    )
+    projected_bytes = max(0, used_bytes - replacing_bytes) + int(additional_bytes or 0)
+    if projected_bytes > quota_bytes:
+        raise ValueError("storage_quota_exceeded")
+
+
+def active_company_user_count(company_id, exclude_user_id=None):
+    query = User.query.filter_by(company_id=company_id, is_active=True)
+    if exclude_user_id:
+        query = query.filter(User.id != exclude_user_id)
+    return query.count()
+
+
+def company_user_limit(company):
+    limit = getattr(company, "user_limit", None)
+    try:
+        limit = int(limit) if limit is not None else None
+    except (TypeError, ValueError):
+        return None
+    return limit if limit and limit > 0 else None
+
+
+def enforce_company_user_limit(user):
+    if not user.is_active or not user.company_id:
+        return
+    company = db.session.get(Company, user.company_id)
+    limit = company_user_limit(company)
+    if not limit:
+        return
+    active_count = active_company_user_count(company.id, exclude_user_id=user.id)
+    if active_count >= limit:
+        raise ValueError("user_limit_reached")
+
+
+def company_logo_upload():
+    uploaded_file = request.files.get("company_logo")
+    if uploaded_file and uploaded_file.filename:
+        return uploaded_file
+    return None
+
+
+def validate_company_logo_file(uploaded_file):
+    extension = file_extension(uploaded_file.filename)
+    if not extension or extension not in COMPANY_LOGO_ALLOWED_EXTENSIONS:
+        raise ValueError("invalid_company_logo")
+    return extension
+
+
+def apply_company_logo_form(company):
+    old_paths_to_delete = []
+    new_paths_to_delete_on_rollback = []
+    old_logo_path = company.logo_file_path
+    uploaded_file = company_logo_upload()
+
+    if request.form.get("remove_company_logo") == "on" and old_logo_path:
+        company.logo_file_path = None
+        company.logo_original_name = None
+        old_paths_to_delete.append(old_logo_path)
+
+    if not uploaded_file:
+        return old_paths_to_delete, new_paths_to_delete_on_rollback
+
+    extension = validate_company_logo_file(uploaded_file)
+    original_name = safe_original_filename(uploaded_file.filename, "firma-logo")
+    stored_name = f"company-logo-{uuid4().hex}.{extension}"
+    replacing_paths = [old_logo_path] if old_logo_path else []
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        "company/logos",
+        company.id,
+    )
+    assert_company_storage_quota(
+        company.id,
+        uploaded_stream_size(uploaded_file),
+        replacing_paths=replacing_paths,
+    )
+    uploaded_file.save(upload_path)
+    new_paths_to_delete_on_rollback.append(str(relative_path).replace("\\", "/"))
+    if upload_path.stat().st_size > COMPANY_LOGO_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("company_logo_too_large")
+    try:
+        assert_company_storage_quota(company.id, replacing_paths=replacing_paths)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
+
+    if old_logo_path and old_logo_path not in old_paths_to_delete:
+        old_paths_to_delete.append(old_logo_path)
+    company.logo_file_path = str(relative_path).replace("\\", "/")
+    company.logo_original_name = original_name or f"firma-logo.{extension}"
+    return old_paths_to_delete, new_paths_to_delete_on_rollback
+
+
 def record_download_audit(entity_type, entity_id, summary, **details):
     record_audit_event(
         entity_type,
@@ -4363,10 +4608,15 @@ def save_dof_opening_files(dof):
                 "dof/opening",
                 dof.company_id,
             )
+            assert_company_storage_quota(
+                dof.company_id,
+                uploaded_stream_size(uploaded_file),
+            )
             uploaded_file.save(upload_path)
             saved_paths.append(upload_path)
             if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
                 raise ValueError("dof_opening_file_too_large")
+            assert_company_storage_quota(dof.company_id)
             db.session.add(
                 DofFile(
                     dof=dof,
@@ -4394,10 +4644,16 @@ def save_dof_evidence_file(dof):
     extension = file_extension(uploaded_file.filename)
     stored_name = f"dof-{uuid4().hex}.{extension}"
     relative_path, upload_path = upload_storage_path(stored_name, "dof/evidence", dof.company_id)
+    assert_company_storage_quota(dof.company_id, uploaded_stream_size(uploaded_file))
     uploaded_file.save(upload_path)
     if upload_path.stat().st_size > DOF_EVIDENCE_MAX_BYTES:
         upload_path.unlink(missing_ok=True)
         raise ValueError("dof_file_too_large")
+    try:
+        assert_company_storage_quota(dof.company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
 
     dof.evidence_original_name = original_name
     dof.evidence_stored_name = str(relative_path).replace("\\", "/")
@@ -4897,15 +5153,23 @@ def save_document_upload(uploaded_file, category):
     if not original_name:
         original_name = f"dokuman.{extension}"
     stored_name = f"document-{uuid4().hex}.{extension}"
+    company_id = category.company_id or current_company_id()
     relative_path, upload_path = upload_storage_path(
         stored_name,
         Path("documents") / "originals" / category.slug,
+        company_id,
     )
+    assert_company_storage_quota(company_id, uploaded_stream_size(uploaded_file))
     uploaded_file.save(upload_path)
 
     if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
         upload_path.unlink(missing_ok=True)
         raise ValueError("document_file_too_large")
+    try:
+        assert_company_storage_quota(company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
 
     return {
         "file_name": stored_name,
@@ -4925,15 +5189,23 @@ def save_document_revision_request_file(uploaded_file, revision_request):
     if not original_name:
         original_name = f"revizyon-talebi.{extension}"
     stored_name = f"document-revision-request-{uuid4().hex}.{extension}"
+    company_id = revision_request.company_id or current_company_id()
     relative_path, upload_path = upload_storage_path(
         stored_name,
         Path("documents") / "revision_requests",
+        company_id,
     )
+    assert_company_storage_quota(company_id, uploaded_stream_size(uploaded_file))
     uploaded_file.save(upload_path)
 
     if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
         upload_path.unlink(missing_ok=True)
         raise ValueError("document_file_too_large")
+    try:
+        assert_company_storage_quota(company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
 
     request_file = DocumentRevisionRequestFile(
         revision_request=revision_request,
@@ -10245,12 +10517,26 @@ def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions"
 
     original_name = safe_original_filename(uploaded_file.filename, "dosya")
     stored_name = f"{uuid4().hex}.{extension}"
-    relative_path, upload_path = upload_storage_path(stored_name, folder, company_id)
+    effective_company_id = company_id if company_id is not None else current_company_id()
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        folder,
+        effective_company_id,
+    )
+    assert_company_storage_quota(
+        effective_company_id,
+        uploaded_stream_size(uploaded_file),
+    )
     uploaded_file.save(upload_path)
     max_bytes = current_app.config.get("MAX_CONTENT_LENGTH")
     if max_bytes and upload_path.stat().st_size > max_bytes:
         upload_path.unlink(missing_ok=True)
         raise ValueError("file_too_large")
+    try:
+        assert_company_storage_quota(effective_company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
     return original_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
 
 
@@ -11100,6 +11386,29 @@ def parse_company_form(company=None):
     company.package_key = selected_company_package_key(
         getattr(company, "package_key", DEFAULT_PACKAGE_KEY)
     )
+    company.brand_primary_color = (
+        normalize_company_color(request.form.get("brand_primary_color"))
+        or DEFAULT_COMPANY_PRIMARY_COLOR
+    )
+    company.brand_accent_color = (
+        normalize_company_color(request.form.get("brand_accent_color"))
+        or DEFAULT_COMPANY_ACCENT_COLOR
+    )
+    company.user_limit = parse_optional_positive_int(
+        "user_limit",
+        DEFAULT_COMPANY_USER_LIMIT,
+    )
+    company.storage_quota_mb = parse_optional_positive_int(
+        "storage_quota_mb",
+        DEFAULT_COMPANY_STORAGE_QUOTA_MB,
+    )
+    if company.id and company.user_limit:
+        if active_company_user_count(company.id) > company.user_limit:
+            raise ValueError("user_limit_below_usage")
+    if company.id and company.storage_quota_mb:
+        quota_bytes = company.storage_quota_mb * 1024 * 1024
+        if company_storage_usage_bytes(company.id) > quota_bytes:
+            raise ValueError("storage_quota_below_usage")
     company.is_demo = selected_company_data_profile()
     company.is_active = request.form.get("is_active") == "on"
     return company
@@ -11107,6 +11416,19 @@ def parse_company_form(company=None):
 
 def flash_company_form_error(error):
     error_key = str(error)
+    extra_messages = {
+        "invalid_brand_color": "Marka renkleri #1e5bff formatinda olmalidir.",
+        "user_limit": "Kullanici limiti 1 veya daha buyuk bir sayi olmalidir.",
+        "storage_quota_mb": "Depolama kotasi 1 MB veya daha buyuk olmalidir.",
+        "user_limit_below_usage": "Kullanici limiti mevcut aktif kullanici sayisindan dusuk olamaz.",
+        "storage_quota_below_usage": "Depolama kotasi mevcut dosya kullanimindan dusuk olamaz.",
+        "invalid_company_logo": "Firma logosu PNG, JPG veya WEBP olmalidir.",
+        "company_logo_too_large": "Firma logosu en fazla 2 MB olabilir.",
+        "storage_quota_exceeded": "Depolama kotasi asildi. Daha yuksek kota belirleyin veya dosyalari azaltin.",
+    }
+    if error_key in extra_messages:
+        flash(extra_messages[error_key], "danger")
+        return
     if error_key == "required_fields":
         flash("Şirket kodu ve şirket adı zorunludur.", "danger")
     elif error_key == "invalid_code":
@@ -11162,6 +11484,7 @@ def mark_packaging_sales_readiness_without_commit():
         "suggestion_core",
         "module_based_menu",
         "demo_data_split",
+        "month4_company_package",
     ):
         mark_sales_readiness_item_done_without_commit(item_id)
 
@@ -11295,7 +11618,21 @@ def mark_sales_readiness_item_done_without_commit(item_id):
 
 def flash_company_onboarding_error(error):
     error_key = str(error)
-    if error_key in {"required_fields", "invalid_code", "code_exists"}:
+    if error_key in {
+        "required_fields",
+        "invalid_code",
+        "invalid_slug",
+        "duplicate_domain",
+        "code_exists",
+        "slug_exists",
+        "domain_exists",
+        "invalid_brand_color",
+        "user_limit",
+        "storage_quota_mb",
+        "invalid_company_logo",
+        "company_logo_too_large",
+        "storage_quota_exceeded",
+    }:
         flash_company_form_error(error)
     elif error_key == "departments_required":
         flash("En az bir departman seçin veya ek departman yazın.", "danger")
@@ -11346,6 +11683,7 @@ def company_onboarding_context(company=None):
         "company": company,
         "workspace": workspace,
         "existing_departments": existing_departments,
+        "company_storage": company_storage_summary(company) if company is not None else None,
         "next_company_code": request.form.get("code", next_company_code()),
         "package_catalog": PACKAGE_CATALOG,
         "package_key": current_package_key,
@@ -11466,6 +11804,9 @@ def validate_password_policy(password):
 
 def flash_user_form_error(error):
     error_key = str(error)
+    if error_key == "user_limit_reached":
+        flash("Kullanici limiti doldu. Sirket lisans limitini artirin veya pasif kullanici birakin.", "danger")
+        return
     if error_key == "username_exists":
         flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
     elif error_key == "password_too_short":
@@ -18441,10 +18782,19 @@ def download_latest_closure_evidence_file(action_id):
 @permission_required("can_manage_users")
 def users():
     user_list = active_users()
+    user_limit_summary = None
+    if g.current_company:
+        limit = company_user_limit(g.current_company)
+        user_limit_summary = {
+            "active_users": active_company_user_count(g.current_company.id),
+            "user_limit": limit,
+            "user_limit_label": str(limit) if limit else "Limitsiz",
+        }
     return render_template(
         "users.html",
         users=user_list,
         can_delete_users=current_user_can("users.delete"),
+        user_limit_summary=user_limit_summary,
     )
 
 
@@ -18487,12 +18837,14 @@ def create_user():
     if request.method == "POST":
         try:
             user = parse_user_form()
+            enforce_company_user_limit(user)
             apply_role_form_to_user(user)
             db.session.add(user)
             db.session.commit()
             flash("Kullanıcı oluşturuldu.", "success")
             return redirect(url_for("main.users"))
         except ValueError as error:
+            db.session.rollback()
             flash_user_form_error(error)
 
     return render_template(
@@ -18522,11 +18874,13 @@ def edit_user(user_id):
     if request.method == "POST":
         try:
             parse_user_form(user)
+            enforce_company_user_limit(user)
             apply_role_form_to_user(user)
             db.session.commit()
             flash("Kullanıcı güncellendi.", "success")
             return redirect(url_for("main.users"))
         except ValueError as error:
+            db.session.rollback()
             flash_user_form_error(error)
 
     return render_template(
@@ -18612,8 +18966,14 @@ def companies():
     company_stats = {}
     company_workspace = {}
     for company in company_list:
+        active_user_count = active_company_user_count(company.id)
+        user_limit = company_user_limit(company)
         company_stats[company.id] = {
             "users": User.query.filter_by(company_id=company.id).count(),
+            "active_users": active_user_count,
+            "user_limit": user_limit,
+            "user_limit_label": str(user_limit) if user_limit else "Limitsiz",
+            "storage": company_storage_summary(company),
             "actions": Action.query.filter_by(company_id=company.id).count(),
             "dofs": Dof.query.filter_by(company_id=company.id).count(),
             "audits": InternalAudit.query.filter_by(company_id=company.id).count(),
@@ -18629,6 +18989,22 @@ def companies():
     )
 
 
+@bp.get("/companies/<int:company_id>/logo")
+@login_required
+def company_logo(company_id):
+    company = Company.query.get_or_404(company_id)
+    if not company.logo_file_path:
+        abort(404)
+    if not getattr(g, "current_user_is_super_admin", False):
+        if current_company_id() != company.id:
+            abort(404)
+    return send_stored_upload(
+        company.logo_file_path,
+        download_name=company.logo_original_name or "firma-logo",
+        as_attachment=False,
+    )
+
+
 @bp.route("/kurulum-sihirbazi", methods=["GET", "POST"])
 @login_required
 @super_admin_required
@@ -18638,6 +19014,8 @@ def company_onboarding_wizard():
 
     ensure_default_roles()
     if request.method == "POST":
+        old_logo_paths = []
+        new_logo_paths = []
         try:
             department_names = parse_onboarding_department_names()
             include_document_categories = request.form.get("create_document_categories") == "on"
@@ -18646,6 +19024,7 @@ def company_onboarding_wizard():
             company = parse_company_form()
             db.session.add(company)
             db.session.flush()
+            old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             created_items = initialize_company_onboarding(
                 company,
                 include_document_categories=include_document_categories,
@@ -18689,10 +19068,14 @@ def company_onboarding_wizard():
             mark_sales_readiness_item_done_without_commit("onboarding_wizard")
             mark_packaging_sales_readiness_without_commit()
             db.session.commit()
+            for logo_path in old_logo_paths:
+                delete_stored_upload(logo_path)
             flash(f"{company.label} kurulumu tamamlandi.", "success")
             return redirect(url_for("main.company_onboarding_status", company_id=company.id))
         except (ValueError, IntegrityError) as error:
             db.session.rollback()
+            for logo_path in new_logo_paths:
+                delete_stored_upload(logo_path)
             flash_company_onboarding_error(error)
 
     return render_template(
@@ -18764,6 +19147,8 @@ def repair_company_onboarding(company_id):
 @super_admin_required
 def create_company():
     if request.method == "POST":
+        old_logo_paths = []
+        new_logo_paths = []
         try:
             from .company_onboarding import initialize_company_workspace
 
@@ -18771,6 +19156,7 @@ def create_company():
             selected_module_keys = selected_company_module_keys_from_form()
             db.session.add(company)
             db.session.flush()
+            old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             initialize_company_workspace(company)
             sync_company_modules(company, selected_module_keys)
             company.package_key = resolved_company_package_key(
@@ -18779,10 +19165,14 @@ def create_company():
             )
             mark_packaging_sales_readiness_without_commit()
             db.session.commit()
+            for logo_path in old_logo_paths:
+                delete_stored_upload(logo_path)
             flash(f"{company.label} şirketi oluşturuldu.", "success")
             return redirect(url_for("main.companies"))
         except (ValueError, IntegrityError) as error:
             db.session.rollback()
+            for logo_path in new_logo_paths:
+                delete_stored_upload(logo_path)
             flash_company_form_error(error)
 
     return render_template(
@@ -18809,9 +19199,12 @@ def edit_company(company_id):
     company = Company.query.get_or_404(company_id)
 
     if request.method == "POST":
+        old_logo_paths = []
+        new_logo_paths = []
         try:
             parse_company_form(company)
             selected_module_keys = selected_company_module_keys_from_form()
+            old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             sync_company_modules(company, selected_module_keys)
             company.package_key = resolved_company_package_key(
                 selected_module_keys,
@@ -18819,10 +19212,14 @@ def edit_company(company_id):
             )
             mark_packaging_sales_readiness_without_commit()
             db.session.commit()
+            for logo_path in old_logo_paths:
+                delete_stored_upload(logo_path)
             flash(f"{company.label} şirketi güncellendi.", "success")
             return redirect(url_for("main.companies"))
         except (ValueError, IntegrityError) as error:
             db.session.rollback()
+            for logo_path in new_logo_paths:
+                delete_stored_upload(logo_path)
             flash_company_form_error(error)
 
     return render_template(

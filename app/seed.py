@@ -636,6 +636,12 @@ def ensure_runtime_schema():
                 "ALTER TABLE companies "
                 "ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT 0"
             ),
+            "logo_file_path": "ALTER TABLE companies ADD COLUMN logo_file_path VARCHAR(500)",
+            "logo_original_name": "ALTER TABLE companies ADD COLUMN logo_original_name VARCHAR(255)",
+            "brand_primary_color": "ALTER TABLE companies ADD COLUMN brand_primary_color VARCHAR(7)",
+            "brand_accent_color": "ALTER TABLE companies ADD COLUMN brand_accent_color VARCHAR(7)",
+            "user_limit": "ALTER TABLE companies ADD COLUMN user_limit INTEGER DEFAULT 25",
+            "storage_quota_mb": "ALTER TABLE companies ADD COLUMN storage_quota_mb INTEGER DEFAULT 1024",
         }
         for column_name, statement in company_columns.items():
             if column_name not in columns:
@@ -1597,6 +1603,7 @@ def ensure_runtime_schema():
             "sales_readiness:supplier_module",
             "sales_readiness:month3_supplier",
             "sales_readiness:month4_tenant_tests",
+            "sales_readiness:month4_company_package",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",

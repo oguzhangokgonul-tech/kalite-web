@@ -9558,7 +9558,7 @@ textarea.form-control:focus {
 }
 
 .company-admin-table {
-    min-width: 1120px;
+    min-width: 1320px;
 }
 
 .company-admin-table td strong,
@@ -9584,6 +9584,117 @@ textarea.form-control:focus {
     background: #edf5ff;
     font-weight: 900;
     letter-spacing: 0;
+}
+
+.company-usage-cell {
+    display: grid;
+    gap: 4px;
+    min-width: 128px;
+}
+
+.company-usage-cell strong {
+    color: #10233f;
+    font-size: 0.82rem;
+    line-height: 1.2;
+}
+
+.company-usage-cell small {
+    color: #64748b;
+    font-size: 0.72rem;
+}
+
+.company-usage-meter {
+    position: relative;
+    display: block;
+    width: 120px;
+    height: 7px;
+    overflow: hidden;
+    background: #eaf1fb;
+    border-radius: 999px;
+}
+
+.company-usage-meter span {
+    display: block;
+    height: 100%;
+    background: var(--vp-gradient);
+    border-radius: inherit;
+}
+
+.company-license-panel {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.company-license-grid {
+    display: grid;
+    grid-template-columns: minmax(280px, 1.4fr) repeat(4, minmax(160px, 1fr));
+    gap: 14px;
+    align-items: end;
+}
+
+.company-logo-field {
+    align-self: stretch;
+}
+
+.company-logo-control {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.company-logo-preview {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 76px;
+    height: 76px;
+    overflow: hidden;
+    color: #5b6b82;
+    background: #f3f7fc;
+    border: 1px solid #d8e4f2;
+    border-radius: 14px;
+    font-size: 1.6rem;
+}
+
+.company-logo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 8px;
+}
+
+.company-logo-remove {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: 8px 0 0;
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.company-color-input {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+}
+
+.company-color-input .form-control-color {
+    width: 52px;
+    height: 48px;
+    padding: 6px;
+}
+
+@media (max-width: 1199.98px) {
+    .company-license-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    .company-license-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .company-active-toggle {
@@ -9991,7 +10102,7 @@ body {
     }
 
     .company-admin-table {
-        min-width: 980px;
+        min-width: 1320px;
     }
 
     .quality-test-table {
@@ -10500,7 +10611,7 @@ body {
     }
 
     .company-admin-table {
-        min-width: 900px;
+        min-width: 1320px;
     }
 }
 
