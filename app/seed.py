@@ -792,6 +792,7 @@ def ensure_runtime_schema():
                     training_type VARCHAR(60) NOT NULL DEFAULT 'Eğitim',
                     description TEXT,
                     document_id INTEGER,
+                    document_revision_no_snapshot VARCHAR(40),
                     planned_date DATE,
                     due_date DATE,
                     instructor_user_id INTEGER,
@@ -811,6 +812,37 @@ def ensure_runtime_schema():
         tables.add("training_records")
 
     if "training_records" in tables:
+        columns = {column["name"] for column in inspector.get_columns("training_records")}
+        if "document_revision_no_snapshot" not in columns:
+            db.session.execute(
+                text(
+                    "ALTER TABLE training_records "
+                    "ADD COLUMN document_revision_no_snapshot VARCHAR(40)"
+                )
+            )
+            changed = True
+            columns.add("document_revision_no_snapshot")
+        if "documents" in tables and "document_revision_no_snapshot" in columns:
+            result = db.session.execute(
+                text(
+                    """
+                    UPDATE training_records
+                    SET document_revision_no_snapshot = COALESCE(
+                        (
+                            SELECT documents.revision_no
+                            FROM documents
+                            WHERE documents.id = training_records.document_id
+                        ),
+                        ''
+                    )
+                    WHERE document_revision_no_snapshot IS NULL
+                      AND training_type = 'Doküman Okuma Onayı'
+                      AND document_id IS NOT NULL
+                    """
+                )
+            )
+            if result.rowcount:
+                changed = True
         for index_name, column_name in (
             ("ix_training_records_company_id", "company_id"),
             ("ix_training_records_document_id", "document_id"),
@@ -1557,6 +1589,7 @@ def ensure_runtime_schema():
             "sales_readiness:risk_module",
             "sales_readiness:month3_risk",
             "sales_readiness:training_module",
+            "sales_readiness:month3_training",
             "sales_readiness:complaint_module",
             "sales_readiness:month3_complaints",
             "sales_readiness:management_review",

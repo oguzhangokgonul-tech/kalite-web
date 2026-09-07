@@ -4524,12 +4524,14 @@ def create_or_update_document_acknowledgement(document, user=None, participant=N
 
 
 def document_read_training_participants(document):
+    revision_key = document_revision_key(document)
     return (
         scoped_query(TrainingParticipant.query, TrainingParticipant)
         .join(TrainingRecord, TrainingParticipant.training_id == TrainingRecord.id)
         .filter(
             TrainingRecord.document_id == document.id,
             TrainingRecord.training_type == TRAINING_TYPES[0],
+            TrainingRecord.document_revision_no_snapshot == revision_key,
         )
         .order_by(TrainingParticipant.id.asc())
         .all()
@@ -4550,6 +4552,7 @@ def current_user_matches_training_participant(participant):
 def mark_current_user_document_training_read(document):
     if g.current_user is None:
         return []
+    revision_key = document_revision_key(document)
     participant_filters = [TrainingParticipant.user_id == g.current_user.id]
     if g.current_user.personnel_contact_id:
         participant_filters.append(
@@ -4561,6 +4564,7 @@ def mark_current_user_document_training_read(document):
         .filter(
             TrainingRecord.document_id == document.id,
             TrainingRecord.training_type == TRAINING_TYPES[0],
+            TrainingRecord.document_revision_no_snapshot == revision_key,
             or_(*participant_filters),
         )
         .all()
@@ -9010,12 +9014,18 @@ def parse_training_form():
     if not participant_user_ids and not participant_contact_ids:
         raise ValueError("participants_required")
 
+    document = None
     if values["document_id"]:
         document = scoped_query(Document.query, Document).filter_by(
             id=values["document_id"]
         ).first()
         if document is None:
             raise ValueError("invalid_document")
+    values["document_revision_no_snapshot"] = (
+        document_revision_key(document)
+        if document is not None and values["training_type"] == TRAINING_TYPES[0]
+        else None
+    )
     if values["instructor_user_id"] and active_user_by_id(values["instructor_user_id"]) is None:
         raise ValueError("invalid_instructor")
 
@@ -9244,6 +9254,176 @@ def sync_training_status(training):
         training.status = "Tamamlandı"
     elif any(participant.status != "Atandı" for participant in training.participants):
         training.status = "Devam Ediyor"
+
+
+DOCUMENT_READ_TRAINING_DUE_DAYS = 7
+
+
+def training_document_revision_key(training):
+    return (training.document_revision_no_snapshot or "").strip()
+
+
+def training_targets_current_document_revision(training):
+    if training.training_type != TRAINING_TYPES[0] or training.document is None:
+        return True
+    return training_document_revision_key(training) == document_revision_key(training.document)
+
+
+def document_targets_all_departments(document):
+    department_key = normalize_for_role(document.department).strip()
+    return not department_key or department_key in {
+        "tum departmanlar",
+        "tum departman",
+        "all",
+        "hepsi",
+    }
+
+
+def user_department_keys(user):
+    contact = user.personnel_contact
+    values = [
+        getattr(user, "title", None),
+        getattr(contact, "department", None) if contact else None,
+        getattr(contact, "title", None) if contact else None,
+    ]
+    return {
+        normalize_for_role(value).strip()
+        for value in values
+        if normalize_for_role(value).strip()
+    }
+
+
+def user_matches_document_department(user, document_department_key):
+    return any(
+        document_department_key == user_key
+        or document_department_key in user_key
+        or user_key in document_department_key
+        for user_key in user_department_keys(user)
+    )
+
+
+def document_read_training_target_users(document):
+    query = User.query.filter(User.is_active.is_(True))
+    if document.company_id is None:
+        query = query.filter(User.company_id.is_(None))
+    else:
+        query = query.filter(User.company_id == document.company_id)
+    candidates = [
+        user
+        for user in query.order_by(User.full_name.asc()).all()
+        if (has_permission(user, "documents.view") or has_permission(user, "documents.manage"))
+        and (has_permission(user, "training.view") or has_permission(user, "training.manage"))
+    ]
+    if document_targets_all_departments(document):
+        return unique_users(candidates)
+
+    department_key = normalize_for_role(document.department).strip()
+    department_users = [
+        user for user in candidates if user_matches_document_department(user, department_key)
+    ]
+    if department_users:
+        return unique_users(department_users)
+
+    manager_users = [user for user in candidates if has_permission(user, "documents.manage")]
+    return unique_users(manager_users or candidates)
+
+
+def find_document_read_training_for_revision(document):
+    return (
+        scoped_query(TrainingRecord.query, TrainingRecord)
+        .filter(
+            TrainingRecord.document_id == document.id,
+            TrainingRecord.training_type == TRAINING_TYPES[0],
+            TrainingRecord.document_revision_no_snapshot == document_revision_key(document),
+            TrainingRecord.status != TRAINING_STATUSES[3],
+        )
+        .order_by(TrainingRecord.id.asc())
+        .first()
+    )
+
+
+def ensure_document_revision_read_training(document, actor=None):
+    if not company_module_enabled("training"):
+        return None, []
+
+    target_users = document_read_training_target_users(document)
+    if not target_users:
+        return None, []
+
+    revision_key = document_revision_key(document)
+    training = find_document_read_training_for_revision(document)
+    created_training = False
+    if training is None:
+        training = TrainingRecord(
+            company_id=document.company_id,
+            training_no=next_training_no(),
+            title=f"{document.document_code} Revizyon {revision_key or '0'} Okuma Onayı",
+            training_type=TRAINING_TYPES[0],
+            description="Doküman revizyonu yayınlandığı için otomatik okuma onayı atandı.",
+            document_id=document.id,
+            document_revision_no_snapshot=revision_key,
+            planned_date=date.today(),
+            due_date=date.today() + timedelta(days=DOCUMENT_READ_TRAINING_DUE_DAYS),
+            instructor_user_id=actor.id if actor is not None else None,
+            status=TRAINING_STATUSES[0],
+            created_by_user_id=actor.id if actor is not None else None,
+        )
+        db.session.add(training)
+        db.session.flush()
+        created_training = True
+
+    existing_user_ids = {
+        participant.user_id
+        for participant in training.participants
+        if participant.user_id is not None
+    }
+    assigned_users = []
+    for user in target_users:
+        if user.id in existing_user_ids:
+            continue
+        db.session.add(
+            TrainingParticipant(
+                training=training,
+                company_id=document.company_id,
+                user_id=user.id,
+                status="Atandı",
+            )
+        )
+        existing_user_ids.add(user.id)
+        assigned_users.append(user)
+
+    sync_training_status(training)
+    if created_training or assigned_users:
+        db.session.flush()
+        add_notifications(
+            assigned_users,
+            (
+                f"{document.document_code} revizyon {revision_key or '0'} için "
+                "doküman okuma onayınız bekleniyor."
+            ),
+            company_id=document.company_id,
+            notification_type="warning",
+            source_key=f"training:document-read:{document.id}:{revision_key}",
+            target_url=url_for("main.training_dashboard", search=training.training_no),
+        )
+        record_audit_event(
+            "TrainingRecord",
+            "auto_assigned",
+            f"{document.document_code} revizyon okuma eğitimi otomatik atandı",
+            entity_id=training.id,
+            details={
+                "training_no": training.training_no,
+                "document_id": document.id,
+                "document_code": document.document_code,
+                "revision_no": revision_key,
+                "created_training": created_training,
+                "assigned_user_ids": [user.id for user in assigned_users],
+            },
+            company_id=document.company_id,
+            commit=False,
+        )
+        mark_sales_readiness_item_done_without_commit("month3_training")
+    return training, assigned_users
 
 
 def training_form_error_message(error_key):
@@ -13299,6 +13479,13 @@ def confirm_training_participant(training_id, participant_id):
     if not can_confirm_training_participant(participant):
         abort(403)
     is_self_confirmation = current_user_matches_training_participant(participant)
+    if (
+        training.training_type == TRAINING_TYPES[0]
+        and training.document
+        and not training_targets_current_document_revision(training)
+    ):
+        flash("Bu okuma onayı eski doküman revizyonuna ait. Güncel atamayı kullanın.", "warning")
+        return redirect(url_for("main.training_dashboard", search=training.training_no))
     status = "Okundu" if training.training_type == "Doküman Okuma Onayı" else "Katıldı"
     set_training_participant_status(participant, status)
     if training.training_type == TRAINING_TYPES[0] and training.document and is_self_confirmation:
@@ -14296,6 +14483,10 @@ def approve_document_revision_request(request_id):
             revision_no=revision_no,
             revision_date=revision_date,
         )
+        training, assigned_users = ensure_document_revision_read_training(
+            document,
+            actor=g.current_user,
+        )
         revision_request.status = DOCUMENT_REVISION_APPROVED_STATUS
         revision_request.approved_by_user_id = g.current_user.id
         revision_request.approved_at = datetime.utcnow()
@@ -14311,7 +14502,10 @@ def approve_document_revision_request(request_id):
             exclude_user_id=g.current_user.id,
         )
         db.session.commit()
-        flash("Revizyon onaylandı, eski dosya arşive alındı ve yeni doküman yayınlandı.", "success")
+        success_message = "Revizyon onaylandı, eski dosya arşive alındı ve yeni doküman yayınlandı."
+        if training is not None:
+            success_message += f" Okuma onayı {len(assigned_users)} kullanıcıya atandı."
+        flash(success_message, "success")
         return redirect(url_for("main.document_detail", document_id=document.id))
     except ValueError as error:
         db.session.rollback()
@@ -14346,8 +14540,15 @@ def revise_document(document_id):
                 revision_no=revision_no,
                 revision_date=revision_date,
             )
+            training, assigned_users = ensure_document_revision_read_training(
+                document,
+                actor=g.current_user,
+            )
             db.session.commit()
-            flash("Dokümana revizyon yapıldı. Eski dosya arşive alındı.", "success")
+            success_message = "Dokümana revizyon yapıldı. Eski dosya arşive alındı."
+            if training is not None:
+                success_message += f" Okuma onayı {len(assigned_users)} kullanıcıya atandı."
+            flash(success_message, "success")
             return redirect(url_for("main.document_detail", document_id=document.id))
         except ValueError as error:
             db.session.rollback()

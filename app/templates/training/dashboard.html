@@ -112,6 +112,9 @@
                   <a class="text-decoration-none" href="{{ url_for('main.document_detail', document_id=training.document.id) }}">
                     {{ training.document.document_code }} - {{ training.document.title }}
                   </a>
+                  {% if training.training_type == "Doküman Okuma Onayı" %}
+                    <small class="d-block text-secondary">Revizyon: {{ training.document_revision_no_snapshot or "0" }}</small>
+                  {% endif %}
                 {% else %}
                   <span class="text-secondary">Yok</span>
                 {% endif %}

@@ -999,6 +999,7 @@ class TrainingRecord(db.Model):
     training_type = db.Column(db.String(60), nullable=False, default="Eğitim")
     description = db.Column(db.Text, nullable=True)
     document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    document_revision_no_snapshot = db.Column(db.String(40), nullable=True)
     planned_date = db.Column(db.Date, nullable=True)
     due_date = db.Column(db.Date, nullable=True)
     instructor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)

@@ -135,6 +135,7 @@ def test_training_create_confirm_update_and_delete_flow(app, client):
     training = TrainingRecord.query.one()
     assert training.training_no.startswith("EGT-")
     assert training.document_id == document.id
+    assert training.document_revision_no_snapshot == "1"
     assert len(training.participants) == 2
     assert training.status == "Planlandı"
 
@@ -183,3 +184,7 @@ def test_runtime_schema_marks_sales_readiness_training_module_done(app):
     setting = db.session.get(AppSetting, "sales_readiness:training_module")
     assert setting is not None
     assert setting.value == "1"
+
+    month3_setting = db.session.get(AppSetting, "sales_readiness:month3_training")
+    assert month3_setting is not None
+    assert month3_setting.value == "1"

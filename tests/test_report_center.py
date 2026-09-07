@@ -357,6 +357,7 @@ def test_report_center_exports_capa_and_document_acknowledgement_reports(app, cl
         title="PR.70 Okuma Onayı",
         training_type="Doküman Okuma Onayı",
         document=document,
+        document_revision_no_snapshot="2",
         created_by_user_id=reporter.id,
     )
     db.session.add_all(

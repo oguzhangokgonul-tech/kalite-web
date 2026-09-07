@@ -141,6 +141,99 @@ def test_document_upload_download_revision_request_and_approval(app, client):
     assert archive.original_file_name == "montaj.pdf"
 
 
+def test_document_revision_approval_creates_revision_scoped_read_training(app, client):
+    company = create_company("313A")
+    foreign_company = create_company("313B")
+    manager = create_user(
+        "auto-training-manager",
+        company=company,
+        role_key="management_representative",
+    )
+    requester = create_user(
+        "quality-reader",
+        company=company,
+        permissions=("documents.view", "training.view"),
+        full_name="Kalite Okuyucu",
+        title="Kalite",
+    )
+    unmatched_user = create_user(
+        "maintenance-reader",
+        company=company,
+        permissions=("documents.view", "training.view"),
+        title="Bakım",
+    )
+    foreign_user = create_user(
+        "foreign-quality-reader",
+        company=foreign_company,
+        permissions=("documents.view", "training.view"),
+        title="Kalite",
+    )
+    document = make_document(
+        app,
+        company,
+        document_code="PR.30",
+        title="Kalite Proseduru",
+        revision_no="0",
+        department="Kalite",
+    )
+    revision_request = DocumentRevisionRequest(
+        company_id=company.id,
+        document_id=document.id,
+        requested_by_user_id=requester.id,
+        status=DOCUMENT_REVISION_PENDING_STATUS,
+        explanation="Yeni revizyon gerekli.",
+    )
+    db.session.add(revision_request)
+    db.session.commit()
+
+    login(client, manager)
+    response = client.post(
+        f"/documents/revision-requests/{revision_request.id}/approve",
+        data={
+            "revision_no": "1",
+            "revision_date": date.today().isoformat(),
+            "approval_note": "Uygun",
+            "document_file": upload_tuple(b"%PDF-1.4\nnew revision\n", "kalite-r1.pdf"),
+        },
+    )
+
+    assert response.status_code == 302
+    training = TrainingRecord.query.filter_by(
+        document_id=document.id,
+        document_revision_no_snapshot="1",
+    ).one()
+    assert training.training_type == "Doküman Okuma Onayı"
+    assert training.status == "Planlandı"
+    assert training.due_date is not None
+    participant_user_ids = {participant.user_id for participant in training.participants}
+    assert requester.id in participant_user_ids
+    assert unmatched_user.id not in participant_user_ids
+    assert foreign_user.id not in participant_user_ids
+    assert Notification.query.filter_by(
+        company_id=company.id,
+        user_id=requester.id,
+        source_key=f"training:document-read:{document.id}:1",
+    ).count() == 1
+    assert AuditLog.query.filter_by(
+        entity_type="TrainingRecord",
+        entity_id=str(training.id),
+        action="auto_assigned",
+    ).count() == 1
+
+    login(client, requester)
+    response = client.post(
+        f"/egitim-yeterlilik/{training.id}/katilimci/{training.participants[0].id}/onayla",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    db.session.refresh(training)
+    acknowledgement = DocumentAcknowledgement.query.one()
+    assert training.status == "Tamamlandı"
+    assert acknowledgement.revision_no_snapshot == "1"
+    assert acknowledgement.training_participant_id == training.participants[0].id
+
+
 def test_documents_list_search_filter_uses_current_company(app, client):
     company_a = create_company("314")
     company_b = create_company("315")
@@ -230,6 +323,7 @@ def test_document_acknowledgement_tracking_shows_pending_and_completed_users(app
         title="PR.21 Okuma Onayi",
         training_type="Doküman Okuma Onayı",
         document_id=document.id,
+        document_revision_no_snapshot="2",
         created_by_user_id=manager.id,
     )
     participant = TrainingParticipant(
@@ -286,6 +380,7 @@ def test_training_document_read_confirmation_creates_document_acknowledgement(ap
         title="PR.22 Okuma Onayi",
         training_type="Doküman Okuma Onayı",
         document_id=document.id,
+        document_revision_no_snapshot="3",
         created_by_user_id=manager.id,
     )
     participant = TrainingParticipant(
