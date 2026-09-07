@@ -364,6 +364,38 @@ DOF_STATUSES = (
     DOF_EFFECTIVENESS_STATUS,
     "Tamamlandı",
 )
+LEGAL_DOCUMENT_TYPES = (
+    {
+        "key": "terms",
+        "slug": "kullanim-sartlari",
+        "title": "Kullanım Şartları",
+        "icon": "bi-file-earmark-text",
+        "sort_order": 10,
+    },
+    {
+        "key": "privacy",
+        "slug": "gizlilik-politikasi",
+        "title": "Gizlilik Politikası",
+        "icon": "bi-shield-lock",
+        "sort_order": 20,
+    },
+    {
+        "key": "kvkk",
+        "slug": "kvkk-aydinlatma-metni",
+        "title": "KVKK Aydınlatma Metni",
+        "icon": "bi-person-lock",
+        "sort_order": 30,
+    },
+    {
+        "key": "retention",
+        "slug": "veri-saklama-politikasi",
+        "title": "Veri Saklama Politikası",
+        "icon": "bi-archive",
+        "sort_order": 40,
+    },
+)
+LEGAL_DOCUMENT_TYPE_KEYS = tuple(item["key"] for item in LEGAL_DOCUMENT_TYPES)
+LEGAL_DOCUMENT_STATUSES = ("draft", "published", "archived")
 DOF_APPROVAL_STEPS = (
     "draft",
     "management_representative",
@@ -2249,6 +2281,109 @@ class AppSetting(db.Model):
 
     key = db.Column(db.String(80), primary_key=True)
     value = db.Column(db.String(255), nullable=False)
+
+
+class LegalDocument(db.Model):
+    __tablename__ = "legal_documents"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "document_type",
+            "version",
+            name="uq_legal_documents_type_version",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    document_type = db.Column(db.String(40), nullable=False, index=True)
+    slug = db.Column(db.String(80), nullable=False, index=True)
+    title = db.Column(db.String(160), nullable=False)
+    version = db.Column(db.String(40), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    effective_date = db.Column(db.Date, nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    published_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+    )
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    published_by = db.relationship("User")
+
+
+class LegalAcceptance(db.Model):
+    __tablename__ = "legal_acceptances"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "user_id",
+            "company_id",
+            "legal_document_id",
+            "version",
+            name="uq_legal_acceptances_user_company_document_version",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    legal_document_id = db.Column(
+        db.Integer,
+        db.ForeignKey("legal_documents.id"),
+        nullable=False,
+        index=True,
+    )
+    document_type = db.Column(db.String(40), nullable=False)
+    version = db.Column(db.String(40), nullable=False)
+    accepted_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    ip_address = db.Column(db.String(80), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+
+    company = db.relationship("Company")
+    user = db.relationship("User")
+    legal_document = db.relationship("LegalDocument")
+
+
+class CompanyLegalProfile(db.Model):
+    __tablename__ = "company_legal_profiles"
+
+    company_id = db.Column(
+        db.Integer,
+        db.ForeignKey("companies.id"),
+        primary_key=True,
+    )
+    legal_name = db.Column(db.String(255), nullable=True)
+    legal_address = db.Column(db.Text, nullable=True)
+    tax_number = db.Column(db.String(80), nullable=True)
+    mersis_number = db.Column(db.String(80), nullable=True)
+    kvkk_contact_email = db.Column(db.String(255), nullable=True)
+    data_controller_name = db.Column(db.String(255), nullable=True)
+    dpo_contact = db.Column(db.String(255), nullable=True)
+    updated_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship(
+        "Company",
+        backref=db.backref(
+            "legal_profile",
+            uselist=False,
+            cascade="all, delete-orphan",
+            single_parent=True,
+        ),
+    )
+    updated_by = db.relationship("User")
 
 
 class OrientationNode(db.Model):

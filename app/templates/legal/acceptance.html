@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Hukuki Metin Onay&#305;{% endblock %}
+{% block main_class %}container py-5 legal-public-shell{% endblock %}
+
+{% block content %}
+  <section class="app-card legal-acceptance-card mx-auto">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-shield-check"></i></span>
+      <div>
+        <h1 class="h3 mb-1">Hukuki Metin Onay&#305;</h1>
+        <p class="mb-0">Devam etmek i&#231;in g&#252;ncel hukuki metinleri okuyup kabul edin.</p>
+      </div>
+    </div>
+
+    <div class="legal-acceptance-list">
+      {% for document in pending_documents %}
+        <a href="{{ url_for('main.legal_policy', slug=document.slug) }}" target="_blank" rel="noopener">
+          <span class="app-card-icon"><i class="bi bi-file-earmark-text"></i></span>
+          <span>
+            <strong>{{ document.title }}</strong>
+            <small>Versiyon {{ document.version }}{% if document.effective_date %} - {{ document.effective_date.strftime("%d.%m.%Y") }}{% endif %}</small>
+          </span>
+          <i class="bi bi-box-arrow-up-right"></i>
+        </a>
+      {% endfor %}
+    </div>
+
+    <form id="legal-acceptance-form" class="mt-4" method="post" action="{{ url_for('main.legal_acceptance', next=next_url) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="legal-accept-check" for="accept_legal_documents">
+        <input class="form-check-input" id="accept_legal_documents" name="accept_legal_documents" type="checkbox" value="1" required>
+        <span>
+          Kullan&#305;m &#350;artlar&#305;, Gizlilik Politikas&#305;, KVKK Ayd&#305;nlatma Metni ve Veri Saklama Politikas&#305;n&#305; okudum, anlad&#305;m ve kabul ediyorum.
+        </span>
+      </label>
+    </form>
+    <form id="legal-logout-form" method="post" action="{{ url_for('main.logout') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <div class="app-form-actions justify-content-between">
+      <button class="btn btn-outline-secondary btn-lg" type="submit" form="legal-logout-form">
+        <i class="bi bi-box-arrow-left"></i>
+        <span>&#199;&#305;k&#305;&#351; Yap</span>
+      </button>
+      <button class="btn btn-primary btn-lg" type="submit" form="legal-acceptance-form">
+        <i class="bi bi-check2-circle"></i>
+        <span>Kabul Et ve Devam Et</span>
+      </button>
+    </div>
+  </section>
+{% endblock %}

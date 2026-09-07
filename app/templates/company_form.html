@@ -196,6 +196,53 @@
         </div>
       </div>
 
+      {% set legal_name_value = request.form.get('legal_name', legal_profile.legal_name if legal_profile and legal_profile.legal_name else (company.name if company else '')) %}
+      {% set legal_address_value = request.form.get('legal_address', legal_profile.legal_address if legal_profile and legal_profile.legal_address else '') %}
+      {% set tax_number_value = request.form.get('tax_number', legal_profile.tax_number if legal_profile and legal_profile.tax_number else '') %}
+      {% set mersis_number_value = request.form.get('mersis_number', legal_profile.mersis_number if legal_profile and legal_profile.mersis_number else '') %}
+      {% set kvkk_contact_email_value = request.form.get('kvkk_contact_email', legal_profile.kvkk_contact_email if legal_profile and legal_profile.kvkk_contact_email else '') %}
+      {% set data_controller_name_value = request.form.get('data_controller_name', legal_profile.data_controller_name if legal_profile and legal_profile.data_controller_name else (company.name if company else '')) %}
+      {% set dpo_contact_value = request.form.get('dpo_contact', legal_profile.dpo_contact if legal_profile and legal_profile.dpo_contact else '') %}
+      <div class="company-package-panel">
+        <div class="company-module-panel-header">
+          <div>
+            <h3>Hukuki Profil</h3>
+            <p>KVKK ayd&#305;nlatma metni, gizlilik politikas&#305; ve s&#246;zle&#351;me ekranlar&#305;nda kullan&#305;lacak firma bilgileri.</p>
+          </div>
+          <span class="company-module-note">Opsiyonel</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <label class="form-label" for="legal_name">Ticari Unvan</label>
+            <input class="form-control form-control-lg" id="legal_name" name="legal_name" type="text" maxlength="255" value="{{ legal_name_value }}">
+          </div>
+          <div class="col-lg-4">
+            <label class="form-label" for="data_controller_name">Veri Sorumlusu Ad&#305;</label>
+            <input class="form-control form-control-lg" id="data_controller_name" name="data_controller_name" type="text" maxlength="255" value="{{ data_controller_name_value }}">
+          </div>
+          <div class="col-lg-4">
+            <label class="form-label" for="kvkk_contact_email">KVKK &#304;leti&#351;im E-postas&#305;</label>
+            <input class="form-control form-control-lg" id="kvkk_contact_email" name="kvkk_contact_email" type="email" maxlength="255" value="{{ kvkk_contact_email_value }}">
+          </div>
+          <div class="col-lg-4">
+            <label class="form-label" for="tax_number">Vergi / Kimlik No</label>
+            <input class="form-control form-control-lg" id="tax_number" name="tax_number" type="text" maxlength="80" value="{{ tax_number_value }}">
+          </div>
+          <div class="col-lg-4">
+            <label class="form-label" for="mersis_number">MERS&#304;S No</label>
+            <input class="form-control form-control-lg" id="mersis_number" name="mersis_number" type="text" maxlength="80" value="{{ mersis_number_value }}">
+          </div>
+          <div class="col-lg-4">
+            <label class="form-label" for="dpo_contact">Veri Koruma / Hukuk &#304;leti&#351;imi</label>
+            <input class="form-control form-control-lg" id="dpo_contact" name="dpo_contact" type="text" maxlength="255" value="{{ dpo_contact_value }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="legal_address">Tebligat / Merkez Adresi</label>
+            <textarea class="form-control" id="legal_address" name="legal_address" rows="3" maxlength="4000">{{ legal_address_value }}</textarea>
+          </div>
+        </div>
+      </div>
+
       <div class="company-package-panel">
         <div class="company-module-panel-header">
           <div>

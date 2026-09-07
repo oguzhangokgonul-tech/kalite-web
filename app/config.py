@@ -104,6 +104,19 @@ class Config:
     MAIL_REPLY_TO = os.environ.get("MAIL_REPLY_TO", "")
     MAIL_SUBJECT_PREFIX = os.environ.get("MAIL_SUBJECT_PREFIX", f"[{SITE_NAME}]")
     MAIL_TIMEOUT = int(os.environ.get("MAIL_TIMEOUT", "10"))
+    LEGAL_ACCEPTANCE_REQUIRED = os.environ.get(
+        "LEGAL_ACCEPTANCE_REQUIRED", "false"
+    ).lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    LEGAL_PROVIDER_NAME = os.environ.get("LEGAL_PROVIDER_NAME", SITE_NAME)
+    LEGAL_CONTACT_EMAIL = os.environ.get(
+        "LEGAL_CONTACT_EMAIL",
+        os.environ.get("MAIL_REPLY_TO", ""),
+    )
     NOTIFICATION_AUTO_REMINDERS_ENABLED = os.environ.get(
         "NOTIFICATION_AUTO_REMINDERS_ENABLED", "true"
     ).lower() in {

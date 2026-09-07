@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ document.title }}{% endblock %}
+{% block main_class %}container py-5 legal-public-shell{% endblock %}
+
+{% block content %}
+  <div class="legal-public-grid">
+    <aside class="legal-nav-panel">
+      <div class="legal-brand-mini">
+        <span class="app-card-icon"><i class="bi bi-shield-lock"></i></span>
+        <div>
+          <strong>{{ provider_name }}</strong>
+          <span>Hukuki metin merkezi</span>
+        </div>
+      </div>
+      <nav class="legal-doc-nav" aria-label="Hukuki metinler">
+        {% for item in documents %}
+          <a class="{% if item.id == document.id %}active{% endif %}" href="{{ url_for('main.legal_policy', slug=item.slug) }}">
+            <i class="bi bi-file-earmark-text"></i>
+            <span>{{ item.title }}</span>
+          </a>
+        {% endfor %}
+      </nav>
+      <a class="btn btn-outline-primary w-100 mt-3" href="{{ url_for('main.login') }}">
+        <i class="bi bi-box-arrow-in-right"></i>
+        <span>Giri&#351; ekran&#305;</span>
+      </a>
+    </aside>
+
+    <article class="app-card legal-policy-card">
+      <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+        <div>
+          <span class="text-secondary small fw-semibold">Versiyon {{ document.version }}</span>
+          <h1 class="h2 mt-1 mb-2">{{ document.title }}</h1>
+          <p class="text-secondary mb-0">
+            Bu metin yay&#305;nlanmadan &#246;nce hukuk dan&#305;&#351;man&#305; taraf&#305;ndan kontrol edilmelidir.
+          </p>
+        </div>
+        {% if document.effective_date %}
+          <span class="vp-status-badge vp-status-blue">
+            <i class="bi bi-calendar-check"></i>
+            <span>{{ document.effective_date.strftime("%d.%m.%Y") }}</span>
+          </span>
+        {% endif %}
+      </div>
+
+      {% if legal_profile or provider_contact_email %}
+        <div class="legal-profile-strip mb-4">
+          <div>
+            <span>Firma</span>
+            <strong>{{ legal_profile.legal_name if legal_profile and legal_profile.legal_name else (company.name if company else provider_name) }}</strong>
+          </div>
+          {% if legal_profile and legal_profile.kvkk_contact_email %}
+            <div>
+              <span>KVKK &#304;leti&#351;im</span>
+              <strong>{{ legal_profile.kvkk_contact_email }}</strong>
+            </div>
+          {% elif provider_contact_email %}
+            <div>
+              <span>Destek &#304;leti&#351;im</span>
+              <strong>{{ provider_contact_email }}</strong>
+            </div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <div class="legal-policy-content">{{ document.content }}</div>
+    </article>
+  </div>
+{% endblock %}

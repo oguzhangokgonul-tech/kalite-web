@@ -84,6 +84,9 @@ from .models import (
     InternalAudit,
     InternalAuditAnswer,
     InternalAuditQuestion,
+    CompanyLegalProfile,
+    LegalAcceptance,
+    LegalDocument,
     LoginAttempt,
     MAINTENANCE_MACHINE_STATUSES,
     MaintenanceFault,
@@ -186,6 +189,20 @@ DEFAULT_COMPANY_PRIMARY_COLOR = "#1e5bff"
 DEFAULT_COMPANY_ACCENT_COLOR = "#00bbaa"
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
+LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS = {
+    "static",
+    "main.login",
+    "main.logout",
+    "main.landing",
+    "main.landing_dynamic_preview",
+    "main.legal_index",
+    "main.legal_policy",
+    "main.legal_acceptance",
+    "main.legal_documents_admin",
+    "main.create_legal_document_revision",
+    "main.publish_legal_document",
+    "main.archive_legal_document",
+}
 SALES_READINESS_SECTIONS = (
     {
         "title": "Ana Ürün Checklist'i",
@@ -248,7 +265,7 @@ SALES_READINESS_SECTIONS = (
             ("month4_tenant_tests", "Çoklu firma izolasyonunu testlerle güçlendirme"),
             ("month4_company_package", "Firma bazlı modül paketi, logo, limit ve kota"),
             ("month4_backup", "Yedekleme / geri yükleme prosedürü"),
-            ("month4_legal", "KVKK / GDPR ve sözleşme metinleri"),
+            ("month4_legal", "KVKK / GDPR altyapısı ve sözleşme metinleri"),
             ("month4_admin_panel", "Admin paneline müşteri, disk, hata ve lisans bilgisi"),
         ),
     },
@@ -407,6 +424,9 @@ def assigned_tasks_badge_count():
 def load_logged_in_user():
     ensure_personnel_identity_columns()
     ensure_company_package_schema()
+    from .legal import ensure_legal_schema
+
+    ensure_legal_schema()
     user_id = session.get("user_id")
     g.current_user = User.query.get(user_id) if user_id else None
     g.current_company = None
@@ -489,6 +509,9 @@ def load_logged_in_user():
         ensure_personnel_contact_schema()
         ensure_quality_test_schema()
         ensure_suggestion_schema()
+        legal_redirect = enforce_legal_acceptance()
+        if legal_redirect is not None:
+            return legal_redirect
         maybe_run_due_reminders_for_request(
             company_id=current_company_id(),
             user=g.current_user,
@@ -5694,6 +5717,54 @@ def can_manage_sales_readiness():
 
 def can_manage_system_backups():
     return is_superadmin_account()
+
+
+def can_manage_legal_documents():
+    return is_superadmin_account()
+
+
+def safe_internal_next_url(value=None):
+    target = (value or request.values.get("next") or url_for("main.dashboard")).strip()
+    if not target.startswith("/") or target.startswith("//"):
+        return url_for("main.dashboard")
+    return target
+
+
+def legal_acceptance_endpoint_is_exempt():
+    endpoint = request.endpoint or ""
+    return endpoint in LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS or endpoint.startswith("static")
+
+
+def enforce_legal_acceptance():
+    if g.current_user is None or legal_acceptance_endpoint_is_exempt():
+        return None
+    from .legal import user_needs_legal_acceptance
+
+    if not user_needs_legal_acceptance(g.current_user, g.current_company):
+        return None
+    next_url = request.full_path if request.query_string else request.path
+    return redirect(url_for("main.legal_acceptance", next=next_url))
+
+
+LEGAL_STATUS_LABELS = {
+    "draft": "Taslak",
+    "published": "Yay\u0131nda",
+    "archived": "Ar\u015fiv",
+}
+
+LEGAL_STATUS_TONES = {
+    "draft": "muted",
+    "published": "success",
+    "archived": "muted",
+}
+
+
+def legal_status_label(status):
+    return LEGAL_STATUS_LABELS.get(status, status or "-")
+
+
+def legal_status_tone(status):
+    return LEGAL_STATUS_TONES.get(status, "muted")
 
 
 def can_view_audit_log():
@@ -11418,6 +11489,43 @@ def parse_company_form(company=None):
     return company
 
 
+LEGAL_PROFILE_FIELD_LIMITS = {
+    "legal_name": 255,
+    "legal_address": 4000,
+    "tax_number": 80,
+    "mersis_number": 80,
+    "kvkk_contact_email": 255,
+    "data_controller_name": 255,
+    "dpo_contact": 255,
+}
+
+
+def legal_profile_form_value(field_name, limit):
+    value = (request.form.get(field_name) or "").strip()
+    return value[:limit] if value else None
+
+
+def apply_company_legal_profile_form(company):
+    if not any(field_name in request.form for field_name in LEGAL_PROFILE_FIELD_LIMITS):
+        return None
+
+    values = {
+        field_name: legal_profile_form_value(field_name, limit)
+        for field_name, limit in LEGAL_PROFILE_FIELD_LIMITS.items()
+    }
+    profile = CompanyLegalProfile.query.filter_by(company_id=company.id).first()
+    if profile is None and not any(values.values()):
+        return None
+    if profile is None:
+        profile = CompanyLegalProfile(company_id=company.id)
+        db.session.add(profile)
+
+    for field_name, value in values.items():
+        setattr(profile, field_name, value)
+    profile.updated_by_user_id = g.current_user.id if g.current_user else None
+    return profile
+
+
 def flash_company_form_error(error):
     error_key = str(error)
     extra_messages = {
@@ -11670,10 +11778,12 @@ def company_onboarding_context(company=None):
     )
     workspace = None
     existing_departments = []
+    legal_profile = None
     if company is not None:
         from .company_onboarding import company_workspace_status
 
         workspace = company_workspace_status(company)
+        legal_profile = CompanyLegalProfile.query.filter_by(company_id=company.id).first()
         try:
             existing_departments = (
                 CompanyDepartment.query.filter_by(company_id=company.id, is_active=True)
@@ -11685,6 +11795,7 @@ def company_onboarding_context(company=None):
             existing_departments = []
     return {
         "company": company,
+        "legal_profile": legal_profile,
         "workspace": workspace,
         "existing_departments": existing_departments,
         "company_storage": company_storage_summary(company) if company is not None else None,
@@ -11863,6 +11974,7 @@ def login():
             session.clear()
             session.permanent = remember_me
             session["user_id"] = user.id
+            user_company = None
             if company is not None:
                 session["company_id"] = company.id
             elif user.company_id:
@@ -11870,7 +11982,12 @@ def login():
                 if user_company is not None:
                     session["company_id"] = user_company.id
             flash("Giriş başarılı.", "success")
-            next_url = request.args.get("next") or url_for("main.dashboard")
+            next_url = safe_internal_next_url(request.args.get("next"))
+            from .legal import user_needs_legal_acceptance
+
+            if user_needs_legal_acceptance(user, company or user_company):
+                session["legal_acceptance_next"] = next_url
+                return redirect(url_for("main.legal_acceptance", next=next_url))
             return redirect(next_url)
 
         log_login_attempt(identity, ip_address, False, "wrong_credentials")
@@ -13679,6 +13796,254 @@ def landing():
 @bp.route("/landing-dynamic-preview")
 def landing_dynamic_preview():
     return render_template("public/landing_dynamic.html")
+
+
+def legal_document_admin_rows():
+    from .legal import legal_type_by_key
+
+    type_order = {
+        item["key"]: item["sort_order"]
+        for item in legal_type_choices_for_routes()
+    }
+    documents = LegalDocument.query.order_by(
+        LegalDocument.document_type.asc(),
+        LegalDocument.id.desc(),
+    ).all()
+    documents.sort(key=lambda item: (type_order.get(item.document_type, 999), -item.id))
+    return [
+        {
+            "document": document,
+            "type": legal_type_by_key(document.document_type)
+            or {
+                "key": document.document_type,
+                "title": document.document_type,
+                "icon": "bi-file-earmark-text",
+            },
+            "status_label": legal_status_label(document.status),
+            "status_tone": legal_status_tone(document.status),
+        }
+        for document in documents
+    ]
+
+
+def legal_type_choices_for_routes():
+    from .legal import legal_type_choices
+
+    return legal_type_choices()
+
+
+@bp.get("/legal")
+def legal_index():
+    documents = legal_public_context_for_routes()["documents"]
+    if not documents:
+        abort(404)
+    return redirect(url_for("main.legal_policy", slug=documents[0].slug))
+
+
+def legal_public_context_for_routes(company=None):
+    from .legal import legal_public_context
+
+    return legal_public_context(company)
+
+
+@bp.get("/legal/<slug>")
+def legal_policy(slug):
+    from .legal import published_document_for_slug
+
+    document = published_document_for_slug(slug)
+    if document is None:
+        abort(404)
+    public_company = getattr(g, "current_company", None) or getattr(g, "tenant_company", None)
+    return render_template(
+        "legal/public_policy.html",
+        document=document,
+        **legal_public_context_for_routes(public_company),
+    )
+
+
+@bp.route("/legal/kabul", methods=["GET", "POST"])
+@login_required
+def legal_acceptance():
+    from .legal import pending_legal_documents_for_user, record_legal_acceptances
+
+    next_url = safe_internal_next_url(
+        request.values.get("next") or session.get("legal_acceptance_next")
+    )
+    pending_documents = pending_legal_documents_for_user(g.current_user, g.current_company)
+    if not pending_documents:
+        session.pop("legal_acceptance_next", None)
+        return redirect(next_url)
+
+    if request.method == "POST":
+        if request.form.get("accept_legal_documents") != "1":
+            flash("Devam etmek icin hukuki metinleri kabul etmelisiniz.", "danger")
+        else:
+            record_legal_acceptances(
+                g.current_user,
+                g.current_company,
+                login_client_ip(),
+                login_user_agent(),
+            )
+            session.pop("legal_acceptance_next", None)
+            flash("Hukuki metin kabul kayitlari olusturuldu.", "success")
+            return redirect(next_url)
+
+    return render_template(
+        "legal/acceptance.html",
+        pending_documents=pending_documents,
+        next_url=next_url,
+        **legal_public_context_for_routes(g.current_company),
+    )
+
+
+@bp.get("/sistem/legal-metinler")
+@login_required
+def legal_documents_admin():
+    if not can_manage_legal_documents():
+        abort(403)
+
+    return render_template(
+        "legal/admin.html",
+        legal_types=legal_type_choices_for_routes(),
+        document_rows=legal_document_admin_rows(),
+        status_label=legal_status_label,
+    )
+
+
+@bp.post("/sistem/legal-metinler/yeni-revizyon")
+@login_required
+def create_legal_document_revision():
+    if not can_manage_legal_documents():
+        abort(403)
+
+    from .legal import legal_type_by_key
+
+    document_type = (request.form.get("document_type") or "").strip()
+    legal_type = legal_type_by_key(document_type)
+    version = (request.form.get("version") or "").strip()[:40]
+    title = (request.form.get("title") or "").strip()[:160]
+    content = (request.form.get("content") or "").strip()
+    publish_now = request.form.get("publish_now") == "1"
+
+    if legal_type is None or not version or not content:
+        flash("Metin tipi, versiyon ve icerik zorunludur.", "danger")
+        return redirect(url_for("main.legal_documents_admin"))
+    if not title:
+        title = legal_type["title"]
+
+    try:
+        document = LegalDocument(
+            document_type=document_type,
+            slug=legal_type["slug"],
+            title=title,
+            version=version,
+            content=content,
+            status="draft",
+            effective_date=parse_optional_date("effective_date"),
+        )
+        db.session.add(document)
+        db.session.flush()
+        if publish_now:
+            publish_legal_document_without_commit(document)
+        record_audit_event(
+            "LegalDocument",
+            "legal_document_revision_created",
+            f"{title} hukuki metin revizyonu olusturuldu",
+            entity_id=document.id,
+            details={
+                "document_type": document.document_type,
+                "version": document.version,
+                "published": publish_now,
+            },
+            company_id=None,
+            user_id=g.current_user.id,
+            commit=False,
+        )
+        mark_sales_readiness_item_done_without_commit("month4_legal")
+        db.session.commit()
+        flash("Hukuki metin revizyonu kaydedildi.", "success")
+    except IntegrityError:
+        db.session.rollback()
+        flash("Bu metin tipi ve versiyon daha once kullanilmis.", "danger")
+    except ValueError:
+        db.session.rollback()
+        flash("Yururluk tarihi yyyy-aa-gg formatinda olmalidir.", "danger")
+
+    return redirect(url_for("main.legal_documents_admin"))
+
+
+def publish_legal_document_without_commit(document):
+    for existing in LegalDocument.query.filter(
+        LegalDocument.document_type == document.document_type,
+        LegalDocument.status == "published",
+        LegalDocument.id != document.id,
+    ).all():
+        existing.status = "archived"
+    document.status = "published"
+    document.published_at = datetime.utcnow()
+    document.published_by_user_id = g.current_user.id if g.current_user else None
+    mark_sales_readiness_item_done_without_commit("month4_legal")
+    record_audit_event(
+        "LegalDocument",
+        "legal_document_published",
+        f"{document.title} hukuki metni yayinlandi",
+        entity_id=document.id,
+        details={
+            "document_type": document.document_type,
+            "version": document.version,
+        },
+        company_id=None,
+        user_id=g.current_user.id if g.current_user else None,
+        commit=False,
+    )
+
+
+@bp.post("/sistem/legal-metinler/<int:document_id>/yayinla")
+@login_required
+def publish_legal_document(document_id):
+    if not can_manage_legal_documents():
+        abort(403)
+
+    document = LegalDocument.query.get_or_404(document_id)
+    publish_legal_document_without_commit(document)
+    db.session.commit()
+    flash("Hukuki metin yayina alindi.", "success")
+    return redirect(url_for("main.legal_documents_admin"))
+
+
+@bp.post("/sistem/legal-metinler/<int:document_id>/arsivle")
+@login_required
+def archive_legal_document(document_id):
+    if not can_manage_legal_documents():
+        abort(403)
+
+    document = LegalDocument.query.get_or_404(document_id)
+    if document.status == "published":
+        published_count = LegalDocument.query.filter_by(
+            document_type=document.document_type,
+            status="published",
+        ).count()
+        if published_count <= 1:
+            flash("Her metin tipi icin en az bir yayinlanmis metin kalmalidir.", "danger")
+            return redirect(url_for("main.legal_documents_admin"))
+
+    document.status = "archived"
+    record_audit_event(
+        "LegalDocument",
+        "legal_document_archived",
+        f"{document.title} hukuki metni arsivlendi",
+        entity_id=document.id,
+        details={
+            "document_type": document.document_type,
+            "version": document.version,
+        },
+        company_id=None,
+        user_id=g.current_user.id if g.current_user else None,
+        commit=False,
+    )
+    db.session.commit()
+    flash("Hukuki metin arsive alindi.", "success")
+    return redirect(url_for("main.legal_documents_admin"))
 
 
 @bp.route("/")
@@ -19155,6 +19520,7 @@ def company_onboarding_wizard():
             company = parse_company_form()
             db.session.add(company)
             db.session.flush()
+            apply_company_legal_profile_form(company)
             old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             created_items = initialize_company_onboarding(
                 company,
@@ -19287,6 +19653,7 @@ def create_company():
             selected_module_keys = selected_company_module_keys_from_form()
             db.session.add(company)
             db.session.flush()
+            apply_company_legal_profile_form(company)
             old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             initialize_company_workspace(company)
             sync_company_modules(company, selected_module_keys)
@@ -19317,6 +19684,7 @@ def create_company():
         custom_package_key=CUSTOM_PACKAGE_KEY,
         module_catalog=company_module_catalog(),
         module_state=company_module_form_state(None),
+        legal_profile=None,
         core_module_keys=ISO_CORE_MODULE_KEYS,
         production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
         submit_label="Şirketi Kaydet",
@@ -19335,6 +19703,7 @@ def edit_company(company_id):
         try:
             parse_company_form(company)
             selected_module_keys = selected_company_module_keys_from_form()
+            apply_company_legal_profile_form(company)
             old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             sync_company_modules(company, selected_module_keys)
             company.package_key = resolved_company_package_key(
@@ -19364,6 +19733,7 @@ def edit_company(company_id):
         custom_package_key=CUSTOM_PACKAGE_KEY,
         module_catalog=company_module_catalog(),
         module_state=company_module_form_state(company),
+        legal_profile=CompanyLegalProfile.query.filter_by(company_id=company.id).first(),
         core_module_keys=ISO_CORE_MODULE_KEYS,
         production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
         submit_label="Değişiklikleri Kaydet",

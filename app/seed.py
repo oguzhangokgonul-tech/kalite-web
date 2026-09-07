@@ -1589,6 +1589,9 @@ def ensure_runtime_schema():
 
     tables = set(inspect(db.engine).get_table_names())
     if "app_settings" in tables:
+        from .legal import ensure_legal_schema
+
+        ensure_legal_schema()
         for readiness_key in (
             "sales_readiness:audit_log",
             "sales_readiness:iso_dashboard",
@@ -1605,6 +1608,7 @@ def ensure_runtime_schema():
             "sales_readiness:month4_tenant_tests",
             "sales_readiness:month4_company_package",
             "sales_readiness:month4_backup",
+            "sales_readiness:month4_legal",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",

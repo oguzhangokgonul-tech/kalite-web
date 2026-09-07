@@ -12,6 +12,7 @@
   {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set system_backups_active = request.endpoint in ['main.system_backups', 'main.create_system_backup', 'main.download_system_backup', 'main.verify_system_backup'] %}
+  {% set legal_documents_active = request.endpoint in ['main.legal_documents_admin', 'main.create_legal_document_revision', 'main.publish_legal_document', 'main.archive_legal_document'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
@@ -72,6 +73,10 @@
           <a class="dashboard-nav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
             <i class="bi bi-cloud-arrow-up"></i>
             <span>Sistem Yedekleri</span>
+          </a>
+          <a class="dashboard-nav-item {% if legal_documents_active %}active{% endif %}" href="{{ url_for('main.legal_documents_admin') }}">
+            <i class="bi bi-file-earmark-lock"></i>
+            <span>Hukuki Metinler</span>
           </a>
         {% endif %}
         {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}
