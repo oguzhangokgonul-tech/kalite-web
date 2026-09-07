@@ -121,3 +121,16 @@ def test_sales_readiness_persists_completed_items(app, client):
     assert f"{SALES_READINESS_SETTING_PREFIX}training_module" not in settings
     body = response.get_data(as_text=True)
     assert "2 / 45 madde" in body
+
+
+def test_runtime_schema_marks_sales_readiness_tenant_tests_done(app):
+    from app.seed import ensure_runtime_schema
+
+    AppSetting.query.delete()
+    db.session.commit()
+
+    ensure_runtime_schema()
+
+    setting = db.session.get(AppSetting, "sales_readiness:month4_tenant_tests")
+    assert setting is not None
+    assert setting.value == "1"

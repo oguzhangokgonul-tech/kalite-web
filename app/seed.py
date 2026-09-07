@@ -1596,6 +1596,7 @@ def ensure_runtime_schema():
             "sales_readiness:month3_management_review",
             "sales_readiness:supplier_module",
             "sales_readiness:month3_supplier",
+            "sales_readiness:month4_tenant_tests",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",

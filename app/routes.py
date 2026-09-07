@@ -422,18 +422,49 @@ def load_logged_in_user():
             (g.current_user.username or "").strip().lower() == "superadmin"
         )
         session_company_id = session.get("company_id")
-        if g.tenant_company is not None and session_company_id != g.tenant_company.id:
+        if (
+            g.tenant_company is not None
+            and not g.current_user_is_super_admin
+            and g.current_user.company_id != g.tenant_company.id
+        ):
+            session.clear()
+            g.current_user = None
+            g.current_user_initials = ""
+            g.current_user_is_super_admin = False
+            g.current_user_is_superadmin_account = False
             g.current_company = g.tenant_company
-            session["company_id"] = g.tenant_company.id
-        elif session_company_id:
-            g.current_company = db.session.get(Company, session_company_id)
-        elif g.tenant_company is not None:
-            g.current_company = g.tenant_company
-            session["company_id"] = g.tenant_company.id
-        elif g.current_user.company_id and not g.current_user_is_super_admin:
+            g.enabled_company_modules = company_module_state(g.current_company)
+            if request.endpoint != "main.login":
+                flash(
+                    "Bu şirket alanına erişmek için ilgili şirket hesabıyla giriş yapın.",
+                    "warning",
+                )
+                return redirect(url_for("main.login", next=request.full_path))
+            return
+
+        if g.current_user_is_super_admin:
+            if g.tenant_company is not None:
+                g.current_company = g.tenant_company
+                session["company_id"] = g.tenant_company.id
+            elif session_company_id:
+                g.current_company = db.session.get(Company, session_company_id)
+        elif g.current_user.company_id:
             g.current_company = db.session.get(Company, g.current_user.company_id)
             if g.current_company is not None:
                 session["company_id"] = g.current_company.id
+            else:
+                session.pop("company_id", None)
+        elif g.tenant_company is not None:
+            session.clear()
+            g.current_user = None
+            g.current_user_initials = ""
+            if request.endpoint != "main.login":
+                flash(
+                    "Bu şirket alanına erişmek için ilgili şirket hesabıyla giriş yapın.",
+                    "warning",
+                )
+                return redirect(url_for("main.login", next=request.full_path))
+            return
         g.enabled_company_modules = company_module_state(g.current_company)
         enforce_company_module_access()
         ensure_company_department_schema()
@@ -2340,6 +2371,7 @@ MODULE_ENDPOINTS = {
     "main.edit_calibration_record": "calibration",
     "main.delete_calibration_record": "calibration",
     "main.personnel_contacts": "human_resources",
+    "main.download_personnel_contacts_report": "human_resources",
     "main.create_personnel_contact": "human_resources",
     "main.edit_personnel_contact": "human_resources",
     "main.delete_personnel_contact": "human_resources",
