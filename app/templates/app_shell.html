@@ -12,6 +12,7 @@
   {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set system_backups_active = request.endpoint in ['main.system_backups', 'main.create_system_backup', 'main.download_system_backup', 'main.verify_system_backup'] %}
+  {% set system_admin_panel_active = request.endpoint == 'main.system_admin_panel' %}
   {% set legal_documents_active = request.endpoint in ['main.legal_documents_admin', 'main.create_legal_document_revision', 'main.publish_legal_document', 'main.archive_legal_document'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
@@ -73,6 +74,10 @@
           <a class="dashboard-nav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
             <i class="bi bi-cloud-arrow-up"></i>
             <span>Sistem Yedekleri</span>
+          </a>
+          <a class="dashboard-nav-item {% if system_admin_panel_active %}active{% endif %}" href="{{ url_for('main.system_admin_panel') }}">
+            <i class="bi bi-speedometer2"></i>
+            <span>Admin Paneli</span>
           </a>
           <a class="dashboard-nav-item {% if legal_documents_active %}active{% endif %}" href="{{ url_for('main.legal_documents_admin') }}">
             <i class="bi bi-file-earmark-lock"></i>

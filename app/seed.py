@@ -1609,6 +1609,7 @@ def ensure_runtime_schema():
             "sales_readiness:month4_company_package",
             "sales_readiness:month4_backup",
             "sales_readiness:month4_legal",
+            "sales_readiness:month4_admin_panel",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
             "sales_readiness:notification_upgrade",

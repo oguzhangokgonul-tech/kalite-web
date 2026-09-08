@@ -14740,6 +14740,164 @@ textarea.form-control::placeholder {
     white-space: normal;
 }
 
+.system-admin-metrics .dashboard-stat-card small {
+    grid-column: 2;
+    color: var(--vp-text-secondary);
+    font-size: 0.8rem;
+    line-height: 1.25;
+}
+
+.system-admin-health-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.system-admin-health-card,
+.system-admin-panel-card {
+    padding: 22px;
+}
+
+.system-admin-health-card {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+}
+
+.system-admin-health-title {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.system-admin-health-title h2,
+.system-admin-section-head h2 {
+    margin: 0;
+    color: var(--vp-text-primary);
+    font-size: 1rem;
+    font-weight: 720;
+    letter-spacing: 0;
+}
+
+.system-admin-health-title p,
+.system-admin-section-head p {
+    margin: 4px 0 0;
+    color: var(--vp-text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.system-admin-health-card dl {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.system-admin-health-card dl div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+}
+
+.system-admin-health-card dt {
+    color: var(--vp-text-secondary);
+    font-size: 0.78rem;
+    font-weight: 650;
+}
+
+.system-admin-health-card dd {
+    margin: 0;
+    color: var(--vp-text-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
+.system-admin-meter {
+    width: 100%;
+}
+
+.system-admin-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.system-admin-package-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.system-admin-company-table {
+    min-width: 1180px;
+}
+
+.system-admin-log-list,
+.system-admin-audit-list {
+    display: grid;
+    gap: 10px;
+}
+
+.system-admin-log-item,
+.system-admin-audit-item {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    background: #f8fbff;
+    border: 1px solid var(--vp-border);
+    border-radius: 8px;
+}
+
+.system-admin-log-item strong,
+.system-admin-audit-item strong {
+    color: var(--vp-text-primary);
+    font-size: 0.84rem;
+}
+
+.system-admin-log-item span,
+.system-admin-audit-item span,
+.system-admin-audit-item small {
+    color: var(--vp-text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.system-admin-audit-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+}
+
+@media (max-width: 1400px) {
+    .system-admin-health-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .system-admin-health-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .system-admin-section-head,
+    .system-admin-audit-item {
+        display: grid;
+    }
+
+    .system-admin-package-list {
+        justify-content: flex-start;
+    }
+}
+
 .legal-public-shell {
     max-width: 1180px;
 }

@@ -1,0 +1,247 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Admin Paneli{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Admin Paneli", "Müşteri, lisans, disk, yedek, mail ve hata durumunu tek ekranda izleyin.", icon="bi-speedometer2") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.companies') }}">
+      <i class="bi bi-buildings"></i>
+      <span>&#350;irket Y&#246;netimi</span>
+    </a>
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.system_backups') }}">
+      <i class="bi bi-cloud-arrow-up"></i>
+      <span>Sistem Yedekleri</span>
+    </a>
+  {% endcall %}
+
+  <section class="dashboard-metrics system-admin-metrics">
+    {% for metric in metrics %}
+      <div class="dashboard-stat-card stat-{{ metric.tone }}">
+        <span class="stat-icon"><i class="bi {{ metric.icon }}"></i></span>
+        <span class="stat-label">{{ metric.label }}</span>
+        <strong>{{ metric.value }}</strong>
+        <small>{{ metric.subtitle }}</small>
+      </div>
+    {% endfor %}
+  </section>
+
+  <section class="system-admin-health-grid mb-4">
+    <article class="document-list-card system-admin-health-card">
+      <div class="system-admin-health-title">
+        <span class="app-card-icon"><i class="bi bi-database-check"></i></span>
+        <div>
+          <h2>Veritaban&#305;</h2>
+          <p>{{ database.detail }}</p>
+        </div>
+      </div>
+      {{ ui.status_badge(database.label, tone=database.tone) }}
+      <dl>
+        <div><dt>Boyut</dt><dd>{{ database.size_label }}</dd></div>
+        <div><dt>Durum</dt><dd>{{ database.label }}</dd></div>
+      </dl>
+    </article>
+
+    <article class="document-list-card system-admin-health-card">
+      <div class="system-admin-health-title">
+        <span class="app-card-icon"><i class="bi bi-envelope-check"></i></span>
+        <div>
+          <h2>Mail</h2>
+          <p>{{ mail.server }}:{{ mail.port }}</p>
+        </div>
+      </div>
+      {{ ui.status_badge(mail.label, tone=mail.tone) }}
+      <dl>
+        <div><dt>Son Gönderim</dt><dd>{{ mail.last_sent_label }}</dd></div>
+        <div><dt>Gönderen</dt><dd>{{ mail.sender }}</dd></div>
+      </dl>
+    </article>
+
+    <article class="document-list-card system-admin-health-card">
+      <div class="system-admin-health-title">
+        <span class="app-card-icon"><i class="bi bi-cloud-check"></i></span>
+        <div>
+          <h2>Yedek</h2>
+          <p>{{ backup.directory }}</p>
+        </div>
+      </div>
+      {{ ui.status_badge(backup.label, tone=backup.tone) }}
+      <dl>
+        <div><dt>Son Yedek</dt><dd>{{ backup.latest_label }}</dd></div>
+        <div><dt>Boyut</dt><dd>{{ backup.latest_size_label }}</dd></div>
+      </dl>
+    </article>
+
+    <article class="document-list-card system-admin-health-card">
+      <div class="system-admin-health-title">
+        <span class="app-card-icon"><i class="bi bi-hdd-network"></i></span>
+        <div>
+          <h2>Disk</h2>
+          <p>{{ disk.path }}</p>
+        </div>
+      </div>
+      {{ ui.status_badge("Uygun" if disk.available else "Kontrol Edilemedi", tone="success" if disk.available else "danger") }}
+      <dl>
+        <div><dt>Kullanım</dt><dd>{{ disk.used_label }} / {{ disk.total_label }}</dd></div>
+        <div><dt>Boş Alan</dt><dd>{{ disk.free_label }}</dd></div>
+      </dl>
+      <span class="company-usage-meter system-admin-meter"><span style="width: {{ disk.percent }}%"></span></span>
+    </article>
+  </section>
+
+  <section class="document-list-card system-admin-panel-card mb-4">
+    <div class="system-admin-section-head">
+      <div>
+        <h2>Müşteri ve Lisans Özeti</h2>
+        <p>{{ totals.company_count }} firma, {{ totals.demo_company_count }} demo firma, {{ totals.user_limit_risk_count }} kullanıcı limiti riski, {{ totals.storage_risk_count }} kota riski.</p>
+      </div>
+      <div class="system-admin-package-list">
+        {% for label, count in package_counts.items() %}
+          <span class="vp-status-badge vp-status-blue">
+            <i class="bi bi-patch-check"></i>
+            <span>{{ label }}: {{ count }}</span>
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="company-table-wrapper">
+      <table class="table app-table company-admin-table system-admin-company-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Firma</th>
+            <th>Durum</th>
+            <th>Paket</th>
+            <th>Kullanıcı</th>
+            <th>Depolama</th>
+            <th>Modül</th>
+            <th>Kayıt</th>
+            <th>Son Aktivite</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in company_rows %}
+            {% set company = row.company %}
+            {% set storage = row.storage %}
+            <tr>
+              <td>
+                <strong>{{ company.name }}</strong>
+                <small>{{ company.code }} / {{ company.slug or "-" }}</small>
+                {% if company.primary_domain %}
+                  <small>{{ company.primary_domain }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <div class="vstack gap-1 align-items-start">
+                  {{ ui.status_badge(row.status_label, tone="success" if company.is_active else "muted") }}
+                  {{ ui.status_badge("Demo" if company.is_demo else "Gerçek", tone="info" if company.is_demo else "success") }}
+                  {{ ui.status_badge("Hazır" if row.setup_ready else "Eksik", tone="success" if row.setup_ready else "warning") }}
+                </div>
+              </td>
+              <td><span class="company-code-badge">{{ row.package_label }}</span></td>
+              <td>
+                <div class="company-usage-cell">
+                  <strong>{{ row.active_users }} / {{ row.user_limit_label }}</strong>
+                  {% if row.user_percent is not none %}
+                    <span class="company-usage-meter"><span style="width: {{ row.user_percent }}%"></span></span>
+                  {% else %}
+                    <small>Limitsiz</small>
+                  {% endif %}
+                  <small>{{ row.total_users }} toplam hesap</small>
+                </div>
+              </td>
+              <td>
+                <div class="company-usage-cell">
+                  <strong>{{ storage.used_label }} / {{ storage.quota_label }}</strong>
+                  {% if storage.percent is not none %}
+                    <span class="company-usage-meter"><span style="width: {{ storage.percent }}%"></span></span>
+                  {% else %}
+                    <small>Kota yok</small>
+                  {% endif %}
+                </div>
+              </td>
+              <td>{{ row.module_count }}</td>
+              <td>
+                <small>Aksiyon: {{ row.actions }}</small>
+                <small>IF: {{ row.dofs }}</small>
+                <small>Doküman: {{ row.documents }}</small>
+              </td>
+              <td>{{ row.last_activity_label }}</td>
+              <td class="text-end">
+                <div class="vp-table-actions">
+                  <a class="btn vp-action-link vp-action-info vp-action-btn" href="{{ url_for('main.company_onboarding_status', company_id=company.id) }}" title="Kurulum" aria-label="Kurulum">
+                    <i class="bi bi-list-check"></i>
+                  </a>
+                  <a class="btn vp-action-link vp-action-primary vp-action-btn" href="{{ url_for('main.edit_company', company_id=company.id) }}" title="Düzenle" aria-label="Düzenle">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9">
+                {{ ui.empty_state("Henüz firma yok.", "Yeni müşteri kurulumu için Şirket Yönetimi ekranını kullanın.", icon="bi-buildings") }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="row g-4">
+    <div class="col-xl-7">
+      <section class="document-list-card system-admin-panel-card h-100">
+        <div class="system-admin-section-head">
+          <div>
+            <h2>Son Hata Kayıtları</h2>
+            <p>Uygulama loglarının son bölümünden sınırlı okuma yapılır.</p>
+          </div>
+          <span class="vp-status-badge vp-status-{{ 'danger' if recent_error_rows else 'success' }}">
+            <i class="bi {{ 'bi-exclamation-circle' if recent_error_rows else 'bi-check-circle' }}"></i>
+            <span>{{ recent_error_rows|length }} kayıt</span>
+          </span>
+        </div>
+        <div class="system-admin-log-list">
+          {% for row in recent_error_rows %}
+            <article class="system-admin-log-item">
+              <strong>{{ row.source }}</strong>
+              <span>{{ row.message }}</span>
+            </article>
+          {% else %}
+            {{ ui.empty_state("Son hata bulunmadı.", "Okunan uygulama loglarında kritik hata satırı yok.", icon="bi-check-circle") }}
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+    <div class="col-xl-5">
+      <section class="document-list-card system-admin-panel-card h-100">
+        <div class="system-admin-section-head">
+          <div>
+            <h2>Son Kritik İşlemler</h2>
+            <p>Audit log üzerinden en yeni hareketler.</p>
+          </div>
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.audit_log') }}">
+            <i class="bi bi-activity"></i>
+            <span>Denetim Logu</span>
+          </a>
+        </div>
+        <div class="system-admin-audit-list">
+          {% for row in latest_audit_rows %}
+            <article class="system-admin-audit-item">
+              <div>
+                <strong>{{ row.summary }}</strong>
+                <small>{{ row.entity }} / {{ row.actor }}</small>
+              </div>
+              <span>{{ row.created_at_label }}</span>
+            </article>
+          {% else %}
+            {{ ui.empty_state("Audit log kaydı yok.", "Kritik işlemler oluştukça burada görünür.", icon="bi-activity") }}
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}

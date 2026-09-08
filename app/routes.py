@@ -5719,6 +5719,10 @@ def can_manage_system_backups():
     return is_superadmin_account()
 
 
+def can_view_system_admin_panel():
+    return is_superadmin_account()
+
+
 def can_manage_legal_documents():
     return is_superadmin_account()
 
@@ -14191,6 +14195,20 @@ def verify_system_backup(backup_name):
     else:
         flash("Yedek dogrulamasi basarisiz: " + "; ".join(result.issues), "danger")
     return redirect(url_for("main.system_backups"))
+
+
+@bp.get("/sistem/admin-paneli")
+@login_required
+def system_admin_panel():
+    if not can_view_system_admin_panel():
+        abort(403)
+
+    from .system_admin import system_admin_context
+
+    context = system_admin_context()
+    mark_sales_readiness_item_done_without_commit("month4_admin_panel")
+    db.session.commit()
+    return render_template("system_admin_panel.html", **context)
 
 
 @bp.route("/risk-yonetimi")
