@@ -79,6 +79,9 @@ def test_sales_readiness_page_renders_checklist(app, client):
     assert "Satışa Hazırlık" in body
     assert "ISO 9001 KYS Çekirdek" in body
     assert "audit_log" in body
+    assert "Rakip Analizi - ISO 9001 / QDMS Modülleri" in body
+    assert "Değişiklik yönetimi modülü" in body
+    assert "Mobil uyumlu PWA / QR ile hızlı bildirim" in body
 
 
 def test_sales_readiness_sidebar_link_only_for_superadmin_account(app, client):
@@ -120,7 +123,7 @@ def test_sales_readiness_persists_completed_items(app, client):
     assert settings[f"{SALES_READINESS_SETTING_PREFIX}risk_module"] == "1"
     assert f"{SALES_READINESS_SETTING_PREFIX}training_module" not in settings
     body = response.get_data(as_text=True)
-    assert "2 / 45 madde" in body
+    assert "2 / 79 madde" in body
 
 
 def test_runtime_schema_marks_sales_readiness_tenant_tests_done(app):
