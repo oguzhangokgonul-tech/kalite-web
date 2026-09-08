@@ -83,6 +83,7 @@ def onboarding_payload(**overrides):
             "suggestions",
             "if_management",
             "risk_management",
+            "change_management",
             "training",
             "internal_audit",
             "management_review",
@@ -150,6 +151,7 @@ def test_company_onboarding_wizard_creates_complete_company_workspace(app, clien
     }
     assert modules["documents"] is True
     assert modules["if_management"] is True
+    assert modules["change_management"] is True
     assert modules["maintenance"] is False
     assert modules["quality_tests"] is False
 

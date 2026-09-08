@@ -17,6 +17,7 @@
   {% set legal_documents_active = request.endpoint in ['main.legal_documents_admin', 'main.create_legal_document_revision', 'main.publish_legal_document', 'main.archive_legal_document'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
+  {% set change_management_active = request.endpoint in ['main.change_management_dashboard', 'main.create_change_request', 'main.change_request_detail', 'main.edit_change_request', 'main.approve_change_request', 'main.reject_change_request', 'main.mark_change_request_implemented', 'main.close_change_request_effectiveness', 'main.archive_change_request', 'main.download_change_request_file'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.deactivate_supplier'] %}
@@ -189,6 +190,12 @@
         <a class="dashboard-nav-item {% if risk_management_active %}active{% endif %}" href="{{ url_for('main.risk_dashboard') }}">
           <i class="bi bi-exclamation-diamond"></i>
           <span>Risk Yönetimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('change_management') and (g.current_user.has_permission('change_management.view') or g.current_user.has_permission('change_management.create') or g.current_user.has_permission('change_management.manage') or g.current_user.has_permission('change_management.approve')) %}
+        <a class="dashboard-nav-item {% if change_management_active %}active{% endif %}" href="{{ url_for('main.change_management_dashboard') }}">
+          <i class="bi bi-arrow-repeat"></i>
+          <span>De&#287;i&#351;iklik Y&#246;netimi</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('training') and (g.current_user.has_permission('training.view') or g.current_user.has_permission('training.manage')) %}

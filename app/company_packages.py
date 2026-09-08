@@ -18,6 +18,7 @@ ISO_CORE_MODULE_KEYS = {
     "suggestions",
     "if_management",
     "risk_management",
+    "change_management",
     "training",
     "internal_audit",
     "management_review",

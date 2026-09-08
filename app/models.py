@@ -172,6 +172,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "change_management",
+        "name": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
+        "icon": "bi-arrow-repeat",
+        "sort_order": 56,
+        "parent_key": None,
+    },
+    {
         "key": "training",
         "name": "Eğitim / Yeterlilik",
         "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
@@ -221,6 +229,38 @@ COMPANY_MODULE_CATALOG = (
     },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
+CHANGE_REQUEST_TYPES = (
+    "Dok\u00fcman",
+    "Proses",
+    "Ekipman",
+    "\u00dcr\u00fcn / Hizmet",
+    "Tedarik\u00e7i",
+    "Organizasyon",
+    "Yaz\u0131l\u0131m / Sistem",
+    "Di\u011fer",
+)
+CHANGE_REQUEST_RISK_LEVELS = ("D\u00fc\u015f\u00fck", "Orta", "Y\u00fcksek")
+CHANGE_REQUEST_STATUS_PENDING = "Onay Bekliyor"
+CHANGE_REQUEST_STATUS_REJECTED = "Reddedildi"
+CHANGE_REQUEST_STATUS_APPROVED = "Onayland\u0131"
+CHANGE_REQUEST_STATUS_IN_PROGRESS = "Uygulamada"
+CHANGE_REQUEST_STATUS_EFFECTIVENESS = "Etkinlik Kontrol\u00fc"
+CHANGE_REQUEST_STATUS_CLOSED = "Kapand\u0131"
+CHANGE_REQUEST_STATUS_ARCHIVED = "Ar\u015fiv"
+CHANGE_REQUEST_STATUSES = (
+    CHANGE_REQUEST_STATUS_PENDING,
+    CHANGE_REQUEST_STATUS_REJECTED,
+    CHANGE_REQUEST_STATUS_APPROVED,
+    CHANGE_REQUEST_STATUS_IN_PROGRESS,
+    CHANGE_REQUEST_STATUS_EFFECTIVENESS,
+    CHANGE_REQUEST_STATUS_CLOSED,
+    CHANGE_REQUEST_STATUS_ARCHIVED,
+)
+CHANGE_REQUEST_FILE_KINDS = (
+    "talep",
+    "uygulama",
+    "etkinlik",
+)
 QUALITY_TEST_MODULE_BY_SLUG = {
     "beton-deneyi": "quality_test_concrete",
     "metilen-deneyi": "quality_test_methylene",
@@ -1342,6 +1382,105 @@ class SupplierEvaluation(db.Model):
 
     supplier = db.relationship("SupplierRecord", back_populates="evaluations")
     evaluated_by = db.relationship("User", foreign_keys=[evaluated_by_user_id])
+
+
+class ChangeRequest(db.Model):
+    __tablename__ = "change_requests"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "change_no",
+            name="uq_change_requests_company_change_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    change_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(180), nullable=False)
+    change_type = db.Column(db.String(60), nullable=False, default="Proses")
+    description = db.Column(db.Text, nullable=True)
+    reason = db.Column(db.Text, nullable=True)
+    scope = db.Column(db.Text, nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    process_name = db.Column(db.String(160), nullable=True)
+    risk_level = db.Column(db.String(40), nullable=False, default="Orta")
+    status = db.Column(db.String(40), nullable=False, default=CHANGE_REQUEST_STATUS_PENDING)
+    planned_date = db.Column(db.Date, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    effective_date = db.Column(db.Date, nullable=True)
+    requester_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    approval_note = db.Column(db.Text, nullable=True)
+    implementation_note = db.Column(db.Text, nullable=True)
+    effectiveness_note = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    requester = db.relationship("User", foreign_keys=[requester_user_id])
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    approver = db.relationship("User", foreign_keys=[approver_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    document = db.relationship("Document", foreign_keys=[document_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    files = db.relationship(
+        "ChangeRequestFile",
+        back_populates="change_request",
+        cascade="all, delete-orphan",
+        order_by="ChangeRequestFile.created_at.asc()",
+    )
+
+    @property
+    def is_closed(self):
+        return self.status in {
+            CHANGE_REQUEST_STATUS_REJECTED,
+            CHANGE_REQUEST_STATUS_CLOSED,
+            CHANGE_REQUEST_STATUS_ARCHIVED,
+        }
+
+    @property
+    def delay_days(self):
+        if self.is_closed or not self.due_date:
+            return 0
+        return max((date.today() - self.due_date).days, 0)
+
+
+class ChangeRequestFile(db.Model):
+    __tablename__ = "change_request_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    change_request_id = db.Column(
+        db.Integer,
+        db.ForeignKey("change_requests.id"),
+        nullable=False,
+        index=True,
+    )
+    file_kind = db.Column(db.String(40), nullable=False, default="talep")
+    file_name = db.Column(db.String(255), nullable=False)
+    original_file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(20), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    change_request = db.relationship("ChangeRequest", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class DocumentCategory(db.Model):

@@ -1,0 +1,202 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}De&#287;i&#351;iklik Y&#246;netimi{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("De&#287;i&#351;iklik Y&#246;netimi"|safe, "Dok&#252;man, proses, ekipman ve sistem de&#287;i&#351;ikliklerini onay ve etkinlik kontrol&#252;yle takip edin."|safe, icon="bi-arrow-repeat") %}
+    {% if can_create_change_requests %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_change_request') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Talep</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Aktif Kay&#305;t</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">Onay Bekliyor</span>
+      <strong>{{ pending_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-calendar-x"></i></span>
+      <span class="stat-label">Termin Ge&#231;ti</span>
+      <strong>{{ overdue_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
+      <span class="stat-label">Kapanan</span>
+      <strong>{{ closed_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="No, ba&#351;l&#305;k, gerek&#231;e veya s&#252;re&#231; ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">T&#252;m&#252;</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">T&#252;m&#252;</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="risk_level">Risk</label>
+        <select class="form-select" id="risk_level" name="risk_level">
+          <option value="">T&#252;m&#252;</option>
+          {% for level in risk_levels %}
+            <option value="{{ level }}" {% if filters.risk_level == level %}selected{% endif %}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="visibility">Kay&#305;tlar</label>
+        <select class="form-select" id="visibility" name="visibility">
+          <option value="active" {% if filters.visibility == "active" %}selected{% endif %}>Aktif</option>
+          <option value="archive" {% if filters.visibility == "archive" %}selected{% endif %}>Ar&#351;iv</option>
+          <option value="all" {% if filters.visibility == "all" %}selected{% endif %}>T&#252;m&#252;</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.change_management_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>De&#287;i&#351;iklik No</th>
+            <th>Ba&#351;l&#305;k / Tip</th>
+            <th>Departman / S&#252;re&#231;</th>
+            <th>Risk</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th>Ba&#287;lant&#305;</th>
+            <th class="text-end">&#304;&#351;lemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for change in changes %}
+            <tr>
+              <td><strong>{{ change.change_no }}</strong></td>
+              <td>
+                <a class="fw-semibold text-primary text-decoration-none" href="{{ url_for('main.change_request_detail', change_id=change.id) }}">{{ change.title }}</a>
+                <small class="d-block text-secondary">{{ change.change_type }}</small>
+              </td>
+              <td>
+                <span>{{ change.department or "-" }}</span>
+                {% if change.process_name %}
+                  <small class="d-block text-secondary">{{ change.process_name }}</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(change.risk_level, tone=change_request_risk_tone(change.risk_level), icon="bi-exclamation-diamond") }}</td>
+              <td>
+                <span>{{ change.responsible.full_name if change.responsible else "-" }}</span>
+                <small class="d-block text-secondary">Onay: {{ change.approver.full_name if change.approver else "-" }}</small>
+              </td>
+              <td>
+                <span>{{ format_date(change.due_date) }}</span>
+                {% if change.delay_days > 0 %}
+                  <small class="d-block text-danger fw-semibold">{{ change.delay_days }} g&#252;n ge&#231;ti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(change.status, tone=change_request_status_tone(change.status)) }}</td>
+              <td>
+                <div class="vstack gap-1">
+                  {% if change.document %}
+                    <a class="text-decoration-none" href="{{ url_for('main.document_detail', document_id=change.document.id) }}"><i class="bi bi-file-earmark-text"></i> {{ change.document.document_code }}</a>
+                  {% endif %}
+                  {% if change.action %}
+                    <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=change.action.id) }}"><i class="bi bi-clipboard-check"></i> {{ change.action.number_label }}</a>
+                  {% endif %}
+                  {% if change.risk %}
+                    <a class="text-decoration-none" href="{{ url_for('main.risk_dashboard', search=change.risk.risk_no) }}"><i class="bi bi-exclamation-diamond"></i> {{ change.risk.risk_no }}</a>
+                  {% endif %}
+                  {% if change.dof %}
+                    <a class="text-decoration-none" href="{{ url_for('main.dof_detail', dof_id=change.dof.id) }}"><i class="bi bi-shield-check"></i> {{ change.dof.dof_no }}</a>
+                  {% endif %}
+                  {% if not change.document and not change.action and not change.risk and not change.dof %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.change_request_detail', change_id=change.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  {% if can_manage_change_requests or (change.status == "Onay Bekliyor" and change.created_by_user_id == g.current_user.id) %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_change_request', change_id=change.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>D&#252;zenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_approve_change_requests and change.status == "Onay Bekliyor" %}
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.change_request_detail', change_id=change.id) }}">
+                      <i class="bi bi-check2-circle"></i>
+                      <span>Onaya Git</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_change_requests and change.status != statuses[-1] %}
+                    <form action="{{ url_for('main.archive_change_request', change_id=change.id) }}" method="post" onsubmit="return confirm('De&#287;i&#351;iklik kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-archive"></i>
+                        <span>Ar&#351;ivle</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="9">
+                <strong>Hen&#252;z de&#287;i&#351;iklik talebi yok.</strong>
+                <span>Yeni talep eklendi&#287;inde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ total_count }} kay&#305;t</span>
+    </div>
+  </section>
+{% endblock %}

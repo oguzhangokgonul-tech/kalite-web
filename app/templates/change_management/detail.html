@@ -1,0 +1,379 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ change_request.change_no }}{% endblock %}
+
+{% block app_content %}
+  <style>
+    .change-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
+      gap: 16px;
+    }
+    .change-info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .change-info-item {
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: #fff;
+      min-height: 74px;
+    }
+    .change-info-item span,
+    .change-workflow-step span {
+      display: block;
+      color: #64748b;
+      font-size: 0.78rem;
+      font-weight: 650;
+      margin-bottom: 4px;
+    }
+    .change-info-item strong {
+      color: #0f172a;
+      font-size: 0.96rem;
+      overflow-wrap: anywhere;
+    }
+    .change-note {
+      min-height: 78px;
+      color: #1e293b;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .change-workflow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .change-workflow-step {
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fff;
+    }
+    .change-workflow-step i {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      color: #2563eb;
+      background: #eff6ff;
+      margin-bottom: 8px;
+    }
+    .change-file-row,
+    .change-link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #0f172a;
+      text-decoration: none;
+      background: #fff;
+    }
+    .change-file-row + .change-file-row,
+    .change-link-row + .change-link-row {
+      margin-top: 8px;
+    }
+    .change-action-stack {
+      display: grid;
+      gap: 12px;
+    }
+    @media (max-width: 1200px) {
+      .change-detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 768px) {
+      .change-info-grid,
+      .change-workflow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  {% call ui.page_header(change_request.change_no, change_request.title, icon="bi-arrow-repeat") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.change_management_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Listeye D&#246;n</span>
+    </a>
+    {% if can_edit_current %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_change_request', change_id=change_request.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>D&#252;zenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-flag"></i></span>
+      <span class="stat-label">Durum</span>
+      <strong>{{ change_request.status }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-exclamation-diamond"></i></span>
+      <span class="stat-label">Risk Seviyesi</span>
+      <strong>{{ change_request.risk_level }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="stat-label">Termin</span>
+      <strong>{{ format_date(change_request.due_date) }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-hourglass-bottom"></i></span>
+      <span class="stat-label">Gecikme</span>
+      <strong>{{ change_request.delay_days }} g&#252;n</strong>
+    </div>
+  </div>
+
+  <div class="change-detail-grid">
+    <div class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+          <div>
+            <h3 class="h5 mb-1">Talep Bilgileri</h3>
+            <p class="text-secondary mb-0">De&#287;i&#351;ikli&#287;in tan&#305;m&#305;, gerek&#231;esi ve etki kapsam&#305;.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge(change_request.status, tone=change_request_status_tone(change_request.status)) }}
+            {{ ui.status_badge(change_request.risk_level, tone=change_request_risk_tone(change_request.risk_level), icon="bi-exclamation-diamond") }}
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <label class="form-label">De&#287;i&#351;iklik Tan&#305;m&#305;</label>
+            <div class="change-note">{{ change_request.description or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">Gerek&#231;e</label>
+            <div class="change-note">{{ change_request.reason or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">Etki / Kapsam</label>
+            <div class="change-note">{{ change_request.scope or "-" }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Sorumluluk ve Zaman Plan&#305;</h3>
+        <div class="change-info-grid">
+          <div class="change-info-item">
+            <span>Talep Eden</span>
+            <strong>{{ change_request.requester.full_name if change_request.requester else "-" }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Uygulama Sorumlusu</span>
+            <strong>{{ change_request.responsible.full_name if change_request.responsible else "-" }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Onaylayan</span>
+            <strong>{{ change_request.approver.full_name if change_request.approver else "-" }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Departman</span>
+            <strong>{{ change_request.department or "-" }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>S&#252;re&#231; / Alan</span>
+            <strong>{{ change_request.process_name or "-" }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Tip</span>
+            <strong>{{ change_request.change_type }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Planlanan Tarih</span>
+            <strong>{{ format_date(change_request.planned_date) }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Uygulama Tarihi</span>
+            <strong>{{ format_date(change_request.effective_date) }}</strong>
+          </div>
+          <div class="change-info-item">
+            <span>Olu&#351;turma</span>
+            <strong>{{ format_date(change_request.created_at.date() if change_request.created_at else None) }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">S&#252;re&#231; Ak&#305;&#351;&#305;</h3>
+        <div class="change-workflow">
+          <div class="change-workflow-step">
+            <i class="bi bi-plus-circle"></i>
+            <span>1. Talep</span>
+            <strong>{{ format_date(change_request.created_at.date() if change_request.created_at else None) }}</strong>
+          </div>
+          <div class="change-workflow-step">
+            <i class="bi bi-patch-check"></i>
+            <span>2. Onay</span>
+            <strong>{{ change_request.approver.full_name if change_request.approver else "Bekliyor" }}</strong>
+          </div>
+          <div class="change-workflow-step">
+            <i class="bi bi-tools"></i>
+            <span>3. Uygulama</span>
+            <strong>{{ format_date(change_request.effective_date) }}</strong>
+          </div>
+          <div class="change-workflow-step">
+            <i class="bi bi-check2-circle"></i>
+            <span>4. Etkinlik</span>
+            <strong>{{ "Tamamland&#305;"|safe if change_request.is_closed else "Bekliyor" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% if change_request.approval_note or change_request.implementation_note or change_request.effectiveness_note %}
+        <section class="document-list-card p-4">
+          <h3 class="h5 mb-3">Karar ve Uygulama Notlar&#305;</h3>
+          <div class="row g-3">
+            {% if change_request.approval_note %}
+              <div class="col-md-4">
+                <label class="form-label">Onay Notu</label>
+                <div class="change-note">{{ change_request.approval_note }}</div>
+              </div>
+            {% endif %}
+            {% if change_request.implementation_note %}
+              <div class="col-md-4">
+                <label class="form-label">Uygulama Notu</label>
+                <div class="change-note">{{ change_request.implementation_note }}</div>
+              </div>
+            {% endif %}
+            {% if change_request.effectiveness_note %}
+              <div class="col-md-4">
+                <label class="form-label">Etkinlik Notu</label>
+                <div class="change-note">{{ change_request.effectiveness_note }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ba&#287;lant&#305;l&#305; Kay&#305;tlar</h3>
+        {% if change_request.document %}
+          <a class="change-link-row" href="{{ url_for('main.document_detail', document_id=change_request.document.id) }}">
+            <span><i class="bi bi-file-earmark-text text-primary"></i> Dok&#252;man</span>
+            <strong>{{ change_request.document.document_code }}</strong>
+          </a>
+        {% endif %}
+        {% if change_request.action %}
+          <a class="change-link-row" href="{{ url_for('main.action_detail', action_id=change_request.action.id) }}">
+            <span><i class="bi bi-clipboard-check text-primary"></i> Aksiyon</span>
+            <strong>{{ change_request.action.number_label }}</strong>
+          </a>
+        {% endif %}
+        {% if change_request.risk %}
+          <a class="change-link-row" href="{{ url_for('main.risk_dashboard', search=change_request.risk.risk_no) }}">
+            <span><i class="bi bi-exclamation-diamond text-primary"></i> Risk</span>
+            <strong>{{ change_request.risk.risk_no }}</strong>
+          </a>
+        {% endif %}
+        {% if change_request.dof %}
+          <a class="change-link-row" href="{{ url_for('main.dof_detail', dof_id=change_request.dof.id) }}">
+            <span><i class="bi bi-shield-check text-primary"></i> IF/D&#214;F</span>
+            <strong>{{ change_request.dof.dof_no }}</strong>
+          </a>
+        {% endif %}
+        {% if not change_request.document and not change_request.action and not change_request.risk and not change_request.dof %}
+          {{ ui.empty_state("Ba&#287;lant&#305; yok"|safe, "Bu de&#287;i&#351;iklik kayd&#305; ba&#351;ka bir kayda ba&#287;lanmam&#305;&#351;."|safe, icon="bi-link-45deg") }}
+        {% endif %}
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ekler</h3>
+        {% for file in change_request.files %}
+          <a class="change-file-row" href="{{ url_for('main.download_change_request_file', file_id=file.id) }}">
+            <span>
+              <i class="bi bi-paperclip text-primary"></i>
+              {{ file.original_file_name }}
+              <small class="d-block text-secondary">{{ change_request_file_kind_label(file.file_kind) }} - {{ format_file_size(file.file_size) }}</small>
+            </span>
+            <i class="bi bi-download"></i>
+          </a>
+        {% else %}
+          {{ ui.empty_state("Ek yok"|safe, "Talep, uygulama veya etkinlik kan&#305;t&#305; eklenmemi&#351;."|safe, icon="bi-paperclip") }}
+        {% endfor %}
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">&#304;&#351;lemler</h3>
+        <div class="change-action-stack">
+          {% if can_show_approval %}
+            <form method="post" action="{{ url_for('main.approve_change_request', change_id=change_request.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="approval_note">Onay Notu</label>
+              <textarea class="form-control mb-2" id="approval_note" name="approval_note" rows="3"></textarea>
+              <button class="btn btn-success w-100" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Onayla</span>
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('main.reject_change_request', change_id=change_request.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="rejection_note">Ret Notu</label>
+              <textarea class="form-control mb-2" id="rejection_note" name="approval_note" rows="3"></textarea>
+              <button class="btn btn-outline-danger w-100" type="submit">
+                <i class="bi bi-x-circle"></i>
+                <span>Reddet</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_implementation %}
+            <form method="post" action="{{ url_for('main.mark_change_request_implemented', change_id=change_request.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="effective_date">Uygulama Tarihi</label>
+              <input class="form-control mb-2" id="effective_date" name="effective_date" type="date" value="{{ today.isoformat() }}">
+              <label class="form-label" for="implementation_note">Uygulama Notu</label>
+              <textarea class="form-control mb-2" id="implementation_note" name="implementation_note" rows="3"></textarea>
+              <label class="form-label" for="implementation_files">Uygulama Kan&#305;t&#305;</label>
+              <input class="form-control mb-3" id="implementation_files" name="implementation_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-primary w-100" type="submit">
+                <i class="bi bi-tools"></i>
+                <span>Uyguland&#305; Olarak Kaydet</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_effectiveness %}
+            <form method="post" action="{{ url_for('main.close_change_request_effectiveness', change_id=change_request.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="effectiveness_note">Etkinlik Kontrol&#252; Notu</label>
+              <textarea class="form-control mb-2" id="effectiveness_note" name="effectiveness_note" rows="3"></textarea>
+              <label class="form-label" for="effectiveness_files">Etkinlik Kan&#305;t&#305;</label>
+              <input class="form-control mb-3" id="effectiveness_files" name="effectiveness_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-success w-100" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Etkinlik Kontrol&#252;n&#252; Kapat</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_delete_change_requests and change_request.status != status_archived %}
+            <form method="post" action="{{ url_for('main.archive_change_request', change_id=change_request.id) }}" onsubmit="return confirm('De&#287;i&#351;iklik kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger w-100" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Ar&#351;ivle</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if not can_show_approval and not can_show_implementation and not can_show_effectiveness and not (can_delete_change_requests and change_request.status != status_archived) %}
+            <p class="text-secondary mb-0">Bu a&#351;amada yapabilece&#287;iniz i&#351;lem yok.</p>
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

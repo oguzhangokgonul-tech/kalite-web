@@ -48,7 +48,7 @@
           <h2 class="h5 mb-2">{{ card.title }}</h2>
           <p class="text-secondary mb-4">{{ card.description }}</p>
           <div class="d-flex flex-wrap gap-2 mt-auto">
-            {% if can_export_reports %}
+            {% if card.can_export %}
               <a class="btn btn-primary" href="{{ card.excel_url }}">
                 <i class="bi bi-file-earmark-excel"></i>
                 <span>Excel İndir</span>

@@ -40,6 +40,7 @@ from .mail import (
     send_vehicle_reminder_email,
 )
 from .notifications import (
+    add_user_notification,
     add_notifications,
     ensure_notification_schema,
     mark_notifications_email_sent,
@@ -59,6 +60,19 @@ from .models import (
     AuditLog,
     CalibrationRecord,
     CAPA_TYPES,
+    ChangeRequest,
+    ChangeRequestFile,
+    CHANGE_REQUEST_FILE_KINDS,
+    CHANGE_REQUEST_RISK_LEVELS,
+    CHANGE_REQUEST_STATUS_APPROVED,
+    CHANGE_REQUEST_STATUS_ARCHIVED,
+    CHANGE_REQUEST_STATUS_CLOSED,
+    CHANGE_REQUEST_STATUS_EFFECTIVENESS,
+    CHANGE_REQUEST_STATUS_IN_PROGRESS,
+    CHANGE_REQUEST_STATUS_PENDING,
+    CHANGE_REQUEST_STATUS_REJECTED,
+    CHANGE_REQUEST_STATUSES,
+    CHANGE_REQUEST_TYPES,
     ComplaintRecord,
     Company,
     CompanyDepartment,
@@ -2612,6 +2626,16 @@ MODULE_ENDPOINTS = {
     "main.create_risk": "risk_management",
     "main.edit_risk": "risk_management",
     "main.delete_risk": "risk_management",
+    "main.change_management_dashboard": "change_management",
+    "main.create_change_request": "change_management",
+    "main.change_request_detail": "change_management",
+    "main.edit_change_request": "change_management",
+    "main.approve_change_request": "change_management",
+    "main.reject_change_request": "change_management",
+    "main.mark_change_request_implemented": "change_management",
+    "main.close_change_request_effectiveness": "change_management",
+    "main.archive_change_request": "change_management",
+    "main.download_change_request_file": "change_management",
     "main.training_dashboard": "training",
     "main.create_training": "training",
     "main.edit_training": "training",
@@ -7375,6 +7399,58 @@ def report_risks_data():
     }
 
 
+def report_change_requests_data():
+    changes = sorted(change_request_query().all(), key=change_request_sort_key)
+    rows = [
+        (
+            change.change_no,
+            change.title,
+            change.change_type,
+            change.department or "-",
+            change.process_name or "-",
+            change.risk_level,
+            change.status,
+            report_user_name(change.requester),
+            report_user_name(change.responsible),
+            report_user_name(change.approver),
+            format_date(change.planned_date),
+            format_date(change.due_date),
+            change.delay_days,
+            format_date(change.effective_date),
+            change.document.document_code if change.document else "-",
+            change.action.number_label if change.action else "-",
+            change.risk.risk_no if change.risk else "-",
+            change.dof.dof_no if change.dof else "-",
+        )
+        for change in changes
+    ]
+    return {
+        "headers": (
+            "De\u011fi\u015fiklik No",
+            "Ba\u015fl\u0131k",
+            "Tip",
+            "Departman",
+            "S\u00fcre\u00e7",
+            "Risk",
+            "Durum",
+            "Talep Eden",
+            "Uygulama Sorumlusu",
+            "Onaylayan",
+            "Plan Tarihi",
+            "Termin",
+            "Gecikme G\u00fcn\u00fc",
+            "Etki Tarihi",
+            "Ba\u011fl\u0131 Dok\u00fcman",
+            "Ba\u011fl\u0131 Aksiyon",
+            "Ba\u011fl\u0131 Risk",
+            "Ba\u011fl\u0131 IF/D\u00d6F",
+        ),
+        "rows": rows,
+        "sheet_name": "Degisiklikler",
+        "column_widths": (18, 36, 18, 18, 24, 12, 20, 24, 24, 24, 16, 16, 16, 16, 18, 18, 18, 18),
+    }
+
+
 def report_trainings_data():
     trainings = (
         scoped_query(TrainingRecord.query, TrainingRecord)
@@ -7640,6 +7716,17 @@ REPORT_CENTER_REPORTS = (
         "builder": report_risks_data,
     },
     {
+        "key": "change_requests",
+        "title": "De\u011fi\u015fiklik Y\u00f6netimi Raporu",
+        "description": "De\u011fi\u015fiklik taleplerinin onay, uygulama, etkinlik ve ba\u011flant\u0131 \u00f6zeti.",
+        "icon": "bi-arrow-repeat",
+        "tone": "blue",
+        "module_key": "change_management",
+        "required_permission": "change_management.view",
+        "required_export_permission": "change_management.export",
+        "builder": report_change_requests_data,
+    },
+    {
         "key": "trainings",
         "title": "Eğitim / Yeterlilik Raporu",
         "description": "Atanan eğitimler, katılımcı sayıları ve tamamlanma durumu.",
@@ -7687,11 +7774,23 @@ REPORT_CENTER_REPORTS = (
 )
 
 
+def report_definition_access_allowed(definition, export=False):
+    module_key = definition.get("module_key")
+    if module_key and not company_module_enabled(module_key):
+        return False
+    required_permission = definition.get("required_permission")
+    if required_permission and not current_user_can(required_permission):
+        return False
+    required_export_permission = definition.get("required_export_permission")
+    if export and required_export_permission and not current_user_can(required_export_permission):
+        return False
+    return True
+
+
 def report_center_export_data(report_key):
     for definition in REPORT_CENTER_REPORTS:
         if definition["key"] == report_key:
-            module_key = definition.get("module_key")
-            if module_key and not company_module_enabled(module_key):
+            if not report_definition_access_allowed(definition, export=True):
                 return None
             data = definition["builder"]()
             return {**definition, **data}
@@ -7701,14 +7800,15 @@ def report_center_export_data(report_key):
 def report_center_cards():
     cards = []
     for definition in REPORT_CENTER_REPORTS:
-        module_key = definition.get("module_key")
-        if module_key and not company_module_enabled(module_key):
+        if not report_definition_access_allowed(definition):
             continue
         data = definition["builder"]()
         cards.append(
             {
                 **definition,
                 "count": len(data["rows"]),
+                "can_export": can_export_reports()
+                and report_definition_access_allowed(definition, export=True),
                 "excel_url": url_for(
                     "main.download_report_center_excel",
                     report_key=definition["key"],
@@ -12428,6 +12528,7 @@ NOTIFICATION_FILTERS = (
     ("document", "Doküman"),
     ("dof", "IF/DÖF"),
     ("action", "Aksiyon"),
+    ("change", "De\u011fi\u015fiklik"),
 )
 
 
@@ -12454,6 +12555,8 @@ def notification_source_label(notification):
         return "Kalibrasyon"
     if source_key.startswith("risk:"):
         return "Risk"
+    if source_key.startswith("change:"):
+        return "De\u011fi\u015fiklik"
     if source_key.startswith("training:"):
         return "Eğitim"
     if source_key.startswith("complaint:"):
@@ -12500,6 +12603,8 @@ def notification_matches_filter(notification, filter_key):
         return bool(notification.dof) or source_key.startswith("dof:")
     if filter_key == "action":
         return bool(notification.action) or source_key.startswith(("action:", "sub-action:"))
+    if filter_key == "change":
+        return source_key.startswith("change:")
     return True
 
 
@@ -13959,6 +14064,91 @@ def assigned_supplier_tasks(scope):
     return rows
 
 
+def assigned_change_management_tasks(scope):
+    if not company_module_enabled("change_management") or not can_view_change_requests():
+        return []
+
+    user_id = g.current_user.id
+    query = change_request_query()
+    if scope == "created":
+        query = query.filter(
+            or_(
+                ChangeRequest.created_by_user_id == user_id,
+                ChangeRequest.requester_user_id == user_id,
+            )
+        )
+    else:
+        filters = [
+            ChangeRequest.responsible_user_id == user_id,
+            ChangeRequest.approver_user_id == user_id,
+        ]
+        if can_approve_change_requests():
+            filters.append(ChangeRequest.status == CHANGE_REQUEST_STATUS_PENDING)
+        query = query.filter(or_(*filters))
+
+    rows = []
+    seen_ids = set()
+    for change_request in query.all():
+        if change_request.id in seen_ids:
+            continue
+        seen_ids.add(change_request.id)
+        status = change_request.status or CHANGE_REQUEST_STATUS_PENDING
+        status_key = change_request_status_key(change_request)
+        if status_key in {"completed", "cancelled", "rejected"}:
+            continue
+        if (
+            status_key in {"open", "pending"}
+            and change_request.due_date
+            and change_request.due_date < date.today()
+        ):
+            status, status_key = "Gecikti", "delayed"
+        if scope != "created":
+            if (
+                change_request.status == CHANGE_REQUEST_STATUS_PENDING
+                and not can_approve_change_requests()
+                and change_request.approver_user_id != user_id
+            ):
+                continue
+            if (
+                change_request.status in {
+                    CHANGE_REQUEST_STATUS_APPROVED,
+                    CHANGE_REQUEST_STATUS_IN_PROGRESS,
+                }
+                and change_request.responsible_user_id != user_id
+                and not can_manage_change_requests()
+            ):
+                continue
+            if (
+                change_request.status == CHANGE_REQUEST_STATUS_EFFECTIVENESS
+                and change_request.approver_user_id != user_id
+                and not can_approve_change_requests()
+            ):
+                continue
+        rows.append(
+            assigned_task_row(
+                module_key="change_management",
+                module_label="De\u011fi\u015fiklik",
+                module_icon="arrow-repeat",
+                module_tone="change",
+                title=f"{change_request.change_no} {change_request.title}",
+                description=change_request.description or change_request.reason,
+                reference_no=change_request.change_no,
+                department=change_request.department or "De\u011fi\u015fiklik Y\u00f6netimi",
+                due_date=change_request.due_date or assigned_date(change_request.created_at),
+                status=status,
+                status_key=status_key,
+                priority=change_request.risk_level or "Orta",
+                detail_url=url_for(
+                    "main.change_request_detail",
+                    change_id=change_request.id,
+                ),
+                created_at=change_request.created_at,
+                sort_id=change_request.id,
+            )
+        )
+    return rows
+
+
 def assigned_all_tasks(scope):
     return (
         assigned_action_tasks(scope)
@@ -13974,6 +14164,7 @@ def assigned_all_tasks(scope):
         + assigned_calibration_tasks(scope)
         + assigned_quality_test_tasks(scope)
         + assigned_supplier_tasks(scope)
+        + assigned_change_management_tasks(scope)
     )
 
 
@@ -13994,6 +14185,7 @@ ASSIGNED_TAB_MODULES = {
         "risk",
         "training",
         "document_revision",
+        "change_management",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -14009,6 +14201,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("maintenance", "Bakım"),
     ("training", "Eğitim"),
     ("risk", "Risk"),
+    ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
     ("complaint", "Şikayet"),
@@ -14805,6 +14998,903 @@ def delete_risk(risk_id):
     db.session.commit()
     flash("Risk kaydı silindi.", "success")
     return redirect(url_for("main.risk_dashboard"))
+
+
+def can_view_change_requests():
+    return (
+        current_user_can("change_management.view")
+        or can_create_change_requests()
+        or can_manage_change_requests()
+        or can_approve_change_requests()
+    )
+
+
+def can_create_change_requests():
+    return current_user_can("change_management.create") or can_manage_change_requests()
+
+
+def can_manage_change_requests():
+    return current_user_can("change_management.manage")
+
+
+def can_approve_change_requests():
+    return current_user_can("change_management.approve")
+
+
+def can_delete_change_requests():
+    return current_user_can("change_management.delete")
+
+
+def change_request_query():
+    return scoped_query(ChangeRequest.query, ChangeRequest)
+
+
+def change_request_status_key(change_request):
+    status = change_request.status or CHANGE_REQUEST_STATUS_PENDING
+    if status == CHANGE_REQUEST_STATUS_CLOSED:
+        return "completed"
+    if status == CHANGE_REQUEST_STATUS_ARCHIVED:
+        return "cancelled"
+    if status == CHANGE_REQUEST_STATUS_REJECTED:
+        return "rejected"
+    if status in {CHANGE_REQUEST_STATUS_PENDING, CHANGE_REQUEST_STATUS_EFFECTIVENESS}:
+        return "pending"
+    return "open"
+
+
+def change_request_status_tone(status):
+    return {
+        CHANGE_REQUEST_STATUS_PENDING: "warning",
+        CHANGE_REQUEST_STATUS_REJECTED: "danger",
+        CHANGE_REQUEST_STATUS_APPROVED: "success",
+        CHANGE_REQUEST_STATUS_IN_PROGRESS: "info",
+        CHANGE_REQUEST_STATUS_EFFECTIVENESS: "warning",
+        CHANGE_REQUEST_STATUS_CLOSED: "success",
+        CHANGE_REQUEST_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def change_request_risk_tone(level):
+    return {
+        "Y\u00fcksek": "danger",
+        "Orta": "warning",
+        "D\u00fc\u015f\u00fck": "success",
+    }.get(level, "muted")
+
+
+def change_request_file_kind_label(file_kind):
+    return {
+        "talep": "Talep eki",
+        "uygulama": "Uygulama kan\u0131t\u0131",
+        "etkinlik": "Etkinlik kan\u0131t\u0131",
+    }.get(file_kind, "Dosya")
+
+
+def change_request_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "risk_level": request.args.get("risk_level", "").strip(),
+        "visibility": request.args.get("visibility", "active").strip() or "active",
+    }
+
+
+def change_request_sort_key(change_request):
+    if change_request.status == CHANGE_REQUEST_STATUS_ARCHIVED:
+        status_rank = 5
+    elif change_request.status == CHANGE_REQUEST_STATUS_CLOSED:
+        status_rank = 4
+    elif change_request.status == CHANGE_REQUEST_STATUS_REJECTED:
+        status_rank = 3
+    elif change_request.delay_days:
+        status_rank = 0
+    elif change_request.status == CHANGE_REQUEST_STATUS_PENDING:
+        status_rank = 1
+    else:
+        status_rank = 2
+    return (
+        status_rank,
+        -change_request.delay_days,
+        change_request.due_date or date.max,
+        -(change_request.id or 0),
+    )
+
+
+def filtered_change_requests(filters):
+    query = change_request_query()
+    if filters["visibility"] == "archive":
+        query = query.filter(ChangeRequest.status == CHANGE_REQUEST_STATUS_ARCHIVED)
+    elif filters["visibility"] != "all":
+        query = query.filter(ChangeRequest.status != CHANGE_REQUEST_STATUS_ARCHIVED)
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                ChangeRequest.change_no.ilike(search_value),
+                ChangeRequest.title.ilike(search_value),
+                ChangeRequest.description.ilike(search_value),
+                ChangeRequest.reason.ilike(search_value),
+                ChangeRequest.process_name.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(ChangeRequest.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(ChangeRequest.status == filters["status"])
+    if filters["risk_level"]:
+        query = query.filter(ChangeRequest.risk_level == filters["risk_level"])
+    return sorted(query.all(), key=change_request_sort_key)
+
+
+def next_change_request_no():
+    prefix = f"DGY-{date.today().year}-"
+    rows = (
+        scoped_query(ChangeRequest.query.with_entities(ChangeRequest.change_no), ChangeRequest)
+        .filter(ChangeRequest.change_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (change_no,) in rows:
+        try:
+            numbers.append(int((change_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def default_change_request_approver():
+    representatives = document_management_representatives()
+    if representatives:
+        return representatives[0]
+    if can_approve_change_requests():
+        return g.current_user
+    return None
+
+
+def change_request_link_choices():
+    documents = []
+    actions = []
+    dofs = []
+    risks = []
+    if company_module_enabled("documents") and can_view_documents():
+        documents = sort_documents_by_code(document_query().all())
+    if current_user_can("actions.view_all") or current_user_can("actions.create"):
+        actions = (
+            visible_actions_query()
+            .order_by(Action.termin_date.asc(), Action.id.asc())
+            .all()
+        )
+    if company_module_enabled("if_management"):
+        dofs = attach_dof_view_state(
+            visible_dofs_query().order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        )
+    if company_module_enabled("risk_management") and can_view_risks():
+        risks = sorted(risk_query().all(), key=lambda item: (item.risk_no, item.id))
+    return documents, actions, dofs, risks
+
+
+def parse_change_request_form(change_request=None):
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "change_type": request.form.get("change_type", "Proses").strip() or "Proses",
+        "description": request.form.get("description", "").strip(),
+        "reason": request.form.get("reason", "").strip(),
+        "scope": request.form.get("scope", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "process_name": request.form.get("process_name", "").strip(),
+        "risk_level": request.form.get("risk_level", "Orta").strip() or "Orta",
+        "planned_date": parse_optional_date("planned_date"),
+        "due_date": parse_optional_date("due_date"),
+        "responsible_user_id": request.form.get("responsible_user_id", type=int),
+        "approver_user_id": request.form.get("approver_user_id", type=int),
+        "document_id": request.form.get("document_id", type=int),
+        "action_id": request.form.get("action_id", type=int),
+        "risk_id": request.form.get("risk_id", type=int),
+        "dof_id": request.form.get("dof_id", type=int),
+    }
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["change_type"] not in CHANGE_REQUEST_TYPES:
+        raise ValueError("invalid_change_type")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["risk_level"] not in CHANGE_REQUEST_RISK_LEVELS:
+        raise ValueError("invalid_risk_level")
+    if values["planned_date"] and values["due_date"] and values["due_date"] < values["planned_date"]:
+        raise ValueError("invalid_date_range")
+    for key in ("description", "reason", "scope"):
+        if len(values[key]) > 3000:
+            raise ValueError("text_too_long")
+    if len(values["process_name"]) > 160:
+        raise ValueError("text_too_long")
+    if change_request and not values["approver_user_id"]:
+        values["approver_user_id"] = change_request.approver_user_id
+    if not values["approver_user_id"]:
+        approver = default_change_request_approver()
+        values["approver_user_id"] = approver.id if approver else None
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_change_request_links(change_request):
+    for field_name, error_key in (
+        ("responsible_user_id", "invalid_responsible"),
+        ("approver_user_id", "invalid_approver"),
+    ):
+        user_id = getattr(change_request, field_name)
+        if user_id and active_user_by_id(user_id) is None:
+            raise ValueError(error_key)
+
+    if change_request.document_id:
+        document = document_query().filter_by(id=change_request.document_id).first()
+        if document is None:
+            raise ValueError("invalid_document")
+    if change_request.action_id:
+        action = visible_actions_query().filter_by(id=change_request.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action")
+    if change_request.dof_id:
+        dof = visible_dofs_query().filter_by(id=change_request.dof_id).first()
+        if dof is None:
+            raise ValueError("invalid_dof")
+    if change_request.risk_id:
+        risk = risk_query().filter_by(id=change_request.risk_id).first()
+        if risk is None:
+            raise ValueError("invalid_risk")
+
+
+def change_request_form_error_message(error_key):
+    return {
+        "required_fields": "De\u011fi\u015fiklik ba\u015fl\u0131\u011f\u0131 zorunludur.",
+        "invalid_change_type": "Ge\u00e7erli bir de\u011fi\u015fiklik tipi se\u00e7in.",
+        "invalid_department": "Ge\u00e7erli bir departman se\u00e7in.",
+        "invalid_risk_level": "Ge\u00e7erli bir risk seviyesi se\u00e7in.",
+        "invalid_date": "Tarih alanlar\u0131n\u0131 yyyy-aa-gg format\u0131nda girin.",
+        "invalid_date_range": "Termin tarihi planlanan tarihten \u00f6nce olamaz.",
+        "invalid_responsible": "Ge\u00e7erli bir uygulama sorumlusu se\u00e7in.",
+        "invalid_approver": "Ge\u00e7erli bir onaylayan se\u00e7in.",
+        "invalid_document": "Ba\u011flanacak dok\u00fcman bulunamad\u0131.",
+        "invalid_action": "Ba\u011flanacak aksiyon bulunamad\u0131.",
+        "invalid_dof": "Ba\u011flanacak IF/D\u00d6F bulunamad\u0131.",
+        "invalid_risk": "Ba\u011flanacak risk bulunamad\u0131.",
+        "invalid_document_file_type": "Sadece PDF, Office veya g\u00f6rsel dosyas\u0131 y\u00fckleyebilirsiniz.",
+        "document_file_too_large": "Dosya en fazla 25 MB olabilir.",
+        "storage_quota_exceeded": "Firma depolama kotas\u0131 a\u015f\u0131ld\u0131.",
+        "text_too_long": "Metin alanlar\u0131ndan biri \u00e7ok uzun.",
+    }.get(error_key, "De\u011fi\u015fiklik kayd\u0131 kaydedilemedi.")
+
+
+def change_request_uploads(field_name="change_files"):
+    return [
+        uploaded_file
+        for uploaded_file in request.files.getlist(field_name)
+        if uploaded_file and uploaded_file.filename
+    ]
+
+
+def save_change_request_file(uploaded_file, change_request, file_kind):
+    if file_kind not in CHANGE_REQUEST_FILE_KINDS:
+        file_kind = "talep"
+    if not document_allowed_file(uploaded_file):
+        raise ValueError("invalid_document_file_type")
+
+    original_name = safe_original_filename(uploaded_file.filename, "degisiklik-dosyasi")
+    extension = file_extension(uploaded_file.filename)
+    if not original_name:
+        original_name = f"degisiklik-dosyasi.{extension}"
+    stored_name = f"change-request-{uuid4().hex}.{extension}"
+    company_id = change_request.company_id or current_company_id()
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        Path("change_requests") / file_kind,
+        company_id,
+    )
+    assert_company_storage_quota(company_id, uploaded_stream_size(uploaded_file))
+    uploaded_file.save(upload_path)
+
+    if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("document_file_too_large")
+    try:
+        assert_company_storage_quota(company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
+
+    request_file = ChangeRequestFile(
+        change_request=change_request,
+        company_id=company_id,
+        file_kind=file_kind,
+        file_name=stored_name,
+        original_file_name=original_name,
+        file_path=str(relative_path).replace("\\", "/"),
+        file_type=extension,
+        file_size=upload_path.stat().st_size,
+        uploaded_by_user_id=g.current_user.id if g.current_user else None,
+    )
+    assign_current_company(request_file)
+    return request_file
+
+
+def delete_change_request_file(change_file):
+    if change_file and change_file.file_path:
+        delete_stored_upload(change_file.file_path)
+
+
+def notify_change_request(user, change_request, event_key, message, notification_type="info"):
+    return add_user_notification(
+        user,
+        message,
+        company_id=change_request.company_id,
+        notification_type=notification_type,
+        source_key=f"change:{change_request.id}:{event_key}",
+        target_url=url_for("main.change_request_detail", change_id=change_request.id),
+        due_date=change_request.due_date,
+    )
+
+
+def notify_change_request_users(
+    users,
+    change_request,
+    event_key,
+    message,
+    notification_type="info",
+    exclude_user_id=None,
+):
+    created = []
+    for user in unique_users(users):
+        if exclude_user_id and user.id == exclude_user_id:
+            continue
+        notification = notify_change_request(
+            user,
+            change_request,
+            event_key,
+            message,
+            notification_type=notification_type,
+        )
+        if notification is not None:
+            created.append(notification)
+    return created
+
+
+def mark_change_management_sales_readiness_without_commit():
+    has_record = ChangeRequest.query.count() > 0
+    has_approved_record = (
+        ChangeRequest.query.filter(
+            ChangeRequest.status.in_(
+                (
+                    CHANGE_REQUEST_STATUS_APPROVED,
+                    CHANGE_REQUEST_STATUS_IN_PROGRESS,
+                    CHANGE_REQUEST_STATUS_EFFECTIVENESS,
+                    CHANGE_REQUEST_STATUS_CLOSED,
+                )
+            )
+        ).count()
+        > 0
+    )
+    has_created_audit = (
+        AuditLog.query.filter_by(
+            entity_type="ChangeRequest",
+            action="change_created",
+        ).first()
+        is not None
+    )
+    has_approved_audit = (
+        AuditLog.query.filter_by(
+            entity_type="ChangeRequest",
+            action="change_approved",
+        ).first()
+        is not None
+    )
+    if has_record and has_approved_record and has_created_audit and has_approved_audit:
+        mark_sales_readiness_item_done_without_commit("competitor_change_management")
+
+
+def change_request_form_context(change_request=None):
+    form_data = request.form if request.method == "POST" else {}
+    documents, actions, dofs, risks = change_request_link_choices()
+    return {
+        "change_request": change_request,
+        "change_types": CHANGE_REQUEST_TYPES,
+        "risk_levels": CHANGE_REQUEST_RISK_LEVELS,
+        "departments": DEPARTMENTS,
+        "users": active_users(),
+        "documents": documents,
+        "actions": actions,
+        "dofs": dofs,
+        "risks": risks,
+        "form_data": form_data,
+        "can_manage_change_requests": can_manage_change_requests(),
+        "can_approve_change_requests": can_approve_change_requests(),
+    }
+
+
+def change_management_dashboard_context():
+    filters = change_request_filters()
+    changes = filtered_change_requests(filters)
+    all_changes = change_request_query().all()
+    active_changes = [
+        item for item in all_changes if item.status != CHANGE_REQUEST_STATUS_ARCHIVED
+    ]
+    departments = sorted({item.department for item in all_changes if item.department})
+    return {
+        "changes": changes,
+        "total_count": len(active_changes),
+        "filtered_count": len(changes),
+        "pending_count": sum(
+            1 for item in active_changes if item.status == CHANGE_REQUEST_STATUS_PENDING
+        ),
+        "overdue_count": sum(1 for item in active_changes if item.delay_days > 0),
+        "closed_count": sum(
+            1 for item in active_changes if item.status == CHANGE_REQUEST_STATUS_CLOSED
+        ),
+        "filters": filters,
+        "statuses": CHANGE_REQUEST_STATUSES,
+        "risk_levels": CHANGE_REQUEST_RISK_LEVELS,
+        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "can_create_change_requests": can_create_change_requests(),
+        "can_manage_change_requests": can_manage_change_requests(),
+        "can_approve_change_requests": can_approve_change_requests(),
+        "can_delete_change_requests": can_delete_change_requests(),
+        "change_request_status_tone": change_request_status_tone,
+        "change_request_risk_tone": change_request_risk_tone,
+        "format_date": format_date,
+    }
+
+
+@bp.route("/degisiklik-yonetimi")
+@login_required
+def change_management_dashboard():
+    if not can_view_change_requests():
+        abort(403)
+    return render_template(
+        "change_management/dashboard.html",
+        **change_management_dashboard_context(),
+    )
+
+
+@bp.route("/degisiklik-yonetimi/yeni", methods=["GET", "POST"])
+@login_required
+def create_change_request():
+    if not can_create_change_requests():
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        try:
+            values = parse_change_request_form()
+            change_request = ChangeRequest(
+                change_no=next_change_request_no(),
+                requester_user_id=g.current_user.id,
+                created_by_user_id=g.current_user.id,
+                status=CHANGE_REQUEST_STATUS_PENDING,
+                **values,
+            )
+            assign_current_company(change_request)
+            validate_change_request_links(change_request)
+            db.session.add(change_request)
+            db.session.flush()
+
+            for uploaded_file in change_request_uploads():
+                change_file = save_change_request_file(
+                    uploaded_file,
+                    change_request,
+                    "talep",
+                )
+                db.session.add(change_file)
+                saved_files.append(change_file)
+
+            record_audit_event(
+                "ChangeRequest",
+                "change_created",
+                f"{change_request.change_no} de\u011fi\u015fiklik talebi olu\u015fturuldu",
+                entity_id=change_request.id,
+                details={
+                    "change_no": change_request.change_no,
+                    "title": change_request.title,
+                    "change_type": change_request.change_type,
+                    "risk_level": change_request.risk_level,
+                    "responsible_user_id": change_request.responsible_user_id,
+                    "approver_user_id": change_request.approver_user_id,
+                },
+                company_id=change_request.company_id,
+                commit=False,
+            )
+            if change_request.approver:
+                notify_change_request(
+                    change_request.approver,
+                    change_request,
+                    "approval-request",
+                    f"{change_request.change_no} de\u011fi\u015fiklik talebi onay\u0131n\u0131z\u0131 bekliyor.",
+                    notification_type="warning",
+                )
+            db.session.commit()
+            flash("De\u011fi\u015fiklik talebi olu\u015fturuldu ve onaya g\u00f6nderildi.", "success")
+            return redirect(
+                url_for("main.change_request_detail", change_id=change_request.id)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_change_request_file(saved_file)
+            flash(change_request_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "change_management/form.html",
+        form_action=url_for("main.create_change_request"),
+        page_title="Yeni De\u011fi\u015fiklik Talebi",
+        **change_request_form_context(),
+    )
+
+
+@bp.get("/degisiklik-yonetimi/<int:change_id>")
+@login_required
+def change_request_detail(change_id):
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    if not can_view_change_requests():
+        abort(403)
+    can_edit_current = can_manage_change_requests() or (
+        change_request.status == CHANGE_REQUEST_STATUS_PENDING
+        and change_request.created_by_user_id == g.current_user.id
+    )
+    current_user_is_responsible = (
+        change_request.responsible_user_id == g.current_user.id
+        if g.current_user
+        else False
+    )
+    can_show_approval = (
+        can_approve_change_requests()
+        and change_request.status == CHANGE_REQUEST_STATUS_PENDING
+    )
+    can_show_implementation = (
+        can_manage_change_requests() or current_user_is_responsible
+    ) and change_request.status in {
+        CHANGE_REQUEST_STATUS_APPROVED,
+        CHANGE_REQUEST_STATUS_IN_PROGRESS,
+    }
+    can_show_effectiveness = (
+        can_approve_change_requests() or can_manage_change_requests()
+    ) and change_request.status == CHANGE_REQUEST_STATUS_EFFECTIVENESS
+    return render_template(
+        "change_management/detail.html",
+        change_request=change_request,
+        format_date=format_date,
+        format_file_size=format_file_size,
+        change_request_status_tone=change_request_status_tone,
+        change_request_risk_tone=change_request_risk_tone,
+        change_request_file_kind_label=change_request_file_kind_label,
+        can_edit_current=can_edit_current,
+        can_manage_change_requests=can_manage_change_requests(),
+        can_approve_change_requests=can_approve_change_requests(),
+        can_delete_change_requests=can_delete_change_requests(),
+        current_user_is_responsible=current_user_is_responsible,
+        can_show_approval=can_show_approval,
+        can_show_implementation=can_show_implementation,
+        can_show_effectiveness=can_show_effectiveness,
+        status_archived=CHANGE_REQUEST_STATUS_ARCHIVED,
+        today=date.today(),
+    )
+
+
+@bp.route("/degisiklik-yonetimi/<int:change_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_change_request(change_id):
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    can_edit_own_pending = (
+        change_request.status == CHANGE_REQUEST_STATUS_PENDING
+        and change_request.created_by_user_id == g.current_user.id
+    )
+    if not can_manage_change_requests() and not can_edit_own_pending:
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        old_values = {
+            "title": change_request.title,
+            "change_type": change_request.change_type,
+            "risk_level": change_request.risk_level,
+            "status": change_request.status,
+        }
+        try:
+            values = parse_change_request_form(change_request)
+            for key, value in values.items():
+                setattr(change_request, key, value)
+            validate_change_request_links(change_request)
+
+            for uploaded_file in change_request_uploads():
+                change_file = save_change_request_file(
+                    uploaded_file,
+                    change_request,
+                    "talep",
+                )
+                db.session.add(change_file)
+                saved_files.append(change_file)
+
+            record_audit_event(
+                "ChangeRequest",
+                "change_updated",
+                f"{change_request.change_no} de\u011fi\u015fiklik talebi g\u00fcncellendi",
+                entity_id=change_request.id,
+                old_values=old_values,
+                new_values={
+                    "title": change_request.title,
+                    "change_type": change_request.change_type,
+                    "risk_level": change_request.risk_level,
+                    "status": change_request.status,
+                },
+                company_id=change_request.company_id,
+                commit=False,
+            )
+            db.session.commit()
+            flash("De\u011fi\u015fiklik talebi g\u00fcncellendi.", "success")
+            return redirect(
+                url_for("main.change_request_detail", change_id=change_request.id)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_change_request_file(saved_file)
+            flash(change_request_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "change_management/form.html",
+        form_action=url_for("main.edit_change_request", change_id=change_request.id),
+        page_title="De\u011fi\u015fiklik Talebi D\u00fczenle",
+        **change_request_form_context(change_request),
+    )
+
+
+@bp.post("/degisiklik-yonetimi/<int:change_id>/onayla")
+@login_required
+def approve_change_request(change_id):
+    if not can_approve_change_requests():
+        abort(403)
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    if change_request.status != CHANGE_REQUEST_STATUS_PENDING:
+        flash("Sadece onay bekleyen de\u011fi\u015fiklik talepleri onaylanabilir.", "warning")
+        return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+    if not change_request.responsible_user_id or not change_request.due_date:
+        flash(
+            "Onaydan \u00f6nce uygulama sorumlusu ve termin tarihi belirlenmelidir.",
+            "warning",
+        )
+        if can_manage_change_requests() or change_request.created_by_user_id == g.current_user.id:
+            return redirect(url_for("main.edit_change_request", change_id=change_request.id))
+        return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+    change_request.status = CHANGE_REQUEST_STATUS_APPROVED
+    change_request.approver_user_id = g.current_user.id
+    change_request.approval_note = request.form.get("approval_note", "").strip()[:2000] or None
+    record_audit_event(
+        "ChangeRequest",
+        "change_approved",
+        f"{change_request.change_no} de\u011fi\u015fiklik talebi onayland\u0131",
+        entity_id=change_request.id,
+        details={
+            "approver_user_id": g.current_user.id,
+            "responsible_user_id": change_request.responsible_user_id,
+        },
+        company_id=change_request.company_id,
+        commit=False,
+    )
+    if change_request.responsible:
+        notify_change_request(
+            change_request.responsible,
+            change_request,
+            "implementation",
+            f"{change_request.change_no} de\u011fi\u015fikli\u011fi uygulama sorumlulu\u011funuza atand\u0131.",
+            notification_type="warning",
+        )
+    mark_change_management_sales_readiness_without_commit()
+    db.session.commit()
+    flash("De\u011fi\u015fiklik talebi onayland\u0131.", "success")
+    return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+
+@bp.post("/degisiklik-yonetimi/<int:change_id>/reddet")
+@login_required
+def reject_change_request(change_id):
+    if not can_approve_change_requests():
+        abort(403)
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    if change_request.status != CHANGE_REQUEST_STATUS_PENDING:
+        flash("Sadece onay bekleyen de\u011fi\u015fiklik talepleri reddedilebilir.", "warning")
+        return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+    change_request.status = CHANGE_REQUEST_STATUS_REJECTED
+    change_request.approver_user_id = g.current_user.id
+    change_request.approval_note = request.form.get("approval_note", "").strip()[:2000] or None
+    record_audit_event(
+        "ChangeRequest",
+        "change_rejected",
+        f"{change_request.change_no} de\u011fi\u015fiklik talebi reddedildi",
+        entity_id=change_request.id,
+        details={"approver_user_id": g.current_user.id},
+        company_id=change_request.company_id,
+        commit=False,
+    )
+    notify_change_request_users(
+        [change_request.requester, change_request.responsible],
+        change_request,
+        "rejected",
+        f"{change_request.change_no} de\u011fi\u015fiklik talebi reddedildi.",
+        notification_type="danger",
+        exclude_user_id=g.current_user.id,
+    )
+    db.session.commit()
+    flash("De\u011fi\u015fiklik talebi reddedildi.", "success")
+    return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+
+@bp.post("/degisiklik-yonetimi/<int:change_id>/uygulandi")
+@login_required
+def mark_change_request_implemented(change_id):
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    if not (
+        can_manage_change_requests()
+        or change_request.responsible_user_id == g.current_user.id
+    ):
+        abort(403)
+    if change_request.status not in {
+        CHANGE_REQUEST_STATUS_APPROVED,
+        CHANGE_REQUEST_STATUS_IN_PROGRESS,
+    }:
+        flash("Sadece onaylanan de\u011fi\u015fiklikler uyguland\u0131 olarak i\u015faretlenebilir.", "warning")
+        return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+    saved_files = []
+    try:
+        change_request.status = CHANGE_REQUEST_STATUS_EFFECTIVENESS
+        change_request.effective_date = parse_optional_date("effective_date") or date.today()
+        change_request.implementation_note = (
+            request.form.get("implementation_note", "").strip()[:3000] or None
+        )
+        for uploaded_file in change_request_uploads("implementation_files"):
+            change_file = save_change_request_file(
+                uploaded_file,
+                change_request,
+                "uygulama",
+            )
+            db.session.add(change_file)
+            saved_files.append(change_file)
+        record_audit_event(
+            "ChangeRequest",
+            "change_implemented",
+            f"{change_request.change_no} de\u011fi\u015fikli\u011fi uyguland\u0131",
+            entity_id=change_request.id,
+            details={
+                "responsible_user_id": g.current_user.id,
+                "effective_date": change_request.effective_date,
+            },
+            company_id=change_request.company_id,
+            commit=False,
+        )
+        notify_change_request(
+            change_request.approver,
+            change_request,
+            "effectiveness",
+            f"{change_request.change_no} i\u00e7in etkinlik kontrol\u00fc bekleniyor.",
+            notification_type="warning",
+        )
+        db.session.commit()
+        flash("Uygulama kayd\u0131 al\u0131nd\u0131, etkinlik kontrol\u00fcne g\u00f6nderildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_change_request_file(saved_file)
+        flash(change_request_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+
+@bp.post("/degisiklik-yonetimi/<int:change_id>/etkinlik-kapat")
+@login_required
+def close_change_request_effectiveness(change_id):
+    if not can_approve_change_requests() and not can_manage_change_requests():
+        abort(403)
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    if change_request.status != CHANGE_REQUEST_STATUS_EFFECTIVENESS:
+        flash("Sadece etkinlik kontrol\u00fc bekleyen de\u011fi\u015fiklikler kapat\u0131labilir.", "warning")
+        return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+    saved_files = []
+    try:
+        change_request.status = CHANGE_REQUEST_STATUS_CLOSED
+        change_request.effectiveness_note = (
+            request.form.get("effectiveness_note", "").strip()[:3000] or None
+        )
+        for uploaded_file in change_request_uploads("effectiveness_files"):
+            change_file = save_change_request_file(
+                uploaded_file,
+                change_request,
+                "etkinlik",
+            )
+            db.session.add(change_file)
+            saved_files.append(change_file)
+        record_audit_event(
+            "ChangeRequest",
+            "change_effectiveness_closed",
+            f"{change_request.change_no} etkinlik kontrol\u00fc kapat\u0131ld\u0131",
+            entity_id=change_request.id,
+            details={"closed_by_user_id": g.current_user.id},
+            company_id=change_request.company_id,
+            commit=False,
+        )
+        notify_change_request_users(
+            [change_request.requester, change_request.responsible],
+            change_request,
+            "closed",
+            f"{change_request.change_no} de\u011fi\u015fiklik kayd\u0131 kapat\u0131ld\u0131.",
+            notification_type="success",
+            exclude_user_id=g.current_user.id,
+        )
+        mark_change_management_sales_readiness_without_commit()
+        db.session.commit()
+        flash("De\u011fi\u015fiklik etkinlik kontrol\u00fc tamamlanarak kapat\u0131ld\u0131.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_change_request_file(saved_file)
+        flash(change_request_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.change_request_detail", change_id=change_request.id))
+
+
+@bp.post("/degisiklik-yonetimi/<int:change_id>/arsivle")
+@login_required
+def archive_change_request(change_id):
+    if not can_delete_change_requests():
+        abort(403)
+    change_request = change_request_query().filter_by(id=change_id).first_or_404()
+    ensure_same_company(change_request)
+    change_request.status = CHANGE_REQUEST_STATUS_ARCHIVED
+    change_request.archived_at = datetime.utcnow()
+    record_audit_event(
+        "ChangeRequest",
+        "change_archived",
+        f"{change_request.change_no} de\u011fi\u015fiklik kayd\u0131 ar\u015fivlendi",
+        entity_id=change_request.id,
+        details={"archived_by_user_id": g.current_user.id},
+        company_id=change_request.company_id,
+        commit=False,
+    )
+    db.session.commit()
+    flash("De\u011fi\u015fiklik kayd\u0131 ar\u015five al\u0131nd\u0131.", "success")
+    return redirect(url_for("main.change_management_dashboard"))
+
+
+@bp.get("/degisiklik-yonetimi/dosya/<int:file_id>/indir")
+@login_required
+def download_change_request_file(file_id):
+    change_file = (
+        scoped_query(ChangeRequestFile.query, ChangeRequestFile)
+        .filter_by(id=file_id)
+        .first_or_404()
+    )
+    ensure_same_company(change_file)
+    if not can_view_change_requests():
+        abort(403)
+    record_audit_event(
+        "ChangeRequestFile",
+        "change_file_downloaded",
+        f"{change_file.original_file_name} de\u011fi\u015fiklik dosyas\u0131 indirildi",
+        entity_id=change_file.id,
+        details={"change_request_id": change_file.change_request_id},
+        company_id=change_file.company_id,
+        commit=True,
+    )
+    return send_stored_upload(
+        change_file.file_path,
+        as_attachment=True,
+        download_name=change_file.original_file_name,
+    )
 
 
 @bp.route("/egitim-yeterlilik")

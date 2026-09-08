@@ -1,0 +1,161 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = change_request is defined and change_request %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, "Talep, etki, sorumlu ve ba&#287;lant&#305;l&#305; kay&#305;tlar&#305; tek formda y&#246;netin."|safe, icon="bi-arrow-repeat") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.change_management_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>De&#287;i&#351;iklik Y&#246;netimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="change_no">De&#287;i&#351;iklik No</label>
+        <input class="form-control" id="change_no" value="{{ change_request.change_no if is_edit else 'Otomatik atan&#305;r' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="title">Ba&#351;l&#305;k</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', change_request.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="change_type">De&#287;i&#351;iklik Tipi</label>
+        {% set selected_type = form_data.get('change_type', change_request.change_type if is_edit else 'Proses') %}
+        <select class="form-select" id="change_type" name="change_type">
+          {% for change_type in change_types %}
+            <option value="{{ change_type }}" {% if selected_type == change_type %}selected{% endif %}>{{ change_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="department">Departman</label>
+        {% set selected_department = form_data.get('department', change_request.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Se&#231;iniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="process_name">S&#252;re&#231; / Alan</label>
+        <input class="form-control" id="process_name" name="process_name" value="{{ form_data.get('process_name', change_request.process_name if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="risk_level">Risk Seviyesi</label>
+        {% set selected_risk = form_data.get('risk_level', change_request.risk_level if is_edit else 'Orta') %}
+        <select class="form-select" id="risk_level" name="risk_level">
+          {% for level in risk_levels %}
+            <option value="{{ level }}" {% if selected_risk == level %}selected{% endif %}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="planned_date">Planlanan Tarih</label>
+        {% set planned_value = form_data.get('planned_date', change_request.planned_date.isoformat() if is_edit and change_request.planned_date else '') %}
+        <input class="form-control" id="planned_date" name="planned_date" type="date" value="{{ planned_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', change_request.due_date.isoformat() if is_edit and change_request.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="responsible_user_id">Uygulama Sorumlusu</label>
+        {% set selected_responsible = form_data.get('responsible_user_id', change_request.responsible_user_id if is_edit else '')|string %}
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Se&#231;iniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if can_manage_change_requests or can_approve_change_requests %}
+        <div class="col-md-4">
+          <label class="form-label" for="approver_user_id">Onaylayan</label>
+          {% set selected_approver = form_data.get('approver_user_id', change_request.approver_user_id if is_edit else '')|string %}
+          <select class="form-select" id="approver_user_id" name="approver_user_id">
+            <option value="">Y&#246;netim temsilcisi otomatik</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if selected_approver == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+      <div class="col-md-4">
+        <label class="form-label" for="document_id">Ba&#287;l&#305; Dok&#252;man</label>
+        {% set selected_document = form_data.get('document_id', change_request.document_id if is_edit else '')|string %}
+        <select class="form-select" id="document_id" name="document_id">
+          <option value="">Yok</option>
+          {% for document in documents %}
+            <option value="{{ document.id }}" {% if selected_document == document.id|string %}selected{% endif %}>{{ document.document_code }} - {{ document.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="action_id">Ba&#287;l&#305; Aksiyon</label>
+        {% set selected_action = form_data.get('action_id', change_request.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="risk_id">Ba&#287;l&#305; Risk</label>
+        {% set selected_linked_risk = form_data.get('risk_id', change_request.risk_id if is_edit else '')|string %}
+        <select class="form-select" id="risk_id" name="risk_id">
+          <option value="">Yok</option>
+          {% for risk in risks %}
+            <option value="{{ risk.id }}" {% if selected_linked_risk == risk.id|string %}selected{% endif %}>{{ risk.risk_no }} - {{ risk.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="dof_id">Ba&#287;l&#305; IF/D&#214;F</label>
+        {% set selected_dof = form_data.get('dof_id', change_request.dof_id if is_edit else '')|string %}
+        <select class="form-select" id="dof_id" name="dof_id">
+          <option value="">Yok</option>
+          {% for dof in dofs %}
+            <option value="{{ dof.id }}" {% if selected_dof == dof.id|string %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kayd&#305;' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="description">De&#287;i&#351;iklik Tan&#305;m&#305;</label>
+        <textarea class="form-control" id="description" name="description" rows="4">{{ form_data.get('description', change_request.description if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="reason">Gerek&#231;e</label>
+        <textarea class="form-control" id="reason" name="reason" rows="4">{{ form_data.get('reason', change_request.reason if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="scope">Etki / Kapsam</label>
+        <textarea class="form-control" id="scope" name="scope" rows="4">{{ form_data.get('scope', change_request.scope if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="change_files">Talep Ekleri</label>
+        <input class="form-control" id="change_files" name="change_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+        <small class="text-secondary">PDF, Word, Excel, PowerPoint veya g&#246;rsel ekleyebilirsiniz. Dosya eklemek opsiyoneldir.</small>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.change_management_dashboard') }}">Vazge&#231;</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "G&#252;ncelle"|safe if is_edit else "Talebi Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

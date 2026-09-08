@@ -121,6 +121,42 @@ PERMISSION_CATALOG = (
         "description": "Risk kayıtlarını silebilir.",
     },
     {
+        "key": "change_management.view",
+        "label": "De\u011fi\u015fiklikleri g\u00f6r\u00fcnt\u00fcleme",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "De\u011fi\u015fiklik taleplerini, durumlar\u0131n\u0131 ve kan\u0131t dosyalar\u0131n\u0131 g\u00f6r\u00fcnt\u00fcler.",
+    },
+    {
+        "key": "change_management.create",
+        "label": "De\u011fi\u015fiklik talebi a\u00e7ma",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "Dok\u00fcman, proses, ekipman veya sistem i\u00e7in de\u011fi\u015fiklik talebi olu\u015fturur.",
+    },
+    {
+        "key": "change_management.manage",
+        "label": "De\u011fi\u015fiklik y\u00f6netimi",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "De\u011fi\u015fiklik kay\u0131tlar\u0131n\u0131 d\u00fczenler, sorumlu ve ba\u011flant\u0131lar\u0131 y\u00f6netir.",
+    },
+    {
+        "key": "change_management.approve",
+        "label": "De\u011fi\u015fiklik onay\u0131",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "De\u011fi\u015fiklik taleplerini onaylar, reddeder ve etkinlik kontrol\u00fcn\u00fc kapat\u0131r.",
+    },
+    {
+        "key": "change_management.delete",
+        "label": "De\u011fi\u015fiklik ar\u015fivleme",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "De\u011fi\u015fiklik kay\u0131tlar\u0131n\u0131 denetim izi korunacak \u015fekilde ar\u015five al\u0131r.",
+    },
+    {
+        "key": "change_management.export",
+        "label": "De\u011fi\u015fiklik raporu alma",
+        "group": "De\u011fi\u015fiklik Y\u00f6netimi",
+        "description": "De\u011fi\u015fiklik y\u00f6netimi kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
+    },
+    {
         "key": "training.view",
         "label": "Eğitimleri görüntüleme",
         "group": "Eğitim / Yeterlilik",
@@ -329,6 +365,12 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "risk.manage",
             "risk.delete",
+            "change_management.view",
+            "change_management.create",
+            "change_management.manage",
+            "change_management.approve",
+            "change_management.delete",
+            "change_management.export",
             "training.view",
             "training.manage",
             "training.delete",
@@ -368,6 +410,9 @@ ROLE_DEFINITIONS = (
             "actions.view_all",
             "documents.view",
             "risk.view",
+            "change_management.view",
+            "change_management.approve",
+            "change_management.export",
             "training.view",
             "complaints.view",
             "management_review.view",
@@ -390,6 +435,8 @@ ROLE_DEFINITIONS = (
             "maintenance.fault_manage",
             "documents.view",
             "risk.view",
+            "change_management.view",
+            "change_management.create",
             "training.view",
             "complaints.view",
             "complaints.manage",
@@ -411,6 +458,8 @@ ROLE_DEFINITIONS = (
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "documents.view",
+            "change_management.view",
+            "change_management.create",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -424,6 +473,7 @@ ROLE_DEFINITIONS = (
         "description": "Yetkili olduğu sayfaları sadece görüntüler.",
         "permissions": [
             "documents.view",
+            "change_management.view",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -851,6 +901,171 @@ def ensure_runtime_schema():
                 "ON risk_records (company_id, risk_no)"
             )
         )
+
+    if "change_requests" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE change_requests (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    change_no VARCHAR(40) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    change_type VARCHAR(60) NOT NULL DEFAULT 'Proses',
+                    description TEXT,
+                    reason TEXT,
+                    scope TEXT,
+                    department VARCHAR(80),
+                    process_name VARCHAR(160),
+                    risk_level VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                    status VARCHAR(40) NOT NULL DEFAULT 'Onay Bekliyor',
+                    planned_date DATE,
+                    due_date DATE,
+                    effective_date DATE,
+                    requester_user_id INTEGER,
+                    responsible_user_id INTEGER,
+                    approver_user_id INTEGER,
+                    document_id INTEGER,
+                    action_id INTEGER,
+                    risk_id INTEGER,
+                    dof_id INTEGER,
+                    approval_note TEXT,
+                    implementation_note TEXT,
+                    effectiveness_note TEXT,
+                    created_by_user_id INTEGER,
+                    archived_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(requester_user_id) REFERENCES users (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(approver_user_id) REFERENCES users (id),
+                    FOREIGN KEY(document_id) REFERENCES documents (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(risk_id) REFERENCES risk_records (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("change_requests")
+
+    if "change_requests" in tables:
+        columns = {column["name"] for column in inspector.get_columns("change_requests")}
+        change_request_columns = {
+            "company_id": "ALTER TABLE change_requests ADD COLUMN company_id INTEGER",
+            "change_no": "ALTER TABLE change_requests ADD COLUMN change_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "title": "ALTER TABLE change_requests ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "change_type": "ALTER TABLE change_requests ADD COLUMN change_type VARCHAR(60) NOT NULL DEFAULT 'Proses'",
+            "description": "ALTER TABLE change_requests ADD COLUMN description TEXT",
+            "reason": "ALTER TABLE change_requests ADD COLUMN reason TEXT",
+            "scope": "ALTER TABLE change_requests ADD COLUMN scope TEXT",
+            "department": "ALTER TABLE change_requests ADD COLUMN department VARCHAR(80)",
+            "process_name": "ALTER TABLE change_requests ADD COLUMN process_name VARCHAR(160)",
+            "risk_level": "ALTER TABLE change_requests ADD COLUMN risk_level VARCHAR(40) NOT NULL DEFAULT 'Orta'",
+            "status": "ALTER TABLE change_requests ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Onay Bekliyor'",
+            "planned_date": "ALTER TABLE change_requests ADD COLUMN planned_date DATE",
+            "due_date": "ALTER TABLE change_requests ADD COLUMN due_date DATE",
+            "effective_date": "ALTER TABLE change_requests ADD COLUMN effective_date DATE",
+            "requester_user_id": "ALTER TABLE change_requests ADD COLUMN requester_user_id INTEGER",
+            "responsible_user_id": "ALTER TABLE change_requests ADD COLUMN responsible_user_id INTEGER",
+            "approver_user_id": "ALTER TABLE change_requests ADD COLUMN approver_user_id INTEGER",
+            "document_id": "ALTER TABLE change_requests ADD COLUMN document_id INTEGER",
+            "action_id": "ALTER TABLE change_requests ADD COLUMN action_id INTEGER",
+            "risk_id": "ALTER TABLE change_requests ADD COLUMN risk_id INTEGER",
+            "dof_id": "ALTER TABLE change_requests ADD COLUMN dof_id INTEGER",
+            "approval_note": "ALTER TABLE change_requests ADD COLUMN approval_note TEXT",
+            "implementation_note": "ALTER TABLE change_requests ADD COLUMN implementation_note TEXT",
+            "effectiveness_note": "ALTER TABLE change_requests ADD COLUMN effectiveness_note TEXT",
+            "created_by_user_id": "ALTER TABLE change_requests ADD COLUMN created_by_user_id INTEGER",
+            "archived_at": "ALTER TABLE change_requests ADD COLUMN archived_at DATETIME",
+            "created_at": "ALTER TABLE change_requests ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE change_requests ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in change_request_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_change_requests_company_id", "company_id"),
+            ("ix_change_requests_change_no", "change_no"),
+            ("ix_change_requests_status", "status"),
+            ("ix_change_requests_due_date", "due_date"),
+            ("ix_change_requests_responsible_user_id", "responsible_user_id"),
+            ("ix_change_requests_approver_user_id", "approver_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON change_requests ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_change_requests_company_change_no "
+                "ON change_requests (company_id, change_no)"
+            )
+        )
+
+    if "change_request_files" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE change_request_files (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    change_request_id INTEGER NOT NULL,
+                    file_kind VARCHAR(40) NOT NULL DEFAULT 'talep',
+                    file_name VARCHAR(255) NOT NULL,
+                    original_file_name VARCHAR(255) NOT NULL,
+                    file_path VARCHAR(500) NOT NULL,
+                    file_type VARCHAR(20),
+                    file_size INTEGER,
+                    uploaded_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(change_request_id) REFERENCES change_requests (id),
+                    FOREIGN KEY(uploaded_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("change_request_files")
+
+    if "change_request_files" in tables:
+        columns = {
+            column["name"] for column in inspector.get_columns("change_request_files")
+        }
+        change_file_columns = {
+            "company_id": "ALTER TABLE change_request_files ADD COLUMN company_id INTEGER",
+            "change_request_id": "ALTER TABLE change_request_files ADD COLUMN change_request_id INTEGER NOT NULL DEFAULT 0",
+            "file_kind": "ALTER TABLE change_request_files ADD COLUMN file_kind VARCHAR(40) NOT NULL DEFAULT 'talep'",
+            "file_name": "ALTER TABLE change_request_files ADD COLUMN file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "original_file_name": "ALTER TABLE change_request_files ADD COLUMN original_file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "file_path": "ALTER TABLE change_request_files ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
+            "file_type": "ALTER TABLE change_request_files ADD COLUMN file_type VARCHAR(20)",
+            "file_size": "ALTER TABLE change_request_files ADD COLUMN file_size INTEGER",
+            "uploaded_by_user_id": "ALTER TABLE change_request_files ADD COLUMN uploaded_by_user_id INTEGER",
+            "created_at": "ALTER TABLE change_request_files ADD COLUMN created_at DATETIME",
+        }
+        for column_name, statement in change_file_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_change_request_files_company_id", "company_id"),
+            ("ix_change_request_files_change_request_id", "change_request_id"),
+            ("ix_change_request_files_uploaded_by_user_id", "uploaded_by_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON change_request_files ({column_name})"
+                )
+            )
 
     if "training_records" not in tables:
         db.session.execute(
