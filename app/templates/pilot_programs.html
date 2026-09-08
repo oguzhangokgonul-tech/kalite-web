@@ -1,0 +1,156 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Pilot Program&#305;{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Pilot Programı", "Satışa hazırlık için pilot firmaları, geri bildirimleri ve satış engellerini takip edin.", icon="bi-flag") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.sales_readiness') }}">
+      <i class="bi bi-rocket-takeoff"></i>
+      <span>Sat&#305;&#351; Checklist</span>
+    </a>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_pilot_program') }}">
+      <i class="bi bi-plus-lg"></i>
+      <span>Yeni Pilot</span>
+    </a>
+  {% endcall %}
+
+  <section class="dashboard-metrics pilot-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-buildings"></i></span>
+      <span class="stat-label">Toplam Pilot</span>
+      <strong>{{ metrics.total }}</strong>
+      <small>T&#252;m pilot adaylar&#305;</small>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-play-circle"></i></span>
+      <span class="stat-label">Aktif Pilot</span>
+      <strong>{{ metrics.active }}</strong>
+      <small>Devam eden firmalar</small>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Sat&#305;&#351; Engeli</span>
+      <strong>{{ metrics.blockers }}</strong>
+      <small>&#199;&#246;z&#252;m bekleyen konu</small>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Tamamlanan</span>
+      <strong>{{ metrics.completed }}</strong>
+      <small>Pilot s&#252;reci biten</small>
+    </div>
+  </section>
+
+  <section class="pilot-readiness-alert {% if metrics.qualifying >= 2 %}is-complete{% endif %}">
+    <span><i class="bi {% if metrics.qualifying >= 2 %}bi-check-circle{% else %}bi-info-circle{% endif %}"></i></span>
+    <div>
+      <strong>{{ metrics.qualifying }} / 2 pilot firma hedefi</strong>
+      <p>
+        {% if metrics.qualifying >= 2 %}
+          Sat&#305;&#351;a haz&#305;rl&#305;k checklist'indeki pilot firma ad&#305;m&#305; otomatik tamamland&#305;.
+        {% else %}
+          Checklist i&#231;in en az iki aktif veya tamamlanan pilot program&#305; gerekli.
+        {% endif %}
+      </p>
+    </div>
+  </section>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table pilot-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Firma</th>
+            <th>Durum</th>
+            <th>Tarihler</th>
+            <th>Hedef Mod&#252;ller</th>
+            <th>Temas</th>
+            <th>Sat&#305;&#351; Engeli</th>
+            <th>Sonu&#231; / Sonraki Ad&#305;m</th>
+            <th class="text-end">&#304;&#351;lemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            {% set program = row.program %}
+            <tr>
+              <td>
+                <strong>{{ program.company.name if program.company else "-" }}</strong>
+                {% if program.company %}
+                  <small>{{ program.company.code }} / {{ program.company.slug or "-" }}</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(row.status.label, tone=row.status.tone, icon=row.status.icon) }}</td>
+              <td>
+                <div class="pilot-date-stack">
+                  <span><i class="bi bi-play"></i> {{ format_date(program.start_date) }}</span>
+                  <span><i class="bi bi-flag"></i> {{ format_date(program.end_date) }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="pilot-module-chip-list">
+                  {% for label in row.target_labels[:4] %}
+                    <span>{{ label }}</span>
+                  {% endfor %}
+                  {% if row.target_labels|length > 4 %}
+                    <span>+{{ row.target_labels|length - 4 }}</span>
+                  {% elif not row.target_labels %}
+                    <span class="is-muted">Belirlenmedi</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <strong>{{ program.contact_name or "-" }}</strong>
+                {% if program.contact_phone %}
+                  <small>{{ program.contact_phone }}</small>
+                {% endif %}
+                {% if program.contact_email %}
+                  <small>{{ program.contact_email }}</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if program.sales_blocker %}
+                  {{ ui.status_badge("Var", tone="danger", icon="bi-exclamation-circle") }}
+                  {% if program.sales_blocker_note %}
+                    <small class="d-block text-secondary mt-1">{{ program.sales_blocker_note }}</small>
+                  {% endif %}
+                {% else %}
+                  {{ ui.status_badge("Yok", tone="success", icon="bi-check-circle") }}
+                {% endif %}
+              </td>
+              <td>
+                <strong>{{ program.result or "-" }}</strong>
+                <small>Takip: {{ format_date(program.next_follow_up_date) }}</small>
+                {% if program.feedback_summary %}
+                  <small>{{ program.feedback_summary }}</small>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="vp-table-actions pilot-table-actions">
+                  <a class="btn btn-sm vp-action-btn vp-action-edit" href="{{ url_for('main.edit_pilot_program', program_id=program.id) }}" aria-label="D&#252;zenle" title="D&#252;zenle">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+                  {% if program.status != "archived" %}
+                    <form method="post" action="{{ url_for('main.archive_pilot_program', program_id=program.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm vp-action-btn vp-action-archive" type="submit" aria-label="Ar&#351;ivle" title="Ar&#351;ivle">
+                        <i class="bi bi-archive"></i>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8">
+                {{ ui.empty_state("Henüz pilot programı yok.", "Satış checklist'i için en az iki pilot firma oluşturun.", icon="bi-flag") }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

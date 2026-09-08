@@ -96,6 +96,7 @@ from .models import (
     ORGANIZATION_NODE_TYPES,
     OrientationNode,
     PersonnelContact,
+    PilotProgram,
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
@@ -290,6 +291,37 @@ SALES_READINESS_SECTIONS = (
         ),
     },
 )
+PILOT_PROGRAM_STATUS_OPTIONS = (
+    ("planned", "Planlandı", "purple", "bi-calendar-check"),
+    ("active", "Aktif Pilot", "success", "bi-play-circle"),
+    ("completed", "Tamamlandı", "success", "bi-check-circle"),
+    ("paused", "Beklemede", "warning", "bi-pause-circle"),
+    ("archived", "Arşiv", "muted", "bi-archive"),
+)
+PILOT_PROGRAM_STATUS_KEYS = {key for key, _label, _tone, _icon in PILOT_PROGRAM_STATUS_OPTIONS}
+PILOT_PROGRAM_QUALIFYING_STATUSES = {"active", "completed"}
+PILOT_PROGRAM_MODULE_LABELS = {
+    "organization": "Organizasyon Şeması",
+    "maintenance": "Bakım",
+    "vehicles": "Araç Yönetimi",
+    "calibration": "Kalibrasyon Planı",
+    "human_resources": "İnsan Kaynakları",
+    "suggestions": "Öneri & Şikayet",
+    "quality_tests": "Kalite Deneyleri",
+    "quality_test_concrete": "Beton Deneyi",
+    "quality_test_methylene": "Metilen Deneyi",
+    "quality_test_water_absorption": "Su Emme Deneyi",
+    "quality_test_sieve_analysis": "Elek Analizi Deneyi",
+    "quality_test_rebar_tensile": "Demir Çekme Deneyi",
+    "if_management": "IF Yönetimi",
+    "risk_management": "Risk Yönetimi",
+    "training": "Eğitim / Yeterlilik",
+    "internal_audit": "İç Denetim Yönetimi",
+    "management_review": "Yönetimin Gözden Geçirmesi",
+    "supplier_management": "Tedarikçi Değerlendirme",
+    "report_center": "Rapor Merkezi",
+    "documents": "Doküman Yönetimi",
+}
 INTERNAL_AUDIT_RESULT_MAP = {
     value: {"label": label, "tone": tone}
     for value, label, tone in INTERNAL_AUDIT_RESULTS
@@ -5723,6 +5755,10 @@ def can_view_system_admin_panel():
     return is_superadmin_account()
 
 
+def can_manage_pilot_programs():
+    return is_superadmin_account()
+
+
 def can_manage_legal_documents():
     return is_superadmin_account()
 
@@ -5844,6 +5880,233 @@ def mark_sales_readiness_item_done(item_id):
     else:
         setting.value = "1"
     db.session.commit()
+
+
+def pilot_program_status_meta(status):
+    return next(
+        (
+            {"key": key, "label": label, "tone": tone, "icon": icon}
+            for key, label, tone, icon in PILOT_PROGRAM_STATUS_OPTIONS
+            if key == status
+        ),
+        {"key": status or "-", "label": status or "-", "tone": "muted", "icon": "bi-circle"},
+    )
+
+
+def pilot_program_module_options():
+    return [
+        {
+            "key": item["key"],
+            "label": PILOT_PROGRAM_MODULE_LABELS.get(item["key"], item["name"]),
+            "icon": item["icon"],
+            "parent_key": item.get("parent_key"),
+        }
+        for item in sorted(COMPANY_MODULE_CATALOG, key=lambda module: module["sort_order"])
+    ]
+
+
+def pilot_program_target_keys(program):
+    if not program or not program.target_modules:
+        return []
+    try:
+        keys = json.loads(program.target_modules)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(keys, list):
+        return []
+    return [key for key in keys if key in COMPANY_MODULE_KEYS]
+
+
+def pilot_program_target_labels(program):
+    return [
+        PILOT_PROGRAM_MODULE_LABELS.get(key, key)
+        for key in pilot_program_target_keys(program)
+    ]
+
+
+def pilot_program_count_for_sales_readiness():
+    return PilotProgram.query.filter(
+        PilotProgram.status.in_(PILOT_PROGRAM_QUALIFYING_STATUSES)
+    ).count()
+
+
+def mark_pilot_sales_readiness_without_commit():
+    if pilot_program_count_for_sales_readiness() >= 2:
+        mark_sales_readiness_item_done_without_commit("month5_pilots")
+
+
+def parse_pilot_program_form():
+    try:
+        company_id = int(request.form.get("company_id", ""))
+    except ValueError:
+        raise ValueError("company_required") from None
+    company = db.session.get(Company, company_id)
+    if company is None:
+        raise ValueError("company_required")
+
+    status = request.form.get("status", "planned").strip() or "planned"
+    if status not in PILOT_PROGRAM_STATUS_KEYS:
+        raise ValueError("invalid_status")
+
+    start_date = parse_optional_date("start_date")
+    end_date = parse_optional_date("end_date")
+    if start_date and end_date and end_date < start_date:
+        raise ValueError("invalid_date_range")
+
+    target_modules = [
+        key
+        for key in request.form.getlist("target_modules")
+        if key in COMPANY_MODULE_KEYS
+    ]
+    target_modules = list(dict.fromkeys(target_modules))
+    sales_blocker = checkbox_enabled("sales_blocker")
+    return {
+        "company_id": company.id,
+        "status": status,
+        "contact_name": request.form.get("contact_name", "").strip()[:160] or None,
+        "contact_phone": request.form.get("contact_phone", "").strip()[:80] or None,
+        "contact_email": request.form.get("contact_email", "").strip()[:255] or None,
+        "start_date": start_date,
+        "end_date": end_date,
+        "target_modules": json.dumps(target_modules, ensure_ascii=False),
+        "success_criteria": request.form.get("success_criteria", "").strip()[:3000] or None,
+        "feedback_summary": request.form.get("feedback_summary", "").strip()[:3000] or None,
+        "sales_blocker": sales_blocker,
+        "sales_blocker_note": (
+            request.form.get("sales_blocker_note", "").strip()[:2000] or None
+            if sales_blocker
+            else None
+        ),
+        "next_follow_up_date": parse_optional_date("next_follow_up_date"),
+        "result": request.form.get("result", "").strip()[:160] or None,
+    }
+
+
+def apply_pilot_program_form(program, values):
+    for key, value in values.items():
+        setattr(program, key, value)
+
+
+def pilot_program_form_error_message(error):
+    error_key = str(error)
+    if error_key == "company_required":
+        return "Pilot programı için firma seçin."
+    if error_key == "invalid_status":
+        return "Pilot durumu geçerli değil."
+    if error_key == "invalid_date":
+        return "Tarih alanlarını yyyy-aa-gg formatında girin."
+    if error_key == "invalid_date_range":
+        return "Bitiş tarihi başlangıç tarihinden önce olamaz."
+    return "Pilot programı alanlarını kontrol edin."
+
+
+def pilot_program_audit_snapshot(program):
+    return {
+        "company_id": program.company_id,
+        "company": program.company.name if program.company else None,
+        "status": program.status,
+        "contact_name": program.contact_name,
+        "contact_phone": program.contact_phone,
+        "contact_email": program.contact_email,
+        "start_date": program.start_date.isoformat() if program.start_date else None,
+        "end_date": program.end_date.isoformat() if program.end_date else None,
+        "target_modules": pilot_program_target_keys(program),
+        "success_criteria": program.success_criteria,
+        "feedback_summary": program.feedback_summary,
+        "sales_blocker": bool(program.sales_blocker),
+        "sales_blocker_note": program.sales_blocker_note,
+        "next_follow_up_date": (
+            program.next_follow_up_date.isoformat()
+            if program.next_follow_up_date
+            else None
+        ),
+        "result": program.result,
+    }
+
+
+def pilot_program_rows():
+    programs = PilotProgram.query.order_by(PilotProgram.id.desc()).all()
+    programs = sorted(
+        programs,
+        key=lambda program: (
+            program.status == "archived",
+            program.next_follow_up_date is None,
+            program.next_follow_up_date or date.max,
+            -program.id,
+        ),
+    )
+    rows = []
+    for program in programs:
+        rows.append(
+            {
+                "program": program,
+                "status": pilot_program_status_meta(program.status),
+                "target_labels": pilot_program_target_labels(program),
+            }
+        )
+    return rows
+
+
+def pilot_program_context():
+    rows = pilot_program_rows()
+    programs = [row["program"] for row in rows]
+    active_count = sum(1 for program in programs if program.status == "active")
+    completed_count = sum(1 for program in programs if program.status == "completed")
+    blocker_count = sum(
+        1
+        for program in programs
+        if program.sales_blocker and program.status != "archived"
+    )
+    qualifying_count = sum(
+        1 for program in programs if program.status in PILOT_PROGRAM_QUALIFYING_STATUSES
+    )
+    mark_pilot_sales_readiness_without_commit()
+    db.session.commit()
+    return {
+        "rows": rows,
+        "metrics": {
+            "total": len(programs),
+            "active": active_count,
+            "blockers": blocker_count,
+            "completed": completed_count,
+            "qualifying": qualifying_count,
+        },
+        "format_date": format_date,
+    }
+
+
+def pilot_program_form_context(program=None):
+    selected_modules = (
+        set(request.form.getlist("target_modules"))
+        if request.method == "POST"
+        else set(pilot_program_target_keys(program))
+    )
+    selected_company_id = (
+        request.form.get("company_id", type=int)
+        if request.method == "POST"
+        else getattr(program, "company_id", None)
+    )
+    selected_status = (
+        request.form.get("status", "")
+        if request.method == "POST"
+        else getattr(program, "status", "planned")
+    )
+    return {
+        "program": program,
+        "companies": Company.query.order_by(Company.code.asc(), Company.id.asc()).all(),
+        "status_options": PILOT_PROGRAM_STATUS_OPTIONS,
+        "module_options": pilot_program_module_options(),
+        "selected_modules": selected_modules,
+        "selected_company_id": selected_company_id,
+        "selected_status": selected_status or "planned",
+    }
+
+
+def pilot_program_by_id(program_id):
+    program = db.session.get(PilotProgram, program_id)
+    if program is None:
+        abort(404)
+    return program
 
 
 def personnel_contact_query():
@@ -14209,6 +14472,126 @@ def system_admin_panel():
     mark_sales_readiness_item_done_without_commit("month4_admin_panel")
     db.session.commit()
     return render_template("system_admin_panel.html", **context)
+
+
+@bp.route("/pilot-programi")
+@login_required
+def pilot_programs():
+    if not can_manage_pilot_programs():
+        abort(403)
+    return render_template("pilot_programs.html", **pilot_program_context())
+
+
+@bp.route("/pilot-programi/yeni", methods=["GET", "POST"])
+@login_required
+def create_pilot_program():
+    if not can_manage_pilot_programs():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            program = PilotProgram()
+            apply_pilot_program_form(program, parse_pilot_program_form())
+            db.session.add(program)
+            db.session.flush()
+            record_audit_event(
+                "PilotProgram",
+                "pilot_created",
+                f"{program.company.name} pilot programı oluşturuldu",
+                entity_id=program.id,
+                details=pilot_program_audit_snapshot(program),
+                company_id=program.company_id,
+                user_id=g.current_user.id if g.current_user else None,
+                commit=False,
+            )
+            mark_pilot_sales_readiness_without_commit()
+            db.session.commit()
+            flash("Pilot programı oluşturuldu.", "success")
+            return redirect(url_for("main.pilot_programs"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(pilot_program_form_error_message(error), "danger")
+
+    return render_template(
+        "pilot_program_form.html",
+        page_title="Yeni Pilot Programı",
+        page_description="2-3 pilot firma adayını satışa hazırlık sürecinde takip edin.",
+        form_action=url_for("main.create_pilot_program"),
+        submit_label="Pilot Programı Kaydet",
+        **pilot_program_form_context(),
+    )
+
+
+@bp.route("/pilot-programi/<int:program_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_pilot_program(program_id):
+    if not can_manage_pilot_programs():
+        abort(403)
+
+    program = pilot_program_by_id(program_id)
+    if request.method == "POST":
+        try:
+            old_values = pilot_program_audit_snapshot(program)
+            apply_pilot_program_form(program, parse_pilot_program_form())
+            db.session.flush()
+            record_audit_event(
+                "PilotProgram",
+                "pilot_updated",
+                f"{program.company.name} pilot programı güncellendi",
+                entity_id=program.id,
+                old_values=old_values,
+                new_values=pilot_program_audit_snapshot(program),
+                company_id=program.company_id,
+                user_id=g.current_user.id if g.current_user else None,
+                commit=False,
+            )
+            mark_pilot_sales_readiness_without_commit()
+            db.session.commit()
+            flash("Pilot programı güncellendi.", "success")
+            return redirect(url_for("main.pilot_programs"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(pilot_program_form_error_message(error), "danger")
+
+    return render_template(
+        "pilot_program_form.html",
+        page_title="Pilot Programını Düzenle",
+        page_description="Pilot firma durumunu, hedef modülleri ve satış engellerini güncelleyin.",
+        form_action=url_for("main.edit_pilot_program", program_id=program.id),
+        submit_label="Değişiklikleri Kaydet",
+        **pilot_program_form_context(program),
+    )
+
+
+@bp.post("/pilot-programi/<int:program_id>/arsivle")
+@login_required
+def archive_pilot_program(program_id):
+    if not can_manage_pilot_programs():
+        abort(403)
+
+    program = pilot_program_by_id(program_id)
+    if program.status == "archived":
+        flash("Pilot programı zaten arşivde.", "info")
+        return redirect(url_for("main.pilot_programs"))
+
+    old_values = pilot_program_audit_snapshot(program)
+    program.status = "archived"
+    db.session.flush()
+    record_audit_event(
+        "PilotProgram",
+        "pilot_archived",
+        f"{program.company.name} pilot programı arşivlendi",
+        entity_id=program.id,
+        old_values=old_values,
+        new_values=pilot_program_audit_snapshot(program),
+        company_id=program.company_id,
+        user_id=g.current_user.id if g.current_user else None,
+        commit=False,
+    )
+    mark_pilot_sales_readiness_without_commit()
+    db.session.commit()
+    flash("Pilot programı arşive alındı.", "success")
+    return redirect(url_for("main.pilot_programs"))
 
 
 @bp.route("/risk-yonetimi")

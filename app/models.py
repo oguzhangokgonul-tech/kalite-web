@@ -254,6 +254,43 @@ class CompanyModule(db.Model):
     )
 
 
+class PilotProgram(db.Model):
+    __tablename__ = "pilot_programs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    status = db.Column(db.String(40), nullable=False, default="planned", index=True)
+    contact_name = db.Column(db.String(160), nullable=True)
+    contact_phone = db.Column(db.String(80), nullable=True)
+    contact_email = db.Column(db.String(255), nullable=True)
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
+    target_modules = db.Column(db.Text, nullable=True)
+    success_criteria = db.Column(db.Text, nullable=True)
+    feedback_summary = db.Column(db.Text, nullable=True)
+    sales_blocker = db.Column(db.Boolean, nullable=False, default=False)
+    sales_blocker_note = db.Column(db.Text, nullable=True)
+    next_follow_up_date = db.Column(db.Date, nullable=True, index=True)
+    result = db.Column(db.String(160), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship(
+        "Company",
+        backref=db.backref("pilot_programs", cascade="all, delete-orphan"),
+    )
+
+    @property
+    def title(self):
+        company_name = self.company.name if self.company else "Pilot"
+        return f"{company_name} pilot programi"
+
+
 class CompanyDepartment(db.Model):
     __tablename__ = "company_departments"
     __table_args__ = (

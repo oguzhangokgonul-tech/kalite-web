@@ -1,0 +1,118 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, page_description, icon="bi-flag") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.pilot_programs') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Pilot Program&#305;</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card pilot-form-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% if not companies %}
+      <div class="alert alert-warning">
+        Pilot program&#305; olu&#351;turmak i&#231;in &#246;nce firma kayd&#305; gerekir.
+      </div>
+    {% endif %}
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <label class="form-label" for="company_id">Firma</label>
+        <select class="form-select" id="company_id" name="company_id" required>
+          <option value="">Firma se&#231;in</option>
+          {% for company in companies %}
+            <option value="{{ company.id }}" {% if selected_company_id == company.id %}selected{% endif %}>
+              {{ company.code }} - {{ company.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="status">Pilot Durumu</label>
+        <select class="form-select" id="status" name="status" required>
+          {% for key, label, tone, icon in status_options %}
+            <option value="{{ key }}" {% if selected_status == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="next_follow_up_date">Sonraki Takip</label>
+        <input class="form-control" id="next_follow_up_date" name="next_follow_up_date" type="date" value="{{ request.form.get('next_follow_up_date', program.next_follow_up_date.isoformat() if program and program.next_follow_up_date else '') }}">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="start_date">Ba&#351;lang&#305;&#231;</label>
+        <input class="form-control" id="start_date" name="start_date" type="date" value="{{ request.form.get('start_date', program.start_date.isoformat() if program and program.start_date else '') }}">
+      </div>
+      <div class="col-lg-3">
+        <label class="form-label" for="end_date">Biti&#351;</label>
+        <input class="form-control" id="end_date" name="end_date" type="date" value="{{ request.form.get('end_date', program.end_date.isoformat() if program and program.end_date else '') }}">
+      </div>
+      <div class="col-lg-2">
+        <label class="form-label" for="contact_name">Yetkili</label>
+        <input class="form-control" id="contact_name" name="contact_name" value="{{ request.form.get('contact_name', program.contact_name if program else '') }}">
+      </div>
+      <div class="col-lg-2">
+        <label class="form-label" for="contact_phone">Telefon</label>
+        <input class="form-control" id="contact_phone" name="contact_phone" value="{{ request.form.get('contact_phone', program.contact_phone if program else '') }}">
+      </div>
+      <div class="col-lg-2">
+        <label class="form-label" for="contact_email">E-posta</label>
+        <input class="form-control" id="contact_email" name="contact_email" type="email" value="{{ request.form.get('contact_email', program.contact_email if program else '') }}">
+      </div>
+    </div>
+
+    <section class="pilot-form-section">
+      <div class="app-section-header">
+        <div>
+          <h3>Hedef Mod&#252;ller</h3>
+          <p>Pilot firman&#305;n deneyece&#287;i sat&#305;&#351; paketini se&#231;in.</p>
+        </div>
+      </div>
+      <div class="pilot-module-grid">
+        {% for module in module_options %}
+          <label class="pilot-module-toggle">
+            <input type="checkbox" name="target_modules" value="{{ module.key }}" {% if module.key in selected_modules %}checked{% endif %}>
+            <span><i class="bi {{ module.icon }}"></i></span>
+            <strong>{{ module.label }}</strong>
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="row g-3 mt-1">
+      <div class="col-lg-6">
+        <label class="form-label" for="success_criteria">Ba&#351;ar&#305; Kriteri</label>
+        <textarea class="form-control" id="success_criteria" name="success_criteria" rows="4">{{ request.form.get('success_criteria', program.success_criteria if program else '') }}</textarea>
+      </div>
+      <div class="col-lg-6">
+        <label class="form-label" for="feedback_summary">Geri Bildirim</label>
+        <textarea class="form-control" id="feedback_summary" name="feedback_summary" rows="4">{{ request.form.get('feedback_summary', program.feedback_summary if program else '') }}</textarea>
+      </div>
+      <div class="col-lg-8">
+        <label class="form-label" for="sales_blocker_note">Sat&#305;&#351; Engeli Notu</label>
+        <textarea class="form-control" id="sales_blocker_note" name="sales_blocker_note" rows="3">{{ request.form.get('sales_blocker_note', program.sales_blocker_note if program else '') }}</textarea>
+      </div>
+      <div class="col-lg-4">
+        <label class="form-label" for="result">Sonu&#231;</label>
+        <input class="form-control" id="result" name="result" value="{{ request.form.get('result', program.result if program else '') }}">
+        <label class="pilot-check-toggle mt-3">
+          <input type="checkbox" name="sales_blocker" {% if request.form.get('sales_blocker') or (request.method != 'POST' and program and program.sales_blocker) %}checked{% endif %}>
+          <span>Sat&#305;&#351; engeli var</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.pilot_programs') }}">Vazge&#231;</a>
+      <button class="btn btn-primary" type="submit" {% if not companies %}disabled{% endif %}>
+        <i class="bi bi-check2-circle"></i>
+        <span>{{ submit_label }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

@@ -269,7 +269,7 @@ def audit_request_context(obj):
     current_company = getattr(g, "current_company", None)
     if current_user is not None:
         user_id = current_user.id
-    if current_company is not None:
+    if company_id is None and current_company is not None:
         company_id = current_company.id
     if company_id is None and current_user is not None:
         company_id = current_user.company_id

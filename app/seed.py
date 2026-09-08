@@ -697,6 +697,72 @@ def ensure_runtime_schema():
             )
         )
 
+    if "pilot_programs" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE pilot_programs (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER NOT NULL,
+                    status VARCHAR(40) NOT NULL DEFAULT 'planned',
+                    contact_name VARCHAR(160),
+                    contact_phone VARCHAR(80),
+                    contact_email VARCHAR(255),
+                    start_date DATE,
+                    end_date DATE,
+                    target_modules TEXT,
+                    success_criteria TEXT,
+                    feedback_summary TEXT,
+                    sales_blocker BOOLEAN NOT NULL DEFAULT 0,
+                    sales_blocker_note TEXT,
+                    next_follow_up_date DATE,
+                    result VARCHAR(160),
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("pilot_programs")
+
+    if "pilot_programs" in tables:
+        columns = {column["name"] for column in inspector.get_columns("pilot_programs")}
+        pilot_columns = {
+            "company_id": "ALTER TABLE pilot_programs ADD COLUMN company_id INTEGER NOT NULL DEFAULT 0",
+            "status": "ALTER TABLE pilot_programs ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'planned'",
+            "contact_name": "ALTER TABLE pilot_programs ADD COLUMN contact_name VARCHAR(160)",
+            "contact_phone": "ALTER TABLE pilot_programs ADD COLUMN contact_phone VARCHAR(80)",
+            "contact_email": "ALTER TABLE pilot_programs ADD COLUMN contact_email VARCHAR(255)",
+            "start_date": "ALTER TABLE pilot_programs ADD COLUMN start_date DATE",
+            "end_date": "ALTER TABLE pilot_programs ADD COLUMN end_date DATE",
+            "target_modules": "ALTER TABLE pilot_programs ADD COLUMN target_modules TEXT",
+            "success_criteria": "ALTER TABLE pilot_programs ADD COLUMN success_criteria TEXT",
+            "feedback_summary": "ALTER TABLE pilot_programs ADD COLUMN feedback_summary TEXT",
+            "sales_blocker": "ALTER TABLE pilot_programs ADD COLUMN sales_blocker BOOLEAN NOT NULL DEFAULT 0",
+            "sales_blocker_note": "ALTER TABLE pilot_programs ADD COLUMN sales_blocker_note TEXT",
+            "next_follow_up_date": "ALTER TABLE pilot_programs ADD COLUMN next_follow_up_date DATE",
+            "result": "ALTER TABLE pilot_programs ADD COLUMN result VARCHAR(160)",
+            "created_at": "ALTER TABLE pilot_programs ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE pilot_programs ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in pilot_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_pilot_programs_company_id", "company_id"),
+            ("ix_pilot_programs_status", "status"),
+            ("ix_pilot_programs_next_follow_up_date", "next_follow_up_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON pilot_programs ({column_name})"
+                )
+            )
+
     if "notifications" in tables:
         columns = {column["name"] for column in inspector.get_columns("notifications")}
         notification_columns = {
