@@ -193,6 +193,42 @@ PERMISSION_CATALOG = (
         "description": "Sapma ve uygunsuz \u00fcr\u00fcn kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
     },
     {
+        "key": "incident.view",
+        "label": "Olay / ramak kala g\u00f6r\u00fcnt\u00fcleme",
+        "group": "Olay / Ramak Kala",
+        "description": "Olay, ramak kala, tehlikeli durum ve kapan\u0131\u015f kay\u0131tlar\u0131n\u0131 g\u00f6r\u00fcnt\u00fcler.",
+    },
+    {
+        "key": "incident.create",
+        "label": "Olay / ramak kala bildirimi a\u00e7ma",
+        "group": "Olay / Ramak Kala",
+        "description": "Yeni olay, ramak kala veya tehlikeli durum bildirimi olu\u015fturur.",
+    },
+    {
+        "key": "incident.manage",
+        "label": "Olay / ramak kala y\u00f6netimi",
+        "group": "Olay / Ramak Kala",
+        "description": "Bildirimleri d\u00fczenler, inceleme bilgisi, sorumlu ve ba\u011flant\u0131lar\u0131 y\u00f6netir.",
+    },
+    {
+        "key": "incident.review",
+        "label": "Olay / ramak kala karar ve kapan\u0131\u015f",
+        "group": "Olay / Ramak Kala",
+        "description": "Bildirimleri incelemeye al\u0131r, karar verir ve etkinlik kontrol\u00fcn\u00fc kapat\u0131r.",
+    },
+    {
+        "key": "incident.delete",
+        "label": "Olay / ramak kala ar\u015fivleme",
+        "group": "Olay / Ramak Kala",
+        "description": "Olay ve ramak kala kay\u0131tlar\u0131n\u0131 denetim izi korunacak \u015fekilde ar\u015five al\u0131r.",
+    },
+    {
+        "key": "incident.export",
+        "label": "Olay / ramak kala raporu alma",
+        "group": "Olay / Ramak Kala",
+        "description": "Olay ve ramak kala kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
+    },
+    {
         "key": "training.view",
         "label": "Eğitimleri görüntüleme",
         "group": "Eğitim / Yeterlilik",
@@ -413,6 +449,12 @@ ROLE_DEFINITIONS = (
             "deviation.approve",
             "deviation.delete",
             "deviation.export",
+            "incident.view",
+            "incident.create",
+            "incident.manage",
+            "incident.review",
+            "incident.delete",
+            "incident.export",
             "training.view",
             "training.manage",
             "training.delete",
@@ -458,6 +500,9 @@ ROLE_DEFINITIONS = (
             "deviation.view",
             "deviation.approve",
             "deviation.export",
+            "incident.view",
+            "incident.review",
+            "incident.export",
             "training.view",
             "complaints.view",
             "management_review.view",
@@ -485,6 +530,9 @@ ROLE_DEFINITIONS = (
             "deviation.view",
             "deviation.create",
             "deviation.manage",
+            "incident.view",
+            "incident.create",
+            "incident.manage",
             "training.view",
             "complaints.view",
             "complaints.manage",
@@ -510,6 +558,8 @@ ROLE_DEFINITIONS = (
             "change_management.create",
             "deviation.view",
             "deviation.create",
+            "incident.view",
+            "incident.create",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -525,6 +575,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "change_management.view",
             "deviation.view",
+            "incident.view",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -1285,6 +1336,182 @@ def ensure_runtime_schema():
                 text(
                     f"CREATE INDEX IF NOT EXISTS {index_name} "
                     f"ON deviation_files ({column_name})"
+                )
+            )
+
+    if "incident_reports" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE incident_reports (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    incident_no VARCHAR(40) NOT NULL,
+                    report_type VARCHAR(80) NOT NULL DEFAULT 'Ramak Kala',
+                    title VARCHAR(180) NOT NULL,
+                    description TEXT,
+                    incident_date DATE NOT NULL,
+                    incident_time VARCHAR(20),
+                    department VARCHAR(80),
+                    location VARCHAR(180),
+                    process_name VARCHAR(160),
+                    affected_person VARCHAR(180),
+                    witness VARCHAR(180),
+                    severity VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                    probability INTEGER,
+                    risk_score INTEGER,
+                    immediate_action TEXT,
+                    root_cause TEXT,
+                    decision VARCHAR(100),
+                    decision_note TEXT,
+                    corrective_action TEXT,
+                    due_date DATE,
+                    closed_at DATE,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Yeni Bildirim',
+                    reported_by_user_id INTEGER,
+                    reviewer_user_id INTEGER,
+                    responsible_user_id INTEGER,
+                    document_id INTEGER,
+                    action_id INTEGER,
+                    risk_id INTEGER,
+                    dof_id INTEGER,
+                    deviation_id INTEGER,
+                    archived_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(reported_by_user_id) REFERENCES users (id),
+                    FOREIGN KEY(reviewer_user_id) REFERENCES users (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(document_id) REFERENCES documents (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(risk_id) REFERENCES risk_records (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(deviation_id) REFERENCES deviation_records (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("incident_reports")
+
+    if "incident_reports" in tables:
+        columns = {column["name"] for column in inspector.get_columns("incident_reports")}
+        incident_report_columns = {
+            "company_id": "ALTER TABLE incident_reports ADD COLUMN company_id INTEGER",
+            "incident_no": "ALTER TABLE incident_reports ADD COLUMN incident_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "report_type": "ALTER TABLE incident_reports ADD COLUMN report_type VARCHAR(80) NOT NULL DEFAULT 'Ramak Kala'",
+            "title": "ALTER TABLE incident_reports ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "description": "ALTER TABLE incident_reports ADD COLUMN description TEXT",
+            "incident_date": "ALTER TABLE incident_reports ADD COLUMN incident_date DATE",
+            "incident_time": "ALTER TABLE incident_reports ADD COLUMN incident_time VARCHAR(20)",
+            "department": "ALTER TABLE incident_reports ADD COLUMN department VARCHAR(80)",
+            "location": "ALTER TABLE incident_reports ADD COLUMN location VARCHAR(180)",
+            "process_name": "ALTER TABLE incident_reports ADD COLUMN process_name VARCHAR(160)",
+            "affected_person": "ALTER TABLE incident_reports ADD COLUMN affected_person VARCHAR(180)",
+            "witness": "ALTER TABLE incident_reports ADD COLUMN witness VARCHAR(180)",
+            "severity": "ALTER TABLE incident_reports ADD COLUMN severity VARCHAR(40) NOT NULL DEFAULT 'Orta'",
+            "probability": "ALTER TABLE incident_reports ADD COLUMN probability INTEGER",
+            "risk_score": "ALTER TABLE incident_reports ADD COLUMN risk_score INTEGER",
+            "immediate_action": "ALTER TABLE incident_reports ADD COLUMN immediate_action TEXT",
+            "root_cause": "ALTER TABLE incident_reports ADD COLUMN root_cause TEXT",
+            "decision": "ALTER TABLE incident_reports ADD COLUMN decision VARCHAR(100)",
+            "decision_note": "ALTER TABLE incident_reports ADD COLUMN decision_note TEXT",
+            "corrective_action": "ALTER TABLE incident_reports ADD COLUMN corrective_action TEXT",
+            "due_date": "ALTER TABLE incident_reports ADD COLUMN due_date DATE",
+            "closed_at": "ALTER TABLE incident_reports ADD COLUMN closed_at DATE",
+            "status": "ALTER TABLE incident_reports ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Yeni Bildirim'",
+            "reported_by_user_id": "ALTER TABLE incident_reports ADD COLUMN reported_by_user_id INTEGER",
+            "reviewer_user_id": "ALTER TABLE incident_reports ADD COLUMN reviewer_user_id INTEGER",
+            "responsible_user_id": "ALTER TABLE incident_reports ADD COLUMN responsible_user_id INTEGER",
+            "document_id": "ALTER TABLE incident_reports ADD COLUMN document_id INTEGER",
+            "action_id": "ALTER TABLE incident_reports ADD COLUMN action_id INTEGER",
+            "risk_id": "ALTER TABLE incident_reports ADD COLUMN risk_id INTEGER",
+            "dof_id": "ALTER TABLE incident_reports ADD COLUMN dof_id INTEGER",
+            "deviation_id": "ALTER TABLE incident_reports ADD COLUMN deviation_id INTEGER",
+            "archived_at": "ALTER TABLE incident_reports ADD COLUMN archived_at DATETIME",
+            "created_at": "ALTER TABLE incident_reports ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE incident_reports ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in incident_report_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_incident_reports_company_id", "company_id"),
+            ("ix_incident_reports_incident_no", "incident_no"),
+            ("ix_incident_reports_status", "status"),
+            ("ix_incident_reports_due_date", "due_date"),
+            ("ix_incident_reports_reviewer_user_id", "reviewer_user_id"),
+            ("ix_incident_reports_responsible_user_id", "responsible_user_id"),
+            ("ix_incident_reports_reported_by_user_id", "reported_by_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON incident_reports ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_incident_reports_company_incident_no "
+                "ON incident_reports (company_id, incident_no)"
+            )
+        )
+
+    if "incident_files" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE incident_files (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    incident_id INTEGER NOT NULL,
+                    file_kind VARCHAR(40) NOT NULL DEFAULT 'bildirim',
+                    file_name VARCHAR(255) NOT NULL,
+                    original_file_name VARCHAR(255) NOT NULL,
+                    file_path VARCHAR(500) NOT NULL,
+                    file_type VARCHAR(20),
+                    file_size INTEGER,
+                    uploaded_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(incident_id) REFERENCES incident_reports (id),
+                    FOREIGN KEY(uploaded_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("incident_files")
+
+    if "incident_files" in tables:
+        columns = {column["name"] for column in inspector.get_columns("incident_files")}
+        incident_file_columns = {
+            "company_id": "ALTER TABLE incident_files ADD COLUMN company_id INTEGER",
+            "incident_id": "ALTER TABLE incident_files ADD COLUMN incident_id INTEGER NOT NULL DEFAULT 0",
+            "file_kind": "ALTER TABLE incident_files ADD COLUMN file_kind VARCHAR(40) NOT NULL DEFAULT 'bildirim'",
+            "file_name": "ALTER TABLE incident_files ADD COLUMN file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "original_file_name": "ALTER TABLE incident_files ADD COLUMN original_file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "file_path": "ALTER TABLE incident_files ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
+            "file_type": "ALTER TABLE incident_files ADD COLUMN file_type VARCHAR(20)",
+            "file_size": "ALTER TABLE incident_files ADD COLUMN file_size INTEGER",
+            "uploaded_by_user_id": "ALTER TABLE incident_files ADD COLUMN uploaded_by_user_id INTEGER",
+            "created_at": "ALTER TABLE incident_files ADD COLUMN created_at DATETIME",
+        }
+        for column_name, statement in incident_file_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_incident_files_company_id", "company_id"),
+            ("ix_incident_files_incident_id", "incident_id"),
+            ("ix_incident_files_uploaded_by_user_id", "uploaded_by_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON incident_files ({column_name})"
                 )
             )
 
@@ -2130,6 +2357,7 @@ def ensure_runtime_schema():
             "sales_readiness:month2_document_read",
             "sales_readiness:month2_capa_fields",
             "sales_readiness:month2_management_dashboard",
+            "sales_readiness:competitor_incident_near_miss",
         ):
             db.session.execute(
                 text(

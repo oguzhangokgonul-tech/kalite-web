@@ -188,11 +188,19 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "incident_near_miss",
+        "name": "Olay / Ramak Kala",
+        "description": "Olay, ramak kala, tehlikeli durum, inceleme, aksiyon ve kapan\u0131\u015f takibi.",
+        "icon": "bi-exclamation-triangle",
+        "sort_order": 58,
+        "parent_key": None,
+    },
+    {
         "key": "training",
         "name": "Eğitim / Yeterlilik",
         "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
         "icon": "bi-mortarboard",
-        "sort_order": 58,
+        "sort_order": 59,
         "parent_key": None,
     },
     {
@@ -318,6 +326,44 @@ DEVIATION_DISPOSITION_DECISIONS = (
 DEVIATION_FILE_KINDS = (
     "tespit",
     "karantina",
+    "karar",
+    "kapanis",
+)
+INCIDENT_REPORT_TYPES = (
+    "Olay",
+    "Ramak Kala",
+    "Tehlikeli Durum",
+    "Kalite Olay\u0131",
+    "\u0130SG Olay\u0131",
+    "\u00c7evre Olay\u0131",
+    "Di\u011fer",
+)
+INCIDENT_SEVERITIES = ("D\u00fc\u015f\u00fck", "Orta", "Y\u00fcksek", "Kritik")
+INCIDENT_STATUS_NEW = "Yeni Bildirim"
+INCIDENT_STATUS_REVIEW = "\u0130ncelemede"
+INCIDENT_STATUS_ACTION_PENDING = "Aksiyon Bekliyor"
+INCIDENT_STATUS_EFFECTIVENESS = "Etkinlik Kontrol\u00fc"
+INCIDENT_STATUS_CLOSED = "Kapat\u0131ld\u0131"
+INCIDENT_STATUS_ARCHIVED = "Ar\u015fiv"
+INCIDENT_STATUSES = (
+    INCIDENT_STATUS_NEW,
+    INCIDENT_STATUS_REVIEW,
+    INCIDENT_STATUS_ACTION_PENDING,
+    INCIDENT_STATUS_EFFECTIVENESS,
+    INCIDENT_STATUS_CLOSED,
+    INCIDENT_STATUS_ARCHIVED,
+)
+INCIDENT_DECISIONS = (
+    "\u0130zlemeye Al\u0131nd\u0131",
+    "Aksiyon A\u00e7\u0131ld\u0131",
+    "D\u00d6F A\u00e7\u0131ld\u0131",
+    "Risk De\u011ferlendirmesine Al\u0131nd\u0131",
+    "Sapma Kayd\u0131na Ba\u011fland\u0131",
+    "Kapat\u0131ld\u0131",
+)
+INCIDENT_FILE_KINDS = (
+    "bildirim",
+    "inceleme",
     "karar",
     "kapanis",
 )
@@ -1638,6 +1684,107 @@ class DeviationFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     deviation = db.relationship("DeviationRecord", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class IncidentReport(db.Model):
+    __tablename__ = "incident_reports"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "incident_no",
+            name="uq_incident_reports_company_incident_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    incident_no = db.Column(db.String(40), nullable=False, index=True)
+    report_type = db.Column(db.String(80), nullable=False, default="Ramak Kala")
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    incident_date = db.Column(db.Date, nullable=False, default=date.today)
+    incident_time = db.Column(db.String(20), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    location = db.Column(db.String(180), nullable=True)
+    process_name = db.Column(db.String(160), nullable=True)
+    affected_person = db.Column(db.String(180), nullable=True)
+    witness = db.Column(db.String(180), nullable=True)
+    severity = db.Column(db.String(40), nullable=False, default="Orta")
+    probability = db.Column(db.Integer, nullable=True)
+    risk_score = db.Column(db.Integer, nullable=True)
+    immediate_action = db.Column(db.Text, nullable=True)
+    root_cause = db.Column(db.Text, nullable=True)
+    decision = db.Column(db.String(100), nullable=True)
+    decision_note = db.Column(db.Text, nullable=True)
+    corrective_action = db.Column(db.Text, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    closed_at = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default=INCIDENT_STATUS_NEW)
+    reported_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    deviation_id = db.Column(db.Integer, db.ForeignKey("deviation_records.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    reported_by = db.relationship("User", foreign_keys=[reported_by_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    document = db.relationship("Document", foreign_keys=[document_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    deviation = db.relationship("DeviationRecord", foreign_keys=[deviation_id])
+    files = db.relationship(
+        "IncidentFile",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        order_by="IncidentFile.created_at.asc()",
+    )
+
+    @property
+    def is_closed(self):
+        return self.status in {INCIDENT_STATUS_CLOSED, INCIDENT_STATUS_ARCHIVED}
+
+    @property
+    def delay_days(self):
+        if self.is_closed or not self.due_date:
+            return 0
+        return max((date.today() - self.due_date).days, 0)
+
+
+class IncidentFile(db.Model):
+    __tablename__ = "incident_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    incident_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_reports.id"),
+        nullable=False,
+        index=True,
+    )
+    file_kind = db.Column(db.String(40), nullable=False, default="bildirim")
+    file_name = db.Column(db.String(255), nullable=False)
+    original_file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(20), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    incident = db.relationship("IncidentReport", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

@@ -95,6 +95,19 @@ from .models import (
     DEVIATION_STATUS_OPEN,
     DEVIATION_STATUS_QUARANTINE,
     DEVIATION_STATUSES,
+    IncidentFile,
+    IncidentReport,
+    INCIDENT_DECISIONS,
+    INCIDENT_FILE_KINDS,
+    INCIDENT_REPORT_TYPES,
+    INCIDENT_SEVERITIES,
+    INCIDENT_STATUS_ACTION_PENDING,
+    INCIDENT_STATUS_ARCHIVED,
+    INCIDENT_STATUS_CLOSED,
+    INCIDENT_STATUS_EFFECTIVENESS,
+    INCIDENT_STATUS_NEW,
+    INCIDENT_STATUS_REVIEW,
+    INCIDENT_STATUSES,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
@@ -2661,6 +2674,16 @@ MODULE_ENDPOINTS = {
     "main.close_deviation_effectiveness": "deviation_management",
     "main.archive_deviation": "deviation_management",
     "main.download_deviation_file": "deviation_management",
+    "main.incident_dashboard": "incident_near_miss",
+    "main.create_incident": "incident_near_miss",
+    "main.incident_detail": "incident_near_miss",
+    "main.edit_incident": "incident_near_miss",
+    "main.start_incident_review": "incident_near_miss",
+    "main.record_incident_decision": "incident_near_miss",
+    "main.complete_incident_action": "incident_near_miss",
+    "main.close_incident_effectiveness": "incident_near_miss",
+    "main.archive_incident": "incident_near_miss",
+    "main.download_incident_file": "incident_near_miss",
     "main.training_dashboard": "training",
     "main.create_training": "training",
     "main.edit_training": "training",
@@ -7553,6 +7576,89 @@ def report_deviations_data():
     }
 
 
+def report_incidents_data():
+    incidents = sorted(incident_query().all(), key=incident_sort_key)
+    rows = [
+        (
+            incident.incident_no,
+            incident.report_type,
+            incident.title,
+            incident.department or "-",
+            incident.location or "-",
+            incident.process_name or "-",
+            format_date(incident.incident_date),
+            incident.incident_time or "-",
+            incident.severity,
+            incident.probability if incident.probability is not None else "-",
+            incident.risk_score if incident.risk_score is not None else "-",
+            incident.status,
+            incident.decision or "-",
+            report_user_name(incident.reported_by),
+            report_user_name(incident.reviewer),
+            report_user_name(incident.responsible),
+            format_date(incident.due_date),
+            incident.delay_days,
+            incident.action.number_label if incident.action else "-",
+            incident.risk.risk_no if incident.risk else "-",
+            incident.dof.dof_no if incident.dof else "-",
+            incident.deviation.deviation_no if incident.deviation else "-",
+        )
+        for incident in incidents
+    ]
+    return {
+        "headers": (
+            "Bildirim No",
+            "T\u00fcr",
+            "Ba\u015fl\u0131k",
+            "Departman",
+            "Lokasyon",
+            "S\u00fcre\u00e7",
+            "Olay Tarihi",
+            "Saat",
+            "\u015eiddet",
+            "Olas\u0131l\u0131k",
+            "Risk Skoru",
+            "Durum",
+            "Karar",
+            "Bildiren",
+            "\u0130nceleyen",
+            "Sorumlu",
+            "Termin",
+            "Gecikme G\u00fcn\u00fc",
+            "Ba\u011fl\u0131 Aksiyon",
+            "Ba\u011fl\u0131 Risk",
+            "Ba\u011fl\u0131 IF/D\u00d6F",
+            "Ba\u011fl\u0131 Sapma",
+        ),
+        "rows": rows,
+        "sheet_name": "Olay Ramak Kala",
+        "column_widths": (
+            18,
+            20,
+            36,
+            18,
+            24,
+            24,
+            16,
+            12,
+            12,
+            12,
+            12,
+            20,
+            24,
+            24,
+            24,
+            24,
+            16,
+            16,
+            18,
+            18,
+            18,
+            18,
+        ),
+    }
+
+
 def report_trainings_data():
     trainings = (
         scoped_query(TrainingRecord.query, TrainingRecord)
@@ -7838,6 +7944,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "deviation.view",
         "required_export_permission": "deviation.export",
         "builder": report_deviations_data,
+    },
+    {
+        "key": "incidents",
+        "title": "Olay / Ramak Kala Raporu",
+        "description": "Olay, ramak kala, tehlikeli durum, inceleme, aksiyon ve kapan\u0131\u015f kay\u0131tlar\u0131.",
+        "icon": "bi-exclamation-triangle",
+        "tone": "warning",
+        "module_key": "incident_near_miss",
+        "required_permission": "incident.view",
+        "required_export_permission": "incident.export",
+        "builder": report_incidents_data,
     },
     {
         "key": "trainings",
@@ -12643,6 +12760,8 @@ NOTIFICATION_FILTERS = (
     ("action", "Aksiyon"),
     ("change", "De\u011fi\u015fiklik"),
     ("deviation", "Sapma"),
+    ("incident", "Olay / Ramak Kala"),
+    ("incident", "Olay"),
 )
 
 
@@ -12673,6 +12792,8 @@ def notification_source_label(notification):
         return "De\u011fi\u015fiklik"
     if source_key.startswith("deviation:"):
         return "Sapma"
+    if source_key.startswith("incident:"):
+        return "Olay"
     if source_key.startswith("training:"):
         return "Eğitim"
     if source_key.startswith("complaint:"):
@@ -12723,6 +12844,8 @@ def notification_matches_filter(notification, filter_key):
         return source_key.startswith("change:")
     if filter_key == "deviation":
         return source_key.startswith("deviation:")
+    if filter_key == "incident":
+        return source_key.startswith("incident:")
     return True
 
 
@@ -14354,6 +14477,84 @@ def assigned_deviation_tasks(scope):
     return rows
 
 
+def assigned_incident_tasks(scope):
+    if not company_module_enabled("incident_near_miss") or not can_view_incidents():
+        return []
+
+    user_id = g.current_user.id
+    query = incident_query()
+    if scope == "created":
+        query = query.filter_by(reported_by_user_id=user_id)
+    else:
+        filters = [
+            IncidentReport.responsible_user_id == user_id,
+            IncidentReport.reviewer_user_id == user_id,
+        ]
+        if can_review_incidents():
+            filters.append(
+                IncidentReport.status.in_(
+                    [
+                        INCIDENT_STATUS_NEW,
+                        INCIDENT_STATUS_REVIEW,
+                        INCIDENT_STATUS_EFFECTIVENESS,
+                    ]
+                )
+            )
+        query = query.filter(or_(*filters))
+
+    rows = []
+    seen_ids = set()
+    for incident in query.all():
+        if incident.id in seen_ids:
+            continue
+        seen_ids.add(incident.id)
+        status = incident.status or INCIDENT_STATUS_NEW
+        status_key = incident_status_key(incident)
+        if status_key in {"completed", "cancelled"}:
+            continue
+        if status_key in {"open", "pending"} and incident.delay_days > 0:
+            status, status_key = "Gecikti", "delayed"
+        if scope != "created":
+            if (
+                incident.status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}
+                and incident.reviewer_user_id != user_id
+                and not can_review_incidents()
+            ):
+                continue
+            if (
+                incident.status == INCIDENT_STATUS_ACTION_PENDING
+                and incident.responsible_user_id != user_id
+                and not can_manage_incidents()
+            ):
+                continue
+            if (
+                incident.status == INCIDENT_STATUS_EFFECTIVENESS
+                and incident.reviewer_user_id != user_id
+                and not can_review_incidents()
+            ):
+                continue
+        rows.append(
+            assigned_task_row(
+                module_key="incident",
+                module_label="Olay",
+                module_icon="exclamation-triangle",
+                module_tone="risk",
+                title=f"{incident.incident_no} {incident.title}",
+                description=incident.description or incident.immediate_action,
+                reference_no=incident.incident_no,
+                department=incident.department or "Olay / Ramak Kala",
+                due_date=incident.due_date or assigned_date(incident.created_at),
+                status=status,
+                status_key=status_key,
+                priority=incident.severity or "Orta",
+                detail_url=url_for("main.incident_detail", incident_id=incident.id),
+                created_at=incident.created_at,
+                sort_id=incident.id,
+            )
+        )
+    return rows
+
+
 def assigned_all_tasks(scope):
     return (
         assigned_action_tasks(scope)
@@ -14371,6 +14572,7 @@ def assigned_all_tasks(scope):
         + assigned_supplier_tasks(scope)
         + assigned_change_management_tasks(scope)
         + assigned_deviation_tasks(scope)
+        + assigned_incident_tasks(scope)
     )
 
 
@@ -14393,6 +14595,7 @@ ASSIGNED_TAB_MODULES = {
         "document_revision",
         "change_management",
         "deviation",
+        "incident",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -17060,6 +17263,983 @@ def download_deviation_file(file_id):
         deviation_file.file_path,
         as_attachment=True,
         download_name=deviation_file.original_file_name,
+    )
+
+
+def can_view_incidents():
+    return (
+        current_user_can("incident.view")
+        or can_create_incidents()
+        or can_manage_incidents()
+        or can_review_incidents()
+    )
+
+
+def can_create_incidents():
+    return current_user_can("incident.create") or can_manage_incidents()
+
+
+def can_manage_incidents():
+    return current_user_can("incident.manage")
+
+
+def can_review_incidents():
+    return current_user_can("incident.review")
+
+
+def can_delete_incidents():
+    return current_user_can("incident.delete")
+
+
+def incident_query():
+    return scoped_query(IncidentReport.query, IncidentReport)
+
+
+def incident_status_key(incident):
+    status = incident.status or INCIDENT_STATUS_NEW
+    if status == INCIDENT_STATUS_CLOSED:
+        return "completed"
+    if status == INCIDENT_STATUS_ARCHIVED:
+        return "cancelled"
+    if status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW, INCIDENT_STATUS_EFFECTIVENESS}:
+        return "pending"
+    return "open"
+
+
+def incident_status_tone(status):
+    return {
+        INCIDENT_STATUS_NEW: "warning",
+        INCIDENT_STATUS_REVIEW: "info",
+        INCIDENT_STATUS_ACTION_PENDING: "warning",
+        INCIDENT_STATUS_EFFECTIVENESS: "info",
+        INCIDENT_STATUS_CLOSED: "success",
+        INCIDENT_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def incident_severity_tone(severity):
+    return {
+        "Kritik": "danger",
+        "Y\u00fcksek": "danger",
+        "Orta": "warning",
+        "D\u00fc\u015f\u00fck": "success",
+    }.get(severity, "muted")
+
+
+def incident_file_kind_label(file_kind):
+    return {
+        "bildirim": "Bildirim eki",
+        "inceleme": "\u0130nceleme eki",
+        "karar": "Karar eki",
+        "kapanis": "Kapan\u0131\u015f kan\u0131t\u0131",
+    }.get(file_kind, "Dosya")
+
+
+def incident_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "severity": request.args.get("severity", "").strip(),
+        "report_type": request.args.get("report_type", "").strip(),
+        "visibility": request.args.get("visibility", "active").strip() or "active",
+    }
+
+
+def incident_sort_key(incident):
+    if incident.status == INCIDENT_STATUS_ARCHIVED:
+        status_rank = 5
+    elif incident.status == INCIDENT_STATUS_CLOSED:
+        status_rank = 4
+    elif incident.delay_days:
+        status_rank = 0
+    elif incident.severity == "Kritik":
+        status_rank = 1
+    elif incident.status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}:
+        status_rank = 2
+    else:
+        status_rank = 3
+    return (
+        status_rank,
+        -incident.delay_days,
+        incident.due_date or date.max,
+        -(incident.risk_score or 0),
+        -(incident.id or 0),
+    )
+
+
+def filtered_incidents(filters):
+    query = incident_query()
+    if filters["visibility"] == "archive":
+        query = query.filter(IncidentReport.status == INCIDENT_STATUS_ARCHIVED)
+    elif filters["visibility"] != "all":
+        query = query.filter(IncidentReport.status != INCIDENT_STATUS_ARCHIVED)
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                IncidentReport.incident_no.ilike(search_value),
+                IncidentReport.title.ilike(search_value),
+                IncidentReport.description.ilike(search_value),
+                IncidentReport.location.ilike(search_value),
+                IncidentReport.process_name.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(IncidentReport.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(IncidentReport.status == filters["status"])
+    if filters["severity"]:
+        query = query.filter(IncidentReport.severity == filters["severity"])
+    if filters["report_type"]:
+        query = query.filter(IncidentReport.report_type == filters["report_type"])
+    return sorted(query.all(), key=incident_sort_key)
+
+
+def next_incident_no():
+    prefix = f"OLY-{date.today().year}-"
+    rows = (
+        scoped_query(IncidentReport.query.with_entities(IncidentReport.incident_no), IncidentReport)
+        .filter(IncidentReport.incident_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (incident_no,) in rows:
+        try:
+            numbers.append(int((incident_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def default_incident_reviewer():
+    representatives = document_management_representatives()
+    if representatives:
+        return representatives[0]
+    if can_review_incidents():
+        return g.current_user
+    return None
+
+
+def incident_risk_score(severity, probability):
+    severity_weight = {
+        "D\u00fc\u015f\u00fck": 1,
+        "Orta": 2,
+        "Y\u00fcksek": 3,
+        "Kritik": 4,
+    }.get(severity or "Orta", 2)
+    return severity_weight * probability if probability else None
+
+
+def incident_link_choices():
+    documents = []
+    actions = []
+    dofs = []
+    risks = []
+    deviations = []
+    if company_module_enabled("documents") and can_view_documents():
+        documents = sort_documents_by_code(document_query().all())
+    if (
+        current_user_can("actions.view_all")
+        or current_user_can("actions.create")
+        or can_manage_incidents()
+        or can_review_incidents()
+    ):
+        actions = (
+            scoped_query(Action.query, Action)
+            .order_by(Action.termin_date.asc(), Action.id.asc())
+            .all()
+        )
+    if company_module_enabled("if_management"):
+        dofs_query = scoped_query(Dof.query, Dof)
+        if not can_manage_incidents() and not can_review_incidents():
+            dofs_query = visible_dofs_query()
+        dofs = attach_dof_view_state(
+            dofs_query.order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        )
+    if company_module_enabled("risk_management") and can_view_risks():
+        risks = sorted(risk_query().all(), key=lambda item: (item.risk_no, item.id))
+    if company_module_enabled("deviation_management") and can_view_deviations():
+        deviations = sorted(deviation_query().all(), key=deviation_sort_key)
+    return documents, actions, dofs, risks, deviations
+
+
+def parse_incident_form(incident=None):
+    probability = request.form.get("probability", type=int)
+    values = {
+        "report_type": request.form.get("report_type", "Ramak Kala").strip() or "Ramak Kala",
+        "title": request.form.get("title", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "incident_date": parse_optional_date("incident_date") or date.today(),
+        "incident_time": request.form.get("incident_time", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "location": request.form.get("location", "").strip(),
+        "process_name": request.form.get("process_name", "").strip(),
+        "affected_person": request.form.get("affected_person", "").strip(),
+        "witness": request.form.get("witness", "").strip(),
+        "severity": request.form.get("severity", "Orta").strip() or "Orta",
+        "probability": probability,
+        "immediate_action": request.form.get("immediate_action", "").strip(),
+        "due_date": parse_optional_date("due_date"),
+        "reviewer_user_id": request.form.get("reviewer_user_id", type=int),
+        "responsible_user_id": request.form.get("responsible_user_id", type=int),
+        "document_id": request.form.get("document_id", type=int),
+        "action_id": request.form.get("action_id", type=int),
+        "risk_id": request.form.get("risk_id", type=int),
+        "dof_id": request.form.get("dof_id", type=int),
+        "deviation_id": request.form.get("deviation_id", type=int),
+    }
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["report_type"] not in INCIDENT_REPORT_TYPES:
+        raise ValueError("invalid_report_type")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["severity"] not in INCIDENT_SEVERITIES:
+        raise ValueError("invalid_severity")
+    if probability is not None and probability not in {1, 2, 3, 4, 5}:
+        raise ValueError("invalid_probability")
+    for key in ("description", "immediate_action"):
+        if len(values[key]) > 3000:
+            raise ValueError("text_too_long")
+    for key in ("incident_time", "department", "location", "process_name", "affected_person", "witness"):
+        if len(values[key]) > 180:
+            raise ValueError("text_too_long")
+    if incident and not values["reviewer_user_id"]:
+        values["reviewer_user_id"] = incident.reviewer_user_id
+    if not values["reviewer_user_id"]:
+        reviewer = default_incident_reviewer()
+        values["reviewer_user_id"] = reviewer.id if reviewer else None
+    values["risk_score"] = incident_risk_score(values["severity"], probability)
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_incident_links(incident):
+    for field_name, error_key in (
+        ("reviewer_user_id", "invalid_reviewer"),
+        ("responsible_user_id", "invalid_responsible"),
+    ):
+        user_id = getattr(incident, field_name)
+        if user_id and active_user_by_id(user_id) is None:
+            raise ValueError(error_key)
+    if incident.document_id and document_query().filter_by(id=incident.document_id).first() is None:
+        raise ValueError("invalid_document")
+    if incident.action_id and scoped_query(Action.query, Action).filter_by(id=incident.action_id).first() is None:
+        raise ValueError("invalid_action")
+    if incident.dof_id and scoped_query(Dof.query, Dof).filter_by(id=incident.dof_id).first() is None:
+        raise ValueError("invalid_dof")
+    if incident.risk_id and risk_query().filter_by(id=incident.risk_id).first() is None:
+        raise ValueError("invalid_risk")
+    if incident.deviation_id and deviation_query().filter_by(id=incident.deviation_id).first() is None:
+        raise ValueError("invalid_deviation")
+
+
+def incident_form_error_message(error_key):
+    return {
+        "required_fields": "Ba\u015fl\u0131k zorunludur.",
+        "invalid_report_type": "Ge\u00e7erli bir bildirim t\u00fcr\u00fc se\u00e7in.",
+        "invalid_department": "Ge\u00e7erli bir departman se\u00e7in.",
+        "invalid_severity": "Ge\u00e7erli bir \u015fiddet seviyesi se\u00e7in.",
+        "invalid_probability": "Olas\u0131l\u0131k 1 ile 5 aras\u0131nda olmal\u0131d\u0131r.",
+        "invalid_decision": "Ge\u00e7erli bir karar se\u00e7in.",
+        "invalid_date": "Ge\u00e7erli bir tarih girin.",
+        "action_requires_owner": "Bu karar i\u00e7in sorumlu ve termin tarihi zorunludur.",
+        "action_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 aksiyon se\u00e7ilmelidir.",
+        "dof_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 IF/D\u00d6F se\u00e7ilmelidir.",
+        "risk_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 risk se\u00e7ilmelidir.",
+        "deviation_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 sapma kayd\u0131 se\u00e7ilmelidir.",
+        "invalid_responsible": "Ge\u00e7erli bir sorumlu se\u00e7in.",
+        "invalid_reviewer": "Ge\u00e7erli bir inceleyen se\u00e7in.",
+        "invalid_document": "Ba\u011flanacak dok\u00fcman bulunamad\u0131.",
+        "invalid_action": "Ba\u011flanacak aksiyon bulunamad\u0131.",
+        "invalid_dof": "Ba\u011flanacak IF/D\u00d6F bulunamad\u0131.",
+        "invalid_risk": "Ba\u011flanacak risk bulunamad\u0131.",
+        "invalid_deviation": "Ba\u011flanacak sapma kayd\u0131 bulunamad\u0131.",
+        "invalid_document_file_type": "Sadece PDF, Office veya g\u00f6rsel dosyas\u0131 y\u00fckleyebilirsiniz.",
+        "document_file_too_large": "Dosya en fazla 25 MB olabilir.",
+        "storage_quota_exceeded": "Firma depolama kotas\u0131 a\u015f\u0131ld\u0131.",
+        "text_too_long": "Metin alanlar\u0131ndan biri \u00e7ok uzun.",
+    }.get(error_key, "Olay / ramak kala kayd\u0131 kaydedilemedi.")
+
+
+def incident_uploads(field_name="incident_files"):
+    return [
+        uploaded_file
+        for uploaded_file in request.files.getlist(field_name)
+        if uploaded_file and uploaded_file.filename
+    ]
+
+
+def save_incident_file(uploaded_file, incident, file_kind):
+    if file_kind not in INCIDENT_FILE_KINDS:
+        file_kind = "bildirim"
+    if not document_allowed_file(uploaded_file):
+        raise ValueError("invalid_document_file_type")
+
+    original_name = safe_original_filename(uploaded_file.filename, "olay-dosyasi")
+    extension = file_extension(uploaded_file.filename)
+    if not original_name:
+        original_name = f"olay-dosyasi.{extension}"
+    stored_name = f"incident-{uuid4().hex}.{extension}"
+    company_id = incident.company_id or current_company_id()
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        Path("incidents") / file_kind,
+        company_id,
+    )
+    assert_company_storage_quota(company_id, uploaded_stream_size(uploaded_file))
+    uploaded_file.save(upload_path)
+
+    if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("document_file_too_large")
+    try:
+        assert_company_storage_quota(company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
+
+    incident_file = IncidentFile(
+        incident=incident,
+        company_id=company_id,
+        file_kind=file_kind,
+        file_name=stored_name,
+        original_file_name=original_name,
+        file_path=str(relative_path).replace("\\", "/"),
+        file_type=extension,
+        file_size=upload_path.stat().st_size,
+        uploaded_by_user_id=g.current_user.id if g.current_user else None,
+    )
+    assign_current_company(incident_file)
+    return incident_file
+
+
+def delete_incident_file(incident_file):
+    if incident_file and incident_file.file_path:
+        delete_stored_upload(incident_file.file_path)
+
+
+def notify_incident(user, incident, event_key, message, notification_type="info"):
+    if user is None:
+        return None
+    return add_user_notification(
+        user,
+        message,
+        company_id=incident.company_id,
+        notification_type=notification_type,
+        source_key=f"incident:{incident.id}:{event_key}",
+        target_url=url_for("main.incident_detail", incident_id=incident.id),
+        due_date=incident.due_date,
+    )
+
+
+def notify_incident_users(users, incident, event_key, message, notification_type="info", exclude_user_id=None):
+    created = []
+    for user in unique_users(users):
+        if exclude_user_id and user.id == exclude_user_id:
+            continue
+        notification = notify_incident(
+            user,
+            incident,
+            event_key,
+            message,
+            notification_type=notification_type,
+        )
+        if notification is not None:
+            created.append(notification)
+    return created
+
+
+def mark_incident_sales_readiness_without_commit():
+    has_record = IncidentReport.query.count() > 0
+    has_decision_record = (
+        IncidentReport.query.filter(IncidentReport.decision.isnot(None)).count() > 0
+    )
+    has_created_audit = (
+        AuditLog.query.filter_by(
+            entity_type="IncidentReport",
+            action="incident_created",
+        ).first()
+        is not None
+    )
+    has_decision_audit = (
+        AuditLog.query.filter_by(
+            entity_type="IncidentReport",
+            action="incident_decision_recorded",
+        ).first()
+        is not None
+    )
+    if has_record and has_decision_record and has_created_audit and has_decision_audit:
+        mark_sales_readiness_item_done_without_commit("competitor_incident_near_miss")
+
+
+def incident_form_context(incident=None):
+    form_data = request.form if request.method == "POST" else {}
+    documents, actions, dofs, risks, deviations = incident_link_choices()
+    return {
+        "incident": incident,
+        "report_types": INCIDENT_REPORT_TYPES,
+        "severities": INCIDENT_SEVERITIES,
+        "departments": DEPARTMENTS,
+        "users": active_users(),
+        "documents": documents,
+        "actions": actions,
+        "dofs": dofs,
+        "risks": risks,
+        "deviations": deviations,
+        "form_data": form_data,
+        "can_manage_incidents": can_manage_incidents(),
+        "can_review_incidents": can_review_incidents(),
+    }
+
+
+def incident_dashboard_context():
+    filters = incident_filters()
+    incidents = filtered_incidents(filters)
+    all_incidents = incident_query().all()
+    active_incidents = [
+        item for item in all_incidents if item.status != INCIDENT_STATUS_ARCHIVED
+    ]
+    departments = sorted({item.department for item in all_incidents if item.department})
+    return {
+        "incidents": incidents,
+        "total_count": len(active_incidents),
+        "filtered_count": len(incidents),
+        "open_count": sum(
+            1
+            for item in active_incidents
+            if item.status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}
+        ),
+        "near_miss_count": sum(
+            1 for item in active_incidents if item.report_type == "Ramak Kala"
+        ),
+        "overdue_count": sum(1 for item in active_incidents if item.delay_days > 0),
+        "filters": filters,
+        "statuses": INCIDENT_STATUSES,
+        "report_types": INCIDENT_REPORT_TYPES,
+        "severities": INCIDENT_SEVERITIES,
+        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "can_create_incidents": can_create_incidents(),
+        "can_manage_incidents": can_manage_incidents(),
+        "can_review_incidents": can_review_incidents(),
+        "can_delete_incidents": can_delete_incidents(),
+        "incident_status_tone": incident_status_tone,
+        "incident_severity_tone": incident_severity_tone,
+        "format_date": format_date,
+        "status_new": INCIDENT_STATUS_NEW,
+        "status_review": INCIDENT_STATUS_REVIEW,
+        "status_archived": INCIDENT_STATUS_ARCHIVED,
+    }
+
+
+@bp.route("/olay-ramak-kala")
+@login_required
+def incident_dashboard():
+    if not can_view_incidents():
+        abort(403)
+    return render_template("incidents/dashboard.html", **incident_dashboard_context())
+
+
+@bp.route("/olay-ramak-kala/yeni", methods=["GET", "POST"])
+@login_required
+def create_incident():
+    if not can_create_incidents():
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        try:
+            values = parse_incident_form()
+            incident = IncidentReport(
+                incident_no=next_incident_no(),
+                status=INCIDENT_STATUS_NEW,
+                reported_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(incident)
+            validate_incident_links(incident)
+            db.session.add(incident)
+            db.session.flush()
+
+            for uploaded_file in incident_uploads():
+                incident_file = save_incident_file(uploaded_file, incident, "bildirim")
+                db.session.add(incident_file)
+                saved_files.append(incident_file)
+
+            record_audit_event(
+                "IncidentReport",
+                "incident_created",
+                f"{incident.incident_no} olay/ramak kala bildirimi olu\u015fturuldu",
+                entity_id=incident.id,
+                details={
+                    "incident_no": incident.incident_no,
+                    "report_type": incident.report_type,
+                    "severity": incident.severity,
+                    "risk_score": incident.risk_score,
+                    "reviewer_user_id": incident.reviewer_user_id,
+                },
+                company_id=incident.company_id,
+                commit=False,
+            )
+            if incident.reviewer:
+                notify_incident(
+                    incident.reviewer,
+                    incident,
+                    "review",
+                    f"{incident.incident_no} olay/ramak kala bildirimi incelemenizi bekliyor.",
+                    notification_type="warning",
+                )
+            db.session.commit()
+            flash("Olay / ramak kala bildirimi olu\u015fturuldu.", "success")
+            return redirect(url_for("main.incident_detail", incident_id=incident.id))
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_incident_file(saved_file)
+            flash(incident_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "incidents/form.html",
+        page_title="Yeni Olay / Ramak Kala Bildirimi",
+        **incident_form_context(),
+    )
+
+
+@bp.get("/olay-ramak-kala/<int:incident_id>")
+@login_required
+def incident_detail(incident_id):
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    if not can_view_incidents():
+        abort(403)
+    current_user_is_responsible = (
+        incident.responsible_user_id == g.current_user.id if g.current_user else False
+    )
+    can_edit_current = can_manage_incidents() or (
+        incident.reported_by_user_id == g.current_user.id
+        and incident.status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}
+    )
+    can_show_review = (
+        can_manage_incidents() or can_review_incidents()
+    ) and incident.status == INCIDENT_STATUS_NEW
+    can_show_decision = can_review_incidents() and incident.status in {
+        INCIDENT_STATUS_NEW,
+        INCIDENT_STATUS_REVIEW,
+    }
+    can_show_action = (
+        can_manage_incidents() or current_user_is_responsible
+    ) and incident.status == INCIDENT_STATUS_ACTION_PENDING
+    can_show_effectiveness = (
+        can_review_incidents() or can_manage_incidents()
+    ) and incident.status == INCIDENT_STATUS_EFFECTIVENESS
+    _documents, actions, dofs, risks, deviations = incident_link_choices()
+    return render_template(
+        "incidents/detail.html",
+        incident=incident,
+        decisions=INCIDENT_DECISIONS,
+        users=active_users(),
+        actions=actions,
+        dofs=dofs,
+        risks=risks,
+        deviations=deviations,
+        format_date=format_date,
+        format_file_size=format_file_size,
+        incident_status_tone=incident_status_tone,
+        incident_severity_tone=incident_severity_tone,
+        incident_file_kind_label=incident_file_kind_label,
+        can_edit_current=can_edit_current,
+        can_manage_incidents=can_manage_incidents(),
+        can_review_incidents=can_review_incidents(),
+        can_delete_incidents=can_delete_incidents(),
+        can_show_review=can_show_review,
+        can_show_decision=can_show_decision,
+        can_show_action=can_show_action,
+        can_show_effectiveness=can_show_effectiveness,
+        status_archived=INCIDENT_STATUS_ARCHIVED,
+        today=date.today(),
+    )
+
+
+@bp.route("/olay-ramak-kala/<int:incident_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_incident(incident_id):
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    can_edit_own_open = (
+        incident.reported_by_user_id == g.current_user.id
+        and incident.status in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}
+    )
+    if not can_manage_incidents() and not can_edit_own_open:
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        old_values = {
+            "title": incident.title,
+            "report_type": incident.report_type,
+            "severity": incident.severity,
+            "status": incident.status,
+        }
+        try:
+            values = parse_incident_form(incident)
+            for key, value in values.items():
+                setattr(incident, key, value)
+            validate_incident_links(incident)
+            for uploaded_file in incident_uploads():
+                incident_file = save_incident_file(uploaded_file, incident, "bildirim")
+                db.session.add(incident_file)
+                saved_files.append(incident_file)
+            record_audit_event(
+                "IncidentReport",
+                "incident_updated",
+                f"{incident.incident_no} olay/ramak kala kayd\u0131 g\u00fcncellendi",
+                entity_id=incident.id,
+                old_values=old_values,
+                new_values={
+                    "title": incident.title,
+                    "report_type": incident.report_type,
+                    "severity": incident.severity,
+                    "status": incident.status,
+                    "risk_score": incident.risk_score,
+                },
+                company_id=incident.company_id,
+                commit=False,
+            )
+            db.session.commit()
+            flash("Olay / ramak kala kayd\u0131 g\u00fcncellendi.", "success")
+            return redirect(url_for("main.incident_detail", incident_id=incident.id))
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_incident_file(saved_file)
+            flash(incident_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "incidents/form.html",
+        page_title="Olay / Ramak Kala Kayd\u0131 D\u00fczenle",
+        **incident_form_context(incident),
+    )
+
+
+@bp.post("/olay-ramak-kala/<int:incident_id>/incelemeye-al")
+@login_required
+def start_incident_review(incident_id):
+    if not can_manage_incidents() and not can_review_incidents():
+        abort(403)
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    if incident.status != INCIDENT_STATUS_NEW:
+        flash("Sadece yeni bildirimler incelemeye al\u0131nabilir.", "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    incident.status = INCIDENT_STATUS_REVIEW
+    incident.reviewer_user_id = g.current_user.id
+    incident.immediate_action = request.form.get("immediate_action", "").strip()[:3000] or incident.immediate_action
+    saved_files = []
+    try:
+        for uploaded_file in incident_uploads("review_files"):
+            incident_file = save_incident_file(uploaded_file, incident, "inceleme")
+            db.session.add(incident_file)
+            saved_files.append(incident_file)
+        record_audit_event(
+            "IncidentReport",
+            "incident_review_started",
+            f"{incident.incident_no} incelemeye al\u0131nd\u0131",
+            entity_id=incident.id,
+            details={"reviewer_user_id": incident.reviewer_user_id},
+            company_id=incident.company_id,
+            commit=False,
+        )
+        db.session.commit()
+        flash("\u0130nceleme bilgisi kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_incident_file(saved_file)
+        flash(incident_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+
+@bp.post("/olay-ramak-kala/<int:incident_id>/karar-ver")
+@login_required
+def record_incident_decision(incident_id):
+    if not can_review_incidents():
+        abort(403)
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    if incident.status not in {INCIDENT_STATUS_NEW, INCIDENT_STATUS_REVIEW}:
+        flash("Bu a\u015famada karar kaydedilemez.", "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+    decision = request.form.get("decision", "").strip()
+    if decision not in INCIDENT_DECISIONS:
+        flash(incident_form_error_message("invalid_decision"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+    responsible_user_id = request.form.get("responsible_user_id", type=int) or incident.responsible_user_id
+    try:
+        due_date = parse_optional_date("due_date") or incident.due_date
+    except ValueError:
+        flash(incident_form_error_message("invalid_date"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    action_id = request.form.get("action_id", type=int) or incident.action_id
+    dof_id = request.form.get("dof_id", type=int) or incident.dof_id
+    risk_id = request.form.get("risk_id", type=int) or incident.risk_id
+    deviation_id = request.form.get("deviation_id", type=int) or incident.deviation_id
+    if decision == "Aksiyon A\u00e7\u0131ld\u0131" and not action_id:
+        flash(incident_form_error_message("action_link_required"), "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if decision == "D\u00d6F A\u00e7\u0131ld\u0131" and not dof_id:
+        flash(incident_form_error_message("dof_link_required"), "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if decision == "Risk De\u011ferlendirmesine Al\u0131nd\u0131" and not risk_id:
+        flash(incident_form_error_message("risk_link_required"), "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if decision == "Sapma Kayd\u0131na Ba\u011fland\u0131" and not deviation_id:
+        flash(incident_form_error_message("deviation_link_required"), "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if action_id and scoped_query(Action.query, Action).filter_by(id=action_id).first() is None:
+        flash(incident_form_error_message("invalid_action"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if dof_id and scoped_query(Dof.query, Dof).filter_by(id=dof_id).first() is None:
+        flash(incident_form_error_message("invalid_dof"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if risk_id and risk_query().filter_by(id=risk_id).first() is None:
+        flash(incident_form_error_message("invalid_risk"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if deviation_id and deviation_query().filter_by(id=deviation_id).first() is None:
+        flash(incident_form_error_message("invalid_deviation"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+    corrective_action = request.form.get("corrective_action", "").strip()
+    requires_action = decision in {
+        "Aksiyon A\u00e7\u0131ld\u0131",
+        "D\u00d6F A\u00e7\u0131ld\u0131",
+        "Risk De\u011ferlendirmesine Al\u0131nd\u0131",
+        "Sapma Kayd\u0131na Ba\u011fland\u0131",
+    } or bool(corrective_action)
+    if requires_action and (not responsible_user_id or not due_date):
+        flash(incident_form_error_message("action_requires_owner"), "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    if responsible_user_id and active_user_by_id(responsible_user_id) is None:
+        flash(incident_form_error_message("invalid_responsible"), "danger")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+    saved_files = []
+    try:
+        incident.decision = decision
+        incident.decision_note = request.form.get("decision_note", "").strip()[:3000] or None
+        incident.root_cause = request.form.get("root_cause", "").strip()[:3000] or None
+        incident.corrective_action = corrective_action[:3000] or None
+        incident.reviewer_user_id = g.current_user.id
+        incident.responsible_user_id = responsible_user_id
+        incident.action_id = action_id
+        incident.dof_id = dof_id
+        incident.risk_id = risk_id
+        incident.deviation_id = deviation_id
+        incident.due_date = due_date
+        if requires_action:
+            incident.status = INCIDENT_STATUS_ACTION_PENDING
+        else:
+            incident.status = INCIDENT_STATUS_CLOSED
+            incident.closed_at = date.today()
+        for uploaded_file in incident_uploads("decision_files"):
+            incident_file = save_incident_file(uploaded_file, incident, "karar")
+            db.session.add(incident_file)
+            saved_files.append(incident_file)
+        record_audit_event(
+            "IncidentReport",
+            "incident_decision_recorded",
+            f"{incident.incident_no} karar\u0131 kaydedildi",
+            entity_id=incident.id,
+            details={
+                "decision": incident.decision,
+                "requires_action": requires_action,
+                "responsible_user_id": incident.responsible_user_id,
+                "action_id": incident.action_id,
+                "risk_id": incident.risk_id,
+                "dof_id": incident.dof_id,
+                "deviation_id": incident.deviation_id,
+            },
+            company_id=incident.company_id,
+            commit=False,
+        )
+        if requires_action and incident.responsible:
+            notify_incident(
+                incident.responsible,
+                incident,
+                "action",
+                f"{incident.incident_no} olay/ramak kala aksiyonu sorumlulu\u011funuza atand\u0131.",
+                notification_type="warning",
+            )
+        else:
+            notify_incident_users(
+                [incident.reported_by],
+                incident,
+                "closed",
+                f"{incident.incident_no} olay/ramak kala bildirimi karar ile kapat\u0131ld\u0131.",
+                notification_type="success",
+                exclude_user_id=g.current_user.id,
+            )
+        mark_incident_sales_readiness_without_commit()
+        db.session.commit()
+        flash("Olay / ramak kala karar\u0131 kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_incident_file(saved_file)
+        flash(incident_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+
+@bp.post("/olay-ramak-kala/<int:incident_id>/aksiyon-tamamlandi")
+@login_required
+def complete_incident_action(incident_id):
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    if not (can_manage_incidents() or incident.responsible_user_id == g.current_user.id):
+        abort(403)
+    if incident.status != INCIDENT_STATUS_ACTION_PENDING:
+        flash("Sadece aksiyon bekleyen kay\u0131tlar tamamlanabilir.", "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    saved_files = []
+    try:
+        completion_note = request.form.get("completion_note", "").strip()
+        if completion_note:
+            incident.corrective_action = "\n\n".join(
+                part for part in (incident.corrective_action, completion_note[:3000]) if part
+            )
+        incident.status = INCIDENT_STATUS_EFFECTIVENESS
+        for uploaded_file in incident_uploads("closing_files"):
+            incident_file = save_incident_file(uploaded_file, incident, "kapanis")
+            db.session.add(incident_file)
+            saved_files.append(incident_file)
+        record_audit_event(
+            "IncidentReport",
+            "incident_action_completed",
+            f"{incident.incident_no} aksiyonu tamamland\u0131",
+            entity_id=incident.id,
+            details={"responsible_user_id": g.current_user.id},
+            company_id=incident.company_id,
+            commit=False,
+        )
+        notify_incident(
+            incident.reviewer,
+            incident,
+            "effectiveness",
+            f"{incident.incident_no} i\u00e7in etkinlik/kapan\u0131\u015f kontrol\u00fc bekleniyor.",
+            notification_type="warning",
+        )
+        db.session.commit()
+        flash("Aksiyon tamamland\u0131, etkinlik kontrol\u00fcne g\u00f6nderildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_incident_file(saved_file)
+        flash(incident_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+
+@bp.post("/olay-ramak-kala/<int:incident_id>/etkinlik-kapat")
+@login_required
+def close_incident_effectiveness(incident_id):
+    if not can_review_incidents() and not can_manage_incidents():
+        abort(403)
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    if incident.status != INCIDENT_STATUS_EFFECTIVENESS:
+        flash("Sadece etkinlik kontrol\u00fc bekleyen kay\u0131tlar kapat\u0131labilir.", "warning")
+        return redirect(url_for("main.incident_detail", incident_id=incident.id))
+    saved_files = []
+    try:
+        effectiveness_note = request.form.get("effectiveness_note", "").strip()
+        if effectiveness_note:
+            incident.decision_note = "\n\n".join(
+                part for part in (incident.decision_note, effectiveness_note[:3000]) if part
+            )
+        incident.status = INCIDENT_STATUS_CLOSED
+        incident.closed_at = date.today()
+        for uploaded_file in incident_uploads("effectiveness_files"):
+            incident_file = save_incident_file(uploaded_file, incident, "kapanis")
+            db.session.add(incident_file)
+            saved_files.append(incident_file)
+        record_audit_event(
+            "IncidentReport",
+            "incident_effectiveness_closed",
+            f"{incident.incident_no} etkinlik kontrol\u00fc kapat\u0131ld\u0131",
+            entity_id=incident.id,
+            details={"closed_by_user_id": g.current_user.id},
+            company_id=incident.company_id,
+            commit=False,
+        )
+        notify_incident_users(
+            [incident.reported_by, incident.responsible],
+            incident,
+            "closed",
+            f"{incident.incident_no} olay/ramak kala kayd\u0131 kapat\u0131ld\u0131.",
+            notification_type="success",
+            exclude_user_id=g.current_user.id,
+        )
+        mark_incident_sales_readiness_without_commit()
+        db.session.commit()
+        flash("Olay / ramak kala kayd\u0131 kapat\u0131ld\u0131.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_incident_file(saved_file)
+        flash(incident_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.incident_detail", incident_id=incident.id))
+
+
+@bp.post("/olay-ramak-kala/<int:incident_id>/arsivle")
+@login_required
+def archive_incident(incident_id):
+    if not can_delete_incidents():
+        abort(403)
+    incident = incident_query().filter_by(id=incident_id).first_or_404()
+    ensure_same_company(incident)
+    incident.status = INCIDENT_STATUS_ARCHIVED
+    incident.archived_at = datetime.utcnow()
+    record_audit_event(
+        "IncidentReport",
+        "incident_archived",
+        f"{incident.incident_no} olay/ramak kala kayd\u0131 ar\u015fivlendi",
+        entity_id=incident.id,
+        details={"archived_by_user_id": g.current_user.id},
+        company_id=incident.company_id,
+        commit=False,
+    )
+    db.session.commit()
+    flash("Olay / ramak kala kayd\u0131 ar\u015five al\u0131nd\u0131.", "success")
+    return redirect(url_for("main.incident_dashboard"))
+
+
+@bp.get("/olay-ramak-kala/dosya/<int:file_id>/indir")
+@login_required
+def download_incident_file(file_id):
+    incident_file = (
+        scoped_query(IncidentFile.query, IncidentFile)
+        .filter_by(id=file_id)
+        .first_or_404()
+    )
+    ensure_same_company(incident_file)
+    if not can_view_incidents():
+        abort(403)
+    record_audit_event(
+        "IncidentFile",
+        "incident_file_downloaded",
+        f"{incident_file.original_file_name} olay/ramak kala dosyas\u0131 indirildi",
+        entity_id=incident_file.id,
+        details={"incident_id": incident_file.incident_id},
+        company_id=incident_file.company_id,
+        commit=True,
+    )
+    return send_stored_upload(
+        incident_file.file_path,
+        as_attachment=True,
+        download_name=incident_file.original_file_name,
     )
 
 

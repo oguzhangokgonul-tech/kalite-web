@@ -1,0 +1,214 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Olay / Ramak Kala{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Olay / Ramak Kala", "Olay, ramak kala, tehlikeli durum, aksiyon ve kapan&#305;&#351; s&#252;re&#231;lerini takip edin."|safe, icon="bi-exclamation-triangle") %}
+    {% if can_create_incidents %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_incident') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Bildirim</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Aktif Bildirim</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">&#304;nceleme Bekliyor</span>
+      <strong>{{ open_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-shield-exclamation"></i></span>
+      <span class="stat-label">Ramak Kala</span>
+      <strong>{{ near_miss_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-calendar-x"></i></span>
+      <span class="stat-label">Termin Ge&#231;ti</span>
+      <strong>{{ overdue_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="No, ba&#351;l&#305;k, lokasyon veya proses ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">T&#252;m&#252;</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="report_type">T&#252;r</label>
+        <select class="form-select" id="report_type" name="report_type">
+          <option value="">T&#252;m&#252;</option>
+          {% for report_type in report_types %}
+            <option value="{{ report_type }}" {% if filters.report_type == report_type %}selected{% endif %}>{{ report_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">T&#252;m&#252;</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="severity">&#350;iddet</label>
+        <select class="form-select" id="severity" name="severity">
+          <option value="">T&#252;m&#252;</option>
+          {% for severity in severities %}
+            <option value="{{ severity }}" {% if filters.severity == severity %}selected{% endif %}>{{ severity }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="visibility">Kay&#305;tlar</label>
+        <select class="form-select" id="visibility" name="visibility">
+          <option value="active" {% if filters.visibility == "active" %}selected{% endif %}>Aktif</option>
+          <option value="archive" {% if filters.visibility == "archive" %}selected{% endif %}>Ar&#351;iv</option>
+          <option value="all" {% if filters.visibility == "all" %}selected{% endif %}>T&#252;m&#252;</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.incident_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Bildirim No</th>
+            <th>Ba&#351;l&#305;k / T&#252;r</th>
+            <th>Departman / Lokasyon</th>
+            <th>Risk</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th>Ba&#287;lant&#305;</th>
+            <th class="text-end">&#304;&#351;lemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for incident in incidents %}
+            <tr>
+              <td><strong>{{ incident.incident_no }}</strong></td>
+              <td>
+                <a class="fw-semibold text-primary text-decoration-none" href="{{ url_for('main.incident_detail', incident_id=incident.id) }}">{{ incident.title }}</a>
+                <small class="d-block text-secondary">{{ incident.report_type or "-" }}{% if incident.process_name %} / {{ incident.process_name }}{% endif %}</small>
+              </td>
+              <td>
+                <span>{{ incident.department or "-" }}</span>
+                {% if incident.location %}
+                  <small class="d-block text-secondary">{{ incident.location }}</small>
+                {% endif %}
+              </td>
+              <td>
+                {{ ui.status_badge(incident.severity, tone=incident_severity_tone(incident.severity), icon="bi-exclamation-triangle") }}
+                <small class="d-block text-secondary mt-1">Skor: {{ incident.risk_score if incident.risk_score is not none else "-" }}</small>
+              </td>
+              <td>
+                <span>{{ incident.responsible.full_name if incident.responsible else "-" }}</span>
+                <small class="d-block text-secondary">&#304;nceleyen: {{ incident.reviewer.full_name if incident.reviewer else "-" }}</small>
+              </td>
+              <td>
+                <span>{{ format_date(incident.due_date) }}</span>
+                {% if incident.delay_days > 0 %}
+                  <small class="d-block text-danger fw-semibold">{{ incident.delay_days }} g&#252;n ge&#231;ti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(incident.status, tone=incident_status_tone(incident.status)) }}</td>
+              <td>
+                <div class="vstack gap-1">
+                  {% if incident.action %}
+                    <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=incident.action.id) }}"><i class="bi bi-clipboard-check"></i> {{ incident.action.number_label }}</a>
+                  {% endif %}
+                  {% if incident.risk %}
+                    <a class="text-decoration-none" href="{{ url_for('main.risk_dashboard', search=incident.risk.risk_no) }}"><i class="bi bi-exclamation-diamond"></i> {{ incident.risk.risk_no }}</a>
+                  {% endif %}
+                  {% if incident.dof %}
+                    <a class="text-decoration-none" href="{{ url_for('main.dof_detail', dof_id=incident.dof.id) }}"><i class="bi bi-shield-check"></i> {{ incident.dof.dof_no }}</a>
+                  {% endif %}
+                  {% if incident.deviation %}
+                    <a class="text-decoration-none" href="{{ url_for('main.deviation_detail', deviation_id=incident.deviation.id) }}"><i class="bi bi-exclamation-octagon"></i> {{ incident.deviation.deviation_no }}</a>
+                  {% endif %}
+                  {% if not incident.action and not incident.risk and not incident.dof and not incident.deviation %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.incident_detail', incident_id=incident.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  {% if can_manage_incidents or (incident.reported_by_user_id == g.current_user.id and incident.status in [status_new, status_review]) %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_incident', incident_id=incident.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>D&#252;zenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_review_incidents and incident.status in [status_new, status_review] %}
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.incident_detail', incident_id=incident.id) }}#incident-decision">
+                      <i class="bi bi-check2-circle"></i>
+                      <span>Karar Ver</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_incidents and incident.status != status_archived %}
+                    <form action="{{ url_for('main.archive_incident', incident_id=incident.id) }}" method="post" onsubmit="return confirm('Olay / ramak kala kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-archive"></i>
+                        <span>Ar&#351;ivle</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="9">
+                <strong>Hen&#252;z olay / ramak kala bildirimi yok.</strong>
+                <span>Yeni bildirim eklendi&#287;inde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ total_count }} kay&#305;t</span>
+    </div>
+  </section>
+{% endblock %}

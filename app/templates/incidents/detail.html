@@ -1,0 +1,448 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ incident.incident_no }}{% endblock %}
+
+{% block app_content %}
+  <style>
+    .incident-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
+      gap: 16px;
+    }
+    .incident-info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .incident-info-item {
+      min-height: 74px;
+      padding: 12px 14px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .incident-info-item span,
+    .incident-workflow-step span {
+      display: block;
+      margin-bottom: 4px;
+      color: #64748b;
+      font-size: 0.78rem;
+      font-weight: 650;
+    }
+    .incident-info-item strong {
+      color: #0f172a;
+      font-size: 0.96rem;
+      overflow-wrap: anywhere;
+    }
+    .incident-note {
+      min-height: 78px;
+      color: #1e293b;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .incident-workflow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .incident-workflow-step {
+      padding: 12px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .incident-workflow-step i {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      color: #2563eb;
+      background: #eff6ff;
+    }
+    .incident-file-row,
+    .incident-link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      color: #0f172a;
+      text-decoration: none;
+      background: #fff;
+    }
+    .incident-file-row + .incident-file-row,
+    .incident-link-row + .incident-link-row {
+      margin-top: 8px;
+    }
+    .incident-action-stack {
+      display: grid;
+      gap: 14px;
+    }
+    @media (max-width: 1200px) {
+      .incident-detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 768px) {
+      .incident-info-grid,
+      .incident-workflow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  {% call ui.page_header(incident.incident_no, incident.title, icon="bi-exclamation-triangle") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.incident_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Listeye D&#246;n</span>
+    </a>
+    {% if can_edit_current %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_incident', incident_id=incident.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>D&#252;zenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-flag"></i></span>
+      <span class="stat-label">Durum</span>
+      <strong>{{ incident.status }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">&#350;iddet</span>
+      <strong>{{ incident.severity }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-activity"></i></span>
+      <span class="stat-label">Risk Skoru</span>
+      <strong>{{ incident.risk_score if incident.risk_score is not none else "-" }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-hourglass-bottom"></i></span>
+      <span class="stat-label">Gecikme</span>
+      <strong>{{ incident.delay_days }} g&#252;n</strong>
+    </div>
+  </div>
+
+  <div class="incident-detail-grid">
+    <div class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+          <div>
+            <h3 class="h5 mb-1">Bildirim Bilgileri</h3>
+            <p class="text-secondary mb-0">Olay&#305;n t&#252;r&#252;, ilk a&#231;&#305;klamas&#305; ve al&#305;nan &#246;nlem.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge(incident.status, tone=incident_status_tone(incident.status)) }}
+            {{ ui.status_badge(incident.severity, tone=incident_severity_tone(incident.severity), icon="bi-exclamation-triangle") }}
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <label class="form-label">Bildirim A&#231;&#305;klamas&#305;</label>
+            <div class="incident-note">{{ incident.description or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">&#304;lk &#214;nlem</label>
+            <div class="incident-note">{{ incident.immediate_action or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">Karar Notu</label>
+            <div class="incident-note">{{ incident.decision_note or "-" }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Kay&#305;t Detaylar&#305;</h3>
+        <div class="incident-info-grid">
+          <div class="incident-info-item">
+            <span>Bildirim T&#252;r&#252;</span>
+            <strong>{{ incident.report_type or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Olay Tarihi</span>
+            <strong>{{ format_date(incident.incident_date) }}{% if incident.incident_time %} / {{ incident.incident_time }}{% endif %}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Departman</span>
+            <strong>{{ incident.department or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Lokasyon</span>
+            <strong>{{ incident.location or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>S&#252;re&#231; / Alan</span>
+            <strong>{{ incident.process_name or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Olas&#305;l&#305;k</span>
+            <strong>{{ incident.probability if incident.probability is not none else "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Etkilenen Ki&#351;i</span>
+            <strong>{{ incident.affected_person or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Tan&#305;k</span>
+            <strong>{{ incident.witness or "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Termin</span>
+            <strong>{{ format_date(incident.due_date) }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Bildiren</span>
+            <strong>{{ incident.reported_by.full_name if incident.reported_by else "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>&#304;nceleyen</span>
+            <strong>{{ incident.reviewer.full_name if incident.reviewer else "-" }}</strong>
+          </div>
+          <div class="incident-info-item">
+            <span>Aksiyon Sorumlusu</span>
+            <strong>{{ incident.responsible.full_name if incident.responsible else "-" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">S&#252;re&#231; Ak&#305;&#351;&#305;</h3>
+        <div class="incident-workflow">
+          <div class="incident-workflow-step">
+            <i class="bi bi-plus-circle"></i>
+            <span>1. Bildirim</span>
+            <strong>{{ format_date(incident.incident_date) }}</strong>
+          </div>
+          <div class="incident-workflow-step">
+            <i class="bi bi-search"></i>
+            <span>2. &#304;nceleme</span>
+            <strong>{{ incident.reviewer.full_name if incident.reviewer else "Bekliyor" }}</strong>
+          </div>
+          <div class="incident-workflow-step">
+            <i class="bi bi-patch-check"></i>
+            <span>3. Karar</span>
+            <strong>{{ incident.decision or "Bekliyor" }}</strong>
+          </div>
+          <div class="incident-workflow-step">
+            <i class="bi bi-tools"></i>
+            <span>4. Aksiyon</span>
+            <strong>{{ incident.responsible.full_name if incident.responsible else "Yok" }}</strong>
+          </div>
+          <div class="incident-workflow-step">
+            <i class="bi bi-check2-circle"></i>
+            <span>5. Kapan&#305;&#351;</span>
+            <strong>{{ format_date(incident.closed_at) if incident.closed_at else "Bekliyor" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% if incident.root_cause or incident.corrective_action %}
+        <section class="document-list-card p-4">
+          <h3 class="h5 mb-3">K&#246;k Neden ve Aksiyon</h3>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">K&#246;k Neden</label>
+              <div class="incident-note">{{ incident.root_cause or "-" }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">D&#252;zeltici / Uygulama Aksiyonu</label>
+              <div class="incident-note">{{ incident.corrective_action or "-" }}</div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ba&#287;lant&#305;l&#305; Kay&#305;tlar</h3>
+        {% if incident.document %}
+          <a class="incident-link-row" href="{{ url_for('main.document_detail', document_id=incident.document.id) }}">
+            <span><i class="bi bi-file-earmark-text text-primary"></i> Dok&#252;man</span>
+            <strong>{{ incident.document.document_code }}</strong>
+          </a>
+        {% endif %}
+        {% if incident.action %}
+          <a class="incident-link-row" href="{{ url_for('main.action_detail', action_id=incident.action.id) }}">
+            <span><i class="bi bi-clipboard-check text-primary"></i> Aksiyon</span>
+            <strong>{{ incident.action.number_label }}</strong>
+          </a>
+        {% endif %}
+        {% if incident.risk %}
+          <a class="incident-link-row" href="{{ url_for('main.risk_dashboard', search=incident.risk.risk_no) }}">
+            <span><i class="bi bi-exclamation-diamond text-primary"></i> Risk</span>
+            <strong>{{ incident.risk.risk_no }}</strong>
+          </a>
+        {% endif %}
+        {% if incident.dof %}
+          <a class="incident-link-row" href="{{ url_for('main.dof_detail', dof_id=incident.dof.id) }}">
+            <span><i class="bi bi-shield-check text-primary"></i> IF/D&#214;F</span>
+            <strong>{{ incident.dof.dof_no }}</strong>
+          </a>
+        {% endif %}
+        {% if incident.deviation %}
+          <a class="incident-link-row" href="{{ url_for('main.deviation_detail', deviation_id=incident.deviation.id) }}">
+            <span><i class="bi bi-exclamation-octagon text-primary"></i> Sapma</span>
+            <strong>{{ incident.deviation.deviation_no }}</strong>
+          </a>
+        {% endif %}
+        {% if not incident.document and not incident.action and not incident.risk and not incident.dof and not incident.deviation %}
+          {{ ui.empty_state("Ba&#287;lant&#305; yok"|safe, "Bu bildirim ba&#351;ka bir KYS kayd&#305;na ba&#287;lanmam&#305;&#351;."|safe, icon="bi-link-45deg") }}
+        {% endif %}
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ekler</h3>
+        {% for file in incident.files %}
+          <a class="incident-file-row" href="{{ url_for('main.download_incident_file', file_id=file.id) }}">
+            <span>
+              <i class="bi bi-paperclip text-primary"></i>
+              {{ file.original_file_name }}
+              <small class="d-block text-secondary">{{ incident_file_kind_label(file.file_kind) }} - {{ format_file_size(file.file_size) }}</small>
+            </span>
+            <i class="bi bi-download"></i>
+          </a>
+        {% else %}
+          {{ ui.empty_state("Ek yok"|safe, "Bildirim, inceleme veya kapan&#305;&#351; kan&#305;t&#305; eklenmemi&#351;."|safe, icon="bi-paperclip") }}
+        {% endfor %}
+      </section>
+
+      <section class="document-list-card p-4" id="incident-decision">
+        <h3 class="h5 mb-3">&#304;&#351;lemler</h3>
+        <div class="incident-action-stack">
+          {% if can_show_review %}
+            <form method="post" action="{{ url_for('main.start_incident_review', incident_id=incident.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="immediate_action">&#304;nceleme / &#304;lk Kontrol</label>
+              <textarea class="form-control mb-2" id="immediate_action" name="immediate_action" rows="3" placeholder="Al&#305;nan ilk &#246;nlemi veya inceleme notunu yaz&#305;n.">{{ incident.immediate_action or "" }}</textarea>
+              <input class="form-control mb-2" name="review_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-outline-primary w-100" type="submit">
+                <i class="bi bi-search"></i>
+                <span>&#304;ncelemeye Al</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_decision %}
+            <form method="post" action="{{ url_for('main.record_incident_decision', incident_id=incident.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="decision">Karar</label>
+              <select class="form-select mb-2" id="decision" name="decision" required>
+                <option value="">Se&#231;iniz</option>
+                {% for decision in decisions %}
+                  <option value="{{ decision }}" {% if incident.decision == decision %}selected{% endif %}>{{ decision }}</option>
+                {% endfor %}
+              </select>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <select class="form-select" name="responsible_user_id" aria-label="Aksiyon sorumlusu">
+                    <option value="">Aksiyon sorumlusu</option>
+                    {% for user in users %}
+                      <option value="{{ user.id }}" {% if incident.responsible_user_id == user.id %}selected{% endif %}>{{ user.full_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <input class="form-control" name="due_date" type="date" value="{{ incident.due_date.isoformat() if incident.due_date else '' }}" aria-label="Termin">
+                </div>
+              </div>
+              <textarea class="form-control mt-2" name="decision_note" rows="2" placeholder="Karar notu">{{ incident.decision_note or "" }}</textarea>
+              <textarea class="form-control mt-2" name="root_cause" rows="2" placeholder="K&#246;k neden">{{ incident.root_cause or "" }}</textarea>
+              <textarea class="form-control mt-2" name="corrective_action" rows="2" placeholder="D&#252;zeltici / uygulama aksiyonu">{{ incident.corrective_action or "" }}</textarea>
+              <div class="row g-2 mt-1">
+                <div class="col-md-6">
+                  <select class="form-select" name="action_id" aria-label="Ba&#287;l&#305; aksiyon">
+                    <option value="">Ba&#287;l&#305; aksiyon yok</option>
+                    {% for action in actions %}
+                      <option value="{{ action.id }}" {% if incident.action_id == action.id %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <select class="form-select" name="risk_id" aria-label="Ba&#287;l&#305; risk">
+                    <option value="">Ba&#287;l&#305; risk yok</option>
+                    {% for risk in risks %}
+                      <option value="{{ risk.id }}" {% if incident.risk_id == risk.id %}selected{% endif %}>{{ risk.risk_no }} - {{ risk.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <select class="form-select" name="dof_id" aria-label="Ba&#287;l&#305; IF/D&#214;F">
+                    <option value="">Ba&#287;l&#305; IF/D&#214;F yok</option>
+                    {% for dof in dofs %}
+                      <option value="{{ dof.id }}" {% if incident.dof_id == dof.id %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kayd&#305;' }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <select class="form-select" name="deviation_id" aria-label="Ba&#287;l&#305; sapma">
+                    <option value="">Ba&#287;l&#305; sapma yok</option>
+                    {% for deviation in deviations %}
+                      <option value="{{ deviation.id }}" {% if incident.deviation_id == deviation.id %}selected{% endif %}>{{ deviation.deviation_no }} - {{ deviation.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <input class="form-control mt-2" name="decision_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-success w-100 mt-2" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Karar&#305; Kaydet</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_action %}
+            <form method="post" action="{{ url_for('main.complete_incident_action', incident_id=incident.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="completion_note">Aksiyon Tamamlama Notu</label>
+              <textarea class="form-control mb-2" id="completion_note" name="completion_note" rows="3"></textarea>
+              <input class="form-control mb-2" name="closing_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-primary w-100" type="submit">
+                <i class="bi bi-check-circle"></i>
+                <span>Aksiyon Tamamland&#305;</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_effectiveness %}
+            <form method="post" action="{{ url_for('main.close_incident_effectiveness', incident_id=incident.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="effectiveness_note">Etkinlik / Kapan&#305;&#351; Notu</label>
+              <textarea class="form-control mb-2" id="effectiveness_note" name="effectiveness_note" rows="3"></textarea>
+              <input class="form-control mb-2" name="effectiveness_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-success w-100" type="submit">
+                <i class="bi bi-patch-check"></i>
+                <span>Etkinlik Kontrol&#252;n&#252; Kapat</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_delete_incidents and incident.status != status_archived %}
+            <form method="post" action="{{ url_for('main.archive_incident', incident_id=incident.id) }}" onsubmit="return confirm('Olay / ramak kala kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger w-100" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Ar&#351;ivle</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if not can_show_review and not can_show_decision and not can_show_action and not can_show_effectiveness and not can_delete_incidents %}
+            {{ ui.empty_state("Aktif i&#351;lem yok"|safe, "Bu kay&#305;t i&#231;in yetkinize ba&#287;l&#305; bir sonraki i&#351;lem bulunmuyor."|safe, icon="bi-check-circle") }}
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </div>
+{% endblock %}
