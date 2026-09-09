@@ -1,0 +1,218 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Sapma / Uygunsuz &#220;r&#252;n{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Sapma / Uygunsuz &#220;r&#252;n"|safe, "Sapma, uygunsuz &#252;r&#252;n, karantina, karar ve kapan&#305;&#351; s&#252;re&#231;lerini takip edin."|safe, icon="bi-exclamation-octagon") %}
+    {% if can_create_deviations %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_deviation') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Kay&#305;t</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Aktif Kay&#305;t</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-box-seam"></i></span>
+      <span class="stat-label">Karantinada</span>
+      <strong>{{ quarantine_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-hourglass-split"></i></span>
+      <span class="stat-label">Karar Bekliyor</span>
+      <strong>{{ decision_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-calendar-x"></i></span>
+      <span class="stat-label">Termin Ge&#231;ti</span>
+      <strong>{{ overdue_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="No, ba&#351;l&#305;k, parti veya proses ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">T&#252;m&#252;</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="record_type">T&#252;r</label>
+        <select class="form-select" id="record_type" name="record_type">
+          <option value="">T&#252;m&#252;</option>
+          {% for record_type in record_types %}
+            <option value="{{ record_type }}" {% if filters.record_type == record_type %}selected{% endif %}>{{ record_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">T&#252;m&#252;</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="severity">&#350;iddet</label>
+        <select class="form-select" id="severity" name="severity">
+          <option value="">T&#252;m&#252;</option>
+          {% for severity in severities %}
+            <option value="{{ severity }}" {% if filters.severity == severity %}selected{% endif %}>{{ severity }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="visibility">Kay&#305;tlar</label>
+        <select class="form-select" id="visibility" name="visibility">
+          <option value="active" {% if filters.visibility == "active" %}selected{% endif %}>Aktif</option>
+          <option value="archive" {% if filters.visibility == "archive" %}selected{% endif %}>Ar&#351;iv</option>
+          <option value="all" {% if filters.visibility == "all" %}selected{% endif %}>T&#252;m&#252;</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.deviation_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Sapma No</th>
+            <th>Ba&#351;l&#305;k / T&#252;r</th>
+            <th>Departman / Proses</th>
+            <th>&#220;r&#252;n / Parti</th>
+            <th>&#350;iddet</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th>Ba&#287;lant&#305;</th>
+            <th class="text-end">&#304;&#351;lemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for deviation in deviations %}
+            <tr>
+              <td><strong>{{ deviation.deviation_no }}</strong></td>
+              <td>
+                <a class="fw-semibold text-primary text-decoration-none" href="{{ url_for('main.deviation_detail', deviation_id=deviation.id) }}">{{ deviation.title }}</a>
+                <small class="d-block text-secondary">{{ deviation.record_type or "-" }}</small>
+              </td>
+              <td>
+                <span>{{ deviation.department or "-" }}</span>
+                {% if deviation.process_name %}
+                  <small class="d-block text-secondary">{{ deviation.process_name }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <span>{{ deviation.product_name or "-" }}</span>
+                {% if deviation.batch_no or deviation.quantity %}
+                  <small class="d-block text-secondary">{{ deviation.batch_no or "-" }}{% if deviation.quantity %} / {{ deviation.quantity }}{% endif %}</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(deviation.severity, tone=deviation_severity_tone(deviation.severity), icon="bi-exclamation-triangle") }}</td>
+              <td>
+                <span>{{ deviation.responsible.full_name if deviation.responsible else "-" }}</span>
+                <small class="d-block text-secondary">Onay: {{ deviation.approver.full_name if deviation.approver else "-" }}</small>
+              </td>
+              <td>
+                <span>{{ format_date(deviation.due_date) }}</span>
+                {% if deviation.delay_days > 0 %}
+                  <small class="d-block text-danger fw-semibold">{{ deviation.delay_days }} g&#252;n ge&#231;ti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(deviation.status, tone=deviation_status_tone(deviation.status)) }}</td>
+              <td>
+                <div class="vstack gap-1">
+                  {% if deviation.document %}
+                    <a class="text-decoration-none" href="{{ url_for('main.document_detail', document_id=deviation.document.id) }}"><i class="bi bi-file-earmark-text"></i> {{ deviation.document.document_code }}</a>
+                  {% endif %}
+                  {% if deviation.action %}
+                    <a class="text-decoration-none" href="{{ url_for('main.action_detail', action_id=deviation.action.id) }}"><i class="bi bi-clipboard-check"></i> {{ deviation.action.number_label }}</a>
+                  {% endif %}
+                  {% if deviation.risk %}
+                    <a class="text-decoration-none" href="{{ url_for('main.risk_dashboard', search=deviation.risk.risk_no) }}"><i class="bi bi-exclamation-diamond"></i> {{ deviation.risk.risk_no }}</a>
+                  {% endif %}
+                  {% if deviation.dof %}
+                    <a class="text-decoration-none" href="{{ url_for('main.dof_detail', dof_id=deviation.dof.id) }}"><i class="bi bi-shield-check"></i> {{ deviation.dof.dof_no }}</a>
+                  {% endif %}
+                  {% if not deviation.document and not deviation.action and not deviation.risk and not deviation.dof %}
+                    <span class="text-secondary">Yok</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.deviation_detail', deviation_id=deviation.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  {% if can_manage_deviations or (deviation.created_by_user_id == g.current_user.id and deviation.status in [status_open, status_quarantine, status_decision_pending]) %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_deviation', deviation_id=deviation.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>D&#252;zenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_approve_deviations and deviation.status in [status_open, status_quarantine, status_decision_pending] %}
+                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.deviation_detail', deviation_id=deviation.id) }}#deviation-decision">
+                      <i class="bi bi-check2-circle"></i>
+                      <span>Karar Ver</span>
+                    </a>
+                  {% endif %}
+                  {% if can_delete_deviations and deviation.status != status_archived %}
+                    <form action="{{ url_for('main.archive_deviation', deviation_id=deviation.id) }}" method="post" onsubmit="return confirm('Sapma kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-archive"></i>
+                        <span>Ar&#351;ivle</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="10">
+                <strong>Hen&#252;z sapma / uygunsuz &#252;r&#252;n kayd&#305; yok.</strong>
+                <span>Yeni kay&#305;t eklendi&#287;inde burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer">
+      <span>Toplam {{ filtered_count }} / {{ total_count }} kay&#305;t</span>
+    </div>
+  </section>
+{% endblock %}

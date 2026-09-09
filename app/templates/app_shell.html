@@ -18,6 +18,7 @@
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set change_management_active = request.endpoint in ['main.change_management_dashboard', 'main.create_change_request', 'main.change_request_detail', 'main.edit_change_request', 'main.approve_change_request', 'main.reject_change_request', 'main.mark_change_request_implemented', 'main.close_change_request_effectiveness', 'main.archive_change_request', 'main.download_change_request_file'] %}
+  {% set deviation_management_active = request.endpoint in ['main.deviation_dashboard', 'main.create_deviation', 'main.deviation_detail', 'main.edit_deviation', 'main.start_deviation_review', 'main.record_deviation_decision', 'main.complete_deviation_action', 'main.close_deviation_effectiveness', 'main.archive_deviation', 'main.download_deviation_file'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.deactivate_supplier'] %}
@@ -196,6 +197,12 @@
         <a class="dashboard-nav-item {% if change_management_active %}active{% endif %}" href="{{ url_for('main.change_management_dashboard') }}">
           <i class="bi bi-arrow-repeat"></i>
           <span>De&#287;i&#351;iklik Y&#246;netimi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('deviation_management') and (g.current_user.has_permission('deviation.view') or g.current_user.has_permission('deviation.create') or g.current_user.has_permission('deviation.manage') or g.current_user.has_permission('deviation.approve')) %}
+        <a class="dashboard-nav-item {% if deviation_management_active %}active{% endif %}" href="{{ url_for('main.deviation_dashboard') }}">
+          <i class="bi bi-exclamation-octagon"></i>
+          <span>Sapma / Uygunsuz &#220;r&#252;n</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('training') and (g.current_user.has_permission('training.view') or g.current_user.has_permission('training.manage')) %}

@@ -1,0 +1,427 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ deviation.deviation_no }}{% endblock %}
+
+{% block app_content %}
+  <style>
+    .deviation-detail-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
+      gap: 16px;
+    }
+    .deviation-info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .deviation-info-item {
+      min-height: 74px;
+      padding: 12px 14px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .deviation-info-item span,
+    .deviation-workflow-step span {
+      display: block;
+      margin-bottom: 4px;
+      color: #64748b;
+      font-size: 0.78rem;
+      font-weight: 650;
+    }
+    .deviation-info-item strong {
+      color: #0f172a;
+      font-size: 0.96rem;
+      overflow-wrap: anywhere;
+    }
+    .deviation-note {
+      min-height: 78px;
+      color: #1e293b;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .deviation-workflow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .deviation-workflow-step {
+      padding: 12px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      background: #fff;
+    }
+    .deviation-workflow-step i {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      margin-bottom: 8px;
+      border-radius: 999px;
+      color: #2563eb;
+      background: #eff6ff;
+    }
+    .deviation-file-row,
+    .deviation-link-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid #dbe7f6;
+      border-radius: 10px;
+      color: #0f172a;
+      text-decoration: none;
+      background: #fff;
+    }
+    .deviation-file-row + .deviation-file-row,
+    .deviation-link-row + .deviation-link-row {
+      margin-top: 8px;
+    }
+    .deviation-action-stack {
+      display: grid;
+      gap: 14px;
+    }
+    @media (max-width: 1200px) {
+      .deviation-detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 768px) {
+      .deviation-info-grid,
+      .deviation-workflow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+
+  {% call ui.page_header(deviation.deviation_no, deviation.title, icon="bi-exclamation-octagon") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.deviation_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Listeye D&#246;n</span>
+    </a>
+    {% if can_edit_current %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_deviation', deviation_id=deviation.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>D&#252;zenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-flag"></i></span>
+      <span class="stat-label">Durum</span>
+      <strong>{{ deviation.status }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">&#350;iddet</span>
+      <strong>{{ deviation.severity }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="stat-label">Termin</span>
+      <strong>{{ format_date(deviation.due_date) }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-hourglass-bottom"></i></span>
+      <span class="stat-label">Gecikme</span>
+      <strong>{{ deviation.delay_days }} g&#252;n</strong>
+    </div>
+  </div>
+
+  <div class="deviation-detail-grid">
+    <div class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+          <div>
+            <h3 class="h5 mb-1">Tespit Bilgileri</h3>
+            <p class="text-secondary mb-0">Kayd&#305;n t&#252;r&#252;, tespit kayna&#287;&#305; ve ilk a&#231;&#305;klamas&#305;.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge(deviation.status, tone=deviation_status_tone(deviation.status)) }}
+            {{ ui.status_badge(deviation.severity, tone=deviation_severity_tone(deviation.severity), icon="bi-exclamation-triangle") }}
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <label class="form-label">Tespit A&#231;&#305;klamas&#305;</label>
+            <div class="deviation-note">{{ deviation.description or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">&#304;lk &#214;nlem / Blokaj</label>
+            <div class="deviation-note">{{ deviation.containment_action or "-" }}</div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label">Karar Notu</label>
+            <div class="deviation-note">{{ deviation.disposition_note or "-" }}</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Kay&#305;t Detaylar&#305;</h3>
+        <div class="deviation-info-grid">
+          <div class="deviation-info-item">
+            <span>Kay&#305;t T&#252;r&#252;</span>
+            <strong>{{ deviation.record_type or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Kaynak</span>
+            <strong>{{ deviation.source_type or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Tespit Tarihi</span>
+            <strong>{{ format_date(deviation.detected_date) }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Departman</span>
+            <strong>{{ deviation.department or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Proses / Alan</span>
+            <strong>{{ deviation.process_name or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Karantina Yeri</span>
+            <strong>{{ deviation.quarantine_location or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>&#220;r&#252;n / Malzeme</span>
+            <strong>{{ deviation.product_name or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Parti / Lot</span>
+            <strong>{{ deviation.batch_no or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Miktar</span>
+            <strong>{{ deviation.quantity or "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>A&#231;an</span>
+            <strong>{{ deviation.created_by.full_name if deviation.created_by else "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Aksiyon Sorumlusu</span>
+            <strong>{{ deviation.responsible.full_name if deviation.responsible else "-" }}</strong>
+          </div>
+          <div class="deviation-info-item">
+            <span>Karar / Kapan&#305;&#351; Onaylayan</span>
+            <strong>{{ deviation.approver.full_name if deviation.approver else "-" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">S&#252;re&#231; Ak&#305;&#351;&#305;</h3>
+        <div class="deviation-workflow">
+          <div class="deviation-workflow-step">
+            <i class="bi bi-plus-circle"></i>
+            <span>1. Tespit</span>
+            <strong>{{ format_date(deviation.detected_date) }}</strong>
+          </div>
+          <div class="deviation-workflow-step">
+            <i class="bi bi-box-seam"></i>
+            <span>2. Karantina</span>
+            <strong>{{ deviation.quarantine_location or "Bekliyor" }}</strong>
+          </div>
+          <div class="deviation-workflow-step">
+            <i class="bi bi-patch-check"></i>
+            <span>3. Karar</span>
+            <strong>{{ deviation.disposition or "Bekliyor" }}</strong>
+          </div>
+          <div class="deviation-workflow-step">
+            <i class="bi bi-tools"></i>
+            <span>4. Aksiyon</span>
+            <strong>{{ deviation.responsible.full_name if deviation.responsible else "Yok" }}</strong>
+          </div>
+          <div class="deviation-workflow-step">
+            <i class="bi bi-check2-circle"></i>
+            <span>5. Kapan&#305;&#351;</span>
+            <strong>{{ format_date(deviation.closed_at) if deviation.closed_at else "Bekliyor" }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% if deviation.root_cause or deviation.corrective_action %}
+        <section class="document-list-card p-4">
+          <h3 class="h5 mb-3">K&#246;k Neden ve Aksiyon</h3>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">K&#246;k Neden</label>
+              <div class="deviation-note">{{ deviation.root_cause or "-" }}</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">D&#252;zeltici / Uygulama Aksiyonu</label>
+              <div class="deviation-note">{{ deviation.corrective_action or "-" }}</div>
+            </div>
+          </div>
+        </section>
+      {% endif %}
+    </div>
+
+    <aside class="vstack gap-3">
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ba&#287;lant&#305;l&#305; Kay&#305;tlar</h3>
+        {% if deviation.document %}
+          <a class="deviation-link-row" href="{{ url_for('main.document_detail', document_id=deviation.document.id) }}">
+            <span><i class="bi bi-file-earmark-text text-primary"></i> Dok&#252;man</span>
+            <strong>{{ deviation.document.document_code }}</strong>
+          </a>
+        {% endif %}
+        {% if deviation.action %}
+          <a class="deviation-link-row" href="{{ url_for('main.action_detail', action_id=deviation.action.id) }}">
+            <span><i class="bi bi-clipboard-check text-primary"></i> Aksiyon</span>
+            <strong>{{ deviation.action.number_label }}</strong>
+          </a>
+        {% endif %}
+        {% if deviation.risk %}
+          <a class="deviation-link-row" href="{{ url_for('main.risk_dashboard', search=deviation.risk.risk_no) }}">
+            <span><i class="bi bi-exclamation-diamond text-primary"></i> Risk</span>
+            <strong>{{ deviation.risk.risk_no }}</strong>
+          </a>
+        {% endif %}
+        {% if deviation.dof %}
+          <a class="deviation-link-row" href="{{ url_for('main.dof_detail', dof_id=deviation.dof.id) }}">
+            <span><i class="bi bi-shield-check text-primary"></i> IF/D&#214;F</span>
+            <strong>{{ deviation.dof.dof_no }}</strong>
+          </a>
+        {% endif %}
+        {% if not deviation.document and not deviation.action and not deviation.risk and not deviation.dof %}
+          {{ ui.empty_state("Ba&#287;lant&#305; yok"|safe, "Bu kay&#305;t ba&#351;ka bir KYS kayd&#305;na ba&#287;lanmam&#305;&#351;."|safe, icon="bi-link-45deg") }}
+        {% endif %}
+      </section>
+
+      <section class="document-list-card p-4">
+        <h3 class="h5 mb-3">Ekler</h3>
+        {% for file in deviation.files %}
+          <a class="deviation-file-row" href="{{ url_for('main.download_deviation_file', file_id=file.id) }}">
+            <span>
+              <i class="bi bi-paperclip text-primary"></i>
+              {{ file.original_file_name }}
+              <small class="d-block text-secondary">{{ deviation_file_kind_label(file.file_kind) }} - {{ format_file_size(file.file_size) }}</small>
+            </span>
+            <i class="bi bi-download"></i>
+          </a>
+        {% else %}
+          {{ ui.empty_state("Ek yok"|safe, "Tespit, karar veya kapan&#305;&#351; kan&#305;t&#305; eklenmemi&#351;."|safe, icon="bi-paperclip") }}
+        {% endfor %}
+      </section>
+
+      <section class="document-list-card p-4" id="deviation-decision">
+        <h3 class="h5 mb-3">&#304;&#351;lemler</h3>
+        <div class="deviation-action-stack">
+          {% if can_show_review %}
+            <form method="post" action="{{ url_for('main.start_deviation_review', deviation_id=deviation.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="containment_action">Karantina / &#304;lk Kontrol</label>
+              <textarea class="form-control mb-2" id="containment_action" name="containment_action" rows="3" placeholder="Al&#305;nan ilk &#246;nlemi yaz&#305;n.">{{ deviation.containment_action or "" }}</textarea>
+              <input class="form-control mb-2" name="quarantine_location" value="{{ deviation.quarantine_location or '' }}" placeholder="Karantina yeri">
+              <input class="form-control mb-2" name="quarantine_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-outline-danger w-100" type="submit">
+                <i class="bi bi-box-seam"></i>
+                <span>Karantina / Kontrol Kaydet</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_decision %}
+            <form method="post" action="{{ url_for('main.record_deviation_decision', deviation_id=deviation.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="disposition">Karar</label>
+              <select class="form-select mb-2" id="disposition" name="disposition" required>
+                <option value="">Se&#231;iniz</option>
+                {% for decision in disposition_decisions %}
+                  <option value="{{ decision }}" {% if deviation.disposition == decision %}selected{% endif %}>{{ decision }}</option>
+                {% endfor %}
+              </select>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <select class="form-select" name="responsible_user_id" aria-label="Aksiyon sorumlusu">
+                    <option value="">Aksiyon sorumlusu</option>
+                    {% for user in users %}
+                      <option value="{{ user.id }}" {% if deviation.responsible_user_id == user.id %}selected{% endif %}>{{ user.full_name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <input class="form-control" name="due_date" type="date" value="{{ deviation.due_date.isoformat() if deviation.due_date else '' }}" aria-label="Termin">
+                </div>
+              </div>
+              <textarea class="form-control mt-2" name="disposition_note" rows="2" placeholder="Karar notu">{{ deviation.disposition_note or "" }}</textarea>
+              <textarea class="form-control mt-2" name="root_cause" rows="2" placeholder="K&#246;k neden">{{ deviation.root_cause or "" }}</textarea>
+              <textarea class="form-control mt-2" name="corrective_action" rows="2" placeholder="D&#252;zeltici / uygulama aksiyonu">{{ deviation.corrective_action or "" }}</textarea>
+              <div class="row g-2 mt-1">
+                <div class="col-md-6">
+                  <select class="form-select" name="action_id" aria-label="Ba&#287;l&#305; aksiyon">
+                    <option value="">Ba&#287;l&#305; aksiyon yok</option>
+                    {% for action in actions %}
+                      <option value="{{ action.id }}" {% if deviation.action_id == action.id %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <select class="form-select" name="dof_id" aria-label="Ba&#287;l&#305; IF/D&#214;F">
+                    <option value="">Ba&#287;l&#305; IF/D&#214;F yok</option>
+                    {% for dof in dofs %}
+                      <option value="{{ dof.id }}" {% if deviation.dof_id == dof.id %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kayd&#305;' }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <input class="form-control mt-2" name="decision_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-success w-100 mt-2" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Karar&#305; Kaydet</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_action %}
+            <form method="post" action="{{ url_for('main.complete_deviation_action', deviation_id=deviation.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="completion_note">Aksiyon Tamamlama Notu</label>
+              <textarea class="form-control mb-2" id="completion_note" name="completion_note" rows="3"></textarea>
+              <input class="form-control mb-2" name="closing_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-primary w-100" type="submit">
+                <i class="bi bi-check-circle"></i>
+                <span>Aksiyon Tamamland&#305;</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_show_effectiveness %}
+            <form method="post" action="{{ url_for('main.close_deviation_effectiveness', deviation_id=deviation.id) }}" enctype="multipart/form-data">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <label class="form-label" for="effectiveness_note">Etkinlik / Kapan&#305;&#351; Notu</label>
+              <textarea class="form-control mb-2" id="effectiveness_note" name="effectiveness_note" rows="3"></textarea>
+              <input class="form-control mb-2" name="effectiveness_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+              <button class="btn btn-success w-100" type="submit">
+                <i class="bi bi-patch-check"></i>
+                <span>Etkinlik Kontrol&#252;n&#252; Kapat</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if can_delete_deviations and deviation.status != status_archived %}
+            <form method="post" action="{{ url_for('main.archive_deviation', deviation_id=deviation.id) }}" onsubmit="return confirm('Sapma kayd&#305;n&#305; ar&#351;ive almak istedi&#287;inize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger w-100" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Ar&#351;ivle</span>
+              </button>
+            </form>
+          {% endif %}
+
+          {% if not can_show_review and not can_show_decision and not can_show_action and not can_show_effectiveness and not can_delete_deviations %}
+            {{ ui.empty_state("Aktif i&#351;lem yok"|safe, "Bu kay&#305;t i&#231;in yetkinize ba&#287;l&#305; bir sonraki i&#351;lem bulunmuyor."|safe, icon="bi-check-circle") }}
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

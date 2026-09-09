@@ -157,6 +157,42 @@ PERMISSION_CATALOG = (
         "description": "De\u011fi\u015fiklik y\u00f6netimi kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
     },
     {
+        "key": "deviation.view",
+        "label": "Sapma kay\u0131tlar\u0131n\u0131 g\u00f6r\u00fcnt\u00fcleme",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma ve uygunsuz \u00fcr\u00fcn kay\u0131tlar\u0131n\u0131, kararlar\u0131 ve eklerini g\u00f6r\u00fcnt\u00fcler.",
+    },
+    {
+        "key": "deviation.create",
+        "label": "Sapma kayd\u0131 a\u00e7ma",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Yeni sapma veya uygunsuz \u00fcr\u00fcn kayd\u0131 olu\u015fturur.",
+    },
+    {
+        "key": "deviation.manage",
+        "label": "Sapma kay\u0131t y\u00f6netimi",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma kay\u0131tlar\u0131n\u0131 d\u00fczenler, karantina, sorumlu ve ba\u011flant\u0131lar\u0131 y\u00f6netir.",
+    },
+    {
+        "key": "deviation.approve",
+        "label": "Sapma karar ve kapan\u0131\u015f onay\u0131",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma karar\u0131 verir, etkinlik kontrol\u00fcn\u00fc kapat\u0131r ve kayd\u0131 sonu\u00e7land\u0131r\u0131r.",
+    },
+    {
+        "key": "deviation.delete",
+        "label": "Sapma ar\u015fivleme",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma kay\u0131tlar\u0131n\u0131 denetim izi korunacak \u015fekilde ar\u015five al\u0131r.",
+    },
+    {
+        "key": "deviation.export",
+        "label": "Sapma raporu alma",
+        "group": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma ve uygunsuz \u00fcr\u00fcn kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
+    },
+    {
         "key": "training.view",
         "label": "Eğitimleri görüntüleme",
         "group": "Eğitim / Yeterlilik",
@@ -371,6 +407,12 @@ ROLE_DEFINITIONS = (
             "change_management.approve",
             "change_management.delete",
             "change_management.export",
+            "deviation.view",
+            "deviation.create",
+            "deviation.manage",
+            "deviation.approve",
+            "deviation.delete",
+            "deviation.export",
             "training.view",
             "training.manage",
             "training.delete",
@@ -413,6 +455,9 @@ ROLE_DEFINITIONS = (
             "change_management.view",
             "change_management.approve",
             "change_management.export",
+            "deviation.view",
+            "deviation.approve",
+            "deviation.export",
             "training.view",
             "complaints.view",
             "management_review.view",
@@ -437,6 +482,9 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "change_management.view",
             "change_management.create",
+            "deviation.view",
+            "deviation.create",
+            "deviation.manage",
             "training.view",
             "complaints.view",
             "complaints.manage",
@@ -460,6 +508,8 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "change_management.view",
             "change_management.create",
+            "deviation.view",
+            "deviation.create",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -474,6 +524,7 @@ ROLE_DEFINITIONS = (
         "permissions": [
             "documents.view",
             "change_management.view",
+            "deviation.view",
             "training.view",
             "complaints.view",
             "suppliers.view",
@@ -1064,6 +1115,176 @@ def ensure_runtime_schema():
                 text(
                     f"CREATE INDEX IF NOT EXISTS {index_name} "
                     f"ON change_request_files ({column_name})"
+                )
+            )
+
+    if "deviation_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE deviation_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    deviation_no VARCHAR(40) NOT NULL,
+                    record_type VARCHAR(80) NOT NULL DEFAULT 'Uygunsuz Ürün',
+                    source_type VARCHAR(80),
+                    title VARCHAR(180) NOT NULL,
+                    description TEXT,
+                    detected_date DATE NOT NULL,
+                    department VARCHAR(80),
+                    process_name VARCHAR(160),
+                    product_name VARCHAR(180),
+                    batch_no VARCHAR(120),
+                    quantity VARCHAR(80),
+                    severity VARCHAR(40) NOT NULL DEFAULT 'Orta',
+                    containment_action TEXT,
+                    quarantine_location VARCHAR(180),
+                    disposition VARCHAR(80),
+                    disposition_note TEXT,
+                    root_cause TEXT,
+                    corrective_action TEXT,
+                    due_date DATE,
+                    closed_at DATE,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Açık',
+                    responsible_user_id INTEGER,
+                    approver_user_id INTEGER,
+                    document_id INTEGER,
+                    action_id INTEGER,
+                    risk_id INTEGER,
+                    dof_id INTEGER,
+                    created_by_user_id INTEGER,
+                    archived_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(approver_user_id) REFERENCES users (id),
+                    FOREIGN KEY(document_id) REFERENCES documents (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(risk_id) REFERENCES risk_records (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("deviation_records")
+
+    if "deviation_records" in tables:
+        columns = {column["name"] for column in inspector.get_columns("deviation_records")}
+        deviation_record_columns = {
+            "company_id": "ALTER TABLE deviation_records ADD COLUMN company_id INTEGER",
+            "deviation_no": "ALTER TABLE deviation_records ADD COLUMN deviation_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "record_type": "ALTER TABLE deviation_records ADD COLUMN record_type VARCHAR(80) NOT NULL DEFAULT 'Uygunsuz Ürün'",
+            "source_type": "ALTER TABLE deviation_records ADD COLUMN source_type VARCHAR(80)",
+            "title": "ALTER TABLE deviation_records ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "description": "ALTER TABLE deviation_records ADD COLUMN description TEXT",
+            "detected_date": "ALTER TABLE deviation_records ADD COLUMN detected_date DATE",
+            "department": "ALTER TABLE deviation_records ADD COLUMN department VARCHAR(80)",
+            "process_name": "ALTER TABLE deviation_records ADD COLUMN process_name VARCHAR(160)",
+            "product_name": "ALTER TABLE deviation_records ADD COLUMN product_name VARCHAR(180)",
+            "batch_no": "ALTER TABLE deviation_records ADD COLUMN batch_no VARCHAR(120)",
+            "quantity": "ALTER TABLE deviation_records ADD COLUMN quantity VARCHAR(80)",
+            "severity": "ALTER TABLE deviation_records ADD COLUMN severity VARCHAR(40) NOT NULL DEFAULT 'Orta'",
+            "containment_action": "ALTER TABLE deviation_records ADD COLUMN containment_action TEXT",
+            "quarantine_location": "ALTER TABLE deviation_records ADD COLUMN quarantine_location VARCHAR(180)",
+            "disposition": "ALTER TABLE deviation_records ADD COLUMN disposition VARCHAR(80)",
+            "disposition_note": "ALTER TABLE deviation_records ADD COLUMN disposition_note TEXT",
+            "root_cause": "ALTER TABLE deviation_records ADD COLUMN root_cause TEXT",
+            "corrective_action": "ALTER TABLE deviation_records ADD COLUMN corrective_action TEXT",
+            "due_date": "ALTER TABLE deviation_records ADD COLUMN due_date DATE",
+            "closed_at": "ALTER TABLE deviation_records ADD COLUMN closed_at DATE",
+            "status": "ALTER TABLE deviation_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Açık'",
+            "responsible_user_id": "ALTER TABLE deviation_records ADD COLUMN responsible_user_id INTEGER",
+            "approver_user_id": "ALTER TABLE deviation_records ADD COLUMN approver_user_id INTEGER",
+            "document_id": "ALTER TABLE deviation_records ADD COLUMN document_id INTEGER",
+            "action_id": "ALTER TABLE deviation_records ADD COLUMN action_id INTEGER",
+            "risk_id": "ALTER TABLE deviation_records ADD COLUMN risk_id INTEGER",
+            "dof_id": "ALTER TABLE deviation_records ADD COLUMN dof_id INTEGER",
+            "created_by_user_id": "ALTER TABLE deviation_records ADD COLUMN created_by_user_id INTEGER",
+            "archived_at": "ALTER TABLE deviation_records ADD COLUMN archived_at DATETIME",
+            "created_at": "ALTER TABLE deviation_records ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE deviation_records ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in deviation_record_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_deviation_records_company_id", "company_id"),
+            ("ix_deviation_records_deviation_no", "deviation_no"),
+            ("ix_deviation_records_status", "status"),
+            ("ix_deviation_records_due_date", "due_date"),
+            ("ix_deviation_records_responsible_user_id", "responsible_user_id"),
+            ("ix_deviation_records_approver_user_id", "approver_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON deviation_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_deviation_records_company_deviation_no "
+                "ON deviation_records (company_id, deviation_no)"
+            )
+        )
+
+    if "deviation_files" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE deviation_files (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    deviation_id INTEGER NOT NULL,
+                    file_kind VARCHAR(40) NOT NULL DEFAULT 'tespit',
+                    file_name VARCHAR(255) NOT NULL,
+                    original_file_name VARCHAR(255) NOT NULL,
+                    file_path VARCHAR(500) NOT NULL,
+                    file_type VARCHAR(20),
+                    file_size INTEGER,
+                    uploaded_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(deviation_id) REFERENCES deviation_records (id),
+                    FOREIGN KEY(uploaded_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("deviation_files")
+
+    if "deviation_files" in tables:
+        columns = {column["name"] for column in inspector.get_columns("deviation_files")}
+        deviation_file_columns = {
+            "company_id": "ALTER TABLE deviation_files ADD COLUMN company_id INTEGER",
+            "deviation_id": "ALTER TABLE deviation_files ADD COLUMN deviation_id INTEGER NOT NULL DEFAULT 0",
+            "file_kind": "ALTER TABLE deviation_files ADD COLUMN file_kind VARCHAR(40) NOT NULL DEFAULT 'tespit'",
+            "file_name": "ALTER TABLE deviation_files ADD COLUMN file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "original_file_name": "ALTER TABLE deviation_files ADD COLUMN original_file_name VARCHAR(255) NOT NULL DEFAULT ''",
+            "file_path": "ALTER TABLE deviation_files ADD COLUMN file_path VARCHAR(500) NOT NULL DEFAULT ''",
+            "file_type": "ALTER TABLE deviation_files ADD COLUMN file_type VARCHAR(20)",
+            "file_size": "ALTER TABLE deviation_files ADD COLUMN file_size INTEGER",
+            "uploaded_by_user_id": "ALTER TABLE deviation_files ADD COLUMN uploaded_by_user_id INTEGER",
+            "created_at": "ALTER TABLE deviation_files ADD COLUMN created_at DATETIME",
+        }
+        for column_name, statement in deviation_file_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_deviation_files_company_id", "company_id"),
+            ("ix_deviation_files_deviation_id", "deviation_id"),
+            ("ix_deviation_files_uploaded_by_user_id", "uploaded_by_user_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON deviation_files ({column_name})"
                 )
             )
 

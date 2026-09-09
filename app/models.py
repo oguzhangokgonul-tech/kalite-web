@@ -180,6 +180,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "deviation_management",
+        "name": "Sapma / Uygunsuz \u00dcr\u00fcn",
+        "description": "Sapma, uygunsuz \u00fcr\u00fcn, karantina, karar ve kapan\u0131\u015f takibi.",
+        "icon": "bi-exclamation-octagon",
+        "sort_order": 57,
+        "parent_key": None,
+    },
+    {
         "key": "training",
         "name": "Eğitim / Yeterlilik",
         "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
@@ -260,6 +268,58 @@ CHANGE_REQUEST_FILE_KINDS = (
     "talep",
     "uygulama",
     "etkinlik",
+)
+DEVIATION_RECORD_TYPES = (
+    "Sapma",
+    "Uygunsuz \u00dcr\u00fcn",
+    "M\u00fc\u015fteri \u0130adesi",
+    "Tedarik\u00e7i Uygunsuzlu\u011fu",
+    "Proses Sapmas\u0131",
+    "Di\u011fer",
+)
+DEVIATION_SOURCE_TYPES = (
+    "\u00dcretim",
+    "Giri\u015f Kontrol",
+    "Final Kontrol",
+    "M\u00fc\u015fteri",
+    "Tedarik\u00e7i",
+    "\u0130\u00e7 Denetim",
+    "Kalibrasyon",
+    "Di\u011fer",
+)
+DEVIATION_SEVERITIES = ("D\u00fc\u015f\u00fck", "Orta", "Y\u00fcksek", "Kritik")
+DEVIATION_STATUS_OPEN = "A\u00e7\u0131k"
+DEVIATION_STATUS_QUARANTINE = "Karantinada"
+DEVIATION_STATUS_DECISION_PENDING = "Karar Bekliyor"
+DEVIATION_STATUS_ACTION_PENDING = "Aksiyon Bekliyor"
+DEVIATION_STATUS_EFFECTIVENESS = "Etkinlik Kontrol\u00fc"
+DEVIATION_STATUS_CLOSED = "Kapat\u0131ld\u0131"
+DEVIATION_STATUS_ARCHIVED = "Ar\u015fiv"
+DEVIATION_STATUSES = (
+    DEVIATION_STATUS_OPEN,
+    DEVIATION_STATUS_QUARANTINE,
+    DEVIATION_STATUS_DECISION_PENDING,
+    DEVIATION_STATUS_ACTION_PENDING,
+    DEVIATION_STATUS_EFFECTIVENESS,
+    DEVIATION_STATUS_CLOSED,
+    DEVIATION_STATUS_ARCHIVED,
+)
+DEVIATION_DISPOSITION_DECISIONS = (
+    "Kabul",
+    "\u015eartl\u0131 Kabul",
+    "Yeniden \u0130\u015flem",
+    "Tamir",
+    "Hurda",
+    "Tedarik\u00e7iye \u0130ade",
+    "D\u00d6F A\u00e7\u0131ld\u0131",
+    "Aksiyon A\u00e7\u0131ld\u0131",
+    "\u0130zlemeye Al\u0131nd\u0131",
+)
+DEVIATION_FILE_KINDS = (
+    "tespit",
+    "karantina",
+    "karar",
+    "kapanis",
 )
 QUALITY_TEST_MODULE_BY_SLUG = {
     "beton-deneyi": "quality_test_concrete",
@@ -1480,6 +1540,104 @@ class ChangeRequestFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     change_request = db.relationship("ChangeRequest", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class DeviationRecord(db.Model):
+    __tablename__ = "deviation_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "deviation_no",
+            name="uq_deviation_records_company_deviation_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    deviation_no = db.Column(db.String(40), nullable=False, index=True)
+    record_type = db.Column(db.String(80), nullable=False, default="Uygunsuz \u00dcr\u00fcn")
+    source_type = db.Column(db.String(80), nullable=True)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    detected_date = db.Column(db.Date, nullable=False, default=date.today)
+    department = db.Column(db.String(80), nullable=True)
+    process_name = db.Column(db.String(160), nullable=True)
+    product_name = db.Column(db.String(180), nullable=True)
+    batch_no = db.Column(db.String(120), nullable=True)
+    quantity = db.Column(db.String(80), nullable=True)
+    severity = db.Column(db.String(40), nullable=False, default="Orta")
+    containment_action = db.Column(db.Text, nullable=True)
+    quarantine_location = db.Column(db.String(180), nullable=True)
+    disposition = db.Column(db.String(80), nullable=True)
+    disposition_note = db.Column(db.Text, nullable=True)
+    root_cause = db.Column(db.Text, nullable=True)
+    corrective_action = db.Column(db.Text, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    closed_at = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default=DEVIATION_STATUS_OPEN)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    approver = db.relationship("User", foreign_keys=[approver_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    document = db.relationship("Document", foreign_keys=[document_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    files = db.relationship(
+        "DeviationFile",
+        back_populates="deviation",
+        cascade="all, delete-orphan",
+        order_by="DeviationFile.created_at.asc()",
+    )
+
+    @property
+    def is_closed(self):
+        return self.status in {DEVIATION_STATUS_CLOSED, DEVIATION_STATUS_ARCHIVED}
+
+    @property
+    def delay_days(self):
+        if self.is_closed or not self.due_date:
+            return 0
+        return max((date.today() - self.due_date).days, 0)
+
+
+class DeviationFile(db.Model):
+    __tablename__ = "deviation_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    deviation_id = db.Column(
+        db.Integer,
+        db.ForeignKey("deviation_records.id"),
+        nullable=False,
+        index=True,
+    )
+    file_kind = db.Column(db.String(40), nullable=False, default="tespit")
+    file_name = db.Column(db.String(255), nullable=False)
+    original_file_name = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_type = db.Column(db.String(20), nullable=True)
+    file_size = db.Column(db.Integer, nullable=True)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    deviation = db.relationship("DeviationRecord", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

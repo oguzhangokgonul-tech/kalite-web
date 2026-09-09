@@ -1,0 +1,185 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = deviation is defined and deviation %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, "Tespit, ilk &#246;nlem, sorumlu ve ba&#287;lant&#305;l&#305; kay&#305;tlar&#305; tek formda y&#246;netin."|safe, icon="bi-exclamation-octagon") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.deviation_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Sapma Listesi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="deviation_no">Sapma No</label>
+        <input class="form-control" id="deviation_no" value="{{ deviation.deviation_no if is_edit else 'Otomatik atan&#305;r' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="title">Ba&#351;l&#305;k</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', deviation.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="record_type">Kay&#305;t T&#252;r&#252;</label>
+        {% set selected_record_type = form_data.get('record_type', deviation.record_type if is_edit else record_types[1]) %}
+        <select class="form-select" id="record_type" name="record_type">
+          {% for record_type in record_types %}
+            <option value="{{ record_type }}" {% if selected_record_type == record_type %}selected{% endif %}>{{ record_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label" for="source_type">Kaynak</label>
+        {% set selected_source_type = form_data.get('source_type', deviation.source_type if is_edit else '') %}
+        <select class="form-select" id="source_type" name="source_type">
+          <option value="">Se&#231;iniz</option>
+          {% for source_type in source_types %}
+            <option value="{{ source_type }}" {% if selected_source_type == source_type %}selected{% endif %}>{{ source_type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="detected_date">Tespit Tarihi</label>
+        {% set detected_value = form_data.get('detected_date', deviation.detected_date.isoformat() if is_edit and deviation.detected_date else '') %}
+        <input class="form-control" id="detected_date" name="detected_date" type="date" value="{{ detected_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="department">Departman</label>
+        {% set selected_department = form_data.get('department', deviation.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Se&#231;iniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="severity">&#350;iddet</label>
+        {% set selected_severity = form_data.get('severity', deviation.severity if is_edit else 'Orta') %}
+        <select class="form-select" id="severity" name="severity">
+          {% for severity in severities %}
+            <option value="{{ severity }}" {% if selected_severity == severity %}selected{% endif %}>{{ severity }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="process_name">Proses / Alan</label>
+        <input class="form-control" id="process_name" name="process_name" value="{{ form_data.get('process_name', deviation.process_name if is_edit else '') }}" maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="product_name">&#220;r&#252;n / Malzeme</label>
+        <input class="form-control" id="product_name" name="product_name" value="{{ form_data.get('product_name', deviation.product_name if is_edit else '') }}" maxlength="180">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="batch_no">Parti / Lot</label>
+        <input class="form-control" id="batch_no" name="batch_no" value="{{ form_data.get('batch_no', deviation.batch_no if is_edit else '') }}" maxlength="120">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="quantity">Miktar</label>
+        <input class="form-control" id="quantity" name="quantity" value="{{ form_data.get('quantity', deviation.quantity if is_edit else '') }}" maxlength="80">
+      </div>
+
+      <div class="col-md-6">
+        <label class="form-label" for="description">Tespit A&#231;&#305;klamas&#305;</label>
+        <textarea class="form-control" id="description" name="description" rows="4">{{ form_data.get('description', deviation.description if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="containment_action">&#304;lk &#214;nlem / Blokaj</label>
+        <textarea class="form-control" id="containment_action" name="containment_action" rows="4">{{ form_data.get('containment_action', deviation.containment_action if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="quarantine_location">Karantina Yeri</label>
+        <textarea class="form-control" id="quarantine_location" name="quarantine_location" rows="4">{{ form_data.get('quarantine_location', deviation.quarantine_location if is_edit else '') }}</textarea>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label" for="responsible_user_id">Aksiyon Sorumlusu</label>
+        {% set selected_responsible = form_data.get('responsible_user_id', deviation.responsible_user_id if is_edit else '')|string %}
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Karar a&#351;amas&#305;nda se&#231;ilebilir</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', deviation.due_date.isoformat() if is_edit and deviation.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      {% if can_manage_deviations or can_approve_deviations %}
+        <div class="col-md-4">
+          <label class="form-label" for="approver_user_id">Karar / Kapan&#305;&#351; Onaylayan</label>
+          {% set selected_approver = form_data.get('approver_user_id', deviation.approver_user_id if is_edit else '')|string %}
+          <select class="form-select" id="approver_user_id" name="approver_user_id">
+            <option value="">Y&#246;netim temsilcisi otomatik</option>
+            {% for user in users %}
+              <option value="{{ user.id }}" {% if selected_approver == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
+
+      <div class="col-md-3">
+        <label class="form-label" for="document_id">Ba&#287;l&#305; Dok&#252;man</label>
+        {% set selected_document = form_data.get('document_id', deviation.document_id if is_edit else '')|string %}
+        <select class="form-select" id="document_id" name="document_id">
+          <option value="">Yok</option>
+          {% for document in documents %}
+            <option value="{{ document.id }}" {% if selected_document == document.id|string %}selected{% endif %}>{{ document.document_code }} - {{ document.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="action_id">Ba&#287;l&#305; Aksiyon</label>
+        {% set selected_action = form_data.get('action_id', deviation.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="risk_id">Ba&#287;l&#305; Risk</label>
+        {% set selected_linked_risk = form_data.get('risk_id', deviation.risk_id if is_edit else '')|string %}
+        <select class="form-select" id="risk_id" name="risk_id">
+          <option value="">Yok</option>
+          {% for risk in risks %}
+            <option value="{{ risk.id }}" {% if selected_linked_risk == risk.id|string %}selected{% endif %}>{{ risk.risk_no }} - {{ risk.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="dof_id">Ba&#287;l&#305; IF/D&#214;F</label>
+        {% set selected_dof = form_data.get('dof_id', deviation.dof_id if is_edit else '')|string %}
+        <select class="form-select" id="dof_id" name="dof_id">
+          <option value="">Yok</option>
+          {% for dof in dofs %}
+            <option value="{{ dof.id }}" {% if selected_dof == dof.id|string %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kayd&#305;' }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label class="form-label" for="deviation_files">Tespit Ekleri</label>
+        <input class="form-control" id="deviation_files" name="deviation_files" type="file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+        <small class="text-secondary">PDF, Word, Excel, PowerPoint veya g&#246;rsel ekleyebilirsiniz. Dosya eklemek opsiyoneldir.</small>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.deviation_dashboard') }}">Vazge&#231;</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "G&#252;ncelle"|safe if is_edit else "Kayd&#305; Olu&#351;tur"|safe }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

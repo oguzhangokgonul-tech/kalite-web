@@ -25,6 +25,8 @@ TRACKED_MODEL_NAMES = {
     "Company",
     "CompanyDepartment",
     "CompanyModule",
+    "DeviationFile",
+    "DeviationRecord",
     "Dof",
     "DofComment",
     "DofFile",

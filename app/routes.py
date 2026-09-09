@@ -80,6 +80,21 @@ from .models import (
     COMPANY_MODULE_CATALOG,
     COMPANY_MODULE_KEYS,
     DEPARTMENTS,
+    DeviationFile,
+    DeviationRecord,
+    DEVIATION_DISPOSITION_DECISIONS,
+    DEVIATION_FILE_KINDS,
+    DEVIATION_RECORD_TYPES,
+    DEVIATION_SEVERITIES,
+    DEVIATION_SOURCE_TYPES,
+    DEVIATION_STATUS_ACTION_PENDING,
+    DEVIATION_STATUS_ARCHIVED,
+    DEVIATION_STATUS_CLOSED,
+    DEVIATION_STATUS_DECISION_PENDING,
+    DEVIATION_STATUS_EFFECTIVENESS,
+    DEVIATION_STATUS_OPEN,
+    DEVIATION_STATUS_QUARANTINE,
+    DEVIATION_STATUSES,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
@@ -2636,6 +2651,16 @@ MODULE_ENDPOINTS = {
     "main.close_change_request_effectiveness": "change_management",
     "main.archive_change_request": "change_management",
     "main.download_change_request_file": "change_management",
+    "main.deviation_dashboard": "deviation_management",
+    "main.create_deviation": "deviation_management",
+    "main.deviation_detail": "deviation_management",
+    "main.edit_deviation": "deviation_management",
+    "main.start_deviation_review": "deviation_management",
+    "main.record_deviation_decision": "deviation_management",
+    "main.complete_deviation_action": "deviation_management",
+    "main.close_deviation_effectiveness": "deviation_management",
+    "main.archive_deviation": "deviation_management",
+    "main.download_deviation_file": "deviation_management",
     "main.training_dashboard": "training",
     "main.create_training": "training",
     "main.edit_training": "training",
@@ -7451,6 +7476,83 @@ def report_change_requests_data():
     }
 
 
+def report_deviations_data():
+    deviations = sorted(deviation_query().all(), key=deviation_sort_key)
+    rows = [
+        (
+            deviation.deviation_no,
+            deviation.record_type,
+            deviation.title,
+            deviation.department or "-",
+            deviation.process_name or "-",
+            deviation.product_name or "-",
+            deviation.batch_no or "-",
+            deviation.quantity or "-",
+            deviation.severity,
+            deviation.disposition or "-",
+            report_user_name(deviation.responsible),
+            report_user_name(deviation.approver),
+            format_date(deviation.detected_date),
+            format_date(deviation.due_date),
+            deviation.delay_days,
+            deviation.status,
+            deviation.document.document_code if deviation.document else "-",
+            deviation.action.number_label if deviation.action else "-",
+            deviation.risk.risk_no if deviation.risk else "-",
+            deviation.dof.dof_no if deviation.dof else "-",
+        )
+        for deviation in deviations
+    ]
+    return {
+        "headers": (
+            "Sapma No",
+            "T\u00fcr",
+            "Ba\u015fl\u0131k",
+            "Departman",
+            "S\u00fcre\u00e7",
+            "\u00dcr\u00fcn / Malzeme",
+            "Parti / Seri No",
+            "Miktar",
+            "\u015eiddet",
+            "Karar",
+            "Sorumlu",
+            "Onaylayan",
+            "Tespit Tarihi",
+            "Termin",
+            "Gecikme G\u00fcn\u00fc",
+            "Durum",
+            "Ba\u011fl\u0131 Dok\u00fcman",
+            "Ba\u011fl\u0131 Aksiyon",
+            "Ba\u011fl\u0131 Risk",
+            "Ba\u011fl\u0131 IF/D\u00d6F",
+        ),
+        "rows": rows,
+        "sheet_name": "Sapmalar",
+        "column_widths": (
+            18,
+            22,
+            36,
+            18,
+            24,
+            26,
+            18,
+            14,
+            12,
+            20,
+            24,
+            24,
+            16,
+            16,
+            16,
+            20,
+            18,
+            18,
+            18,
+            18,
+        ),
+    }
+
+
 def report_trainings_data():
     trainings = (
         scoped_query(TrainingRecord.query, TrainingRecord)
@@ -7725,6 +7827,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "change_management.view",
         "required_export_permission": "change_management.export",
         "builder": report_change_requests_data,
+    },
+    {
+        "key": "deviations",
+        "title": "Sapma / Uygunsuz \u00dcr\u00fcn Raporu",
+        "description": "Sapma, uygunsuz \u00fcr\u00fcn, karantina, karar ve kapan\u0131\u015f kay\u0131tlar\u0131.",
+        "icon": "bi-exclamation-octagon",
+        "tone": "danger",
+        "module_key": "deviation_management",
+        "required_permission": "deviation.view",
+        "required_export_permission": "deviation.export",
+        "builder": report_deviations_data,
     },
     {
         "key": "trainings",
@@ -12529,6 +12642,7 @@ NOTIFICATION_FILTERS = (
     ("dof", "IF/DÖF"),
     ("action", "Aksiyon"),
     ("change", "De\u011fi\u015fiklik"),
+    ("deviation", "Sapma"),
 )
 
 
@@ -12557,6 +12671,8 @@ def notification_source_label(notification):
         return "Risk"
     if source_key.startswith("change:"):
         return "De\u011fi\u015fiklik"
+    if source_key.startswith("deviation:"):
+        return "Sapma"
     if source_key.startswith("training:"):
         return "Eğitim"
     if source_key.startswith("complaint:"):
@@ -12605,6 +12721,8 @@ def notification_matches_filter(notification, filter_key):
         return bool(notification.action) or source_key.startswith(("action:", "sub-action:"))
     if filter_key == "change":
         return source_key.startswith("change:")
+    if filter_key == "deviation":
+        return source_key.startswith("deviation:")
     return True
 
 
@@ -14149,6 +14267,93 @@ def assigned_change_management_tasks(scope):
     return rows
 
 
+def assigned_deviation_tasks(scope):
+    if not company_module_enabled("deviation_management") or not can_view_deviations():
+        return []
+
+    user_id = g.current_user.id
+    query = deviation_query()
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        filters = [
+            DeviationRecord.responsible_user_id == user_id,
+            DeviationRecord.approver_user_id == user_id,
+        ]
+        if can_approve_deviations():
+            filters.append(
+                DeviationRecord.status.in_(
+                    [
+                        DEVIATION_STATUS_OPEN,
+                        DEVIATION_STATUS_QUARANTINE,
+                        DEVIATION_STATUS_DECISION_PENDING,
+                        DEVIATION_STATUS_EFFECTIVENESS,
+                    ]
+                )
+            )
+        query = query.filter(or_(*filters))
+
+    rows = []
+    seen_ids = set()
+    for deviation in query.all():
+        if deviation.id in seen_ids:
+            continue
+        seen_ids.add(deviation.id)
+        status = deviation.status or DEVIATION_STATUS_OPEN
+        status_key = deviation_status_key(deviation)
+        if status_key in {"completed", "cancelled"}:
+            continue
+        if status_key in {"open", "pending"} and deviation.delay_days > 0:
+            status, status_key = "Gecikti", "delayed"
+        if scope != "created":
+            if (
+                deviation.status
+                in {
+                    DEVIATION_STATUS_OPEN,
+                    DEVIATION_STATUS_QUARANTINE,
+                    DEVIATION_STATUS_DECISION_PENDING,
+                }
+                and deviation.approver_user_id != user_id
+                and not can_approve_deviations()
+            ):
+                continue
+            if (
+                deviation.status == DEVIATION_STATUS_ACTION_PENDING
+                and deviation.responsible_user_id != user_id
+                and not can_manage_deviations()
+            ):
+                continue
+            if (
+                deviation.status == DEVIATION_STATUS_EFFECTIVENESS
+                and deviation.approver_user_id != user_id
+                and not can_approve_deviations()
+            ):
+                continue
+        rows.append(
+            assigned_task_row(
+                module_key="deviation",
+                module_label="Sapma",
+                module_icon="exclamation-octagon",
+                module_tone="risk",
+                title=f"{deviation.deviation_no} {deviation.title}",
+                description=deviation.description or deviation.product_name,
+                reference_no=deviation.deviation_no,
+                department=deviation.department or "Sapma / Uygunsuz \u00dcr\u00fcn",
+                due_date=deviation.due_date or assigned_date(deviation.created_at),
+                status=status,
+                status_key=status_key,
+                priority=deviation.severity or "Orta",
+                detail_url=url_for(
+                    "main.deviation_detail",
+                    deviation_id=deviation.id,
+                ),
+                created_at=deviation.created_at,
+                sort_id=deviation.id,
+            )
+        )
+    return rows
+
+
 def assigned_all_tasks(scope):
     return (
         assigned_action_tasks(scope)
@@ -14165,6 +14370,7 @@ def assigned_all_tasks(scope):
         + assigned_quality_test_tasks(scope)
         + assigned_supplier_tasks(scope)
         + assigned_change_management_tasks(scope)
+        + assigned_deviation_tasks(scope)
     )
 
 
@@ -14186,6 +14392,7 @@ ASSIGNED_TAB_MODULES = {
         "training",
         "document_revision",
         "change_management",
+        "deviation",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -14205,6 +14412,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
     ("complaint", "Şikayet"),
+    ("deviation", "Sapma"),
     ("calibration", "Kalibrasyon"),
     ("quality_test", "Beton Deneyi"),
     ("supplier", "Tedarikçi"),
@@ -15894,6 +16102,964 @@ def download_change_request_file(file_id):
         change_file.file_path,
         as_attachment=True,
         download_name=change_file.original_file_name,
+    )
+
+
+def can_view_deviations():
+    return (
+        current_user_can("deviation.view")
+        or can_create_deviations()
+        or can_manage_deviations()
+        or can_approve_deviations()
+    )
+
+
+def can_create_deviations():
+    return current_user_can("deviation.create") or can_manage_deviations()
+
+
+def can_manage_deviations():
+    return current_user_can("deviation.manage")
+
+
+def can_approve_deviations():
+    return current_user_can("deviation.approve")
+
+
+def can_delete_deviations():
+    return current_user_can("deviation.delete")
+
+
+def deviation_query():
+    return scoped_query(DeviationRecord.query, DeviationRecord)
+
+
+def deviation_status_key(deviation):
+    status = deviation.status or DEVIATION_STATUS_OPEN
+    if status == DEVIATION_STATUS_CLOSED:
+        return "completed"
+    if status == DEVIATION_STATUS_ARCHIVED:
+        return "cancelled"
+    if status in {
+        DEVIATION_STATUS_OPEN,
+        DEVIATION_STATUS_QUARANTINE,
+        DEVIATION_STATUS_DECISION_PENDING,
+        DEVIATION_STATUS_EFFECTIVENESS,
+    }:
+        return "pending"
+    return "open"
+
+
+def deviation_status_tone(status):
+    return {
+        DEVIATION_STATUS_OPEN: "warning",
+        DEVIATION_STATUS_QUARANTINE: "danger",
+        DEVIATION_STATUS_DECISION_PENDING: "warning",
+        DEVIATION_STATUS_ACTION_PENDING: "info",
+        DEVIATION_STATUS_EFFECTIVENESS: "warning",
+        DEVIATION_STATUS_CLOSED: "success",
+        DEVIATION_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def deviation_severity_tone(severity):
+    return {
+        "Kritik": "danger",
+        "Y\u00fcksek": "danger",
+        "Orta": "warning",
+        "D\u00fc\u015f\u00fck": "success",
+    }.get(severity, "muted")
+
+
+def deviation_file_kind_label(file_kind):
+    return {
+        "tespit": "Tespit eki",
+        "karantina": "Karantina kan\u0131t\u0131",
+        "karar": "Karar eki",
+        "kapanis": "Kapan\u0131\u015f kan\u0131t\u0131",
+    }.get(file_kind, "Dosya")
+
+
+def deviation_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "severity": request.args.get("severity", "").strip(),
+        "record_type": request.args.get("record_type", "").strip(),
+        "visibility": request.args.get("visibility", "active").strip() or "active",
+    }
+
+
+def deviation_sort_key(deviation):
+    if deviation.status == DEVIATION_STATUS_ARCHIVED:
+        status_rank = 5
+    elif deviation.status == DEVIATION_STATUS_CLOSED:
+        status_rank = 4
+    elif deviation.delay_days:
+        status_rank = 0
+    elif deviation.severity == "Kritik":
+        status_rank = 1
+    elif deviation.status in {DEVIATION_STATUS_DECISION_PENDING, DEVIATION_STATUS_QUARANTINE}:
+        status_rank = 2
+    else:
+        status_rank = 3
+    return (
+        status_rank,
+        -deviation.delay_days,
+        deviation.due_date or date.max,
+        -(deviation.id or 0),
+    )
+
+
+def filtered_deviations(filters):
+    query = deviation_query()
+    if filters["visibility"] == "archive":
+        query = query.filter(DeviationRecord.status == DEVIATION_STATUS_ARCHIVED)
+    elif filters["visibility"] != "all":
+        query = query.filter(DeviationRecord.status != DEVIATION_STATUS_ARCHIVED)
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                DeviationRecord.deviation_no.ilike(search_value),
+                DeviationRecord.title.ilike(search_value),
+                DeviationRecord.description.ilike(search_value),
+                DeviationRecord.product_name.ilike(search_value),
+                DeviationRecord.batch_no.ilike(search_value),
+                DeviationRecord.process_name.ilike(search_value),
+            )
+        )
+    if filters["department"]:
+        query = query.filter(DeviationRecord.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(DeviationRecord.status == filters["status"])
+    if filters["severity"]:
+        query = query.filter(DeviationRecord.severity == filters["severity"])
+    if filters["record_type"]:
+        query = query.filter(DeviationRecord.record_type == filters["record_type"])
+    return sorted(query.all(), key=deviation_sort_key)
+
+
+def next_deviation_no():
+    prefix = f"SAP-{date.today().year}-"
+    rows = (
+        scoped_query(DeviationRecord.query.with_entities(DeviationRecord.deviation_no), DeviationRecord)
+        .filter(DeviationRecord.deviation_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (deviation_no,) in rows:
+        try:
+            numbers.append(int((deviation_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def default_deviation_approver():
+    representatives = document_management_representatives()
+    if representatives:
+        return representatives[0]
+    if can_approve_deviations():
+        return g.current_user
+    return None
+
+
+def deviation_link_choices():
+    documents = []
+    actions = []
+    dofs = []
+    risks = []
+    if company_module_enabled("documents") and can_view_documents():
+        documents = sort_documents_by_code(document_query().all())
+    if (
+        current_user_can("actions.view_all")
+        or current_user_can("actions.create")
+        or can_manage_deviations()
+        or can_approve_deviations()
+    ):
+        actions = (
+            scoped_query(Action.query, Action)
+            .order_by(Action.termin_date.asc(), Action.id.asc())
+            .all()
+        )
+    if company_module_enabled("if_management"):
+        dofs_query = scoped_query(Dof.query, Dof)
+        if not can_manage_deviations() and not can_approve_deviations():
+            dofs_query = visible_dofs_query()
+        dofs = attach_dof_view_state(
+            dofs_query.order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+        )
+    if company_module_enabled("risk_management") and can_view_risks():
+        risks = sorted(risk_query().all(), key=lambda item: (item.risk_no, item.id))
+    return documents, actions, dofs, risks
+
+
+def parse_deviation_form(deviation=None):
+    values = {
+        "record_type": request.form.get("record_type", "Uygunsuz \u00dcr\u00fcn").strip() or "Uygunsuz \u00dcr\u00fcn",
+        "source_type": request.form.get("source_type", "").strip(),
+        "title": request.form.get("title", "").strip(),
+        "description": request.form.get("description", "").strip(),
+        "detected_date": parse_optional_date("detected_date") or date.today(),
+        "department": request.form.get("department", "").strip(),
+        "process_name": request.form.get("process_name", "").strip(),
+        "product_name": request.form.get("product_name", "").strip(),
+        "batch_no": request.form.get("batch_no", "").strip(),
+        "quantity": request.form.get("quantity", "").strip(),
+        "severity": request.form.get("severity", "Orta").strip() or "Orta",
+        "containment_action": request.form.get("containment_action", "").strip(),
+        "quarantine_location": request.form.get("quarantine_location", "").strip(),
+        "due_date": parse_optional_date("due_date"),
+        "responsible_user_id": request.form.get("responsible_user_id", type=int),
+        "approver_user_id": request.form.get("approver_user_id", type=int),
+        "document_id": request.form.get("document_id", type=int),
+        "action_id": request.form.get("action_id", type=int),
+        "risk_id": request.form.get("risk_id", type=int),
+        "dof_id": request.form.get("dof_id", type=int),
+    }
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["record_type"] not in DEVIATION_RECORD_TYPES:
+        raise ValueError("invalid_record_type")
+    if values["source_type"] and values["source_type"] not in DEVIATION_SOURCE_TYPES:
+        raise ValueError("invalid_source_type")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if values["severity"] not in DEVIATION_SEVERITIES:
+        raise ValueError("invalid_severity")
+    for key in ("description", "containment_action"):
+        if len(values[key]) > 3000:
+            raise ValueError("text_too_long")
+    for key in ("process_name", "product_name", "batch_no", "quantity", "quarantine_location"):
+        if len(values[key]) > 180:
+            raise ValueError("text_too_long")
+    if deviation and not values["approver_user_id"]:
+        values["approver_user_id"] = deviation.approver_user_id
+    if not values["approver_user_id"]:
+        approver = default_deviation_approver()
+        values["approver_user_id"] = approver.id if approver else None
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_deviation_links(deviation):
+    for field_name, error_key in (
+        ("responsible_user_id", "invalid_responsible"),
+        ("approver_user_id", "invalid_approver"),
+    ):
+        user_id = getattr(deviation, field_name)
+        if user_id and active_user_by_id(user_id) is None:
+            raise ValueError(error_key)
+    if deviation.document_id and document_query().filter_by(id=deviation.document_id).first() is None:
+        raise ValueError("invalid_document")
+    if deviation.action_id and scoped_query(Action.query, Action).filter_by(id=deviation.action_id).first() is None:
+        raise ValueError("invalid_action")
+    if deviation.dof_id and scoped_query(Dof.query, Dof).filter_by(id=deviation.dof_id).first() is None:
+        raise ValueError("invalid_dof")
+    if deviation.risk_id and risk_query().filter_by(id=deviation.risk_id).first() is None:
+        raise ValueError("invalid_risk")
+
+
+def deviation_form_error_message(error_key):
+    return {
+        "required_fields": "Ba\u015fl\u0131k zorunludur.",
+        "invalid_record_type": "Ge\u00e7erli bir kay\u0131t t\u00fcr\u00fc se\u00e7in.",
+        "invalid_source_type": "Ge\u00e7erli bir kaynak se\u00e7in.",
+        "invalid_department": "Ge\u00e7erli bir departman se\u00e7in.",
+        "invalid_severity": "Ge\u00e7erli bir \u015fiddet seviyesi se\u00e7in.",
+        "invalid_disposition": "Ge\u00e7erli bir karar se\u00e7in.",
+        "invalid_date": "Ge\u00e7erli bir tarih girin.",
+        "action_requires_owner": "Bu karar i\u00e7in sorumlu ve termin tarihi zorunludur.",
+        "containment_required": "Uygunsuz \u00fcr\u00fcn karar\u0131ndan \u00f6nce ilk \u00f6nlem veya karantina bilgisi kaydedin.",
+        "action_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 aksiyon se\u00e7ilmelidir.",
+        "dof_link_required": "Bu karar i\u00e7in ba\u011flant\u0131l\u0131 IF/D\u00d6F se\u00e7ilmelidir.",
+        "invalid_responsible": "Ge\u00e7erli bir sorumlu se\u00e7in.",
+        "invalid_approver": "Ge\u00e7erli bir onaylayan se\u00e7in.",
+        "invalid_document": "Ba\u011flanacak dok\u00fcman bulunamad\u0131.",
+        "invalid_action": "Ba\u011flanacak aksiyon bulunamad\u0131.",
+        "invalid_dof": "Ba\u011flanacak IF/D\u00d6F bulunamad\u0131.",
+        "invalid_risk": "Ba\u011flanacak risk bulunamad\u0131.",
+        "invalid_document_file_type": "Sadece PDF, Office veya g\u00f6rsel dosyas\u0131 y\u00fckleyebilirsiniz.",
+        "document_file_too_large": "Dosya en fazla 25 MB olabilir.",
+        "storage_quota_exceeded": "Firma depolama kotas\u0131 a\u015f\u0131ld\u0131.",
+        "text_too_long": "Metin alanlar\u0131ndan biri \u00e7ok uzun.",
+    }.get(error_key, "Sapma kayd\u0131 kaydedilemedi.")
+
+
+def deviation_uploads(field_name="deviation_files"):
+    return [
+        uploaded_file
+        for uploaded_file in request.files.getlist(field_name)
+        if uploaded_file and uploaded_file.filename
+    ]
+
+
+def save_deviation_file(uploaded_file, deviation, file_kind):
+    if file_kind not in DEVIATION_FILE_KINDS:
+        file_kind = "tespit"
+    if not document_allowed_file(uploaded_file):
+        raise ValueError("invalid_document_file_type")
+
+    original_name = safe_original_filename(uploaded_file.filename, "sapma-dosyasi")
+    extension = file_extension(uploaded_file.filename)
+    if not original_name:
+        original_name = f"sapma-dosyasi.{extension}"
+    stored_name = f"deviation-{uuid4().hex}.{extension}"
+    company_id = deviation.company_id or current_company_id()
+    relative_path, upload_path = upload_storage_path(
+        stored_name,
+        Path("deviations") / file_kind,
+        company_id,
+    )
+    assert_company_storage_quota(company_id, uploaded_stream_size(uploaded_file))
+    uploaded_file.save(upload_path)
+
+    if upload_path.stat().st_size > DOCUMENT_MAX_BYTES:
+        upload_path.unlink(missing_ok=True)
+        raise ValueError("document_file_too_large")
+    try:
+        assert_company_storage_quota(company_id)
+    except ValueError:
+        upload_path.unlink(missing_ok=True)
+        raise
+
+    deviation_file = DeviationFile(
+        deviation=deviation,
+        company_id=company_id,
+        file_kind=file_kind,
+        file_name=stored_name,
+        original_file_name=original_name,
+        file_path=str(relative_path).replace("\\", "/"),
+        file_type=extension,
+        file_size=upload_path.stat().st_size,
+        uploaded_by_user_id=g.current_user.id if g.current_user else None,
+    )
+    assign_current_company(deviation_file)
+    return deviation_file
+
+
+def delete_deviation_file(deviation_file):
+    if deviation_file and deviation_file.file_path:
+        delete_stored_upload(deviation_file.file_path)
+
+
+def notify_deviation(user, deviation, event_key, message, notification_type="info"):
+    return add_user_notification(
+        user,
+        message,
+        company_id=deviation.company_id,
+        notification_type=notification_type,
+        source_key=f"deviation:{deviation.id}:{event_key}",
+        target_url=url_for("main.deviation_detail", deviation_id=deviation.id),
+        due_date=deviation.due_date,
+    )
+
+
+def notify_deviation_users(users, deviation, event_key, message, notification_type="info", exclude_user_id=None):
+    created = []
+    for user in unique_users(users):
+        if exclude_user_id and user.id == exclude_user_id:
+            continue
+        notification = notify_deviation(
+            user,
+            deviation,
+            event_key,
+            message,
+            notification_type=notification_type,
+        )
+        if notification is not None:
+            created.append(notification)
+    return created
+
+
+def mark_deviation_sales_readiness_without_commit():
+    has_record = DeviationRecord.query.count() > 0
+    has_decision_record = (
+        DeviationRecord.query.filter(DeviationRecord.disposition.isnot(None)).count() > 0
+    )
+    has_created_audit = (
+        AuditLog.query.filter_by(
+            entity_type="DeviationRecord",
+            action="deviation_created",
+        ).first()
+        is not None
+    )
+    has_decision_audit = (
+        AuditLog.query.filter_by(
+            entity_type="DeviationRecord",
+            action="deviation_decision_recorded",
+        ).first()
+        is not None
+    )
+    if has_record and has_decision_record and has_created_audit and has_decision_audit:
+        mark_sales_readiness_item_done_without_commit("competitor_deviation_management")
+
+
+def deviation_form_context(deviation=None):
+    form_data = request.form if request.method == "POST" else {}
+    documents, actions, dofs, risks = deviation_link_choices()
+    return {
+        "deviation": deviation,
+        "record_types": DEVIATION_RECORD_TYPES,
+        "source_types": DEVIATION_SOURCE_TYPES,
+        "severities": DEVIATION_SEVERITIES,
+        "departments": DEPARTMENTS,
+        "users": active_users(),
+        "documents": documents,
+        "actions": actions,
+        "dofs": dofs,
+        "risks": risks,
+        "form_data": form_data,
+        "can_manage_deviations": can_manage_deviations(),
+        "can_approve_deviations": can_approve_deviations(),
+    }
+
+
+def deviation_dashboard_context():
+    filters = deviation_filters()
+    deviations = filtered_deviations(filters)
+    all_deviations = deviation_query().all()
+    active_deviations = [
+        item for item in all_deviations if item.status != DEVIATION_STATUS_ARCHIVED
+    ]
+    departments = sorted({item.department for item in all_deviations if item.department})
+    return {
+        "deviations": deviations,
+        "total_count": len(active_deviations),
+        "filtered_count": len(deviations),
+        "quarantine_count": sum(
+            1 for item in active_deviations if item.status == DEVIATION_STATUS_QUARANTINE
+        ),
+        "decision_count": sum(
+            1 for item in active_deviations if item.status == DEVIATION_STATUS_DECISION_PENDING
+        ),
+        "overdue_count": sum(1 for item in active_deviations if item.delay_days > 0),
+        "filters": filters,
+        "statuses": DEVIATION_STATUSES,
+        "record_types": DEVIATION_RECORD_TYPES,
+        "severities": DEVIATION_SEVERITIES,
+        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "can_create_deviations": can_create_deviations(),
+        "can_manage_deviations": can_manage_deviations(),
+        "can_approve_deviations": can_approve_deviations(),
+        "can_delete_deviations": can_delete_deviations(),
+        "deviation_status_tone": deviation_status_tone,
+        "deviation_severity_tone": deviation_severity_tone,
+        "format_date": format_date,
+        "status_open": DEVIATION_STATUS_OPEN,
+        "status_quarantine": DEVIATION_STATUS_QUARANTINE,
+        "status_decision_pending": DEVIATION_STATUS_DECISION_PENDING,
+        "status_archived": DEVIATION_STATUS_ARCHIVED,
+    }
+
+
+@bp.route("/sapma-uygunsuz-urun")
+@login_required
+def deviation_dashboard():
+    if not can_view_deviations():
+        abort(403)
+    return render_template("deviations/dashboard.html", **deviation_dashboard_context())
+
+
+@bp.route("/sapma-uygunsuz-urun/yeni", methods=["GET", "POST"])
+@login_required
+def create_deviation():
+    if not can_create_deviations():
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        try:
+            values = parse_deviation_form()
+            deviation = DeviationRecord(
+                deviation_no=next_deviation_no(),
+                status=DEVIATION_STATUS_DECISION_PENDING,
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(deviation)
+            validate_deviation_links(deviation)
+            db.session.add(deviation)
+            db.session.flush()
+
+            for uploaded_file in deviation_uploads():
+                deviation_file = save_deviation_file(uploaded_file, deviation, "tespit")
+                db.session.add(deviation_file)
+                saved_files.append(deviation_file)
+
+            record_audit_event(
+                "DeviationRecord",
+                "deviation_created",
+                f"{deviation.deviation_no} sapma kayd\u0131 olu\u015fturuldu",
+                entity_id=deviation.id,
+                details={
+                    "deviation_no": deviation.deviation_no,
+                    "record_type": deviation.record_type,
+                    "severity": deviation.severity,
+                    "responsible_user_id": deviation.responsible_user_id,
+                    "approver_user_id": deviation.approver_user_id,
+                },
+                company_id=deviation.company_id,
+                commit=False,
+            )
+            if deviation.approver:
+                notify_deviation(
+                    deviation.approver,
+                    deviation,
+                    "decision",
+                    f"{deviation.deviation_no} sapma/uygunsuz \u00fcr\u00fcn karar\u0131n\u0131z\u0131 bekliyor.",
+                    notification_type="warning",
+                )
+            db.session.commit()
+            flash("Sapma / uygunsuz \u00fcr\u00fcn kayd\u0131 olu\u015fturuldu.", "success")
+            return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_deviation_file(saved_file)
+            flash(deviation_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "deviations/form.html",
+        page_title="Yeni Sapma / Uygunsuz \u00dcr\u00fcn Kayd\u0131",
+        **deviation_form_context(),
+    )
+
+
+@bp.get("/sapma-uygunsuz-urun/<int:deviation_id>")
+@login_required
+def deviation_detail(deviation_id):
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    if not can_view_deviations():
+        abort(403)
+    current_user_is_responsible = (
+        deviation.responsible_user_id == g.current_user.id if g.current_user else False
+    )
+    can_edit_current = can_manage_deviations() or (
+        deviation.created_by_user_id == g.current_user.id
+        and deviation.status in {
+            DEVIATION_STATUS_OPEN,
+            DEVIATION_STATUS_QUARANTINE,
+            DEVIATION_STATUS_DECISION_PENDING,
+        }
+    )
+    can_show_review = (
+        can_manage_deviations()
+        and deviation.status in {DEVIATION_STATUS_OPEN, DEVIATION_STATUS_DECISION_PENDING}
+    )
+    can_show_decision = can_approve_deviations() and deviation.status in {
+        DEVIATION_STATUS_OPEN,
+        DEVIATION_STATUS_QUARANTINE,
+        DEVIATION_STATUS_DECISION_PENDING,
+    }
+    can_show_action = (
+        can_manage_deviations() or current_user_is_responsible
+    ) and deviation.status == DEVIATION_STATUS_ACTION_PENDING
+    can_show_effectiveness = (
+        can_approve_deviations() or can_manage_deviations()
+    ) and deviation.status == DEVIATION_STATUS_EFFECTIVENESS
+    _documents, actions, dofs, _risks = deviation_link_choices()
+    return render_template(
+        "deviations/detail.html",
+        deviation=deviation,
+        disposition_decisions=DEVIATION_DISPOSITION_DECISIONS,
+        users=active_users(),
+        actions=actions,
+        dofs=dofs,
+        format_date=format_date,
+        format_file_size=format_file_size,
+        deviation_status_tone=deviation_status_tone,
+        deviation_severity_tone=deviation_severity_tone,
+        deviation_file_kind_label=deviation_file_kind_label,
+        can_edit_current=can_edit_current,
+        can_manage_deviations=can_manage_deviations(),
+        can_approve_deviations=can_approve_deviations(),
+        can_delete_deviations=can_delete_deviations(),
+        can_show_review=can_show_review,
+        can_show_decision=can_show_decision,
+        can_show_action=can_show_action,
+        can_show_effectiveness=can_show_effectiveness,
+        status_archived=DEVIATION_STATUS_ARCHIVED,
+        today=date.today(),
+    )
+
+
+@bp.route("/sapma-uygunsuz-urun/<int:deviation_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_deviation(deviation_id):
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    can_edit_own_open = (
+        deviation.created_by_user_id == g.current_user.id
+        and deviation.status in {
+            DEVIATION_STATUS_OPEN,
+            DEVIATION_STATUS_QUARANTINE,
+            DEVIATION_STATUS_DECISION_PENDING,
+        }
+    )
+    if not can_manage_deviations() and not can_edit_own_open:
+        abort(403)
+
+    if request.method == "POST":
+        saved_files = []
+        old_values = {
+            "title": deviation.title,
+            "record_type": deviation.record_type,
+            "severity": deviation.severity,
+            "status": deviation.status,
+        }
+        try:
+            values = parse_deviation_form(deviation)
+            for key, value in values.items():
+                setattr(deviation, key, value)
+            validate_deviation_links(deviation)
+            for uploaded_file in deviation_uploads():
+                deviation_file = save_deviation_file(uploaded_file, deviation, "tespit")
+                db.session.add(deviation_file)
+                saved_files.append(deviation_file)
+            record_audit_event(
+                "DeviationRecord",
+                "deviation_updated",
+                f"{deviation.deviation_no} sapma kayd\u0131 g\u00fcncellendi",
+                entity_id=deviation.id,
+                old_values=old_values,
+                new_values={
+                    "title": deviation.title,
+                    "record_type": deviation.record_type,
+                    "severity": deviation.severity,
+                    "status": deviation.status,
+                },
+                company_id=deviation.company_id,
+                commit=False,
+            )
+            db.session.commit()
+            flash("Sapma kayd\u0131 g\u00fcncellendi.", "success")
+            return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+        except ValueError as error:
+            db.session.rollback()
+            for saved_file in saved_files:
+                delete_deviation_file(saved_file)
+            flash(deviation_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "deviations/form.html",
+        page_title="Sapma Kayd\u0131 D\u00fczenle",
+        **deviation_form_context(deviation),
+    )
+
+
+@bp.post("/sapma-uygunsuz-urun/<int:deviation_id>/karantinaya-al")
+@login_required
+def start_deviation_review(deviation_id):
+    if not can_manage_deviations():
+        abort(403)
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    if deviation.status not in {DEVIATION_STATUS_OPEN, DEVIATION_STATUS_DECISION_PENDING}:
+        flash("Sadece a\u00e7\u0131k kay\u0131tlar karantinaya al\u0131nabilir.", "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    deviation.status = DEVIATION_STATUS_QUARANTINE
+    deviation.containment_action = request.form.get("containment_action", "").strip()[:3000] or deviation.containment_action
+    deviation.quarantine_location = request.form.get("quarantine_location", "").strip()[:180] or deviation.quarantine_location
+    saved_files = []
+    try:
+        for uploaded_file in deviation_uploads("quarantine_files"):
+            deviation_file = save_deviation_file(uploaded_file, deviation, "karantina")
+            db.session.add(deviation_file)
+            saved_files.append(deviation_file)
+        record_audit_event(
+            "DeviationRecord",
+            "deviation_review_started",
+            f"{deviation.deviation_no} karantinaya al\u0131nd\u0131",
+            entity_id=deviation.id,
+            details={"quarantine_location": deviation.quarantine_location},
+            company_id=deviation.company_id,
+            commit=False,
+        )
+        db.session.commit()
+        flash("Karantina / ilk kontrol bilgisi kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_deviation_file(saved_file)
+        flash(deviation_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+
+@bp.post("/sapma-uygunsuz-urun/<int:deviation_id>/karar-ver")
+@login_required
+def record_deviation_decision(deviation_id):
+    if not can_approve_deviations():
+        abort(403)
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    if deviation.status not in {
+        DEVIATION_STATUS_OPEN,
+        DEVIATION_STATUS_QUARANTINE,
+        DEVIATION_STATUS_DECISION_PENDING,
+    }:
+        flash("Bu a\u015famada karar kaydedilemez.", "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+    disposition = request.form.get("disposition", "").strip()
+    if disposition not in DEVIATION_DISPOSITION_DECISIONS:
+        flash(deviation_form_error_message("invalid_disposition"), "danger")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+    responsible_user_id = request.form.get("responsible_user_id", type=int) or deviation.responsible_user_id
+    try:
+        due_date = parse_optional_date("due_date") or deviation.due_date
+    except ValueError:
+        flash(deviation_form_error_message("invalid_date"), "danger")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    action_id = request.form.get("action_id", type=int) or deviation.action_id
+    dof_id = request.form.get("dof_id", type=int) or deviation.dof_id
+    if (
+        deviation.record_type == "Uygunsuz \u00dcr\u00fcn"
+        and not deviation.containment_action
+        and not deviation.quarantine_location
+    ):
+        flash(deviation_form_error_message("containment_required"), "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    if disposition == "Aksiyon A\u00e7\u0131ld\u0131" and not action_id:
+        flash(deviation_form_error_message("action_link_required"), "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    if disposition == "D\u00d6F A\u00e7\u0131ld\u0131" and not dof_id:
+        flash(deviation_form_error_message("dof_link_required"), "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    if action_id and scoped_query(Action.query, Action).filter_by(id=action_id).first() is None:
+        flash(deviation_form_error_message("invalid_action"), "danger")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    if dof_id and scoped_query(Dof.query, Dof).filter_by(id=dof_id).first() is None:
+        flash(deviation_form_error_message("invalid_dof"), "danger")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    requires_action = disposition in {
+        "Yeniden \u0130\u015flem",
+        "Tamir",
+        "D\u00d6F A\u00e7\u0131ld\u0131",
+        "Aksiyon A\u00e7\u0131ld\u0131",
+    } or bool(request.form.get("corrective_action", "").strip())
+    if requires_action and (not responsible_user_id or not due_date):
+        flash(deviation_form_error_message("action_requires_owner"), "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    if responsible_user_id and active_user_by_id(responsible_user_id) is None:
+        flash(deviation_form_error_message("invalid_responsible"), "danger")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+    saved_files = []
+    try:
+        deviation.disposition = disposition
+        deviation.disposition_note = request.form.get("disposition_note", "").strip()[:3000] or None
+        deviation.root_cause = request.form.get("root_cause", "").strip()[:3000] or None
+        deviation.corrective_action = request.form.get("corrective_action", "").strip()[:3000] or None
+        deviation.responsible_user_id = responsible_user_id
+        deviation.approver_user_id = g.current_user.id
+        deviation.action_id = action_id
+        deviation.dof_id = dof_id
+        deviation.due_date = due_date
+        if requires_action:
+            deviation.status = DEVIATION_STATUS_ACTION_PENDING
+        else:
+            deviation.status = DEVIATION_STATUS_CLOSED
+            deviation.closed_at = date.today()
+        for uploaded_file in deviation_uploads("decision_files"):
+            deviation_file = save_deviation_file(uploaded_file, deviation, "karar")
+            db.session.add(deviation_file)
+            saved_files.append(deviation_file)
+        record_audit_event(
+            "DeviationRecord",
+            "deviation_decision_recorded",
+            f"{deviation.deviation_no} karar\u0131 kaydedildi",
+            entity_id=deviation.id,
+            details={
+                "disposition": deviation.disposition,
+                "requires_action": requires_action,
+                "responsible_user_id": deviation.responsible_user_id,
+                "action_id": deviation.action_id,
+                "dof_id": deviation.dof_id,
+            },
+            company_id=deviation.company_id,
+            commit=False,
+        )
+        if requires_action and deviation.responsible:
+            notify_deviation(
+                deviation.responsible,
+                deviation,
+                "action",
+                f"{deviation.deviation_no} sapma/uygunsuz \u00fcr\u00fcn aksiyonu sorumlulu\u011funuza atand\u0131.",
+                notification_type="warning",
+            )
+        else:
+            notify_deviation_users(
+                [deviation.created_by],
+                deviation,
+                "closed",
+                f"{deviation.deviation_no} sapma/uygunsuz \u00fcr\u00fcn kayd\u0131 karar ile kapat\u0131ld\u0131.",
+                notification_type="success",
+                exclude_user_id=g.current_user.id,
+            )
+        mark_deviation_sales_readiness_without_commit()
+        db.session.commit()
+        flash("Sapma karar\u0131 kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_deviation_file(saved_file)
+        flash(deviation_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+
+@bp.post("/sapma-uygunsuz-urun/<int:deviation_id>/aksiyon-tamamlandi")
+@login_required
+def complete_deviation_action(deviation_id):
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    if not (can_manage_deviations() or deviation.responsible_user_id == g.current_user.id):
+        abort(403)
+    if deviation.status != DEVIATION_STATUS_ACTION_PENDING:
+        flash("Sadece aksiyon bekleyen kay\u0131tlar tamamlanabilir.", "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    saved_files = []
+    try:
+        completion_note = request.form.get("completion_note", "").strip()
+        if completion_note:
+            deviation.corrective_action = "\n\n".join(
+                part for part in (deviation.corrective_action, completion_note[:3000]) if part
+            )
+        deviation.status = DEVIATION_STATUS_EFFECTIVENESS
+        for uploaded_file in deviation_uploads("closing_files"):
+            deviation_file = save_deviation_file(uploaded_file, deviation, "kapanis")
+            db.session.add(deviation_file)
+            saved_files.append(deviation_file)
+        record_audit_event(
+            "DeviationRecord",
+            "deviation_action_completed",
+            f"{deviation.deviation_no} aksiyonu tamamland\u0131",
+            entity_id=deviation.id,
+            details={"responsible_user_id": g.current_user.id},
+            company_id=deviation.company_id,
+            commit=False,
+        )
+        notify_deviation(
+            deviation.approver,
+            deviation,
+            "effectiveness",
+            f"{deviation.deviation_no} i\u00e7in etkinlik/kapan\u0131\u015f kontrol\u00fc bekleniyor.",
+            notification_type="warning",
+        )
+        db.session.commit()
+        flash("Aksiyon tamamland\u0131, etkinlik kontrol\u00fcne g\u00f6nderildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_deviation_file(saved_file)
+        flash(deviation_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+
+@bp.post("/sapma-uygunsuz-urun/<int:deviation_id>/etkinlik-kapat")
+@login_required
+def close_deviation_effectiveness(deviation_id):
+    if not can_approve_deviations() and not can_manage_deviations():
+        abort(403)
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    if deviation.status != DEVIATION_STATUS_EFFECTIVENESS:
+        flash("Sadece etkinlik kontrol\u00fc bekleyen kay\u0131tlar kapat\u0131labilir.", "warning")
+        return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+    saved_files = []
+    try:
+        effectiveness_note = request.form.get("effectiveness_note", "").strip()
+        if effectiveness_note:
+            deviation.disposition_note = "\n\n".join(
+                part for part in (deviation.disposition_note, effectiveness_note[:3000]) if part
+            )
+        deviation.status = DEVIATION_STATUS_CLOSED
+        deviation.closed_at = date.today()
+        for uploaded_file in deviation_uploads("effectiveness_files"):
+            deviation_file = save_deviation_file(uploaded_file, deviation, "kapanis")
+            db.session.add(deviation_file)
+            saved_files.append(deviation_file)
+        record_audit_event(
+            "DeviationRecord",
+            "deviation_effectiveness_closed",
+            f"{deviation.deviation_no} etkinlik kontrol\u00fc kapat\u0131ld\u0131",
+            entity_id=deviation.id,
+            details={"closed_by_user_id": g.current_user.id},
+            company_id=deviation.company_id,
+            commit=False,
+        )
+        notify_deviation_users(
+            [deviation.created_by, deviation.responsible],
+            deviation,
+            "closed",
+            f"{deviation.deviation_no} sapma/uygunsuz \u00fcr\u00fcn kayd\u0131 kapat\u0131ld\u0131.",
+            notification_type="success",
+            exclude_user_id=g.current_user.id,
+        )
+        mark_deviation_sales_readiness_without_commit()
+        db.session.commit()
+        flash("Sapma kayd\u0131 kapat\u0131ld\u0131.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        for saved_file in saved_files:
+            delete_deviation_file(saved_file)
+        flash(deviation_form_error_message(str(error)), "danger")
+    return redirect(url_for("main.deviation_detail", deviation_id=deviation.id))
+
+
+@bp.post("/sapma-uygunsuz-urun/<int:deviation_id>/arsivle")
+@login_required
+def archive_deviation(deviation_id):
+    if not can_delete_deviations():
+        abort(403)
+    deviation = deviation_query().filter_by(id=deviation_id).first_or_404()
+    ensure_same_company(deviation)
+    deviation.status = DEVIATION_STATUS_ARCHIVED
+    deviation.archived_at = datetime.utcnow()
+    record_audit_event(
+        "DeviationRecord",
+        "deviation_archived",
+        f"{deviation.deviation_no} sapma kayd\u0131 ar\u015fivlendi",
+        entity_id=deviation.id,
+        details={"archived_by_user_id": g.current_user.id},
+        company_id=deviation.company_id,
+        commit=False,
+    )
+    db.session.commit()
+    flash("Sapma kayd\u0131 ar\u015five al\u0131nd\u0131.", "success")
+    return redirect(url_for("main.deviation_dashboard"))
+
+
+@bp.get("/sapma-uygunsuz-urun/dosya/<int:file_id>/indir")
+@login_required
+def download_deviation_file(file_id):
+    deviation_file = (
+        scoped_query(DeviationFile.query, DeviationFile)
+        .filter_by(id=file_id)
+        .first_or_404()
+    )
+    ensure_same_company(deviation_file)
+    if not can_view_deviations():
+        abort(403)
+    record_audit_event(
+        "DeviationFile",
+        "deviation_file_downloaded",
+        f"{deviation_file.original_file_name} sapma dosyas\u0131 indirildi",
+        entity_id=deviation_file.id,
+        details={"deviation_id": deviation_file.deviation_id},
+        company_id=deviation_file.company_id,
+        commit=True,
+    )
+    return send_stored_upload(
+        deviation_file.file_path,
+        as_attachment=True,
+        download_name=deviation_file.original_file_name,
     )
 
 
