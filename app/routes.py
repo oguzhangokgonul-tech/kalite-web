@@ -116,6 +116,16 @@ from .models import (
     FMEA_STATUS_EFFECTIVENESS,
     FMEA_STATUS_OPEN,
     FMEA_STATUSES,
+    PROCESS_CATEGORIES,
+    PROCESS_CATEGORY_CORE,
+    PROCESS_RELATION_LINKED,
+    PROCESS_RELATION_TYPES,
+    PROCESS_STATUS_ARCHIVED,
+    PROCESS_STATUS_DRAFT,
+    PROCESS_STATUS_PASSIVE,
+    PROCESS_STATUS_PUBLISHED,
+    PROCESS_STATUS_REVIEW,
+    PROCESS_STATUSES,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
@@ -147,6 +157,9 @@ from .models import (
     OrientationNode,
     PersonnelContact,
     PilotProgram,
+    ProcessRecord,
+    ProcessRelation,
+    ProcessStep,
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
@@ -507,6 +520,7 @@ PILOT_PROGRAM_MODULE_LABELS = {
     "if_management": "IF Yönetimi",
     "risk_management": "Risk Yönetimi",
     "fmea_management": "FMEA Analizi",
+    "process_management": "S\u00fcre\u00e7 Y\u00f6netimi",
     "training": "Eğitim / Yeterlilik",
     "internal_audit": "İç Denetim Yönetimi",
     "management_review": "Yönetimin Gözden Geçirmesi",
@@ -2670,6 +2684,16 @@ MODULE_ENDPOINTS = {
     "main.mark_fmea_action_pending": "fmea_management",
     "main.close_fmea": "fmea_management",
     "main.archive_fmea": "fmea_management",
+    "main.process_dashboard": "process_management",
+    "main.process_map": "process_management",
+    "main.create_process": "process_management",
+    "main.process_detail": "process_management",
+    "main.edit_process": "process_management",
+    "main.archive_process": "process_management",
+    "main.add_process_step": "process_management",
+    "main.delete_process_step": "process_management",
+    "main.add_process_relation": "process_management",
+    "main.delete_process_relation": "process_management",
     "main.change_management_dashboard": "change_management",
     "main.create_change_request": "change_management",
     "main.change_request_detail": "change_management",
@@ -7546,6 +7570,50 @@ def report_fmea_data():
     }
 
 
+def report_processes_data():
+    records = sorted(process_query(include_archived=True).all(), key=process_sort_key)
+    rows = [
+        (
+            record.process_no,
+            record.title,
+            record.category,
+            report_user_name(record.owner),
+            record.department or "-",
+            record.kpi or "-",
+            record.status,
+            format_date(record.next_review_date),
+            record.delay_days,
+            record.related_document.document_code if record.related_document else "-",
+            record.risk.risk_no if record.risk else "-",
+            record.action.number_label if record.action else "-",
+            len(record.steps),
+            len(record.outgoing_relations) + len(record.incoming_relations),
+        )
+        for record in records
+    ]
+    return {
+        "headers": (
+            "S\u00fcre\u00e7 No",
+            "S\u00fcre\u00e7 Ad\u0131",
+            "Kategori",
+            "S\u00fcre\u00e7 Sahibi",
+            "Departman",
+            "KPI",
+            "Durum",
+            "Sonraki G\u00f6zden Ge\u00e7irme",
+            "Gecikme G\u00fcn\u00fc",
+            "Ba\u011fl\u0131 Dok\u00fcman",
+            "Ba\u011fl\u0131 Risk",
+            "Ba\u011fl\u0131 Aksiyon",
+            "Ad\u0131m Say\u0131s\u0131",
+            "Ba\u011flant\u0131 Say\u0131s\u0131",
+        ),
+        "rows": rows,
+        "sheet_name": "Surec Yonetimi",
+        "column_widths": (18, 36, 22, 24, 18, 34, 18, 24, 16, 18, 18, 18, 14, 16),
+    }
+
+
 def report_change_requests_data():
     changes = sorted(change_request_query().all(), key=change_request_sort_key)
     rows = [
@@ -8032,6 +8100,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "fmea.view",
         "required_export_permission": "fmea.export",
         "builder": report_fmea_data,
+    },
+    {
+        "key": "processes",
+        "title": "S\u00fcre\u00e7 Y\u00f6netimi Raporu",
+        "description": "S\u00fcre\u00e7 sahibi, KPI, durum, ba\u011fl\u0131 dok\u00fcman, risk, aksiyon ve ad\u0131m \u00f6zeti.",
+        "icon": "bi-diagram-3",
+        "tone": "blue",
+        "module_key": "process_management",
+        "required_permission": "process.view",
+        "required_export_permission": "process.export",
+        "builder": report_processes_data,
     },
     {
         "key": "change_requests",
@@ -10447,6 +10526,411 @@ def fmea_dashboard_context():
         "can_create_actions": current_user_can("actions.create"),
         "fmea_level_tone": fmea_level_tone,
         "fmea_status_tone": fmea_status_tone,
+    }
+
+
+def can_view_processes():
+    return (
+        current_user_can("process.view")
+        or can_create_processes()
+        or can_manage_processes()
+        or can_delete_processes()
+    )
+
+
+def can_create_processes():
+    return current_user_can("process.create") or can_manage_processes()
+
+
+def can_manage_processes():
+    return current_user_can("process.manage")
+
+
+def can_delete_processes():
+    return current_user_can("process.delete")
+
+
+def can_export_processes():
+    return current_user_can("process.export") or current_user_can("reports.export")
+
+
+def process_query(include_archived=False):
+    query = scoped_query(ProcessRecord.query, ProcessRecord)
+    if not include_archived:
+        query = query.filter(ProcessRecord.status != PROCESS_STATUS_ARCHIVED)
+    return query
+
+
+def process_step_query():
+    return scoped_query(ProcessStep.query, ProcessStep)
+
+
+def process_relation_query():
+    return scoped_query(ProcessRelation.query, ProcessRelation)
+
+
+def process_status_tone(status):
+    return {
+        PROCESS_STATUS_DRAFT: "muted",
+        PROCESS_STATUS_PUBLISHED: "success",
+        PROCESS_STATUS_REVIEW: "warning",
+        PROCESS_STATUS_PASSIVE: "muted",
+        PROCESS_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def process_category_tone(category):
+    return {
+        PROCESS_CATEGORIES[0]: "purple",
+        PROCESS_CATEGORIES[1]: "blue",
+        PROCESS_CATEGORIES[2]: "success",
+    }.get(category, "muted")
+
+
+def process_status_key(process_record):
+    status = process_record.status or PROCESS_STATUS_DRAFT
+    if status in {PROCESS_STATUS_ARCHIVED, PROCESS_STATUS_PASSIVE}:
+        return "cancelled"
+    if status == PROCESS_STATUS_PUBLISHED:
+        return "completed"
+    if status == PROCESS_STATUS_REVIEW:
+        return "pending"
+    return "open"
+
+
+def process_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "category": request.args.get("category", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "owner_user_id": request.args.get("owner_user_id", "").strip(),
+        "archive": request.args.get("archive", "").strip(),
+    }
+
+
+def process_no_sort_value(process_no):
+    match = re.search(r"(\d+)$", process_no or "")
+    return int(match.group(1)) if match else 0
+
+
+def process_sort_key(process_record):
+    category_order = {category: index for index, category in enumerate(PROCESS_CATEGORIES)}
+    archive_weight = 1 if process_record.status == PROCESS_STATUS_ARCHIVED else 0
+    return (
+        archive_weight,
+        category_order.get(process_record.category, len(PROCESS_CATEGORIES)),
+        process_no_sort_value(process_record.process_no),
+        process_record.title.lower(),
+        process_record.id,
+    )
+
+
+def filtered_processes(filters):
+    query = process_query(include_archived=filters["archive"] == "1")
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                ProcessRecord.process_no.ilike(search_value),
+                ProcessRecord.title.ilike(search_value),
+                ProcessRecord.department.ilike(search_value),
+                ProcessRecord.purpose.ilike(search_value),
+                ProcessRecord.kpi.ilike(search_value),
+            )
+        )
+    if filters["category"]:
+        query = query.filter(ProcessRecord.category == filters["category"])
+    if filters["status"]:
+        query = query.filter(ProcessRecord.status == filters["status"])
+    if filters["owner_user_id"]:
+        try:
+            owner_user_id = int(filters["owner_user_id"])
+        except ValueError:
+            owner_user_id = None
+        if owner_user_id:
+            query = query.filter(ProcessRecord.owner_user_id == owner_user_id)
+    return sorted(query.all(), key=process_sort_key)
+
+
+def next_process_no():
+    prefix = f"PRC-{date.today().year}-"
+    rows = (
+        scoped_query(ProcessRecord.query.with_entities(ProcessRecord.process_no), ProcessRecord)
+        .filter(ProcessRecord.process_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (process_no,) in rows:
+        try:
+            numbers.append(int((process_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_process_form(allowed_statuses=None):
+    allowed_statuses = set(allowed_statuses or PROCESS_STATUSES)
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "category": request.form.get("category", PROCESS_CATEGORY_CORE).strip()
+        or PROCESS_CATEGORY_CORE,
+        "owner_user_id": parse_optional_form_int("owner_user_id"),
+        "department": request.form.get("department", "").strip(),
+        "purpose": request.form.get("purpose", "").strip(),
+        "scope": request.form.get("scope", "").strip(),
+        "inputs": request.form.get("inputs", "").strip(),
+        "outputs": request.form.get("outputs", "").strip(),
+        "suppliers": request.form.get("suppliers", "").strip(),
+        "customers": request.form.get("customers", "").strip(),
+        "kpi": request.form.get("kpi", "").strip(),
+        "review_frequency": request.form.get("review_frequency", "").strip(),
+        "next_review_date": parse_optional_date("next_review_date"),
+        "related_document_id": parse_optional_form_int("related_document_id"),
+        "risk_id": parse_optional_form_int("risk_id"),
+        "action_id": parse_optional_form_int("action_id"),
+        "status": request.form.get("status", PROCESS_STATUS_DRAFT).strip()
+        or PROCESS_STATUS_DRAFT,
+    }
+    if not values["title"]:
+        raise ValueError("required_fields")
+    if values["category"] not in PROCESS_CATEGORIES:
+        raise ValueError("invalid_category")
+    if values["status"] not in allowed_statuses:
+        raise ValueError("invalid_status")
+    for field_name, max_length in (
+        ("title", 180),
+        ("department", 80),
+        ("review_frequency", 80),
+    ):
+        if values[field_name] and len(values[field_name]) > max_length:
+            raise ValueError("field_too_long")
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_process_links(process_record):
+    if process_record.owner_user_id:
+        user = User.query.filter_by(id=process_record.owner_user_id, is_active=True).first()
+        if user is None or (
+            current_company_id() and user.company_id not in {None, current_company_id()}
+        ):
+            raise ValueError("invalid_owner_user_id")
+    if process_record.related_document_id:
+        document = (
+            scoped_query(Document.query, Document)
+            .filter_by(id=process_record.related_document_id)
+            .first()
+        )
+        if document is None:
+            raise ValueError("invalid_related_document_id")
+    if process_record.risk_id:
+        risk = scoped_query(RiskRecord.query, RiskRecord).filter_by(id=process_record.risk_id).first()
+        if risk is None:
+            raise ValueError("invalid_risk_id")
+    if process_record.action_id:
+        action = scoped_query(Action.query, Action).filter_by(id=process_record.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action_id")
+
+
+def process_form_error_message(error_key):
+    return {
+        "required_fields": "S\u00fcre\u00e7 ad\u0131 zorunludur.",
+        "invalid_category": "Ge\u00e7erli bir s\u00fcre\u00e7 kategorisi se\u00e7in.",
+        "invalid_status": "Ge\u00e7erli bir s\u00fcre\u00e7 durumu se\u00e7in.",
+        "invalid_owner_user_id": "Ge\u00e7erli bir s\u00fcre\u00e7 sahibi se\u00e7in.",
+        "invalid_related_document_id": "Ge\u00e7erli bir dok\u00fcman ba\u011flant\u0131s\u0131 se\u00e7in.",
+        "invalid_risk_id": "Ge\u00e7erli bir risk ba\u011flant\u0131s\u0131 se\u00e7in.",
+        "invalid_action_id": "Ge\u00e7erli bir aksiyon ba\u011flant\u0131s\u0131 se\u00e7in.",
+        "field_too_long": "Baz\u0131 alanlar izin verilen uzunlu\u011fu a\u015f\u0131yor.",
+    }.get(error_key, "S\u00fcre\u00e7 kayd\u0131 kaydedilemedi.")
+
+
+def process_related_options(process_record=None):
+    documents = (
+        scoped_query(Document.query, Document)
+        .order_by(Document.document_code.asc(), Document.id.asc())
+        .all()
+    )
+    risks = []
+    if company_module_enabled("risk_management") and can_view_risks():
+        risks = sorted(risk_query().all(), key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id))
+    actions = (
+        scoped_query(Action.query, Action)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all()
+    )
+    possible_processes = [
+        item
+        for item in process_query().order_by(ProcessRecord.process_no.asc(), ProcessRecord.id.asc()).all()
+        if process_record is None or item.id != process_record.id
+    ]
+    return documents, risks, actions, possible_processes
+
+
+def parse_process_step_form(process_record):
+    try:
+        step_order = int(request.form.get("step_order") or (len(process_record.steps) + 1))
+    except (TypeError, ValueError):
+        raise ValueError("invalid_step_order") from None
+    values = {
+        "step_order": max(step_order, 1),
+        "title": request.form.get("title", "").strip(),
+        "responsible_user_id": parse_optional_form_int("responsible_user_id"),
+        "description": request.form.get("description", "").strip(),
+        "input_note": request.form.get("input_note", "").strip(),
+        "output_note": request.form.get("output_note", "").strip(),
+        "control_point": request.form.get("control_point", "").strip(),
+        "document_id": parse_optional_form_int("document_id"),
+    }
+    if not values["title"]:
+        raise ValueError("required_step_title")
+    if values["responsible_user_id"]:
+        user = User.query.filter_by(id=values["responsible_user_id"], is_active=True).first()
+        if user is None or (
+            current_company_id() and user.company_id not in {None, current_company_id()}
+        ):
+            raise ValueError("invalid_step_responsible_user_id")
+    if values["document_id"]:
+        document = scoped_query(Document.query, Document).filter_by(id=values["document_id"]).first()
+        if document is None:
+            raise ValueError("invalid_step_document_id")
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def parse_process_relation_form(source_process):
+    target_process_id = parse_optional_form_int("target_process_id")
+    if not target_process_id:
+        raise ValueError("invalid_target_process_id")
+    if target_process_id == source_process.id:
+        raise ValueError("same_process_relation")
+    target_process = process_query().filter_by(id=target_process_id).first()
+    if target_process is None:
+        raise ValueError("invalid_target_process_id")
+    relation_type = request.form.get("relation_type", PROCESS_RELATION_LINKED).strip()
+    if relation_type not in PROCESS_RELATION_TYPES:
+        raise ValueError("invalid_relation_type")
+    return {
+        "target_process": target_process,
+        "relation_type": relation_type,
+        "description": request.form.get("description", "").strip() or None,
+    }
+
+
+def process_step_error_message(error_key):
+    return {
+        "required_step_title": "S\u00fcre\u00e7 ad\u0131m\u0131 ba\u015fl\u0131\u011f\u0131 zorunludur.",
+        "invalid_step_order": "Ge\u00e7erli bir ad\u0131m s\u0131ras\u0131 girin.",
+        "invalid_step_responsible_user_id": "Ge\u00e7erli bir ad\u0131m sorumlusu se\u00e7in.",
+        "invalid_step_document_id": "Ge\u00e7erli bir ad\u0131m dok\u00fcman\u0131 se\u00e7in.",
+    }.get(error_key, "S\u00fcre\u00e7 ad\u0131m\u0131 kaydedilemedi.")
+
+
+def process_relation_error_message(error_key):
+    return {
+        "invalid_target_process_id": "Ba\u011flanacak ge\u00e7erli bir s\u00fcre\u00e7 se\u00e7in.",
+        "same_process_relation": "Bir s\u00fcre\u00e7 kendisine ba\u011flanamaz.",
+        "invalid_relation_type": "Ge\u00e7erli bir ba\u011flant\u0131 tipi se\u00e7in.",
+    }.get(error_key, "S\u00fcre\u00e7 ba\u011flant\u0131s\u0131 kaydedilemedi.")
+
+
+def process_form_context(process_record=None):
+    form_data = request.form if request.method == "POST" else {}
+    documents, risks, actions, _possible_processes = process_related_options(process_record)
+    return {
+        "process_record": process_record,
+        "categories": PROCESS_CATEGORIES,
+        "statuses": PROCESS_STATUSES if can_manage_processes() else (PROCESS_STATUS_DRAFT,),
+        "departments": DEPARTMENTS,
+        "users": active_users(),
+        "documents": documents,
+        "risks": risks,
+        "actions": actions,
+        "form_data": form_data,
+    }
+
+
+def mark_process_sales_readiness_without_commit():
+    has_record = ProcessRecord.query.count() > 0
+    has_created_audit = (
+        AuditLog.query.filter_by(entity_type="ProcessRecord", action="process_created").first()
+        is not None
+    )
+    if has_record and has_created_audit:
+        mark_sales_readiness_item_done_without_commit("competitor_process_bpm")
+
+
+def process_dashboard_context():
+    filters = process_filters()
+    records = filtered_processes(filters)
+    all_records = process_query(include_archived=True).all()
+    active_records = [record for record in all_records if record.status != PROCESS_STATUS_ARCHIVED]
+    review_due_count = sum(
+        1
+        for record in active_records
+        if record.next_review_date and record.next_review_date <= date.today() + timedelta(days=30)
+    )
+    linked_count = sum(
+        1
+        for record in all_records
+        if record.related_document_id or record.risk_id or record.action_id or record.outgoing_relations or record.incoming_relations
+    )
+    return {
+        "processes": records,
+        "total_count": len(all_records),
+        "published_count": sum(1 for record in active_records if record.status == PROCESS_STATUS_PUBLISHED),
+        "review_due_count": review_due_count,
+        "linked_count": linked_count,
+        "filters": filters,
+        "categories": PROCESS_CATEGORIES,
+        "statuses": PROCESS_STATUSES,
+        "users": active_users(),
+        "can_create_processes": can_create_processes(),
+        "can_manage_processes": can_manage_processes(),
+        "can_delete_processes": can_delete_processes(),
+        "process_status_tone": process_status_tone,
+        "process_category_tone": process_category_tone,
+    }
+
+
+def process_map_context():
+    records = sorted(process_query().all(), key=process_sort_key)
+    grouped = [
+        {
+            "category": category,
+            "items": [record for record in records if record.category == category],
+            "tone": process_category_tone(category),
+        }
+        for category in PROCESS_CATEGORIES
+    ]
+    uncategorized = [record for record in records if record.category not in PROCESS_CATEGORIES]
+    if uncategorized:
+        grouped.append({"category": "Di\u011fer", "items": uncategorized, "tone": "muted"})
+    return {
+        "groups": grouped,
+        "relations": sorted(process_relation_query().all(), key=lambda item: (item.source_process_id, item.id)),
+        "can_create_processes": can_create_processes(),
+        "process_status_tone": process_status_tone,
+    }
+
+
+def process_detail_context(process_record):
+    documents, _risks, _actions, possible_processes = process_related_options(process_record)
+    return {
+        "process_record": process_record,
+        "relation_types": PROCESS_RELATION_TYPES,
+        "documents": documents,
+        "users": active_users(),
+        "possible_processes": possible_processes,
+        "can_manage_processes": can_manage_processes(),
+        "can_delete_processes": can_delete_processes(),
+        "process_status_tone": process_status_tone,
+        "process_category_tone": process_category_tone,
     }
 
 
@@ -14372,6 +14856,60 @@ def assigned_fmea_tasks(scope):
     return rows
 
 
+def assigned_process_tasks(scope):
+    if not company_module_enabled("process_management") or not can_view_processes():
+        return []
+
+    user_id = g.current_user.id
+    today = date.today()
+    query = process_query(include_archived=True)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter_by(owner_user_id=user_id)
+
+    rows = []
+    for process_record in query.all():
+        status = process_record.status or PROCESS_STATUS_DRAFT
+        status_key = process_status_key(process_record)
+        if scope != "created":
+            review_due = (
+                process_record.next_review_date
+                and process_record.next_review_date <= today + timedelta(days=30)
+            )
+            if status_key in {"completed", "cancelled"} and not review_due:
+                continue
+        if status_key != "cancelled" and process_record.delay_days > 0:
+            status, status_key = "Gecikti", "delayed"
+        elif (
+            status_key == "completed"
+            and process_record.next_review_date
+            and process_record.next_review_date <= today + timedelta(days=30)
+        ):
+            status, status_key = "G\u00f6zden Ge\u00e7irme Yakla\u015f\u0131yor", "pending"
+        rows.append(
+            assigned_task_row(
+                module_key="process",
+                module_label="S\u00fcre\u00e7",
+                module_icon="diagram-3",
+                module_tone="document",
+                title=process_record.title,
+                description=process_record.purpose or process_record.kpi,
+                reference_no=process_record.process_no,
+                department=process_record.department or process_record.category,
+                due_date=process_record.next_review_date,
+                status=status,
+                status_key=status_key,
+                priority="Y\u00fcksek" if status_key == "delayed" else "Orta",
+                detail_url=url_for("main.process_detail", process_id=process_record.id),
+                created_at=process_record.created_at,
+                sort_id=process_record.id,
+                date_label="G\u00f6zden Ge\u00e7irme",
+            )
+        )
+    return rows
+
+
 def assigned_complaint_tasks(scope):
     if not company_module_enabled("suggestions") or not can_view_complaints():
         return []
@@ -15048,6 +15586,7 @@ def assigned_all_tasks(scope):
         + assigned_training_tasks(scope)
         + assigned_risk_tasks(scope)
         + assigned_fmea_tasks(scope)
+        + assigned_process_tasks(scope)
         + assigned_complaint_tasks(scope)
         + assigned_management_review_tasks(scope)
         + assigned_document_revision_tasks(scope)
@@ -15077,6 +15616,7 @@ ASSIGNED_TAB_MODULES = {
         "internal_audit",
         "risk",
         "fmea",
+        "process",
         "training",
         "document_revision",
         "change_management",
@@ -15098,6 +15638,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("training", "Eğitim"),
     ("risk", "Risk"),
     ("fmea", "FMEA"),
+    ("process", "S\u00fcre\u00e7 Y\u00f6netimi"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
@@ -16108,6 +16649,295 @@ def archive_fmea(fmea_id):
     db.session.commit()
     flash("FMEA kaydı arşive alındı.", "success")
     return redirect(url_for("main.fmea_dashboard"))
+
+
+@bp.route("/surec-yonetimi")
+@login_required
+def process_dashboard():
+    if not can_view_processes():
+        abort(403)
+    return render_template("processes/dashboard.html", **process_dashboard_context())
+
+
+@bp.route("/surec-yonetimi/harita")
+@login_required
+def process_map():
+    if not can_view_processes():
+        abort(403)
+    return render_template("processes/map.html", **process_map_context())
+
+
+@bp.route("/surec-yonetimi/yeni", methods=["GET", "POST"])
+@login_required
+def create_process():
+    if not can_create_processes():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_process_form(PROCESS_STATUSES if can_manage_processes() else (PROCESS_STATUS_DRAFT,))
+            if not can_manage_processes():
+                values["status"] = PROCESS_STATUS_DRAFT
+            process_record = ProcessRecord(
+                process_no=next_process_no(),
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(process_record)
+            validate_process_links(process_record)
+            db.session.add(process_record)
+            db.session.flush()
+            record_audit_event(
+                "ProcessRecord",
+                "process_created",
+                f"{process_record.process_no} s\u00fcre\u00e7 kart\u0131 olu\u015fturuldu",
+                entity_id=process_record.id,
+                new_values={
+                    "title": process_record.title,
+                    "category": process_record.category,
+                    "status": process_record.status,
+                    "owner_user_id": process_record.owner_user_id,
+                },
+                company_id=process_record.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            mark_sales_readiness_item_done_without_commit("competitor_process_bpm")
+            db.session.commit()
+            flash("S\u00fcre\u00e7 kart\u0131 olu\u015fturuldu.", "success")
+            return redirect(url_for("main.process_detail", process_id=process_record.id))
+        except ValueError as error:
+            db.session.rollback()
+            flash(process_form_error_message(str(error)), "danger")
+
+    return render_template("processes/form.html", **process_form_context())
+
+
+@bp.route("/surec-yonetimi/<int:process_id>")
+@login_required
+def process_detail(process_id):
+    if not can_view_processes():
+        abort(403)
+    process_record = process_query(include_archived=True).filter_by(id=process_id).first_or_404()
+    ensure_same_company(process_record)
+    return render_template("processes/detail.html", **process_detail_context(process_record))
+
+
+@bp.route("/surec-yonetimi/<int:process_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_process(process_id):
+    if not can_manage_processes():
+        abort(403)
+    process_record = process_query(include_archived=True).filter_by(id=process_id).first_or_404()
+    ensure_same_company(process_record)
+
+    if request.method == "POST":
+        try:
+            old_values = {
+                "title": process_record.title,
+                "category": process_record.category,
+                "status": process_record.status,
+                "owner_user_id": process_record.owner_user_id,
+                "next_review_date": process_record.next_review_date.isoformat()
+                if process_record.next_review_date
+                else None,
+            }
+            values = parse_process_form(PROCESS_STATUSES)
+            for key, value in values.items():
+                setattr(process_record, key, value)
+            if process_record.status == PROCESS_STATUS_ARCHIVED and not process_record.archived_at:
+                process_record.archived_at = datetime.utcnow()
+            elif process_record.status != PROCESS_STATUS_ARCHIVED:
+                process_record.archived_at = None
+            validate_process_links(process_record)
+            record_audit_event(
+                "ProcessRecord",
+                "process_updated",
+                f"{process_record.process_no} s\u00fcre\u00e7 kart\u0131 g\u00fcncellendi",
+                entity_id=process_record.id,
+                old_values=old_values,
+                new_values={
+                    "title": process_record.title,
+                    "category": process_record.category,
+                    "status": process_record.status,
+                    "owner_user_id": process_record.owner_user_id,
+                    "next_review_date": process_record.next_review_date.isoformat()
+                    if process_record.next_review_date
+                    else None,
+                },
+                company_id=process_record.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            mark_process_sales_readiness_without_commit()
+            db.session.commit()
+            flash("S\u00fcre\u00e7 kart\u0131 g\u00fcncellendi.", "success")
+            return redirect(url_for("main.process_detail", process_id=process_record.id))
+        except ValueError as error:
+            db.session.rollback()
+            flash(process_form_error_message(str(error)), "danger")
+
+    return render_template("processes/form.html", **process_form_context(process_record))
+
+
+@bp.post("/surec-yonetimi/<int:process_id>/arsivle")
+@login_required
+def archive_process(process_id):
+    if not can_delete_processes():
+        abort(403)
+    process_record = process_query(include_archived=True).filter_by(id=process_id).first_or_404()
+    ensure_same_company(process_record)
+    process_record.status = PROCESS_STATUS_ARCHIVED
+    process_record.archived_at = datetime.utcnow()
+    record_audit_event(
+        "ProcessRecord",
+        "process_archived",
+        f"{process_record.process_no} s\u00fcre\u00e7 kart\u0131 ar\u015fivlendi",
+        entity_id=process_record.id,
+        new_values={"status": process_record.status},
+        company_id=process_record.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    mark_process_sales_readiness_without_commit()
+    db.session.commit()
+    flash("S\u00fcre\u00e7 kart\u0131 ar\u015five al\u0131nd\u0131.", "success")
+    return redirect(url_for("main.process_dashboard"))
+
+
+@bp.post("/surec-yonetimi/<int:process_id>/adim-ekle")
+@login_required
+def add_process_step(process_id):
+    if not can_manage_processes():
+        abort(403)
+    process_record = process_query().filter_by(id=process_id).first_or_404()
+    ensure_same_company(process_record)
+    try:
+        values = parse_process_step_form(process_record)
+        step = ProcessStep(process_id=process_record.id, company_id=process_record.company_id, **values)
+        db.session.add(step)
+        db.session.flush()
+        record_audit_event(
+            "ProcessStep",
+            "process_step_created",
+            f"{process_record.process_no} s\u00fcrecine ad\u0131m eklendi",
+            entity_id=step.id,
+            new_values={
+                "process_id": process_record.id,
+                "step_order": step.step_order,
+                "title": step.title,
+                "responsible_user_id": step.responsible_user_id,
+            },
+            company_id=process_record.company_id,
+            user_id=g.current_user.id,
+            commit=False,
+        )
+        mark_process_sales_readiness_without_commit()
+        db.session.commit()
+        flash("S\u00fcre\u00e7 ad\u0131m\u0131 eklendi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        flash(process_step_error_message(str(error)), "danger")
+    return redirect(url_for("main.process_detail", process_id=process_record.id))
+
+
+@bp.post("/surec-yonetimi/adim/<int:step_id>/sil")
+@login_required
+def delete_process_step(step_id):
+    if not can_manage_processes():
+        abort(403)
+    step = process_step_query().filter_by(id=step_id).first_or_404()
+    process_record = step.process
+    ensure_same_company(step)
+    ensure_same_company(process_record)
+    process_id = process_record.id
+    record_audit_event(
+        "ProcessStep",
+        "process_step_deleted",
+        f"{process_record.process_no} s\u00fcrecinden ad\u0131m silindi",
+        entity_id=step.id,
+        old_values={"title": step.title, "step_order": step.step_order},
+        company_id=step.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    db.session.delete(step)
+    mark_process_sales_readiness_without_commit()
+    db.session.commit()
+    flash("S\u00fcre\u00e7 ad\u0131m\u0131 silindi.", "success")
+    return redirect(url_for("main.process_detail", process_id=process_id))
+
+
+@bp.post("/surec-yonetimi/<int:process_id>/baglanti-ekle")
+@login_required
+def add_process_relation(process_id):
+    if not can_manage_processes():
+        abort(403)
+    source_process = process_query().filter_by(id=process_id).first_or_404()
+    ensure_same_company(source_process)
+    try:
+        values = parse_process_relation_form(source_process)
+        target_process = values.pop("target_process")
+        relation = ProcessRelation(
+            company_id=source_process.company_id,
+            source_process_id=source_process.id,
+            target_process_id=target_process.id,
+            **values,
+        )
+        db.session.add(relation)
+        db.session.flush()
+        record_audit_event(
+            "ProcessRelation",
+            "process_relation_created",
+            f"{source_process.process_no} s\u00fcre\u00e7 ba\u011flant\u0131s\u0131 eklendi",
+            entity_id=relation.id,
+            new_values={
+                "source_process_id": source_process.id,
+                "target_process_id": target_process.id,
+                "relation_type": relation.relation_type,
+            },
+            company_id=source_process.company_id,
+            user_id=g.current_user.id,
+            commit=False,
+        )
+        mark_process_sales_readiness_without_commit()
+        db.session.commit()
+        flash("S\u00fcre\u00e7 ba\u011flant\u0131s\u0131 eklendi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        flash(process_relation_error_message(str(error)), "danger")
+    return redirect(url_for("main.process_detail", process_id=source_process.id))
+
+
+@bp.post("/surec-yonetimi/baglanti/<int:relation_id>/sil")
+@login_required
+def delete_process_relation(relation_id):
+    if not can_manage_processes():
+        abort(403)
+    relation = process_relation_query().filter_by(id=relation_id).first_or_404()
+    source_process = relation.source_process
+    ensure_same_company(relation)
+    ensure_same_company(source_process)
+    source_process_id = source_process.id
+    record_audit_event(
+        "ProcessRelation",
+        "process_relation_deleted",
+        f"{source_process.process_no} s\u00fcre\u00e7 ba\u011flant\u0131s\u0131 silindi",
+        entity_id=relation.id,
+        old_values={
+            "source_process_id": relation.source_process_id,
+            "target_process_id": relation.target_process_id,
+            "relation_type": relation.relation_type,
+        },
+        company_id=relation.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    db.session.delete(relation)
+    mark_process_sales_readiness_without_commit()
+    db.session.commit()
+    flash("S\u00fcre\u00e7 ba\u011flant\u0131s\u0131 silindi.", "success")
+    return redirect(url_for("main.process_detail", process_id=source_process_id))
 
 
 def can_view_change_requests():

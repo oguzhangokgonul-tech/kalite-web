@@ -180,11 +180,19 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "process_management",
+        "name": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "ISO 9001 s\u00fcre\u00e7 kartlar\u0131, BPM haritas\u0131, ad\u0131mlar ve ba\u011flant\u0131l\u0131 kay\u0131tlar.",
+        "icon": "bi-diagram-3",
+        "sort_order": 57,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
         "icon": "bi-arrow-repeat",
-        "sort_order": 57,
+        "sort_order": 58,
         "parent_key": None,
     },
     {
@@ -192,7 +200,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Sapma / Uygunsuz \u00dcr\u00fcn",
         "description": "Sapma, uygunsuz \u00fcr\u00fcn, karantina, karar ve kapan\u0131\u015f takibi.",
         "icon": "bi-exclamation-octagon",
-        "sort_order": 58,
+        "sort_order": 59,
         "parent_key": None,
     },
     {
@@ -200,7 +208,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Olay / Ramak Kala",
         "description": "Olay, ramak kala, tehlikeli durum, inceleme, aksiyon ve kapan\u0131\u015f takibi.",
         "icon": "bi-exclamation-triangle",
-        "sort_order": 59,
+        "sort_order": 60,
         "parent_key": None,
     },
     {
@@ -208,7 +216,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Eğitim / Yeterlilik",
         "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
         "icon": "bi-mortarboard",
-        "sort_order": 60,
+        "sort_order": 61,
         "parent_key": None,
     },
     {
@@ -216,7 +224,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "İç Denetim Yönetimi",
         "description": "İç denetim oluşturma, cevaplama, çıktı ve IF bağlantısı.",
         "icon": "bi-clipboard-check",
-        "sort_order": 61,
+        "sort_order": 62,
         "parent_key": None,
     },
     {
@@ -388,6 +396,34 @@ FMEA_STATUSES = (
     FMEA_STATUS_EFFECTIVENESS,
     FMEA_STATUS_CLOSED,
     FMEA_STATUS_ARCHIVED,
+)
+PROCESS_CATEGORY_MANAGEMENT = "Y\u00f6netim S\u00fcreci"
+PROCESS_CATEGORY_CORE = "Ana S\u00fcre\u00e7"
+PROCESS_CATEGORY_SUPPORT = "Destek S\u00fcreci"
+PROCESS_CATEGORIES = (
+    PROCESS_CATEGORY_MANAGEMENT,
+    PROCESS_CATEGORY_CORE,
+    PROCESS_CATEGORY_SUPPORT,
+)
+PROCESS_STATUS_DRAFT = "Taslak"
+PROCESS_STATUS_PUBLISHED = "Yay\u0131nda"
+PROCESS_STATUS_REVIEW = "G\u00f6zden Ge\u00e7iriliyor"
+PROCESS_STATUS_PASSIVE = "Pasif"
+PROCESS_STATUS_ARCHIVED = "Ar\u015fiv"
+PROCESS_STATUSES = (
+    PROCESS_STATUS_DRAFT,
+    PROCESS_STATUS_PUBLISHED,
+    PROCESS_STATUS_REVIEW,
+    PROCESS_STATUS_PASSIVE,
+    PROCESS_STATUS_ARCHIVED,
+)
+PROCESS_RELATION_INPUT = "Girdi"
+PROCESS_RELATION_OUTPUT = "\u00c7\u0131kt\u0131"
+PROCESS_RELATION_LINKED = "Ba\u011flant\u0131l\u0131 S\u00fcre\u00e7"
+PROCESS_RELATION_TYPES = (
+    PROCESS_RELATION_INPUT,
+    PROCESS_RELATION_OUTPUT,
+    PROCESS_RELATION_LINKED,
 )
 QUALITY_TEST_MODULE_BY_SLUG = {
     "beton-deneyi": "quality_test_concrete",
@@ -1293,6 +1329,151 @@ class FmeaRecord(db.Model):
         if self.is_closed or not self.due_date:
             return 0
         return max((date.today() - self.due_date).days, 0)
+
+
+class ProcessRecord(db.Model):
+    __tablename__ = "process_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "process_no",
+            name="uq_process_records_company_process_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    process_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(180), nullable=False)
+    category = db.Column(db.String(60), nullable=False, default=PROCESS_CATEGORY_CORE)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    department = db.Column(db.String(80), nullable=True)
+    purpose = db.Column(db.Text, nullable=True)
+    scope = db.Column(db.Text, nullable=True)
+    inputs = db.Column(db.Text, nullable=True)
+    outputs = db.Column(db.Text, nullable=True)
+    suppliers = db.Column(db.Text, nullable=True)
+    customers = db.Column(db.Text, nullable=True)
+    kpi = db.Column(db.Text, nullable=True)
+    review_frequency = db.Column(db.String(80), nullable=True)
+    next_review_date = db.Column(db.Date, nullable=True)
+    related_document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    status = db.Column(db.String(40), nullable=False, default=PROCESS_STATUS_DRAFT)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    related_document = db.relationship("Document", foreign_keys=[related_document_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    steps = db.relationship(
+        "ProcessStep",
+        back_populates="process",
+        cascade="all, delete-orphan",
+        order_by="ProcessStep.step_order.asc(), ProcessStep.id.asc()",
+    )
+    outgoing_relations = db.relationship(
+        "ProcessRelation",
+        back_populates="source_process",
+        cascade="all, delete-orphan",
+        foreign_keys="ProcessRelation.source_process_id",
+    )
+    incoming_relations = db.relationship(
+        "ProcessRelation",
+        back_populates="target_process",
+        cascade="all, delete-orphan",
+        foreign_keys="ProcessRelation.target_process_id",
+    )
+
+    @property
+    def is_archived(self):
+        return self.status == PROCESS_STATUS_ARCHIVED
+
+    @property
+    def step_count(self):
+        return len(self.steps)
+
+    @property
+    def delay_days(self):
+        if self.is_archived or not self.next_review_date:
+            return 0
+        return max((date.today() - self.next_review_date).days, 0)
+
+
+class ProcessStep(db.Model):
+    __tablename__ = "process_steps"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    process_id = db.Column(db.Integer, db.ForeignKey("process_records.id"), nullable=False, index=True)
+    step_order = db.Column(db.Integer, nullable=False, default=1)
+    title = db.Column(db.String(180), nullable=False)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    input_note = db.Column(db.Text, nullable=True)
+    output_note = db.Column(db.Text, nullable=True)
+    control_point = db.Column(db.Text, nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    process = db.relationship("ProcessRecord", back_populates="steps")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    document = db.relationship("Document", foreign_keys=[document_id])
+
+
+class ProcessRelation(db.Model):
+    __tablename__ = "process_relations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    source_process_id = db.Column(
+        db.Integer,
+        db.ForeignKey("process_records.id"),
+        nullable=False,
+        index=True,
+    )
+    target_process_id = db.Column(
+        db.Integer,
+        db.ForeignKey("process_records.id"),
+        nullable=False,
+        index=True,
+    )
+    relation_type = db.Column(db.String(60), nullable=False, default=PROCESS_RELATION_LINKED)
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    source_process = db.relationship(
+        "ProcessRecord",
+        back_populates="outgoing_relations",
+        foreign_keys=[source_process_id],
+    )
+    target_process = db.relationship(
+        "ProcessRecord",
+        back_populates="incoming_relations",
+        foreign_keys=[target_process_id],
+    )
 
 
 class TrainingRecord(db.Model):

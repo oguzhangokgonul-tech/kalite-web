@@ -1,0 +1,194 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}S&uuml;re&ccedil; Y&ouml;netimi{% endblock %}
+
+{% block app_content %}
+  {% set show_actions = can_manage_processes or can_delete_processes %}
+  {% call ui.page_header("Süreç Yönetimi", "ISO 9001 süreç kartları, sahiplik, KPI ve bağlantılı kayıtları tek yerde takip edin.", icon="bi-diagram-3") %}
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.process_map') }}">
+      <i class="bi bi-map"></i>
+      <span>Harita</span>
+    </a>
+    {% if can_create_processes %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_process') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Süreç</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-diagram-3"></i></span>
+      <span class="stat-label">Toplam Süreç</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-broadcast"></i></span>
+      <span class="stat-label">Yayında</span>
+      <strong>{{ published_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-calendar2-check"></i></span>
+      <span class="stat-label">Gözden Geçirme</span>
+      <strong>{{ review_due_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+      <span class="stat-label">Bağlantılı</span>
+      <strong>{{ linked_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Süreç no, ad, departman veya KPI ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="category">Kategori</label>
+        <select class="form-select" id="category" name="category">
+          <option value="">Tümü</option>
+          {% for category in categories %}
+            <option value="{{ category }}" {% if filters.category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="owner_user_id">Süreç Sahibi</label>
+        <select class="form-select" id="owner_user_id" name="owner_user_id">
+          <option value="">Tümü</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if filters.owner_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="archive">Arşiv</label>
+        <select class="form-select" id="archive" name="archive">
+          <option value="">Aktif süreçler</option>
+          <option value="1" {% if filters.archive == "1" %}selected{% endif %}>Arşiv dahil</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.process_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Süreç No</th>
+            <th>Süreç Adı</th>
+            <th>Kategori</th>
+            <th>Sahip / Departman</th>
+            <th>KPI</th>
+            <th>Bağlantılar</th>
+            <th>Gözden Geçirme</th>
+            <th>Durum</th>
+            {% if show_actions %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for process_record in processes %}
+            <tr>
+              <td><strong>{{ process_record.process_no }}</strong></td>
+              <td>
+                <a class="text-primary fw-semibold text-decoration-none" href="{{ url_for('main.process_detail', process_id=process_record.id) }}">{{ process_record.title }}</a>
+                {% if process_record.purpose %}
+                  <small class="d-block text-secondary">{{ process_record.purpose }}</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(process_record.category, tone=process_category_tone(process_record.category), icon="bi-diagram-2") }}</td>
+              <td>
+                <strong>{{ process_record.owner.full_name if process_record.owner else "-" }}</strong>
+                <small class="d-block text-secondary">{{ process_record.department or "-" }}</small>
+              </td>
+              <td>{{ process_record.kpi or "-" }}</td>
+              <td>
+                <div class="d-flex flex-wrap gap-1">
+                  {% if process_record.related_document %}
+                    {{ ui.status_badge(process_record.related_document.document_code, tone="blue", icon="bi-file-earmark-text", title="Doküman") }}
+                  {% endif %}
+                  {% if process_record.risk %}
+                    {{ ui.status_badge(process_record.risk.risk_no, tone="danger", icon="bi-exclamation-diamond", title="Risk") }}
+                  {% endif %}
+                  {% if process_record.action %}
+                    {{ ui.status_badge(process_record.action.number_label, tone="success", icon="bi-check2-circle", title="Aksiyon") }}
+                  {% endif %}
+                  {% if process_record.steps %}
+                    {{ ui.status_badge(process_record.steps|length ~ " adım", tone="muted", icon="bi-list-ol") }}
+                  {% endif %}
+                  {% if not process_record.related_document and not process_record.risk and not process_record.action and not process_record.steps %}
+                    <span class="text-secondary">-</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                {{ process_record.next_review_date.strftime("%d.%m.%Y") if process_record.next_review_date else "-" }}
+                {% if process_record.delay_days %}
+                  <small class="d-block text-danger">{{ process_record.delay_days }} gün gecikti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(process_record.status, tone=process_status_tone(process_record.status)) }}</td>
+              {% if show_actions %}
+                <td>
+                  <div class="dashboard-row-actions justify-content-end">
+                    {% if can_manage_processes %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_process', process_id=process_record.id) }}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
+                    {% if can_delete_processes and not process_record.is_archived %}
+                      <form action="{{ url_for('main.archive_process', process_id=process_record.id) }}" method="post" onsubmit="return confirm('Süreç kartını arşive almak istediğinize emin misiniz?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-archive"></i>
+                          <span>Arşivle</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 9 if show_actions else 8 }}">
+                <strong>Henüz süreç kartı yok.</strong>
+                <span>İlk süreç eklendiğinde BPM haritası ve süreç raporu otomatik oluşacak.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

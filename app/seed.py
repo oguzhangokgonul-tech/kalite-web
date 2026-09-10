@@ -157,6 +157,36 @@ PERMISSION_CATALOG = (
         "description": "FMEA kayıtlarını rapor merkezinden dışa aktarır.",
     },
     {
+        "key": "process.view",
+        "label": "S\u00fcre\u00e7leri g\u00f6r\u00fcnt\u00fcleme",
+        "group": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "S\u00fcre\u00e7 kartlar\u0131n\u0131, ad\u0131mlar\u0131n\u0131 ve BPM haritas\u0131n\u0131 g\u00f6r\u00fcnt\u00fcler.",
+    },
+    {
+        "key": "process.create",
+        "label": "S\u00fcre\u00e7 olu\u015fturma",
+        "group": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "Yeni s\u00fcre\u00e7 kart\u0131 olu\u015fturur.",
+    },
+    {
+        "key": "process.manage",
+        "label": "S\u00fcre\u00e7 y\u00f6netimi",
+        "group": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "S\u00fcre\u00e7 kartlar\u0131n\u0131, ad\u0131mlar\u0131n\u0131 ve ba\u011flant\u0131lar\u0131n\u0131 y\u00f6netir.",
+    },
+    {
+        "key": "process.delete",
+        "label": "S\u00fcre\u00e7 ar\u015fivleme",
+        "group": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "S\u00fcre\u00e7 kartlar\u0131n\u0131 denetim izi korunacak \u015fekilde ar\u015five al\u0131r.",
+    },
+    {
+        "key": "process.export",
+        "label": "S\u00fcre\u00e7 raporu alma",
+        "group": "S\u00fcre\u00e7 Y\u00f6netimi",
+        "description": "S\u00fcre\u00e7 y\u00f6netimi kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
+    },
+    {
         "key": "change_management.view",
         "label": "De\u011fi\u015fiklikleri g\u00f6r\u00fcnt\u00fcleme",
         "group": "De\u011fi\u015fiklik Y\u00f6netimi",
@@ -479,6 +509,11 @@ ROLE_DEFINITIONS = (
             "fmea.close",
             "fmea.delete",
             "fmea.export",
+            "process.view",
+            "process.create",
+            "process.manage",
+            "process.delete",
+            "process.export",
             "change_management.view",
             "change_management.create",
             "change_management.manage",
@@ -538,6 +573,8 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "fmea.view",
             "fmea.export",
+            "process.view",
+            "process.export",
             "change_management.view",
             "change_management.approve",
             "change_management.export",
@@ -572,6 +609,9 @@ ROLE_DEFINITIONS = (
             "fmea.view",
             "fmea.create",
             "fmea.manage",
+            "process.view",
+            "process.create",
+            "process.manage",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -603,6 +643,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "fmea.view",
             "fmea.create",
+            "process.view",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -623,6 +664,7 @@ ROLE_DEFINITIONS = (
         "permissions": [
             "documents.view",
             "fmea.view",
+            "process.view",
             "change_management.view",
             "deviation.view",
             "incident.view",
@@ -1156,6 +1198,214 @@ def ensure_runtime_schema():
                 "ON fmea_records (company_id, fmea_no)"
             )
         )
+
+    if "process_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE process_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    process_no VARCHAR(40) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    category VARCHAR(60) NOT NULL DEFAULT 'Ana S\u00fcre\u00e7',
+                    owner_user_id INTEGER,
+                    department VARCHAR(80),
+                    purpose TEXT,
+                    scope TEXT,
+                    inputs TEXT,
+                    outputs TEXT,
+                    suppliers TEXT,
+                    customers TEXT,
+                    kpi TEXT,
+                    review_frequency VARCHAR(80),
+                    next_review_date DATE,
+                    related_document_id INTEGER,
+                    risk_id INTEGER,
+                    action_id INTEGER,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Taslak',
+                    created_by_user_id INTEGER,
+                    archived_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(owner_user_id) REFERENCES users (id),
+                    FOREIGN KEY(related_document_id) REFERENCES documents (id),
+                    FOREIGN KEY(risk_id) REFERENCES risk_records (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("process_records")
+
+    if "process_records" in tables:
+        columns = {column["name"] for column in inspector.get_columns("process_records")}
+        process_columns = {
+            "company_id": "ALTER TABLE process_records ADD COLUMN company_id INTEGER",
+            "process_no": "ALTER TABLE process_records ADD COLUMN process_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "title": "ALTER TABLE process_records ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "category": "ALTER TABLE process_records ADD COLUMN category VARCHAR(60) NOT NULL DEFAULT 'Ana S\u00fcre\u00e7'",
+            "owner_user_id": "ALTER TABLE process_records ADD COLUMN owner_user_id INTEGER",
+            "department": "ALTER TABLE process_records ADD COLUMN department VARCHAR(80)",
+            "purpose": "ALTER TABLE process_records ADD COLUMN purpose TEXT",
+            "scope": "ALTER TABLE process_records ADD COLUMN scope TEXT",
+            "inputs": "ALTER TABLE process_records ADD COLUMN inputs TEXT",
+            "outputs": "ALTER TABLE process_records ADD COLUMN outputs TEXT",
+            "suppliers": "ALTER TABLE process_records ADD COLUMN suppliers TEXT",
+            "customers": "ALTER TABLE process_records ADD COLUMN customers TEXT",
+            "kpi": "ALTER TABLE process_records ADD COLUMN kpi TEXT",
+            "review_frequency": "ALTER TABLE process_records ADD COLUMN review_frequency VARCHAR(80)",
+            "next_review_date": "ALTER TABLE process_records ADD COLUMN next_review_date DATE",
+            "related_document_id": "ALTER TABLE process_records ADD COLUMN related_document_id INTEGER",
+            "risk_id": "ALTER TABLE process_records ADD COLUMN risk_id INTEGER",
+            "action_id": "ALTER TABLE process_records ADD COLUMN action_id INTEGER",
+            "status": "ALTER TABLE process_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Taslak'",
+            "created_by_user_id": "ALTER TABLE process_records ADD COLUMN created_by_user_id INTEGER",
+            "archived_at": "ALTER TABLE process_records ADD COLUMN archived_at DATETIME",
+            "created_at": "ALTER TABLE process_records ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE process_records ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in process_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_process_records_company_id", "company_id"),
+            ("ix_process_records_process_no", "process_no"),
+            ("ix_process_records_status", "status"),
+            ("ix_process_records_category", "category"),
+            ("ix_process_records_owner_user_id", "owner_user_id"),
+            ("ix_process_records_next_review_date", "next_review_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON process_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_process_records_company_process_no "
+                "ON process_records (company_id, process_no)"
+            )
+        )
+
+    if "process_steps" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE process_steps (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    process_id INTEGER NOT NULL,
+                    step_order INTEGER NOT NULL DEFAULT 1,
+                    title VARCHAR(180) NOT NULL,
+                    responsible_user_id INTEGER,
+                    description TEXT,
+                    input_note TEXT,
+                    output_note TEXT,
+                    control_point TEXT,
+                    document_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(process_id) REFERENCES process_records (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(document_id) REFERENCES documents (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("process_steps")
+
+    if "process_steps" in tables:
+        columns = {column["name"] for column in inspector.get_columns("process_steps")}
+        process_step_columns = {
+            "company_id": "ALTER TABLE process_steps ADD COLUMN company_id INTEGER",
+            "process_id": "ALTER TABLE process_steps ADD COLUMN process_id INTEGER NOT NULL DEFAULT 0",
+            "step_order": "ALTER TABLE process_steps ADD COLUMN step_order INTEGER NOT NULL DEFAULT 1",
+            "title": "ALTER TABLE process_steps ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "responsible_user_id": "ALTER TABLE process_steps ADD COLUMN responsible_user_id INTEGER",
+            "description": "ALTER TABLE process_steps ADD COLUMN description TEXT",
+            "input_note": "ALTER TABLE process_steps ADD COLUMN input_note TEXT",
+            "output_note": "ALTER TABLE process_steps ADD COLUMN output_note TEXT",
+            "control_point": "ALTER TABLE process_steps ADD COLUMN control_point TEXT",
+            "document_id": "ALTER TABLE process_steps ADD COLUMN document_id INTEGER",
+            "created_at": "ALTER TABLE process_steps ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE process_steps ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in process_step_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_process_steps_company_id", "company_id"),
+            ("ix_process_steps_process_id", "process_id"),
+            ("ix_process_steps_step_order", "step_order"),
+            ("ix_process_steps_responsible_user_id", "responsible_user_id"),
+            ("ix_process_steps_document_id", "document_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON process_steps ({column_name})"
+                )
+            )
+
+    if "process_relations" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE process_relations (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    source_process_id INTEGER NOT NULL,
+                    target_process_id INTEGER NOT NULL,
+                    relation_type VARCHAR(60) NOT NULL DEFAULT 'Ba\u011flant\u0131l\u0131 S\u00fcre\u00e7',
+                    description TEXT,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(source_process_id) REFERENCES process_records (id),
+                    FOREIGN KEY(target_process_id) REFERENCES process_records (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("process_relations")
+
+    if "process_relations" in tables:
+        columns = {column["name"] for column in inspector.get_columns("process_relations")}
+        process_relation_columns = {
+            "company_id": "ALTER TABLE process_relations ADD COLUMN company_id INTEGER",
+            "source_process_id": "ALTER TABLE process_relations ADD COLUMN source_process_id INTEGER NOT NULL DEFAULT 0",
+            "target_process_id": "ALTER TABLE process_relations ADD COLUMN target_process_id INTEGER NOT NULL DEFAULT 0",
+            "relation_type": "ALTER TABLE process_relations ADD COLUMN relation_type VARCHAR(60) NOT NULL DEFAULT 'Ba\u011flant\u0131l\u0131 S\u00fcre\u00e7'",
+            "description": "ALTER TABLE process_relations ADD COLUMN description TEXT",
+            "created_at": "ALTER TABLE process_relations ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE process_relations ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in process_relation_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_process_relations_company_id", "company_id"),
+            ("ix_process_relations_source_process_id", "source_process_id"),
+            ("ix_process_relations_target_process_id", "target_process_id"),
+            ("ix_process_relations_relation_type", "relation_type"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON process_relations ({column_name})"
+                )
+            )
 
     if "change_requests" not in tables:
         db.session.execute(
@@ -2512,6 +2762,7 @@ def ensure_runtime_schema():
             "sales_readiness:month2_management_dashboard",
             "sales_readiness:competitor_incident_near_miss",
             "sales_readiness:competitor_fmea",
+            "sales_readiness:competitor_process_bpm",
         ):
             db.session.execute(
                 text(

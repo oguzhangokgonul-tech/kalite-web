@@ -1,0 +1,157 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Süreç Haritası{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Süreç Haritası", "Yönetim, ana ve destek süreçlerini BPM akışı gibi birlikte görün.", icon="bi-map") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.process_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Süreç Yönetimi</span>
+    </a>
+    {% if can_create_processes %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_process') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Süreç</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <style>
+    .process-flow-map {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .process-flow-column {
+      position: relative;
+      min-height: 100%;
+    }
+
+    .process-flow-column:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 76px;
+      right: -20px;
+      width: 18px;
+      height: 2px;
+      background: #9ec5fe;
+    }
+
+    .process-flow-column:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: 70px;
+      right: -25px;
+      border-left: 8px solid #9ec5fe;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+    }
+
+    .process-flow-card {
+      border: 1px solid #d7e7ff;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 56, 120, 0.08);
+      padding: 16px;
+    }
+
+    .process-flow-item {
+      border: 1px solid #e2ecfb;
+      border-radius: 8px;
+      padding: 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+
+    @media (max-width: 991.98px) {
+      .process-flow-column::before,
+      .process-flow-column::after {
+        display: none;
+      }
+    }
+  </style>
+
+  <section class="document-list-card p-4">
+    <div class="process-flow-map">
+      {% for group in groups %}
+        <div class="process-flow-column">
+          <div class="process-flow-card h-100">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <span class="stat-icon"><i class="bi bi-diagram-2"></i></span>
+              <div>
+                <h2 class="h5 mb-1">{{ group.category }}</h2>
+                <p class="text-secondary mb-0">{{ group["items"]|length }} süreç</p>
+              </div>
+            </div>
+            <div class="vstack gap-2">
+              {% for process_record in group["items"] %}
+                <a class="process-flow-item text-decoration-none text-body" href="{{ url_for('main.process_detail', process_id=process_record.id) }}">
+                  <div class="d-flex align-items-start justify-content-between gap-2">
+                    <div>
+                      <small class="text-secondary">{{ process_record.process_no }}</small>
+                      <strong class="d-block text-primary">{{ process_record.title }}</strong>
+                    </div>
+                    {{ ui.status_badge(process_record.status, tone=process_status_tone(process_record.status)) }}
+                  </div>
+                  {% if process_record.owner %}
+                    <small class="d-block text-secondary mt-2">{{ process_record.owner.full_name }}</small>
+                  {% endif %}
+                </a>
+              {% else %}
+                <div class="dashboard-empty-row border rounded-3">
+                  <strong>Kayıt yok.</strong>
+                  <span>Bu kategoriye süreç eklenmedi.</span>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="document-list-card p-4 mt-4">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-arrow-left-right"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Süreç Bağlantıları</h2>
+        <p class="text-secondary mb-0">Tanımlı süreç ilişkileri.</p>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Kaynak Süreç</th>
+            <th>Bağlantı</th>
+            <th>Hedef Süreç</th>
+            <th>Açıklama</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for relation in relations %}
+            <tr>
+              <td>
+                <a class="text-primary fw-semibold text-decoration-none" href="{{ url_for('main.process_detail', process_id=relation.source_process.id) }}">{{ relation.source_process.process_no }} - {{ relation.source_process.title }}</a>
+              </td>
+              <td>{{ ui.status_badge(relation.relation_type, tone="blue", icon="bi-arrow-right") }}</td>
+              <td>
+                <a class="text-primary fw-semibold text-decoration-none" href="{{ url_for('main.process_detail', process_id=relation.target_process.id) }}">{{ relation.target_process.process_no }} - {{ relation.target_process.title }}</a>
+              </td>
+              <td>{{ relation.description or "-" }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="4">
+                <strong>Henüz süreç bağlantısı yok.</strong>
+                <span>Bağlantılar süreç detayından eklenir.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

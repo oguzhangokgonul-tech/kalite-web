@@ -18,6 +18,7 @@
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set fmea_management_active = request.endpoint in ['main.fmea_dashboard', 'main.create_fmea', 'main.fmea_detail', 'main.edit_fmea', 'main.mark_fmea_action_pending', 'main.close_fmea', 'main.archive_fmea'] %}
+  {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
   {% set change_management_active = request.endpoint in ['main.change_management_dashboard', 'main.create_change_request', 'main.change_request_detail', 'main.edit_change_request', 'main.approve_change_request', 'main.reject_change_request', 'main.mark_change_request_implemented', 'main.close_change_request_effectiveness', 'main.archive_change_request', 'main.download_change_request_file'] %}
   {% set deviation_management_active = request.endpoint in ['main.deviation_dashboard', 'main.create_deviation', 'main.deviation_detail', 'main.edit_deviation', 'main.start_deviation_review', 'main.record_deviation_decision', 'main.complete_deviation_action', 'main.close_deviation_effectiveness', 'main.archive_deviation', 'main.download_deviation_file'] %}
   {% set incident_management_active = request.endpoint in ['main.incident_dashboard', 'main.create_incident', 'main.incident_detail', 'main.edit_incident', 'main.start_incident_review', 'main.record_incident_decision', 'main.complete_incident_action', 'main.close_incident_effectiveness', 'main.archive_incident', 'main.download_incident_file'] %}
@@ -199,6 +200,12 @@
         <a class="dashboard-nav-item {% if fmea_management_active %}active{% endif %}" href="{{ url_for('main.fmea_dashboard') }}">
           <i class="bi bi-diagram-3"></i>
           <span>FMEA Analizi</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('process_management') and (g.current_user.has_permission('process.view') or g.current_user.has_permission('process.create') or g.current_user.has_permission('process.manage')) %}
+        <a class="dashboard-nav-item {% if process_management_active %}active{% endif %}" href="{{ url_for('main.process_dashboard') }}">
+          <i class="bi bi-diagram-3"></i>
+          <span>S&uuml;re&ccedil; Y&ouml;netimi</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('change_management') and (g.current_user.has_permission('change_management.view') or g.current_user.has_permission('change_management.create') or g.current_user.has_permission('change_management.manage') or g.current_user.has_permission('change_management.approve')) %}

@@ -1,0 +1,361 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ process_record.process_no }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(process_record.process_no, process_record.title, icon="bi-diagram-3") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.process_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Süreç Yönetimi</span>
+    </a>
+    <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.process_map') }}">
+      <i class="bi bi-map"></i>
+      <span>Harita</span>
+    </a>
+    {% if can_manage_processes %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_process', process_id=process_record.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>Düzenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-diagram-2"></i></span>
+      <span class="stat-label">Kategori</span>
+      <strong>{{ process_record.category }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-person-check"></i></span>
+      <span class="stat-label">Süreç Sahibi</span>
+      <strong>{{ process_record.owner.full_name if process_record.owner else "-" }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-list-ol"></i></span>
+      <span class="stat-label">Adım Sayısı</span>
+      <strong>{{ process_record.steps|length }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-calendar2-check"></i></span>
+      <span class="stat-label">Gözden Geçirme</span>
+      <strong>{{ process_record.next_review_date.strftime("%d.%m.%Y") if process_record.next_review_date else "-" }}</strong>
+      {% if process_record.delay_days %}
+        <small>{{ process_record.delay_days }} gün gecikti</small>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <section class="document-list-card p-4 h-100">
+        <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="stat-icon"><i class="bi bi-card-checklist"></i></span>
+            <div>
+              <h2 class="h5 mb-1">Süreç Kartı</h2>
+              <p class="text-secondary mb-0">{{ process_record.department or "Departman seçilmedi" }}</p>
+            </div>
+          </div>
+          {{ ui.status_badge(process_record.status, tone=process_status_tone(process_record.status)) }}
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <small class="text-secondary">Amaç</small>
+            <p class="mb-0">{{ process_record.purpose or "-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Kapsam</small>
+            <p class="mb-0">{{ process_record.scope or "-" }}</p>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Girdiler</small>
+            <p class="mb-0">{{ process_record.inputs or "-" }}</p>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Çıktılar</small>
+            <p class="mb-0">{{ process_record.outputs or "-" }}</p>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Tedarikçiler</small>
+            <p class="mb-0">{{ process_record.suppliers or "-" }}</p>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Müşteriler</small>
+            <p class="mb-0">{{ process_record.customers or "-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">KPI / Performans Göstergesi</small>
+            <p class="mb-0">{{ process_record.kpi or "-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Periyot</small>
+            <p class="mb-0">{{ process_record.review_frequency or "-" }}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-4">
+      <section class="document-list-card p-4 h-100">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+          <h2 class="h5 mb-0">Bağlı Kayıtlar</h2>
+        </div>
+        <div class="vstack gap-2">
+          {% if process_record.related_document %}
+            <a class="btn btn-outline-primary justify-content-start" href="{{ url_for('main.document_detail', document_id=process_record.related_document.id) }}">
+              <i class="bi bi-file-earmark-text"></i>
+              <span>{{ process_record.related_document.document_code }} - {{ process_record.related_document.title }}</span>
+            </a>
+          {% endif %}
+          {% if process_record.risk %}
+            <a class="btn btn-outline-danger justify-content-start" href="{{ url_for('main.risk_dashboard', search=process_record.risk.risk_no) }}">
+              <i class="bi bi-exclamation-diamond"></i>
+              <span>{{ process_record.risk.risk_no }} - {{ process_record.risk.title }}</span>
+            </a>
+          {% endif %}
+          {% if process_record.action %}
+            <a class="btn btn-outline-success justify-content-start" href="{{ url_for('main.action_detail', action_id=process_record.action.id) }}">
+              <i class="bi bi-check2-circle"></i>
+              <span>{{ process_record.action.number_label }} - {{ process_record.action.title }}</span>
+            </a>
+          {% endif %}
+          {% if not process_record.related_document and not process_record.risk and not process_record.action %}
+            <span class="text-secondary">Henüz bağlı kayıt yok.</span>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section class="document-list-card p-4 mt-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-list-ol"></i></span>
+        <div>
+          <h2 class="h5 mb-1">Süreç Adımları</h2>
+          <p class="text-secondary mb-0">Sıralı iş adımları ve kontrol noktaları.</p>
+        </div>
+      </div>
+    </div>
+
+    {% if process_record.steps %}
+      <div class="vstack gap-3">
+        {% for step in process_record.steps %}
+          <div class="border rounded-3 p-3">
+            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+              <div>
+                <span class="badge rounded-pill text-bg-light border mb-2">{{ "%02d"|format(step.step_order) }}</span>
+                <h3 class="h6 mb-1">{{ step.title }}</h3>
+                <p class="text-secondary mb-0">{{ step.description or "-" }}</p>
+              </div>
+              {% if can_manage_processes %}
+                <form action="{{ url_for('main.delete_process_step', step_id=step.id) }}" method="post" onsubmit="return confirm('Süreç adımını silmek istediğinize emin misiniz?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">
+                    <i class="bi bi-trash"></i>
+                    <span>Sil</span>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-3">
+                <small class="text-secondary">Sorumlu</small>
+                <strong class="d-block">{{ step.responsible.full_name if step.responsible else "-" }}</strong>
+              </div>
+              <div class="col-md-3">
+                <small class="text-secondary">Girdi</small>
+                <p class="mb-0">{{ step.input_note or "-" }}</p>
+              </div>
+              <div class="col-md-3">
+                <small class="text-secondary">Çıktı</small>
+                <p class="mb-0">{{ step.output_note or "-" }}</p>
+              </div>
+              <div class="col-md-3">
+                <small class="text-secondary">Kontrol Noktası</small>
+                <p class="mb-0">{{ step.control_point or "-" }}</p>
+              </div>
+              {% if step.document %}
+                <div class="col-12">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.document_detail', document_id=step.document.id) }}">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span>{{ step.document.document_code }} - {{ step.document.title }}</span>
+                  </a>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="dashboard-empty-row border rounded-3">
+        <strong>Henüz süreç adımı yok.</strong>
+        <span>Adımlar eklendiğinde süreç akışı daha okunur hale gelir.</span>
+      </div>
+    {% endif %}
+
+    {% if can_manage_processes %}
+      <form class="border rounded-3 p-3 mt-4" action="{{ url_for('main.add_process_step', process_id=process_record.id) }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3">
+          <div class="col-md-2">
+            <label class="form-label" for="step_order">Sıra</label>
+            <input class="form-control" id="step_order" name="step_order" type="number" min="1" value="{{ process_record.steps|length + 1 }}">
+          </div>
+          <div class="col-md-5">
+            <label class="form-label" for="step_title">Adım Başlığı</label>
+            <input class="form-control" id="step_title" name="title" required maxlength="180">
+          </div>
+          <div class="col-md-5">
+            <label class="form-label" for="step_responsible_user_id">Sorumlu</label>
+            <select class="form-select" id="step_responsible_user_id" name="responsible_user_id">
+              <option value="">Seçiniz</option>
+              {% for user in users %}
+                <option value="{{ user.id }}">{{ user.full_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="step_description">Açıklama</label>
+            <textarea class="form-control" id="step_description" name="description" rows="3"></textarea>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="input_note">Girdi</label>
+            <textarea class="form-control" id="input_note" name="input_note" rows="3"></textarea>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="output_note">Çıktı</label>
+            <textarea class="form-control" id="output_note" name="output_note" rows="3"></textarea>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="control_point">Kontrol</label>
+            <textarea class="form-control" id="control_point" name="control_point" rows="3"></textarea>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label" for="step_document_id">Doküman</label>
+            <select class="form-select" id="step_document_id" name="document_id">
+              <option value="">Yok</option>
+              {% for document in documents %}
+                <option value="{{ document.id }}">{{ document.document_code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-plus-circle"></i>
+              <span>Adım Ekle</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="document-list-card p-4 mt-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-arrow-left-right"></i></span>
+        <div>
+          <h2 class="h5 mb-1">Süreç Bağlantıları</h2>
+          <p class="text-secondary mb-0">Bu sürecin diğer süreçlerle girdi, çıktı veya ilişki bağlantısı.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      {% for relation in process_record.outgoing_relations %}
+        <div class="col-md-6">
+          <div class="border rounded-3 p-3 h-100">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                {{ ui.status_badge(relation.relation_type, tone="blue", icon="bi-arrow-right") }}
+                <a class="d-block fw-semibold text-primary text-decoration-none mt-2" href="{{ url_for('main.process_detail', process_id=relation.target_process.id) }}">{{ relation.target_process.process_no }} - {{ relation.target_process.title }}</a>
+                <p class="text-secondary mb-0">{{ relation.description or "-" }}</p>
+              </div>
+              {% if can_manage_processes %}
+                <form action="{{ url_for('main.delete_process_relation', relation_id=relation.id) }}" method="post" onsubmit="return confirm('Süreç bağlantısını silmek istediğinize emin misiniz?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+      {% for relation in process_record.incoming_relations %}
+        <div class="col-md-6">
+          <div class="border rounded-3 p-3 h-100">
+            {{ ui.status_badge("Gelen " ~ relation.relation_type, tone="muted", icon="bi-arrow-left") }}
+            <a class="d-block fw-semibold text-primary text-decoration-none mt-2" href="{{ url_for('main.process_detail', process_id=relation.source_process.id) }}">{{ relation.source_process.process_no }} - {{ relation.source_process.title }}</a>
+            <p class="text-secondary mb-0">{{ relation.description or "-" }}</p>
+          </div>
+        </div>
+      {% endfor %}
+      {% if not process_record.outgoing_relations and not process_record.incoming_relations %}
+        <div class="col-12">
+          <div class="dashboard-empty-row border rounded-3">
+            <strong>Henüz süreç bağlantısı yok.</strong>
+            <span>Bağlantılar harita ekranında süreç akışını görünür yapar.</span>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+
+    {% if can_manage_processes and possible_processes %}
+      <form class="border rounded-3 p-3 mt-4" action="{{ url_for('main.add_process_relation', process_id=process_record.id) }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label" for="target_process_id">Bağlanacak Süreç</label>
+            <select class="form-select" id="target_process_id" name="target_process_id" required>
+              <option value="">Seçiniz</option>
+              {% for item in possible_processes %}
+                <option value="{{ item.id }}">{{ item.process_no }} - {{ item.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="relation_type">Bağlantı Tipi</label>
+            <select class="form-select" id="relation_type" name="relation_type">
+              {% for relation_type in relation_types %}
+                <option value="{{ relation_type }}">{{ relation_type }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="relation_description">Açıklama</label>
+            <input class="form-control" id="relation_description" name="description">
+          </div>
+          <div class="col-md-1 d-grid">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    {% endif %}
+  </section>
+
+  {% if can_delete_processes and not process_record.is_archived %}
+    <section class="document-list-card p-4 mt-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <h2 class="h5 mb-1">Arşiv</h2>
+          <p class="text-secondary mb-0">Süreç kullanım dışı kaldığında denetim izi korunarak arşive alınır.</p>
+        </div>
+        <form action="{{ url_for('main.archive_process', process_id=process_record.id) }}" method="post" onsubmit="return confirm('Süreç kartını arşive almak istediğinize emin misiniz?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-danger" type="submit">
+            <i class="bi bi-archive"></i>
+            <span>Arşivle</span>
+          </button>
+        </form>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

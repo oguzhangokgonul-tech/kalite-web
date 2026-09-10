@@ -1,0 +1,163 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = process_record is defined and process_record %}
+{% block title %}{{ "Süreç Düzenle" if is_edit else "Yeni Süreç" }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Süreç Düzenle" if is_edit else "Yeni Süreç", "Süreç kartı, sahiplik, girdi, çıktı, KPI ve bağlantıları kaydedin.", icon="bi-diagram-3") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.process_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Süreç Yönetimi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-diagram-2"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Süreç Kartı</h2>
+        <p class="text-secondary mb-0">ISO 9001 süreç yaklaşımı için temel tanım alanları.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="process_no">Süreç No</label>
+        <input class="form-control" id="process_no" value="{{ process_record.process_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="title">Süreç Adı</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', process_record.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="category">Kategori</label>
+        {% set selected_category = form_data.get('category', process_record.category if is_edit else categories[1]) %}
+        <select class="form-select" id="category" name="category">
+          {% for category in categories %}
+            <option value="{{ category }}" {% if selected_category == category %}selected{% endif %}>{{ category }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="owner_user_id">Süreç Sahibi</label>
+        {% set selected_owner = form_data.get('owner_user_id', process_record.owner_user_id if is_edit else '')|string %}
+        <select class="form-select" id="owner_user_id" name="owner_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_owner == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="department">Departman</label>
+        {% set selected_department = form_data.get('department', process_record.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', process_record.status if is_edit else statuses[0]) %}
+        <select class="form-select" id="status" name="status">
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="purpose">Amaç</label>
+        <textarea class="form-control" id="purpose" name="purpose" rows="3">{{ form_data.get('purpose', process_record.purpose if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="scope">Kapsam</label>
+        <textarea class="form-control" id="scope" name="scope" rows="3">{{ form_data.get('scope', process_record.scope if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="inputs">Girdiler</label>
+        <textarea class="form-control" id="inputs" name="inputs" rows="4">{{ form_data.get('inputs', process_record.inputs if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="outputs">Çıktılar</label>
+        <textarea class="form-control" id="outputs" name="outputs" rows="4">{{ form_data.get('outputs', process_record.outputs if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="suppliers">Tedarikçiler</label>
+        <textarea class="form-control" id="suppliers" name="suppliers" rows="4">{{ form_data.get('suppliers', process_record.suppliers if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="customers">Müşteriler</label>
+        <textarea class="form-control" id="customers" name="customers" rows="4">{{ form_data.get('customers', process_record.customers if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-speedometer2"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Takip ve Bağlantılar</h2>
+        <p class="text-secondary mb-0">KPI, gözden geçirme ve ilişkili sistem kayıtları.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="kpi">KPI / Performans Göstergesi</label>
+        <textarea class="form-control" id="kpi" name="kpi" rows="3">{{ form_data.get('kpi', process_record.kpi if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="review_frequency">Gözden Geçirme Periyodu</label>
+        <input class="form-control" id="review_frequency" name="review_frequency" value="{{ form_data.get('review_frequency', process_record.review_frequency if is_edit else '') }}" placeholder="Aylık, 6 aylık, yıllık..." maxlength="80">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="next_review_date">Sonraki Gözden Geçirme</label>
+        {% set next_review_value = form_data.get('next_review_date', process_record.next_review_date.isoformat() if is_edit and process_record.next_review_date else '') %}
+        <input class="form-control" id="next_review_date" name="next_review_date" type="date" value="{{ next_review_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="related_document_id">Bağlı Doküman</label>
+        {% set selected_document = form_data.get('related_document_id', process_record.related_document_id if is_edit else '')|string %}
+        <select class="form-select" id="related_document_id" name="related_document_id">
+          <option value="">Yok</option>
+          {% for document in documents %}
+            <option value="{{ document.id }}" {% if selected_document == document.id|string %}selected{% endif %}>{{ document.document_code }} - {{ document.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="risk_id">Bağlı Risk</label>
+        {% set selected_risk = form_data.get('risk_id', process_record.risk_id if is_edit else '')|string %}
+        <select class="form-select" id="risk_id" name="risk_id">
+          <option value="">Yok</option>
+          {% for risk in risks %}
+            <option value="{{ risk.id }}" {% if selected_risk == risk.id|string %}selected{% endif %}>{{ risk.risk_no }} - {{ risk.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="action_id">Bağlı Aksiyon</label>
+        {% set selected_action = form_data.get('action_id', process_record.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.process_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "Güncelle" if is_edit else "Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

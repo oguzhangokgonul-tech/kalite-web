@@ -105,6 +105,7 @@ def test_iso_core_package_disables_production_modules_and_marks_demo(app, client
     assert state["documents"] is True
     assert state["suggestions"] is True
     assert state["fmea_management"] is True
+    assert state["process_management"] is True
     assert state["deviation_management"] is True
     assert state["incident_near_miss"] is True
     assert all(state[key] is False for key in PRODUCTION_MODULE_KEYS)
