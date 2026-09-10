@@ -11,6 +11,7 @@ from app.models import (
     PROCESS_CATEGORY_SUPPORT,
     PROCESS_RELATION_INPUT,
     PROCESS_STATUS_ARCHIVED,
+    PROCESS_STATUS_DRAFT,
     PROCESS_STATUS_PUBLISHED,
     PROCESS_STATUS_REVIEW,
     ProcessRecord,
@@ -295,6 +296,175 @@ def test_disabled_process_module_blocks_direct_route(client):
     response = client.get("/surec-yonetimi")
 
     assert response.status_code == 403
+
+
+def test_archived_process_is_read_only_for_manager(client):
+    company = create_company("988")
+    manager = create_user(
+        "archived-process-manager",
+        company=company,
+        permissions=("process.view", "process.manage", "process.delete"),
+    )
+    archived_process = ProcessRecord(
+        company_id=company.id,
+        process_no="PRC-2026-0201",
+        title="Arsiv Sureci",
+        category=PROCESS_CATEGORY_CORE,
+        status=PROCESS_STATUS_ARCHIVED,
+    )
+    target_process = ProcessRecord(
+        company_id=company.id,
+        process_no="PRC-2026-0202",
+        title="Hedef Surec",
+        category=PROCESS_CATEGORY_SUPPORT,
+        status=PROCESS_STATUS_PUBLISHED,
+    )
+    db.session.add_all([archived_process, target_process])
+    db.session.flush()
+    step = ProcessStep(
+        company_id=company.id,
+        process_id=archived_process.id,
+        step_order=1,
+        title="Korunan adim",
+    )
+    relation = ProcessRelation(
+        company_id=company.id,
+        source_process_id=archived_process.id,
+        target_process_id=target_process.id,
+        relation_type=PROCESS_RELATION_INPUT,
+    )
+    db.session.add_all([step, relation])
+    db.session.commit()
+    login(client, manager)
+
+    assert client.get(f"/surec-yonetimi/{archived_process.id}/duzenle").status_code == 403
+    assert (
+        client.post(
+            f"/surec-yonetimi/{archived_process.id}/adim-ekle",
+            data={"title": "Yeni adim"},
+        ).status_code
+        == 404
+    )
+    assert client.post(f"/surec-yonetimi/adim/{step.id}/sil").status_code == 403
+    assert client.post(f"/surec-yonetimi/baglanti/{relation.id}/sil").status_code == 403
+    assert ProcessStep.query.filter_by(id=step.id).count() == 1
+    assert ProcessRelation.query.filter_by(id=relation.id).count() == 1
+
+
+def test_department_manager_is_scoped_and_cannot_publish_process(client):
+    company = create_company("989")
+    manager = create_user(
+        "department-process-manager",
+        company=company,
+        role_key="department_manager",
+        title="Kalite Muduru",
+    )
+    own_department_process = ProcessRecord(
+        company_id=company.id,
+        process_no="PRC-2026-0301",
+        title="Kalite Sureci",
+        category=PROCESS_CATEGORY_CORE,
+        department="Kalite",
+        status=PROCESS_STATUS_DRAFT,
+    )
+    other_department_process = ProcessRecord(
+        company_id=company.id,
+        process_no="PRC-2026-0302",
+        title="Sevkiyat Sureci",
+        category=PROCESS_CATEGORY_CORE,
+        department="Sevkiyat",
+        status=PROCESS_STATUS_DRAFT,
+    )
+    db.session.add_all([own_department_process, other_department_process])
+    db.session.commit()
+    login(client, manager)
+
+    assert client.get(f"/surec-yonetimi/{own_department_process.id}/duzenle").status_code == 200
+    assert client.get(f"/surec-yonetimi/{other_department_process.id}/duzenle").status_code == 403
+
+    response = client.post(
+        f"/surec-yonetimi/{own_department_process.id}/duzenle",
+        data=process_payload(title="Yayinlanamaz", status=PROCESS_STATUS_PUBLISHED),
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    db.session.refresh(own_department_process)
+    assert own_department_process.status == PROCESS_STATUS_DRAFT
+
+
+def test_process_owner_can_complete_review_task(client):
+    company = create_company("990")
+    owner = create_user(
+        "owned-process-user",
+        company=company,
+        permissions=("process.view",),
+    )
+    process_record = ProcessRecord(
+        company_id=company.id,
+        process_no="PRC-2026-0401",
+        title="Sahipli Surec",
+        category=PROCESS_CATEGORY_CORE,
+        owner_user_id=owner.id,
+        status=PROCESS_STATUS_DRAFT,
+    )
+    db.session.add(process_record)
+    db.session.commit()
+    login(client, owner)
+
+    assert client.get(f"/surec-yonetimi/{process_record.id}/duzenle").status_code == 200
+    response = client.post(
+        f"/surec-yonetimi/{process_record.id}/duzenle",
+        data=process_payload(title="Gozden Gecirilen Surec", status=PROCESS_STATUS_REVIEW),
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    db.session.refresh(process_record)
+    assert process_record.status == PROCESS_STATUS_REVIEW
+
+
+def test_process_action_options_and_validation_follow_manager_scope(client):
+    company = create_company("991")
+    manager = create_user(
+        "scoped-action-process-manager",
+        company=company,
+        role_key="department_manager",
+        title="Kalite Muduru",
+    )
+    allowed_action = Action(
+        company_id=company.id,
+        action_number=991,
+        title="Kalite aksiyonu",
+        responsible_owner="Kalite",
+        department="Kalite",
+        termin_date=date.today() + timedelta(days=5),
+    )
+    hidden_action = Action(
+        company_id=company.id,
+        action_number=992,
+        title="Sevkiyat gizli aksiyonu",
+        responsible_owner="Sevkiyat",
+        department="Sevkiyat",
+        termin_date=date.today() + timedelta(days=5),
+    )
+    db.session.add_all([allowed_action, hidden_action])
+    db.session.commit()
+    login(client, manager)
+
+    form_response = client.get("/surec-yonetimi/yeni")
+    form_body = form_response.get_data(as_text=True)
+    assert form_response.status_code == 200
+    assert "Kalite aksiyonu" in form_body
+    assert "Sevkiyat gizli aksiyonu" not in form_body
+
+    create_response = client.post(
+        "/surec-yonetimi/yeni",
+        data=process_payload(action_id=str(hidden_action.id)),
+        follow_redirects=True,
+    )
+    assert create_response.status_code == 200
+    assert ProcessRecord.query.count() == 0
 
 
 def test_runtime_schema_marks_sales_readiness_process_done(app):

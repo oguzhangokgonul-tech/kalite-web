@@ -4,7 +4,7 @@
 {% block title %}S&uuml;re&ccedil; Y&ouml;netimi{% endblock %}
 
 {% block app_content %}
-  {% set show_actions = can_manage_processes or can_delete_processes %}
+  {% set show_actions = show_process_actions %}
   {% call ui.page_header("Süreç Yönetimi", "ISO 9001 süreç kartları, sahiplik, KPI ve bağlantılı kayıtları tek yerde takip edin.", icon="bi-diagram-3") %}
     <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.process_map') }}">
       <i class="bi bi-map"></i>
@@ -160,13 +160,13 @@
               {% if show_actions %}
                 <td>
                   <div class="dashboard-row-actions justify-content-end">
-                    {% if can_manage_processes %}
+                    {% if process_can_manage(process_record) %}
                       <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_process', process_id=process_record.id) }}">
                         <i class="bi bi-pencil-square"></i>
                         <span>Düzenle</span>
                       </a>
                     {% endif %}
-                    {% if can_delete_processes and not process_record.is_archived %}
+                    {% if process_can_archive(process_record) %}
                       <form action="{{ url_for('main.archive_process', process_id=process_record.id) }}" method="post" onsubmit="return confirm('Süreç kartını arşive almak istediğinize emin misiniz?');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">

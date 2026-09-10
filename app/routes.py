@@ -10546,8 +10546,56 @@ def can_manage_processes():
     return current_user_can("process.manage")
 
 
+def can_manage_processes_companywide():
+    return can_manage_processes() and (
+        is_management_representative()
+        or not has_role(g.current_user, "department_manager")
+    )
+
+
+def user_matches_process_department(user, department):
+    department_key = normalize_for_role(department).strip()
+    if not department_key:
+        return False
+    return any(
+        department_key == user_key
+        or department_key in user_key
+        or user_key in department_key
+        for user_key in user_department_keys(user)
+    )
+
+
+def can_manage_process_record(process_record):
+    if process_record is None or process_record.is_archived or g.current_user is None:
+        return False
+    if process_record.owner_user_id == g.current_user.id:
+        return True
+    if not can_manage_processes():
+        return False
+    if can_manage_processes_companywide():
+        return True
+    return (
+        process_record.created_by_user_id == g.current_user.id
+        or user_matches_process_department(g.current_user, process_record.department)
+    )
+
+
+def process_allowed_statuses():
+    if can_manage_processes_companywide():
+        return tuple(status for status in PROCESS_STATUSES if status != PROCESS_STATUS_ARCHIVED)
+    return (PROCESS_STATUS_DRAFT, PROCESS_STATUS_REVIEW)
+
+
 def can_delete_processes():
     return current_user_can("process.delete")
+
+
+def can_archive_process_record(process_record):
+    return bool(
+        process_record
+        and not process_record.is_archived
+        and can_delete_processes()
+    )
 
 
 def can_export_processes():
@@ -10710,6 +10758,16 @@ def parse_process_form(allowed_statuses=None):
     return values
 
 
+def can_link_action_to_process(action):
+    if can_manage_processes_companywide():
+        return True
+    if g.current_user is None:
+        return False
+    if g.current_user.id in action.participant_user_ids():
+        return True
+    return user_matches_process_department(g.current_user, action.department)
+
+
 def validate_process_links(process_record):
     if process_record.owner_user_id:
         user = User.query.filter_by(id=process_record.owner_user_id, is_active=True).first()
@@ -10731,7 +10789,7 @@ def validate_process_links(process_record):
             raise ValueError("invalid_risk_id")
     if process_record.action_id:
         action = scoped_query(Action.query, Action).filter_by(id=process_record.action_id).first()
-        if action is None:
+        if action is None or not can_link_action_to_process(action):
             raise ValueError("invalid_action_id")
 
 
@@ -10757,11 +10815,12 @@ def process_related_options(process_record=None):
     risks = []
     if company_module_enabled("risk_management") and can_view_risks():
         risks = sorted(risk_query().all(), key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id))
-    actions = (
+    action_rows = (
         scoped_query(Action.query, Action)
         .order_by(Action.termin_date.asc(), Action.id.asc())
         .all()
     )
+    actions = [action for action in action_rows if can_link_action_to_process(action)]
     possible_processes = [
         item
         for item in process_query().order_by(ProcessRecord.process_no.asc(), ProcessRecord.id.asc()).all()
@@ -10845,7 +10904,7 @@ def process_form_context(process_record=None):
     return {
         "process_record": process_record,
         "categories": PROCESS_CATEGORIES,
-        "statuses": PROCESS_STATUSES if can_manage_processes() else (PROCESS_STATUS_DRAFT,),
+        "statuses": process_allowed_statuses(),
         "departments": DEPARTMENTS,
         "users": active_users(),
         "documents": documents,
@@ -10893,6 +10952,12 @@ def process_dashboard_context():
         "can_create_processes": can_create_processes(),
         "can_manage_processes": can_manage_processes(),
         "can_delete_processes": can_delete_processes(),
+        "show_process_actions": any(
+            can_manage_process_record(record) or can_archive_process_record(record)
+            for record in records
+        ),
+        "process_can_manage": can_manage_process_record,
+        "process_can_archive": can_archive_process_record,
         "process_status_tone": process_status_tone,
         "process_category_tone": process_category_tone,
     }
@@ -10927,8 +10992,8 @@ def process_detail_context(process_record):
         "documents": documents,
         "users": active_users(),
         "possible_processes": possible_processes,
-        "can_manage_processes": can_manage_processes(),
-        "can_delete_processes": can_delete_processes(),
+        "can_manage_processes": can_manage_process_record(process_record),
+        "can_delete_processes": can_archive_process_record(process_record),
         "process_status_tone": process_status_tone,
         "process_category_tone": process_category_tone,
     }
@@ -16675,8 +16740,8 @@ def create_process():
 
     if request.method == "POST":
         try:
-            values = parse_process_form(PROCESS_STATUSES if can_manage_processes() else (PROCESS_STATUS_DRAFT,))
-            if not can_manage_processes():
+            values = parse_process_form(process_allowed_statuses())
+            if not can_manage_processes_companywide():
                 values["status"] = PROCESS_STATUS_DRAFT
             process_record = ProcessRecord(
                 process_no=next_process_no(),
@@ -16726,10 +16791,10 @@ def process_detail(process_id):
 @bp.route("/surec-yonetimi/<int:process_id>/duzenle", methods=["GET", "POST"])
 @login_required
 def edit_process(process_id):
-    if not can_manage_processes():
-        abort(403)
     process_record = process_query(include_archived=True).filter_by(id=process_id).first_or_404()
     ensure_same_company(process_record)
+    if not can_manage_process_record(process_record):
+        abort(403)
 
     if request.method == "POST":
         try:
@@ -16742,7 +16807,7 @@ def edit_process(process_id):
                 if process_record.next_review_date
                 else None,
             }
-            values = parse_process_form(PROCESS_STATUSES)
+            values = parse_process_form(process_allowed_statuses())
             for key, value in values.items():
                 setattr(process_record, key, value)
             if process_record.status == PROCESS_STATUS_ARCHIVED and not process_record.archived_at:
@@ -16783,10 +16848,10 @@ def edit_process(process_id):
 @bp.post("/surec-yonetimi/<int:process_id>/arsivle")
 @login_required
 def archive_process(process_id):
-    if not can_delete_processes():
-        abort(403)
     process_record = process_query(include_archived=True).filter_by(id=process_id).first_or_404()
     ensure_same_company(process_record)
+    if not can_archive_process_record(process_record):
+        abort(403)
     process_record.status = PROCESS_STATUS_ARCHIVED
     process_record.archived_at = datetime.utcnow()
     record_audit_event(
@@ -16808,10 +16873,10 @@ def archive_process(process_id):
 @bp.post("/surec-yonetimi/<int:process_id>/adim-ekle")
 @login_required
 def add_process_step(process_id):
-    if not can_manage_processes():
-        abort(403)
     process_record = process_query().filter_by(id=process_id).first_or_404()
     ensure_same_company(process_record)
+    if not can_manage_process_record(process_record):
+        abort(403)
     try:
         values = parse_process_step_form(process_record)
         step = ProcessStep(process_id=process_record.id, company_id=process_record.company_id, **values)
@@ -16844,12 +16909,12 @@ def add_process_step(process_id):
 @bp.post("/surec-yonetimi/adim/<int:step_id>/sil")
 @login_required
 def delete_process_step(step_id):
-    if not can_manage_processes():
-        abort(403)
     step = process_step_query().filter_by(id=step_id).first_or_404()
     process_record = step.process
     ensure_same_company(step)
     ensure_same_company(process_record)
+    if not can_manage_process_record(process_record):
+        abort(403)
     process_id = process_record.id
     record_audit_event(
         "ProcessStep",
@@ -16871,10 +16936,10 @@ def delete_process_step(step_id):
 @bp.post("/surec-yonetimi/<int:process_id>/baglanti-ekle")
 @login_required
 def add_process_relation(process_id):
-    if not can_manage_processes():
-        abort(403)
     source_process = process_query().filter_by(id=process_id).first_or_404()
     ensure_same_company(source_process)
+    if not can_manage_process_record(source_process):
+        abort(403)
     try:
         values = parse_process_relation_form(source_process)
         target_process = values.pop("target_process")
@@ -16912,12 +16977,12 @@ def add_process_relation(process_id):
 @bp.post("/surec-yonetimi/baglanti/<int:relation_id>/sil")
 @login_required
 def delete_process_relation(relation_id):
-    if not can_manage_processes():
-        abort(403)
     relation = process_relation_query().filter_by(id=relation_id).first_or_404()
     source_process = relation.source_process
     ensure_same_company(relation)
     ensure_same_company(source_process)
+    if not can_manage_process_record(source_process):
+        abort(403)
     source_process_id = source_process.id
     record_audit_event(
         "ProcessRelation",
