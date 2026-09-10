@@ -1,0 +1,172 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ fmea.fmea_no }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(fmea.fmea_no, fmea.failure_mode, icon="bi-diagram-3") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.fmea_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>FMEA Analizi</span>
+    </a>
+    {% if can_manage_fmeas %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_fmea', fmea_id=fmea.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>Düzenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-speedometer2"></i></span>
+      <span class="stat-label">RPN</span>
+      <strong>{{ fmea.rpn }}</strong>
+      <small>{{ fmea.level }}</small>
+    </div>
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Ş / O / T</span>
+      <strong>{{ fmea.severity }} / {{ fmea.occurrence }} / {{ fmea.detection }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-calendar3"></i></span>
+      <span class="stat-label">Termin</span>
+      <strong>{{ fmea.due_date.strftime("%d.%m.%Y") if fmea.due_date else "-" }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Durum</span>
+      <strong>{{ fmea.status }}</strong>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <section class="document-list-card p-4">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="stat-icon"><i class="bi bi-search-heart"></i></span>
+          <div>
+            <h2 class="h5 mb-1">Hata Analizi</h2>
+            <p class="text-secondary mb-0">{{ fmea.process_name }}{% if fmea.operation_step %} / {{ fmea.operation_step }}{% endif %}</p>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <small class="text-secondary">Ürün / Hizmet</small>
+            <strong class="d-block">{{ fmea.product_or_service or "-" }}</strong>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Sorumlu</small>
+            <strong class="d-block">{{ fmea.responsible.full_name if fmea.responsible else "-" }}</strong>
+          </div>
+          <div class="col-md-4">
+            <small class="text-secondary">Hata Türü</small>
+            <p class="mb-0">{{ fmea.failure_mode }}</p>
+          </div>
+          <div class="col-md-4">
+            <small class="text-secondary">Hata Etkisi</small>
+            <p class="mb-0">{{ fmea.failure_effect or "-" }}</p>
+          </div>
+          <div class="col-md-4">
+            <small class="text-secondary">Hata Nedeni</small>
+            <p class="mb-0">{{ fmea.failure_cause or "-" }}</p>
+          </div>
+          <div class="col-12">
+            <small class="text-secondary">Mevcut Kontroller</small>
+            <p class="mb-0">{{ fmea.current_controls or "-" }}</p>
+          </div>
+          <div class="col-12">
+            <small class="text-secondary">Önerilen Aksiyon / Kapanış Notu</small>
+            <p class="mb-0">{{ fmea.recommended_action or "-" }}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-4">
+      <section class="document-list-card p-4 h-100">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+          <h2 class="h5 mb-0">Bağlantılar</h2>
+        </div>
+        <div class="vstack gap-2">
+          {% if fmea.action %}
+            <a class="btn btn-outline-success justify-content-start" href="{{ url_for('main.action_detail', action_id=fmea.action.id) }}">
+              <i class="bi bi-clipboard-check"></i>
+              <span>{{ fmea.action.number_label }} - {{ fmea.action.title }}</span>
+            </a>
+          {% endif %}
+          {% if fmea.risk %}
+            <a class="btn btn-outline-danger justify-content-start" href="{{ url_for('main.risk_dashboard', search=fmea.risk.risk_no) }}">
+              <i class="bi bi-exclamation-diamond"></i>
+              <span>{{ fmea.risk.risk_no }} - {{ fmea.risk.title }}</span>
+            </a>
+          {% endif %}
+          {% if fmea.dof %}
+            <a class="btn btn-outline-primary justify-content-start" href="{{ url_for('main.dof_detail', dof_id=fmea.dof.id) }}">
+              <i class="bi bi-shield-check"></i>
+              <span>{{ fmea.dof.dof_no }} - {{ fmea.dof.title or 'IF kaydı' }}</span>
+            </a>
+          {% endif %}
+          {% if fmea.incident %}
+            <a class="btn btn-outline-warning justify-content-start" href="{{ url_for('main.incident_detail', incident_id=fmea.incident.id) }}">
+              <i class="bi bi-exclamation-triangle"></i>
+              <span>{{ fmea.incident.incident_no }} - {{ fmea.incident.title }}</span>
+            </a>
+          {% endif %}
+          {% if fmea.deviation %}
+            <a class="btn btn-outline-danger justify-content-start" href="{{ url_for('main.deviation_detail', deviation_id=fmea.deviation.id) }}">
+              <i class="bi bi-exclamation-octagon"></i>
+              <span>{{ fmea.deviation.deviation_no }} - {{ fmea.deviation.title }}</span>
+            </a>
+          {% endif %}
+          {% if not fmea.action and not fmea.risk and not fmea.dof and not fmea.incident and not fmea.deviation %}
+            <span class="text-secondary">Henüz bağlantı eklenmedi.</span>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  {% if can_manage_fmeas or can_close_fmeas or can_delete_fmeas %}
+    <section class="document-list-card p-4 mt-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <h2 class="h5 mb-1">İşlem</h2>
+          <p class="text-secondary mb-0">FMEA kaydını aksiyon aşamasına alın, kapatın veya arşivleyin.</p>
+        </div>
+        <div class="dashboard-row-actions">
+          {% if can_manage_fmeas and fmea.status not in [status_action_pending, status_closed, status_archived] %}
+            <form action="{{ url_for('main.mark_fmea_action_pending', fmea_id=fmea.id) }}" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-primary" type="submit">
+                <i class="bi bi-hourglass-split"></i>
+                <span>Aksiyon Bekliyor</span>
+              </button>
+            </form>
+          {% endif %}
+          {% if can_close_fmeas and fmea.status not in [status_closed, status_archived] %}
+            <form class="d-flex gap-2" action="{{ url_for('main.close_fmea', fmea_id=fmea.id) }}" method="post">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input class="form-control" name="close_note" placeholder="Kapanış notu">
+              <button class="btn btn-success" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Kapat</span>
+              </button>
+            </form>
+          {% endif %}
+          {% if can_delete_fmeas and fmea.status != status_archived %}
+            <form action="{{ url_for('main.archive_fmea', fmea_id=fmea.id) }}" method="post" onsubmit="return confirm('FMEA kaydını arşive almak istediğinize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Arşivle</span>
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{% endblock %}

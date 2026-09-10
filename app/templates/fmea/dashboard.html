@@ -1,0 +1,198 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}FMEA Analizi{% endblock %}
+
+{% block app_content %}
+  {% set show_actions = can_manage_fmeas or can_delete_fmeas or can_create_actions %}
+  {% call ui.page_header("FMEA Analizi", "Hata türü, etki, neden, RPN ve aksiyon takibini tek ekranda yönetin.", icon="bi-diagram-3") %}
+    {% if can_create_fmeas %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_fmea') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni FMEA</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+      <span class="stat-label">Toplam FMEA</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-activity"></i></span>
+      <span class="stat-label">Aktif Kayıt</span>
+      <strong>{{ active_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-triangle"></i></span>
+      <span class="stat-label">Yüksek RPN</span>
+      <strong>{{ high_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+      <span class="stat-label">Bağlantılı</span>
+      <strong>{{ linked_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="FMEA no, proses veya hata türü ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="level">Seviye</label>
+        <select class="form-select" id="level" name="level">
+          <option value="">Tümü</option>
+          {% for level in ["Yüksek", "Orta", "Düşük"] %}
+            <option value="{{ level }}" {% if filters.level == level %}selected{% endif %}>{{ level }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="responsible_user_id">Sorumlu</label>
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Tümü</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if filters.responsible_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="archive">Arşiv</label>
+        <select class="form-select" id="archive" name="archive">
+          <option value="">Aktif kayıtlar</option>
+          <option value="1" {% if filters.archive == "1" %}selected{% endif %}>Arşiv dahil</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.fmea_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>FMEA No</th>
+            <th>Proses / Operasyon</th>
+            <th>Hata Türü</th>
+            <th>Etki</th>
+            <th>Ş</th>
+            <th>O</th>
+            <th>T</th>
+            <th>RPN</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            {% if show_actions %}
+              <th class="text-end">İşlemler</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for fmea in fmeas %}
+            <tr>
+              <td><strong>{{ fmea.fmea_no }}</strong></td>
+              <td>
+                <strong>{{ fmea.process_name }}</strong>
+                {% if fmea.operation_step %}
+                  <small class="d-block text-secondary">{{ fmea.operation_step }}</small>
+                {% endif %}
+              </td>
+              <td>
+                <a class="text-primary fw-semibold text-decoration-none" href="{{ url_for('main.fmea_detail', fmea_id=fmea.id) }}">{{ fmea.failure_mode }}</a>
+                {% if fmea.failure_cause %}
+                  <small class="d-block text-secondary">{{ fmea.failure_cause }}</small>
+                {% endif %}
+              </td>
+              <td>{{ fmea.failure_effect or "-" }}</td>
+              <td>{{ fmea.severity }}</td>
+              <td>{{ fmea.occurrence }}</td>
+              <td>{{ fmea.detection }}</td>
+              <td>
+                {{ ui.status_badge(fmea.rpn|string, tone=fmea_level_tone(fmea.level), icon="bi-speedometer2", title=fmea.level) }}
+                <small class="d-block text-secondary mt-1">{{ fmea.level }}</small>
+              </td>
+              <td>{{ fmea.responsible.full_name if fmea.responsible else "-" }}</td>
+              <td>
+                {{ fmea.due_date.strftime("%d.%m.%Y") if fmea.due_date else "-" }}
+                {% if fmea.delay_days %}
+                  <small class="d-block text-danger">{{ fmea.delay_days }} gün gecikti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(fmea.status, tone=fmea_status_tone(fmea.status)) }}</td>
+              {% if show_actions %}
+                <td>
+                  <div class="dashboard-row-actions justify-content-end">
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.fmea_detail', fmea_id=fmea.id) }}">
+                      <i class="bi bi-eye"></i>
+                      <span>Detay</span>
+                    </a>
+                    {% if can_manage_fmeas %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_fmea', fmea_id=fmea.id) }}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Düzenle</span>
+                      </a>
+                    {% endif %}
+                    {% if can_create_actions and not fmea.action %}
+                      <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.create_action') }}">
+                        <i class="bi bi-plus-circle"></i>
+                        <span>Aksiyon</span>
+                      </a>
+                    {% elif fmea.action %}
+                      <a class="btn btn-sm btn-outline-success" href="{{ url_for('main.action_detail', action_id=fmea.action.id) }}">
+                        <i class="bi bi-arrow-up-right-square"></i>
+                        <span>Aksiyon</span>
+                      </a>
+                    {% endif %}
+                    {% if can_delete_fmeas and fmea.status != "Arşiv" %}
+                      <form action="{{ url_for('main.archive_fmea', fmea_id=fmea.id) }}" method="post" onsubmit="return confirm('FMEA kaydını arşive almak istediğinize emin misiniz?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-archive"></i>
+                          <span>Arşivle</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                </td>
+              {% endif %}
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="{{ 12 if show_actions else 11 }}">
+                <strong>Henüz FMEA kaydı yok.</strong>
+                <span>Yeni kayıt eklendiğinde RPN sıralamasıyla burada listelenecek.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

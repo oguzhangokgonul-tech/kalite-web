@@ -121,6 +121,42 @@ PERMISSION_CATALOG = (
         "description": "Risk kayıtlarını silebilir.",
     },
     {
+        "key": "fmea.view",
+        "label": "FMEA görüntüleme",
+        "group": "FMEA Analizi",
+        "description": "FMEA kayıtlarını, RPN özetlerini ve bağlantılı aksiyonları görüntüler.",
+    },
+    {
+        "key": "fmea.create",
+        "label": "FMEA kaydı açma",
+        "group": "FMEA Analizi",
+        "description": "Yeni FMEA hata türü ve etkileri analizi kaydı oluşturur.",
+    },
+    {
+        "key": "fmea.manage",
+        "label": "FMEA yönetimi",
+        "group": "FMEA Analizi",
+        "description": "FMEA kayıtlarını düzenler, sorumlu, termin, puan ve bağlantıları yönetir.",
+    },
+    {
+        "key": "fmea.close",
+        "label": "FMEA kapatma",
+        "group": "FMEA Analizi",
+        "description": "FMEA kayıtlarını etkinlik kontrolü sonrası kapatır.",
+    },
+    {
+        "key": "fmea.delete",
+        "label": "FMEA arşivleme",
+        "group": "FMEA Analizi",
+        "description": "FMEA kayıtlarını denetim izi korunacak şekilde arşive alır.",
+    },
+    {
+        "key": "fmea.export",
+        "label": "FMEA raporu alma",
+        "group": "FMEA Analizi",
+        "description": "FMEA kayıtlarını rapor merkezinden dışa aktarır.",
+    },
+    {
         "key": "change_management.view",
         "label": "De\u011fi\u015fiklikleri g\u00f6r\u00fcnt\u00fcleme",
         "group": "De\u011fi\u015fiklik Y\u00f6netimi",
@@ -437,6 +473,12 @@ ROLE_DEFINITIONS = (
             "risk.view",
             "risk.manage",
             "risk.delete",
+            "fmea.view",
+            "fmea.create",
+            "fmea.manage",
+            "fmea.close",
+            "fmea.delete",
+            "fmea.export",
             "change_management.view",
             "change_management.create",
             "change_management.manage",
@@ -494,6 +536,8 @@ ROLE_DEFINITIONS = (
             "actions.view_all",
             "documents.view",
             "risk.view",
+            "fmea.view",
+            "fmea.export",
             "change_management.view",
             "change_management.approve",
             "change_management.export",
@@ -525,6 +569,9 @@ ROLE_DEFINITIONS = (
             "maintenance.fault_manage",
             "documents.view",
             "risk.view",
+            "fmea.view",
+            "fmea.create",
+            "fmea.manage",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -554,6 +601,8 @@ ROLE_DEFINITIONS = (
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "documents.view",
+            "fmea.view",
+            "fmea.create",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -573,6 +622,7 @@ ROLE_DEFINITIONS = (
         "description": "Yetkili olduğu sayfaları sadece görüntüler.",
         "permissions": [
             "documents.view",
+            "fmea.view",
             "change_management.view",
             "deviation.view",
             "incident.view",
@@ -1001,6 +1051,109 @@ def ensure_runtime_schema():
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_risk_records_company_risk_no "
                 "ON risk_records (company_id, risk_no)"
+            )
+        )
+
+    if "fmea_records" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE fmea_records (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    fmea_no VARCHAR(40) NOT NULL,
+                    process_name VARCHAR(160) NOT NULL,
+                    product_or_service VARCHAR(180),
+                    operation_step VARCHAR(180),
+                    failure_mode VARCHAR(180) NOT NULL,
+                    failure_effect TEXT,
+                    failure_cause TEXT,
+                    current_controls TEXT,
+                    severity INTEGER NOT NULL DEFAULT 1,
+                    occurrence INTEGER NOT NULL DEFAULT 1,
+                    detection INTEGER NOT NULL DEFAULT 1,
+                    recommended_action TEXT,
+                    due_date DATE,
+                    closed_at DATE,
+                    status VARCHAR(40) NOT NULL DEFAULT 'Açık',
+                    responsible_user_id INTEGER,
+                    action_id INTEGER,
+                    risk_id INTEGER,
+                    dof_id INTEGER,
+                    incident_id INTEGER,
+                    deviation_id INTEGER,
+                    created_by_user_id INTEGER,
+                    archived_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(responsible_user_id) REFERENCES users (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(risk_id) REFERENCES risk_records (id),
+                    FOREIGN KEY(dof_id) REFERENCES dofs (id),
+                    FOREIGN KEY(incident_id) REFERENCES incident_reports (id),
+                    FOREIGN KEY(deviation_id) REFERENCES deviation_records (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("fmea_records")
+
+    if "fmea_records" in tables:
+        columns = {column["name"] for column in inspector.get_columns("fmea_records")}
+        fmea_columns = {
+            "company_id": "ALTER TABLE fmea_records ADD COLUMN company_id INTEGER",
+            "fmea_no": "ALTER TABLE fmea_records ADD COLUMN fmea_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "process_name": "ALTER TABLE fmea_records ADD COLUMN process_name VARCHAR(160) NOT NULL DEFAULT ''",
+            "product_or_service": "ALTER TABLE fmea_records ADD COLUMN product_or_service VARCHAR(180)",
+            "operation_step": "ALTER TABLE fmea_records ADD COLUMN operation_step VARCHAR(180)",
+            "failure_mode": "ALTER TABLE fmea_records ADD COLUMN failure_mode VARCHAR(180) NOT NULL DEFAULT ''",
+            "failure_effect": "ALTER TABLE fmea_records ADD COLUMN failure_effect TEXT",
+            "failure_cause": "ALTER TABLE fmea_records ADD COLUMN failure_cause TEXT",
+            "current_controls": "ALTER TABLE fmea_records ADD COLUMN current_controls TEXT",
+            "severity": "ALTER TABLE fmea_records ADD COLUMN severity INTEGER NOT NULL DEFAULT 1",
+            "occurrence": "ALTER TABLE fmea_records ADD COLUMN occurrence INTEGER NOT NULL DEFAULT 1",
+            "detection": "ALTER TABLE fmea_records ADD COLUMN detection INTEGER NOT NULL DEFAULT 1",
+            "recommended_action": "ALTER TABLE fmea_records ADD COLUMN recommended_action TEXT",
+            "due_date": "ALTER TABLE fmea_records ADD COLUMN due_date DATE",
+            "closed_at": "ALTER TABLE fmea_records ADD COLUMN closed_at DATE",
+            "status": "ALTER TABLE fmea_records ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Açık'",
+            "responsible_user_id": "ALTER TABLE fmea_records ADD COLUMN responsible_user_id INTEGER",
+            "action_id": "ALTER TABLE fmea_records ADD COLUMN action_id INTEGER",
+            "risk_id": "ALTER TABLE fmea_records ADD COLUMN risk_id INTEGER",
+            "dof_id": "ALTER TABLE fmea_records ADD COLUMN dof_id INTEGER",
+            "incident_id": "ALTER TABLE fmea_records ADD COLUMN incident_id INTEGER",
+            "deviation_id": "ALTER TABLE fmea_records ADD COLUMN deviation_id INTEGER",
+            "created_by_user_id": "ALTER TABLE fmea_records ADD COLUMN created_by_user_id INTEGER",
+            "archived_at": "ALTER TABLE fmea_records ADD COLUMN archived_at DATETIME",
+            "created_at": "ALTER TABLE fmea_records ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE fmea_records ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in fmea_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_fmea_records_company_id", "company_id"),
+            ("ix_fmea_records_fmea_no", "fmea_no"),
+            ("ix_fmea_records_status", "status"),
+            ("ix_fmea_records_due_date", "due_date"),
+            ("ix_fmea_records_responsible_user_id", "responsible_user_id"),
+            ("ix_fmea_records_action_id", "action_id"),
+            ("ix_fmea_records_risk_id", "risk_id"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON fmea_records ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_fmea_records_company_fmea_no "
+                "ON fmea_records (company_id, fmea_no)"
             )
         )
 
@@ -2358,6 +2511,7 @@ def ensure_runtime_schema():
             "sales_readiness:month2_capa_fields",
             "sales_readiness:month2_management_dashboard",
             "sales_readiness:competitor_incident_near_miss",
+            "sales_readiness:competitor_fmea",
         ):
             db.session.execute(
                 text(

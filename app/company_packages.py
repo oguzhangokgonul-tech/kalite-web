@@ -18,6 +18,7 @@ ISO_CORE_MODULE_KEYS = {
     "suggestions",
     "if_management",
     "risk_management",
+    "fmea_management",
     "change_management",
     "deviation_management",
     "incident_near_miss",

@@ -1,0 +1,226 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = fmea is defined and fmea %}
+{% block title %}{{ "FMEA Düzenle" if is_edit else "Yeni FMEA" }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("FMEA Düzenle" if is_edit else "Yeni FMEA", "Hata türü, etki, neden ve RPN puanlarını kaydedin.", icon="bi-diagram-3") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.fmea_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>FMEA Analizi</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-search-heart"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Hata Analizi</h2>
+        <p class="text-secondary mb-0">Proses adımı, hata türü, etki, neden ve mevcut kontroller.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="fmea_no">FMEA No</label>
+        <input class="form-control" id="fmea_no" value="{{ fmea.fmea_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label" for="process_name">Proses</label>
+        <input class="form-control" id="process_name" name="process_name" value="{{ form_data.get('process_name', fmea.process_name if is_edit else '') }}" required maxlength="160">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="product_or_service">Ürün / Hizmet</label>
+        <input class="form-control" id="product_or_service" name="product_or_service" value="{{ form_data.get('product_or_service', fmea.product_or_service if is_edit else '') }}" maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="operation_step">Operasyon / Adım</label>
+        <input class="form-control" id="operation_step" name="operation_step" value="{{ form_data.get('operation_step', fmea.operation_step if is_edit else '') }}" maxlength="180">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label" for="failure_mode">Hata Türü</label>
+        <input class="form-control" id="failure_mode" name="failure_mode" value="{{ form_data.get('failure_mode', fmea.failure_mode if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="failure_effect">Hata Etkisi</label>
+        <textarea class="form-control" id="failure_effect" name="failure_effect" rows="4">{{ form_data.get('failure_effect', fmea.failure_effect if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="failure_cause">Hata Nedeni</label>
+        <textarea class="form-control" id="failure_cause" name="failure_cause" rows="4">{{ form_data.get('failure_cause', fmea.failure_cause if is_edit else '') }}</textarea>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="current_controls">Mevcut Kontroller</label>
+        <textarea class="form-control" id="current_controls" name="current_controls" rows="4">{{ form_data.get('current_controls', fmea.current_controls if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-speedometer2"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Puanlama / Aksiyon</h2>
+        <p class="text-secondary mb-0">Şiddet, olasılık ve tespit puanları 1-10 aralığındadır.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-2">
+        <label class="form-label" for="severity">Şiddet</label>
+        {% set selected_severity = form_data.get('severity', fmea.severity if is_edit else 1)|int %}
+        <select class="form-select" id="severity" name="severity" data-fmea-score>
+          {% for score in score_options %}
+            <option value="{{ score }}" {% if selected_severity == score %}selected{% endif %}>{{ score }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="occurrence">Olasılık</label>
+        {% set selected_occurrence = form_data.get('occurrence', fmea.occurrence if is_edit else 1)|int %}
+        <select class="form-select" id="occurrence" name="occurrence" data-fmea-score>
+          {% for score in score_options %}
+            <option value="{{ score }}" {% if selected_occurrence == score %}selected{% endif %}>{{ score }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="detection">Tespit</label>
+        {% set selected_detection = form_data.get('detection', fmea.detection if is_edit else 1)|int %}
+        <select class="form-select" id="detection" name="detection" data-fmea-score>
+          {% for score in score_options %}
+            <option value="{{ score }}" {% if selected_detection == score %}selected{% endif %}>{{ score }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="rpn_preview">RPN</label>
+        <div class="form-control d-flex justify-content-between align-items-center bg-light" id="rpn_preview">
+          <strong data-fmea-rpn>1</strong>
+          <span class="text-secondary" data-fmea-level>Düşük</span>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="responsible_user_id">Sorumlu</label>
+        {% set selected_responsible = form_data.get('responsible_user_id', fmea.responsible_user_id if is_edit else '')|string %}
+        <select class="form-select" id="responsible_user_id" name="responsible_user_id">
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="due_date">Termin</label>
+        {% set due_value = form_data.get('due_date', fmea.due_date.isoformat() if is_edit and fmea.due_date else '') %}
+        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ due_value }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', fmea.status if is_edit else 'Açık') %}
+        {% if can_manage_fmeas %}
+          <select class="form-select" id="status" name="status">
+            {% for status in statuses %}
+              <option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        {% else %}
+          <input type="hidden" name="status" value="Açık">
+          <input class="form-control" id="status" value="Açık" disabled>
+        {% endif %}
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="recommended_action">Önerilen Aksiyon</label>
+        <textarea class="form-control" id="recommended_action" name="recommended_action" rows="3">{{ form_data.get('recommended_action', fmea.recommended_action if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <details class="mt-4" {% if is_edit %}open{% endif %}>
+      <summary class="fw-semibold text-primary">Gelişmiş bağlantılar</summary>
+      <div class="row g-3 mt-1">
+        <div class="col-md-4">
+          <label class="form-label" for="action_id">Aksiyon Bağlantısı</label>
+          {% set selected_action = form_data.get('action_id', fmea.action_id if is_edit else '')|string %}
+          <select class="form-select" id="action_id" name="action_id">
+            <option value="">Yok</option>
+            {% for action in actions %}
+              <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="risk_id">Risk Bağlantısı</label>
+          {% set selected_risk = form_data.get('risk_id', fmea.risk_id if is_edit else '')|string %}
+          <select class="form-select" id="risk_id" name="risk_id">
+            <option value="">Yok</option>
+            {% for risk in risks %}
+              <option value="{{ risk.id }}" {% if selected_risk == risk.id|string %}selected{% endif %}>{{ risk.risk_no }} - {{ risk.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="dof_id">IF/DÖF Bağlantısı</label>
+          {% set selected_dof = form_data.get('dof_id', fmea.dof_id if is_edit else '')|string %}
+          <select class="form-select" id="dof_id" name="dof_id">
+            <option value="">Yok</option>
+            {% for dof in dofs %}
+              {% if dof.display_status != "Tamamlandı" %}
+                <option value="{{ dof.id }}" {% if selected_dof == dof.id|string %}selected{% endif %}>{{ dof.dof_no }} - {{ dof.title or 'IF kaydı' }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="incident_id">Olay / Ramak Kala Bağlantısı</label>
+          {% set selected_incident = form_data.get('incident_id', fmea.incident_id if is_edit else '')|string %}
+          <select class="form-select" id="incident_id" name="incident_id">
+            <option value="">Yok</option>
+            {% for incident in incidents %}
+              <option value="{{ incident.id }}" {% if selected_incident == incident.id|string %}selected{% endif %}>{{ incident.incident_no }} - {{ incident.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="deviation_id">Sapma Bağlantısı</label>
+          {% set selected_deviation = form_data.get('deviation_id', fmea.deviation_id if is_edit else '')|string %}
+          <select class="form-select" id="deviation_id" name="deviation_id">
+            <option value="">Yok</option>
+            {% for deviation in deviations %}
+              <option value="{{ deviation.id }}" {% if selected_deviation == deviation.id|string %}selected{% endif %}>{{ deviation.deviation_no }} - {{ deviation.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </details>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.fmea_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "Güncelle" if is_edit else "Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+
+  <script>
+    (() => {
+      const severity = document.getElementById("severity");
+      const occurrence = document.getElementById("occurrence");
+      const detection = document.getElementById("detection");
+      const rpn = document.querySelector("[data-fmea-rpn]");
+      const level = document.querySelector("[data-fmea-level]");
+      const update = () => {
+        const value = Number(severity.value || 1) * Number(occurrence.value || 1) * Number(detection.value || 1);
+        rpn.textContent = value;
+        level.textContent = value >= 125 ? "Yüksek" : value >= 50 ? "Orta" : "Düşük";
+      };
+      severity.addEventListener("change", update);
+      occurrence.addEventListener("change", update);
+      detection.addEventListener("change", update);
+      update();
+    })();
+  </script>
+{% endblock %}

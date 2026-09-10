@@ -172,11 +172,19 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "fmea_management",
+        "name": "FMEA Analizi",
+        "description": "Hata türü ve etkileri analizi, RPN puanı ve aksiyon takibi.",
+        "icon": "bi-diagram-3",
+        "sort_order": 56,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
         "icon": "bi-arrow-repeat",
-        "sort_order": 56,
+        "sort_order": 57,
         "parent_key": None,
     },
     {
@@ -184,7 +192,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Sapma / Uygunsuz \u00dcr\u00fcn",
         "description": "Sapma, uygunsuz \u00fcr\u00fcn, karantina, karar ve kapan\u0131\u015f takibi.",
         "icon": "bi-exclamation-octagon",
-        "sort_order": 57,
+        "sort_order": 58,
         "parent_key": None,
     },
     {
@@ -192,7 +200,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Olay / Ramak Kala",
         "description": "Olay, ramak kala, tehlikeli durum, inceleme, aksiyon ve kapan\u0131\u015f takibi.",
         "icon": "bi-exclamation-triangle",
-        "sort_order": 58,
+        "sort_order": 59,
         "parent_key": None,
     },
     {
@@ -200,7 +208,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "Eğitim / Yeterlilik",
         "description": "Doküman okuma-onay, eğitim atama ve yeterlilik kayıtları.",
         "icon": "bi-mortarboard",
-        "sort_order": 59,
+        "sort_order": 60,
         "parent_key": None,
     },
     {
@@ -208,7 +216,7 @@ COMPANY_MODULE_CATALOG = (
         "name": "İç Denetim Yönetimi",
         "description": "İç denetim oluşturma, cevaplama, çıktı ve IF bağlantısı.",
         "icon": "bi-clipboard-check",
-        "sort_order": 60,
+        "sort_order": 61,
         "parent_key": None,
     },
     {
@@ -366,6 +374,20 @@ INCIDENT_FILE_KINDS = (
     "inceleme",
     "karar",
     "kapanis",
+)
+FMEA_STATUS_DRAFT = "Taslak"
+FMEA_STATUS_OPEN = "Açık"
+FMEA_STATUS_ACTION_PENDING = "Aksiyon Bekliyor"
+FMEA_STATUS_EFFECTIVENESS = "Etkinlik Kontrolü"
+FMEA_STATUS_CLOSED = "Kapandı"
+FMEA_STATUS_ARCHIVED = "Arşiv"
+FMEA_STATUSES = (
+    FMEA_STATUS_DRAFT,
+    FMEA_STATUS_OPEN,
+    FMEA_STATUS_ACTION_PENDING,
+    FMEA_STATUS_EFFECTIVENESS,
+    FMEA_STATUS_CLOSED,
+    FMEA_STATUS_ARCHIVED,
 )
 QUALITY_TEST_MODULE_BY_SLUG = {
     "beton-deneyi": "quality_test_concrete",
@@ -1201,6 +1223,76 @@ class RiskRecord(db.Model):
         if self.rpn >= 8:
             return "Orta"
         return "Düşük"
+
+
+class FmeaRecord(db.Model):
+    __tablename__ = "fmea_records"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "fmea_no", name="uq_fmea_records_company_fmea_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    fmea_no = db.Column(db.String(40), nullable=False, index=True)
+    process_name = db.Column(db.String(160), nullable=False)
+    product_or_service = db.Column(db.String(180), nullable=True)
+    operation_step = db.Column(db.String(180), nullable=True)
+    failure_mode = db.Column(db.String(180), nullable=False)
+    failure_effect = db.Column(db.Text, nullable=True)
+    failure_cause = db.Column(db.Text, nullable=True)
+    current_controls = db.Column(db.Text, nullable=True)
+    severity = db.Column(db.Integer, nullable=False, default=1)
+    occurrence = db.Column(db.Integer, nullable=False, default=1)
+    detection = db.Column(db.Integer, nullable=False, default=1)
+    recommended_action = db.Column(db.Text, nullable=True)
+    due_date = db.Column(db.Date, nullable=True)
+    closed_at = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(40), nullable=False, default=FMEA_STATUS_OPEN)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
+    incident_id = db.Column(db.Integer, db.ForeignKey("incident_reports.id"), nullable=True)
+    deviation_id = db.Column(db.Integer, db.ForeignKey("deviation_records.id"), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    incident = db.relationship("IncidentReport", foreign_keys=[incident_id])
+    deviation = db.relationship("DeviationRecord", foreign_keys=[deviation_id])
+
+    @property
+    def rpn(self):
+        return (self.severity or 0) * (self.occurrence or 0) * (self.detection or 0)
+
+    @property
+    def level(self):
+        if self.rpn >= 125:
+            return "Yüksek"
+        if self.rpn >= 50:
+            return "Orta"
+        return "Düşük"
+
+    @property
+    def is_closed(self):
+        return self.status in {FMEA_STATUS_CLOSED, FMEA_STATUS_ARCHIVED}
+
+    @property
+    def delay_days(self):
+        if self.is_closed or not self.due_date:
+            return 0
+        return max((date.today() - self.due_date).days, 0)
 
 
 class TrainingRecord(db.Model):

@@ -108,6 +108,14 @@ from .models import (
     INCIDENT_STATUS_NEW,
     INCIDENT_STATUS_REVIEW,
     INCIDENT_STATUSES,
+    FmeaRecord,
+    FMEA_STATUS_ACTION_PENDING,
+    FMEA_STATUS_ARCHIVED,
+    FMEA_STATUS_CLOSED,
+    FMEA_STATUS_DRAFT,
+    FMEA_STATUS_EFFECTIVENESS,
+    FMEA_STATUS_OPEN,
+    FMEA_STATUSES,
     DOCUMENT_CATEGORY_DEFAULTS,
     DOCUMENT_STATUSES,
     DOF_APPROVAL_STEPS,
@@ -498,6 +506,7 @@ PILOT_PROGRAM_MODULE_LABELS = {
     "quality_test_rebar_tensile": "Demir Çekme Deneyi",
     "if_management": "IF Yönetimi",
     "risk_management": "Risk Yönetimi",
+    "fmea_management": "FMEA Analizi",
     "training": "Eğitim / Yeterlilik",
     "internal_audit": "İç Denetim Yönetimi",
     "management_review": "Yönetimin Gözden Geçirmesi",
@@ -2654,6 +2663,13 @@ MODULE_ENDPOINTS = {
     "main.create_risk": "risk_management",
     "main.edit_risk": "risk_management",
     "main.delete_risk": "risk_management",
+    "main.fmea_dashboard": "fmea_management",
+    "main.create_fmea": "fmea_management",
+    "main.fmea_detail": "fmea_management",
+    "main.edit_fmea": "fmea_management",
+    "main.mark_fmea_action_pending": "fmea_management",
+    "main.close_fmea": "fmea_management",
+    "main.archive_fmea": "fmea_management",
     "main.change_management_dashboard": "change_management",
     "main.create_change_request": "change_management",
     "main.change_request_detail": "change_management",
@@ -7447,6 +7463,89 @@ def report_risks_data():
     }
 
 
+def report_fmea_data():
+    records = sorted(fmea_query().all(), key=fmea_sort_key)
+    rows = [
+        (
+            record.fmea_no,
+            record.process_name,
+            record.product_or_service or "-",
+            record.operation_step or "-",
+            record.failure_mode,
+            record.failure_effect or "-",
+            record.failure_cause or "-",
+            record.current_controls or "-",
+            record.severity,
+            record.occurrence,
+            record.detection,
+            record.rpn,
+            record.level,
+            report_user_name(record.responsible),
+            format_date(record.due_date),
+            record.delay_days,
+            record.status,
+            record.action.number_label if record.action else "-",
+            record.risk.risk_no if record.risk else "-",
+            record.dof.dof_no if record.dof else "-",
+            record.incident.incident_no if record.incident else "-",
+            record.deviation.deviation_no if record.deviation else "-",
+        )
+        for record in records
+    ]
+    return {
+        "headers": (
+            "FMEA No",
+            "Proses",
+            "Ürün / Hizmet",
+            "Operasyon",
+            "Hata Türü",
+            "Etki",
+            "Neden",
+            "Mevcut Kontrol",
+            "Şiddet",
+            "Olasılık",
+            "Tespit",
+            "RPN",
+            "Seviye",
+            "Sorumlu",
+            "Termin",
+            "Gecikme Günü",
+            "Durum",
+            "Bağlı Aksiyon",
+            "Bağlı Risk",
+            "Bağlı IF/DÖF",
+            "Bağlı Olay",
+            "Bağlı Sapma",
+        ),
+        "rows": rows,
+        "sheet_name": "FMEA",
+        "column_widths": (
+            18,
+            28,
+            24,
+            24,
+            34,
+            34,
+            34,
+            34,
+            12,
+            12,
+            12,
+            10,
+            14,
+            24,
+            16,
+            16,
+            20,
+            18,
+            18,
+            18,
+            18,
+            18,
+        ),
+    }
+
+
 def report_change_requests_data():
     changes = sorted(change_request_query().all(), key=change_request_sort_key)
     rows = [
@@ -7922,6 +8021,17 @@ REPORT_CENTER_REPORTS = (
         "tone": "danger",
         "module_key": "risk_management",
         "builder": report_risks_data,
+    },
+    {
+        "key": "fmea",
+        "title": "FMEA Analizi Raporu",
+        "description": "Hata türü, etki, neden, RPN, seviye, termin ve bağlantı özeti.",
+        "icon": "bi-diagram-3",
+        "tone": "danger",
+        "module_key": "fmea_management",
+        "required_permission": "fmea.view",
+        "required_export_permission": "fmea.export",
+        "builder": report_fmea_data,
     },
     {
         "key": "change_requests",
@@ -10004,6 +10114,339 @@ def risk_dashboard_context():
         "can_delete_risks": can_delete_risks(),
         "can_create_actions": current_user_can("actions.create"),
         "risk_level_tone": risk_level_tone,
+    }
+
+
+def can_view_fmeas():
+    return (
+        current_user_can("fmea.view")
+        or can_create_fmeas()
+        or can_manage_fmeas()
+        or can_close_fmeas()
+        or can_delete_fmeas()
+    )
+
+
+def can_create_fmeas():
+    return current_user_can("fmea.create") or can_manage_fmeas()
+
+
+def can_manage_fmeas():
+    return current_user_can("fmea.manage")
+
+
+def can_close_fmeas():
+    return current_user_can("fmea.close")
+
+
+def can_delete_fmeas():
+    return current_user_can("fmea.delete")
+
+
+def can_export_fmeas():
+    return current_user_can("fmea.export") or current_user_can("reports.export")
+
+
+def fmea_query():
+    return scoped_query(FmeaRecord.query, FmeaRecord)
+
+
+def fmea_level_tone(level):
+    return {
+        "Yüksek": "danger",
+        "Orta": "warning",
+        "Düşük": "success",
+    }.get(level, "muted")
+
+
+def fmea_status_tone(status):
+    return {
+        FMEA_STATUS_DRAFT: "muted",
+        FMEA_STATUS_OPEN: "warning",
+        FMEA_STATUS_ACTION_PENDING: "danger",
+        FMEA_STATUS_EFFECTIVENESS: "info",
+        FMEA_STATUS_CLOSED: "success",
+        FMEA_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def fmea_status_key(fmea):
+    status = fmea.status or FMEA_STATUS_OPEN
+    if status == FMEA_STATUS_ARCHIVED:
+        return "cancelled"
+    if status == FMEA_STATUS_CLOSED:
+        return "completed"
+    if status in {FMEA_STATUS_DRAFT, FMEA_STATUS_ACTION_PENDING, FMEA_STATUS_EFFECTIVENESS}:
+        return "pending"
+    return "open"
+
+
+def fmea_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "level": request.args.get("level", "").strip(),
+        "responsible_user_id": request.args.get("responsible_user_id", "").strip(),
+        "archive": request.args.get("archive", "").strip(),
+    }
+
+
+def fmea_sort_key(fmea):
+    status_weight = 1 if fmea.status == FMEA_STATUS_ARCHIVED else 0
+    return (status_weight, -fmea.rpn, fmea.due_date or date.max, fmea.id)
+
+
+def filtered_fmeas(filters):
+    query = fmea_query()
+    if filters["archive"] != "1":
+        query = query.filter(FmeaRecord.status != FMEA_STATUS_ARCHIVED)
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                FmeaRecord.fmea_no.ilike(search_value),
+                FmeaRecord.process_name.ilike(search_value),
+                FmeaRecord.product_or_service.ilike(search_value),
+                FmeaRecord.operation_step.ilike(search_value),
+                FmeaRecord.failure_mode.ilike(search_value),
+                FmeaRecord.failure_effect.ilike(search_value),
+                FmeaRecord.failure_cause.ilike(search_value),
+            )
+        )
+    if filters["status"]:
+        query = query.filter(FmeaRecord.status == filters["status"])
+    if filters["responsible_user_id"]:
+        try:
+            responsible_user_id = int(filters["responsible_user_id"])
+        except ValueError:
+            responsible_user_id = None
+        if responsible_user_id:
+            query = query.filter(FmeaRecord.responsible_user_id == responsible_user_id)
+
+    records = query.all()
+    if filters["level"]:
+        records = [record for record in records if record.level == filters["level"]]
+    return sorted(records, key=fmea_sort_key)
+
+
+def next_fmea_no():
+    prefix = f"FMEA-{date.today().year}-"
+    rows = (
+        scoped_query(FmeaRecord.query.with_entities(FmeaRecord.fmea_no), FmeaRecord)
+        .filter(FmeaRecord.fmea_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (fmea_no,) in rows:
+        try:
+            numbers.append(int((fmea_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_optional_form_int(field_name):
+    raw_value = request.form.get(field_name, "").strip()
+    if not raw_value:
+        return None
+    try:
+        return int(raw_value)
+    except ValueError:
+        raise ValueError(f"invalid_{field_name}") from None
+
+
+def fmea_allowed_statuses(current_status=None):
+    statuses = [FMEA_STATUS_DRAFT, FMEA_STATUS_OPEN]
+    if can_manage_fmeas():
+        statuses.extend([FMEA_STATUS_ACTION_PENDING, FMEA_STATUS_EFFECTIVENESS])
+    if can_close_fmeas():
+        statuses.append(FMEA_STATUS_CLOSED)
+    if can_delete_fmeas():
+        statuses.append(FMEA_STATUS_ARCHIVED)
+    if current_status and current_status not in statuses:
+        statuses.append(current_status)
+    return tuple(dict.fromkeys(statuses))
+
+
+def fmea_create_statuses():
+    return tuple(
+        status
+        for status in fmea_allowed_statuses()
+        if status not in {FMEA_STATUS_CLOSED, FMEA_STATUS_ARCHIVED}
+    )
+
+
+def parse_fmea_form(allowed_statuses=None):
+    allowed_statuses = set(allowed_statuses or FMEA_STATUSES)
+    values = {
+        "process_name": request.form.get("process_name", "").strip(),
+        "product_or_service": request.form.get("product_or_service", "").strip(),
+        "operation_step": request.form.get("operation_step", "").strip(),
+        "failure_mode": request.form.get("failure_mode", "").strip(),
+        "failure_effect": request.form.get("failure_effect", "").strip(),
+        "failure_cause": request.form.get("failure_cause", "").strip(),
+        "current_controls": request.form.get("current_controls", "").strip(),
+        "recommended_action": request.form.get("recommended_action", "").strip(),
+        "status": request.form.get("status", FMEA_STATUS_OPEN).strip() or FMEA_STATUS_OPEN,
+        "due_date": parse_optional_date("due_date"),
+        "responsible_user_id": parse_optional_form_int("responsible_user_id"),
+        "action_id": parse_optional_form_int("action_id"),
+        "risk_id": parse_optional_form_int("risk_id"),
+        "dof_id": parse_optional_form_int("dof_id"),
+        "incident_id": parse_optional_form_int("incident_id"),
+        "deviation_id": parse_optional_form_int("deviation_id"),
+    }
+    try:
+        values["severity"] = int(request.form.get("severity", 1))
+        values["occurrence"] = int(request.form.get("occurrence", 1))
+        values["detection"] = int(request.form.get("detection", 1))
+    except (TypeError, ValueError):
+        raise ValueError("invalid_score")
+
+    if not values["process_name"] or not values["failure_mode"]:
+        raise ValueError("required_fields")
+    if values["status"] not in allowed_statuses:
+        raise ValueError("invalid_status")
+    if any(values[key] not in range(1, 11) for key in ("severity", "occurrence", "detection")):
+        raise ValueError("invalid_score")
+
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_fmea_links(fmea):
+    if fmea.responsible_user_id:
+        user = User.query.filter_by(id=fmea.responsible_user_id, is_active=True).first()
+        if user is None or (
+            current_company_id() and user.company_id not in {None, current_company_id()}
+        ):
+            raise ValueError("invalid_responsible_user_id")
+    if fmea.action_id:
+        action = scoped_query(Action.query, Action).filter_by(id=fmea.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action_id")
+    if fmea.risk_id:
+        risk = scoped_query(RiskRecord.query, RiskRecord).filter_by(id=fmea.risk_id).first()
+        if risk is None:
+            raise ValueError("invalid_risk_id")
+    if fmea.dof_id:
+        dof = visible_dofs_query().filter_by(id=fmea.dof_id).first()
+        if dof is None:
+            raise ValueError("invalid_dof_id")
+    if fmea.incident_id:
+        incident = scoped_query(IncidentReport.query, IncidentReport).filter_by(id=fmea.incident_id).first()
+        if incident is None:
+            raise ValueError("invalid_incident_id")
+    if fmea.deviation_id:
+        deviation = scoped_query(DeviationRecord.query, DeviationRecord).filter_by(id=fmea.deviation_id).first()
+        if deviation is None:
+            raise ValueError("invalid_deviation_id")
+
+
+def fmea_form_error_message(error_key):
+    return {
+        "required_fields": "Proses adı ve hata türü zorunludur.",
+        "invalid_status": "Geçerli bir FMEA durumu seçin.",
+        "invalid_score": "Şiddet, olasılık ve tespit puanları 1 ile 10 arasında olmalıdır.",
+        "invalid_responsible_user_id": "Geçerli bir sorumlu seçin.",
+        "invalid_action_id": "Geçerli bir aksiyon bağlantısı seçin.",
+        "invalid_risk_id": "Geçerli bir risk bağlantısı seçin.",
+        "invalid_dof_id": "Geçerli bir IF/DÖF bağlantısı seçin.",
+        "invalid_incident_id": "Geçerli bir olay/ramak kala bağlantısı seçin.",
+        "invalid_deviation_id": "Geçerli bir sapma bağlantısı seçin.",
+    }.get(error_key, "FMEA kaydı kaydedilemedi.")
+
+
+def fmea_related_options():
+    actions = (
+        visible_actions_query()
+        .filter_by(is_completed=False)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all()
+    )
+    risks = []
+    if company_module_enabled("risk_management") and can_view_risks():
+        risks = sorted(risk_query().all(), key=lambda risk: (-risk.rpn, risk.due_date or date.max, risk.id))
+    dofs = attach_dof_view_state(
+        visible_dofs_query().order_by(Dof.dof_no.asc(), Dof.id.asc()).all()
+    )
+    incidents = []
+    if company_module_enabled("incident_near_miss") and current_user_can("incident.view"):
+        incidents = (
+            scoped_query(IncidentReport.query, IncidentReport)
+            .order_by(IncidentReport.incident_no.asc(), IncidentReport.id.asc())
+            .all()
+        )
+    deviations = []
+    if company_module_enabled("deviation_management") and current_user_can("deviation.view"):
+        deviations = (
+            scoped_query(DeviationRecord.query, DeviationRecord)
+            .order_by(DeviationRecord.deviation_no.asc(), DeviationRecord.id.asc())
+            .all()
+        )
+    return actions, risks, dofs, incidents, deviations
+
+
+def fmea_form_context(fmea=None):
+    form_data = request.form if request.method == "POST" else {}
+    actions, risks, dofs, incidents, deviations = fmea_related_options()
+    return {
+        "fmea": fmea,
+        "statuses": fmea_allowed_statuses(fmea.status) if fmea else fmea_create_statuses(),
+        "score_options": range(1, 11),
+        "users": active_users(),
+        "actions": actions,
+        "risks": risks,
+        "dofs": dofs,
+        "incidents": incidents,
+        "deviations": deviations,
+        "form_data": form_data,
+        "can_manage_fmeas": can_manage_fmeas(),
+        "fmea_level_tone": fmea_level_tone,
+    }
+
+
+def mark_fmea_sales_readiness_without_commit():
+    has_record = FmeaRecord.query.count() > 0
+    has_created_audit = (
+        AuditLog.query.filter_by(entity_type="FmeaRecord", action="fmea_created").first()
+        is not None
+    )
+    if has_record and has_created_audit:
+        mark_sales_readiness_item_done_without_commit("competitor_fmea")
+
+
+def fmea_dashboard_context():
+    filters = fmea_filters()
+    records = filtered_fmeas(filters)
+    all_records = fmea_query().all()
+    active_records = [record for record in all_records if record.status != FMEA_STATUS_ARCHIVED]
+    high_records = [record for record in active_records if record.level == "Yüksek"]
+    delayed_records = [record for record in active_records if record.delay_days > 0]
+    linked_count = sum(
+        1
+        for record in all_records
+        if record.action_id or record.risk_id or record.dof_id or record.incident_id or record.deviation_id
+    )
+    return {
+        "fmeas": records,
+        "total_count": len(all_records),
+        "active_count": len(active_records),
+        "high_count": len(high_records),
+        "delayed_count": len(delayed_records),
+        "linked_count": linked_count,
+        "filters": filters,
+        "statuses": FMEA_STATUSES,
+        "users": active_users(),
+        "can_create_fmeas": can_create_fmeas(),
+        "can_manage_fmeas": can_manage_fmeas(),
+        "can_close_fmeas": can_close_fmeas(),
+        "can_delete_fmeas": can_delete_fmeas(),
+        "can_create_actions": current_user_can("actions.create"),
+        "fmea_level_tone": fmea_level_tone,
+        "fmea_status_tone": fmea_status_tone,
     }
 
 
@@ -13888,6 +14331,47 @@ def assigned_risk_tasks(scope):
     return rows
 
 
+def assigned_fmea_tasks(scope):
+    if not company_module_enabled("fmea_management") or not can_view_fmeas():
+        return []
+
+    user_id = g.current_user.id
+    query = fmea_query()
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter_by(responsible_user_id=user_id)
+
+    rows = []
+    for fmea in query.all():
+        status = fmea.status or FMEA_STATUS_OPEN
+        status_key = fmea_status_key(fmea)
+        if status_key in {"completed", "cancelled"} and scope != "created":
+            continue
+        if status_key in {"open", "pending"} and fmea.delay_days > 0:
+            status, status_key = "Gecikti", "delayed"
+        rows.append(
+            assigned_task_row(
+                module_key="fmea",
+                module_label="FMEA",
+                module_icon="diagram-3",
+                module_tone="risk",
+                title=f"{fmea.fmea_no} {fmea.failure_mode}",
+                description=fmea.failure_effect or fmea.process_name,
+                reference_no=fmea.fmea_no,
+                department=fmea.process_name,
+                due_date=fmea.due_date,
+                status=status,
+                status_key=status_key,
+                priority=fmea.level,
+                detail_url=url_for("main.fmea_detail", fmea_id=fmea.id),
+                created_at=fmea.created_at,
+                sort_id=fmea.id,
+            )
+        )
+    return rows
+
+
 def assigned_complaint_tasks(scope):
     if not company_module_enabled("suggestions") or not can_view_complaints():
         return []
@@ -14563,6 +15047,7 @@ def assigned_all_tasks(scope):
         + assigned_maintenance_tasks(scope)
         + assigned_training_tasks(scope)
         + assigned_risk_tasks(scope)
+        + assigned_fmea_tasks(scope)
         + assigned_complaint_tasks(scope)
         + assigned_management_review_tasks(scope)
         + assigned_document_revision_tasks(scope)
@@ -14591,6 +15076,7 @@ ASSIGNED_TAB_MODULES = {
         "dof",
         "internal_audit",
         "risk",
+        "fmea",
         "training",
         "document_revision",
         "change_management",
@@ -14611,6 +15097,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("maintenance", "Bakım"),
     ("training", "Eğitim"),
     ("risk", "Risk"),
+    ("fmea", "FMEA"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
@@ -15409,6 +15896,218 @@ def delete_risk(risk_id):
     db.session.commit()
     flash("Risk kaydı silindi.", "success")
     return redirect(url_for("main.risk_dashboard"))
+
+
+@bp.route("/fmea")
+@login_required
+def fmea_dashboard():
+    if not can_view_fmeas():
+        abort(403)
+    return render_template("fmea/dashboard.html", **fmea_dashboard_context())
+
+
+@bp.route("/fmea/yeni", methods=["GET", "POST"])
+@login_required
+def create_fmea():
+    if not can_create_fmeas():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_fmea_form(fmea_create_statuses())
+            if not can_manage_fmeas():
+                values["status"] = FMEA_STATUS_OPEN
+            fmea = FmeaRecord(
+                fmea_no=next_fmea_no(),
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(fmea)
+            validate_fmea_links(fmea)
+            db.session.add(fmea)
+            db.session.flush()
+            record_audit_event(
+                "FmeaRecord",
+                "fmea_created",
+                f"{fmea.fmea_no} FMEA kaydı oluşturuldu",
+                entity_id=fmea.id,
+                new_values={
+                    "process_name": fmea.process_name,
+                    "failure_mode": fmea.failure_mode,
+                    "rpn": fmea.rpn,
+                    "level": fmea.level,
+                    "responsible_user_id": fmea.responsible_user_id,
+                },
+                company_id=fmea.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            mark_sales_readiness_item_done_without_commit("competitor_fmea")
+            db.session.commit()
+            flash("FMEA kaydı oluşturuldu.", "success")
+            return redirect(url_for("main.fmea_detail", fmea_id=fmea.id))
+        except ValueError as error:
+            db.session.rollback()
+            flash(fmea_form_error_message(str(error)), "danger")
+
+    return render_template("fmea/form.html", **fmea_form_context())
+
+
+@bp.route("/fmea/<int:fmea_id>")
+@login_required
+def fmea_detail(fmea_id):
+    if not can_view_fmeas():
+        abort(403)
+    fmea = fmea_query().filter_by(id=fmea_id).first_or_404()
+    ensure_same_company(fmea)
+    return render_template(
+        "fmea/detail.html",
+        fmea=fmea,
+        can_manage_fmeas=can_manage_fmeas(),
+        can_close_fmeas=can_close_fmeas(),
+        can_delete_fmeas=can_delete_fmeas(),
+        can_create_actions=current_user_can("actions.create"),
+        fmea_level_tone=fmea_level_tone,
+        fmea_status_tone=fmea_status_tone,
+        status_action_pending=FMEA_STATUS_ACTION_PENDING,
+        status_effectiveness=FMEA_STATUS_EFFECTIVENESS,
+        status_closed=FMEA_STATUS_CLOSED,
+        status_archived=FMEA_STATUS_ARCHIVED,
+    )
+
+
+@bp.route("/fmea/<int:fmea_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_fmea(fmea_id):
+    if not can_manage_fmeas():
+        abort(403)
+    fmea = fmea_query().filter_by(id=fmea_id).first_or_404()
+    ensure_same_company(fmea)
+
+    if request.method == "POST":
+        try:
+            old_values = {
+                "status": fmea.status,
+                "rpn": fmea.rpn,
+                "responsible_user_id": fmea.responsible_user_id,
+                "due_date": fmea.due_date.isoformat() if fmea.due_date else None,
+            }
+            values = parse_fmea_form(fmea_allowed_statuses(fmea.status))
+            for key, value in values.items():
+                setattr(fmea, key, value)
+            if fmea.status == FMEA_STATUS_CLOSED and not fmea.closed_at:
+                fmea.closed_at = date.today()
+            elif fmea.status not in {FMEA_STATUS_CLOSED, FMEA_STATUS_ARCHIVED}:
+                fmea.closed_at = None
+            validate_fmea_links(fmea)
+            record_audit_event(
+                "FmeaRecord",
+                "fmea_updated",
+                f"{fmea.fmea_no} FMEA kaydı güncellendi",
+                entity_id=fmea.id,
+                old_values=old_values,
+                new_values={
+                    "status": fmea.status,
+                    "rpn": fmea.rpn,
+                    "level": fmea.level,
+                    "responsible_user_id": fmea.responsible_user_id,
+                    "due_date": fmea.due_date.isoformat() if fmea.due_date else None,
+                },
+                company_id=fmea.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            mark_fmea_sales_readiness_without_commit()
+            db.session.commit()
+            flash("FMEA kaydı güncellendi.", "success")
+            return redirect(url_for("main.fmea_detail", fmea_id=fmea.id))
+        except ValueError as error:
+            db.session.rollback()
+            flash(fmea_form_error_message(str(error)), "danger")
+
+    return render_template("fmea/form.html", **fmea_form_context(fmea))
+
+
+@bp.post("/fmea/<int:fmea_id>/aksiyon-bekliyor")
+@login_required
+def mark_fmea_action_pending(fmea_id):
+    if not can_manage_fmeas():
+        abort(403)
+    fmea = fmea_query().filter_by(id=fmea_id).first_or_404()
+    ensure_same_company(fmea)
+    if not (fmea.responsible_user_id or fmea.action_id):
+        flash("Aksiyon bekliyor durumuna almak için sorumlu veya aksiyon bağlantısı seçin.", "danger")
+        return redirect(url_for("main.fmea_detail", fmea_id=fmea.id))
+    fmea.status = FMEA_STATUS_ACTION_PENDING
+    record_audit_event(
+        "FmeaRecord",
+        "fmea_action_pending",
+        f"{fmea.fmea_no} aksiyon bekliyor durumuna alındı",
+        entity_id=fmea.id,
+        new_values={"status": fmea.status, "responsible_user_id": fmea.responsible_user_id},
+        company_id=fmea.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    mark_fmea_sales_readiness_without_commit()
+    db.session.commit()
+    flash("FMEA aksiyon bekliyor durumuna alındı.", "success")
+    return redirect(url_for("main.fmea_detail", fmea_id=fmea.id))
+
+
+@bp.post("/fmea/<int:fmea_id>/kapat")
+@login_required
+def close_fmea(fmea_id):
+    if not can_close_fmeas():
+        abort(403)
+    fmea = fmea_query().filter_by(id=fmea_id).first_or_404()
+    ensure_same_company(fmea)
+    close_note = request.form.get("close_note", "").strip()
+    if close_note:
+        fmea.recommended_action = "\n\n".join(
+            part for part in (fmea.recommended_action, close_note[:3000]) if part
+        )
+    fmea.status = FMEA_STATUS_CLOSED
+    fmea.closed_at = date.today()
+    record_audit_event(
+        "FmeaRecord",
+        "fmea_closed",
+        f"{fmea.fmea_no} FMEA kaydı kapatıldı",
+        entity_id=fmea.id,
+        new_values={"status": fmea.status, "closed_at": fmea.closed_at.isoformat()},
+        company_id=fmea.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    mark_fmea_sales_readiness_without_commit()
+    db.session.commit()
+    flash("FMEA kaydı kapatıldı.", "success")
+    return redirect(url_for("main.fmea_detail", fmea_id=fmea.id))
+
+
+@bp.post("/fmea/<int:fmea_id>/arsivle")
+@login_required
+def archive_fmea(fmea_id):
+    if not can_delete_fmeas():
+        abort(403)
+    fmea = fmea_query().filter_by(id=fmea_id).first_or_404()
+    ensure_same_company(fmea)
+    fmea.status = FMEA_STATUS_ARCHIVED
+    fmea.archived_at = datetime.utcnow()
+    record_audit_event(
+        "FmeaRecord",
+        "fmea_archived",
+        f"{fmea.fmea_no} FMEA kaydı arşivlendi",
+        entity_id=fmea.id,
+        new_values={"status": fmea.status},
+        company_id=fmea.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    mark_fmea_sales_readiness_without_commit()
+    db.session.commit()
+    flash("FMEA kaydı arşive alındı.", "success")
+    return redirect(url_for("main.fmea_dashboard"))
 
 
 def can_view_change_requests():
