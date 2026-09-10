@@ -16,6 +16,8 @@
   {% set pilot_programs_active = request.endpoint in ['main.pilot_programs', 'main.create_pilot_program', 'main.edit_pilot_program'] %}
   {% set legal_documents_active = request.endpoint in ['main.legal_documents_admin', 'main.create_legal_document_revision', 'main.publish_legal_document', 'main.archive_legal_document'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
+  {% set iso_management_summary_active = request.endpoint == 'main.iso_executive_summary' %}
+  {% set management_due_dashboard_active = request.endpoint == 'main.management_due_dashboard' %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set fmea_management_active = request.endpoint in ['main.fmea_dashboard', 'main.create_fmea', 'main.fmea_detail', 'main.edit_fmea', 'main.mark_fmea_action_pending', 'main.close_fmea', 'main.archive_fmea'] %}
   {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
@@ -52,6 +54,18 @@
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
         </a>
+        {% if g.company_module_enabled('iso_executive_summary') and g.current_user.has_permission('iso_dashboard.view') %}
+          <a class="dashboard-nav-item dashboard-nav-item-wrap {% if iso_management_summary_active %}active{% endif %}" href="{{ url_for('main.iso_executive_summary') }}" title="ISO 9001 Yönetici Özeti">
+            <i class="bi bi-speedometer2"></i>
+            <span class="dashboard-nav-label-wrap">ISO 9001 Yönetici Özeti</span>
+          </a>
+        {% endif %}
+        {% if g.company_module_enabled('management_due_dashboard') and g.current_user.has_permission('management_due_dashboard.view') %}
+          <a class="dashboard-nav-item dashboard-nav-item-wrap {% if management_due_dashboard_active %}active{% endif %}" href="{{ url_for('main.management_due_dashboard') }}" title="Yönetici Termin Paneli">
+            <i class="bi bi-calendar2-week"></i>
+            <span class="dashboard-nav-label-wrap">Yönetici Termin Paneli</span>
+          </a>
+        {% endif %}
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
             <i class="bi bi-people"></i>

@@ -60,6 +60,22 @@ class Company(db.Model):
 
 COMPANY_MODULE_CATALOG = (
     {
+        "key": "iso_executive_summary",
+        "name": "ISO 9001 Yönetici Özeti",
+        "description": "Kalite yönetim sistemindeki kritik kayıtları tek yönetici ekranında özetler.",
+        "icon": "bi-speedometer2",
+        "sort_order": 5,
+        "parent_key": None,
+    },
+    {
+        "key": "management_due_dashboard",
+        "name": "Yönetici Termin Paneli",
+        "description": "Geciken ve 30 gün içinde yaklaşan işleri modüller arasında izler.",
+        "icon": "bi-calendar2-week",
+        "sort_order": 6,
+        "parent_key": None,
+    },
+    {
         "key": "organization",
         "name": "Organizasyon Şeması",
         "description": "Şirket hiyerarşisi, departman başlıkları ve organizasyon haritası.",

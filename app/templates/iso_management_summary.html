@@ -1,0 +1,72 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}ISO 9001 Y&ouml;netici &Ouml;zeti{% endblock %}
+{% block topbar_title %}ISO 9001 Y&ouml;netici &Ouml;zeti{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("ISO 9001 Yönetici Özeti", "Kalite yönetim sistemindeki kritik kayıtları ve takip alanlarını tek ekranda izleyin.", icon="bi-speedometer2") %}
+    {% if g.current_user_is_super_admin %}
+      <form class="dashboard-company-switcher" method="post" action="{{ url_for('main.switch_company') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="visually-hidden" for="iso_company_id">Şirket seç</label>
+        <select class="form-select" id="iso_company_id" name="company_id" onchange="this.form.submit()">
+          <option value="" {% if not g.current_company %}selected{% endif %}>Ortak görünüm</option>
+          {% for company in available_companies %}
+            <option value="{{ company.id }}" {% if g.current_company and g.current_company.id == company.id %}selected{% endif %}>{{ company.label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-activity"></i></span>
+      <span class="stat-label">Takip Maddesi</span>
+      <strong>{{ iso_dashboard.risk_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check-circle"></i></span>
+      <span class="stat-label">Risksiz Alan</span>
+      <strong>{{ iso_dashboard.healthy_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-grid"></i></span>
+      <span class="stat-label">İzlenen Başlık</span>
+      <strong>{{ iso_dashboard.cards|length }}</strong>
+    </div>
+  </div>
+
+  <section class="document-list-card vp-card p-4">
+    <div class="row g-3">
+      {% for card in iso_dashboard.cards %}
+        <div class="col-12 col-md-6 col-xxl-4">
+          <a class="text-decoration-none text-reset d-block h-100" href="{{ card.href }}">
+            <article class="border rounded-3 bg-white p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start gap-3">
+                <span class="app-card-icon flex-shrink-0"><i class="bi {{ card.icon }}"></i></span>
+                <span class="vp-status-badge vp-status-{{ card.tone }}"><span>{{ card.value }}</span></span>
+              </div>
+              <h2 class="h6 mt-3 mb-1">{{ card.title }}</h2>
+              <p class="text-secondary small mb-3">{{ card.subtitle }}</p>
+              <div class="vstack gap-2">
+                {% for item in card["items"] %}
+                  <div class="border rounded-3 px-3 py-2">
+                    <div class="d-flex justify-content-between gap-2">
+                      <strong class="small text-primary">{{ item.label }}</strong>
+                      <small class="text-secondary text-nowrap">{{ item.status }}</small>
+                    </div>
+                    <small class="text-secondary d-block text-truncate">{{ item.meta }}</small>
+                  </div>
+                {% else %}
+                  <div class="border rounded-3 px-3 py-2 text-secondary small">Kritik takip maddesi yok.</div>
+                {% endfor %}
+              </div>
+            </article>
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

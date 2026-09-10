@@ -103,6 +103,8 @@ def test_iso_core_package_disables_production_modules_and_marks_demo(app, client
     assert company.is_demo is True
     state = module_state(company)
     assert state["documents"] is True
+    assert state["iso_executive_summary"] is True
+    assert state["management_due_dashboard"] is True
     assert state["suggestions"] is True
     assert state["fmea_management"] is True
     assert state["process_management"] is True

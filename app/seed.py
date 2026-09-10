@@ -7,6 +7,18 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 PERMISSION_CATALOG = (
     {
+        "key": "iso_dashboard.view",
+        "label": "ISO 9001 yönetici özetini görüntüleme",
+        "group": "Yönetici Panelleri",
+        "description": "ISO 9001 kalite göstergelerini ve kritik kayıt özetlerini görüntüler.",
+    },
+    {
+        "key": "management_due_dashboard.view",
+        "label": "Yönetici termin panelini görüntüleme",
+        "group": "Yönetici Panelleri",
+        "description": "Geciken ve 30 gün içinde yaklaşan yönetici terminlerini görüntüler.",
+    },
+    {
         "key": "roles.manage",
         "label": "Rol ve yetki yönetimi",
         "group": "Sistem",
@@ -488,6 +500,8 @@ ROLE_DEFINITIONS = (
         "hierarchy_level": 10,
         "description": "Kalite sistemi süreçlerini, aksiyon kapanışlarını, IF yönetim onaylarını ve denetimleri yönetir.",
         "permissions": [
+            "iso_dashboard.view",
+            "management_due_dashboard.view",
             "users.manage",
             "actions.create",
             "actions.edit",
@@ -565,6 +579,8 @@ ROLE_DEFINITIONS = (
         "hierarchy_level": 20,
         "description": "Yönetim seviyesinde aksiyonları ve IF kayıtlarını görüntüler, yetkili onayları verir.",
         "permissions": [
+            "iso_dashboard.view",
+            "management_due_dashboard.view",
             "if.view_all",
             "if.approve_deputy",
             "if.reject",
@@ -600,6 +616,7 @@ ROLE_DEFINITIONS = (
         "hierarchy_level": 30,
         "description": "Kendi departmanı ve sorumluluğundaki işler için aksiyon ve görev takibi yapar.",
         "permissions": [
+            "management_due_dashboard.view",
             "actions.create",
             "actions.comment_assigned",
             "actions.request_close_assigned",

@@ -12445,6 +12445,20 @@ textarea.form-control::placeholder {
         pointer-events: auto;
     }
 
+    .dashboard-sidebar:hover .dashboard-nav-item-wrap,
+    .dashboard-sidebar:focus-within .dashboard-nav-item-wrap {
+        min-height: 52px;
+        padding-block: 6px;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-item .dashboard-nav-label-wrap,
+    .dashboard-sidebar:focus-within .dashboard-nav-item .dashboard-nav-label-wrap {
+        max-width: 168px;
+        overflow: visible;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
     .dashboard-sidebar:hover .dashboard-subnav,
     .dashboard-sidebar:focus-within .dashboard-subnav {
         max-width: none;

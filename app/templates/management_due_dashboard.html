@@ -1,0 +1,110 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Y&ouml;netici Termin Paneli{% endblock %}
+{% block topbar_title %}Y&ouml;netici Termin Paneli{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Yönetici Termin Paneli", "Geciken ve 30 gün içinde yaklaşan işleri en kritik tarihten başlayarak izleyin.", icon="bi-calendar2-week") %}
+    {% if g.current_user_is_super_admin %}
+      <form class="dashboard-company-switcher" method="post" action="{{ url_for('main.switch_company') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="visually-hidden" for="due_company_id">Şirket seç</label>
+        <select class="form-select" id="due_company_id" name="company_id" onchange="this.form.submit()">
+          <option value="" {% if not g.current_company %}selected{% endif %}>Ortak görünüm</option>
+          {% for company in available_companies %}
+            <option value="{{ company.id }}" {% if g.current_company and g.current_company.id == company.id %}selected{% endif %}>{{ company.label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    {% endif %}
+    {% if can_export_reports %}
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.report_center_pdf', report_key='management_due_summary') }}" target="_blank" rel="noopener">
+        <i class="bi bi-printer"></i>
+        <span>Termin Raporu</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-exclamation-circle"></i></span>
+      <span class="stat-label">Geciken</span>
+      <strong>{{ due_summary.overdue }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-calendar-event"></i></span>
+      <span class="stat-label">Bugün</span>
+      <strong>{{ due_summary.today }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-calendar-week"></i></span>
+      <span class="stat-label">7 Gün İçinde</span>
+      <strong>{{ due_summary.next_7 }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-calendar2-week"></i></span>
+      <span class="stat-label">8-30 Gün İçinde</span>
+      <strong>{{ due_summary.next_30 }}</strong>
+    </div>
+  </div>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table vp-table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Modül</th>
+            <th>Kayıt</th>
+            <th>Sorumlu</th>
+            <th>Termin</th>
+            <th>Durum</th>
+            <th class="text-end">İşlem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in due_items %}
+            <tr>
+              <td>
+                <span class="d-inline-flex align-items-center gap-2 fw-semibold">
+                  <i class="bi {{ item.icon }} text-primary"></i>
+                  <span>{{ item.module }}</span>
+                </span>
+              </td>
+              <td>
+                <div class="fw-semibold text-primary">{{ item.reference_no }}</div>
+                <div class="small text-secondary text-truncate" style="max-width: 420px;">{{ item.title }}</div>
+              </td>
+              <td>
+                <div>{{ item.responsible }}</div>
+                <small class="text-secondary">{{ item.department }}</small>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ item.due_label }}</div>
+                <small class="text-secondary">{{ item.date_label }}</small>
+              </td>
+              <td>
+                <span class="vp-status-badge vp-status-{{ item.due_tone }}"><span>{{ item.due_text }}</span></span>
+              </td>
+              <td class="text-end">
+                {% if item.detail_url %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ item.detail_url }}">
+                    <i class="bi bi-arrow-right"></i>
+                    <span>Aç</span>
+                  </a>
+                {% else %}
+                  <span class="text-secondary small">-</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6" class="text-center text-secondary py-5">Geciken veya 30 gün içinde yaklaşan kritik termin yok.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="dashboard-table-footer"><span>Toplam {{ due_summary.total }} kayıt</span></div>
+  </section>
+{% endblock %}

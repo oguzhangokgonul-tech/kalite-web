@@ -12,6 +12,8 @@ CUSTOM_PACKAGE_KEY = "custom"
 DEFAULT_PACKAGE_KEY = ISO_CORE_PACKAGE_KEY
 
 ISO_CORE_MODULE_KEYS = {
+    "iso_executive_summary",
+    "management_due_dashboard",
     "organization",
     "calibration",
     "human_resources",

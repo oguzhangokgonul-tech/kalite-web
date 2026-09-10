@@ -2615,6 +2615,8 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "main.iso_executive_summary": "iso_executive_summary",
+    "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
     "main.organization_legacy": "organization",
     "main.orientation": "organization",
@@ -6598,11 +6600,11 @@ def can_view_report_center():
 
 
 def can_view_management_due_dashboard():
-    return (
-        can_view_report_center()
-        or current_user_can("actions.view_all")
-        or is_oguzhan_admin()
-    )
+    return current_user_can("management_due_dashboard.view")
+
+
+def can_view_iso_executive_summary():
+    return current_user_can("iso_dashboard.view")
 
 
 def report_scope_label():
@@ -6838,7 +6840,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
-    if company_module_enabled("internal_audit"):
+    if company_module_enabled("internal_audit") and (
+        not visible_scope or current_user_can("internal_audit.manage")
+    ):
         audits = (
             scoped_query(InternalAudit.query, InternalAudit)
             .filter(InternalAudit.status != "Tamamlandı", InternalAudit.planned_date.isnot(None))
@@ -6862,7 +6866,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
-    if company_module_enabled("calibration"):
+    if company_module_enabled("calibration") and (
+        not visible_scope or can_view_calibration()
+    ):
         for record in calibration_query().filter(CalibrationRecord.is_active.is_(True)).all():
             calibration_days = calibration_day_status(record.next_calibration_date)["days"]
             append_management_due_item(
@@ -6907,7 +6913,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
             today=today,
         )
 
-    if company_module_enabled("risk_management"):
+    if company_module_enabled("risk_management") and (
+        not visible_scope or can_view_risks()
+    ):
         for risk in risk_query().all():
             if risk.status == "Kapandı":
                 continue
@@ -6927,7 +6935,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
-    if company_module_enabled("suggestions"):
+    if company_module_enabled("suggestions") and (
+        not visible_scope or can_view_complaints()
+    ):
         for complaint in complaint_query().all():
             if complaint.is_closed:
                 continue
@@ -6947,7 +6957,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
-    if company_module_enabled("supplier_management"):
+    if company_module_enabled("supplier_management") and (
+        not visible_scope or can_view_suppliers()
+    ):
         for supplier in supplier_query().all():
             if supplier.is_passive:
                 continue
@@ -6968,7 +6980,9 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
-    if company_module_enabled("management_review"):
+    if company_module_enabled("management_review") and (
+        not visible_scope or can_view_management_reviews()
+    ):
         for review in management_review_query().all():
             if review.is_completed:
                 continue
@@ -9367,6 +9381,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
     cards = [
         {
             "title": "Açık IF/DÖF",
+            "module_key": "if_management",
             "value": len(open_dofs),
             "subtitle": f"{len(delayed_dofs)} gecikmiş kayıt",
             "tone": "danger" if delayed_dofs else "blue",
@@ -9432,6 +9447,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Revizyon Bekleyen Doküman",
+            "module_key": "documents",
             "value": len(pending_revision_requests),
             "subtitle": "Yönetim onayı bekleyen talep",
             "tone": "warning" if pending_revision_requests else "success",
@@ -9450,6 +9466,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Yüksek Risk",
+            "module_key": "risk_management",
             "value": len(high_risks),
             "subtitle": f"{len(open_risks)} açık/izlenen risk",
             "tone": "danger" if high_risks else "success",
@@ -9466,6 +9483,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Tedarikçi Riski",
+            "module_key": "supplier_management",
             "value": len(supplier_risks),
             "subtitle": f"{len(overdue_suppliers)} değerlendirme tarihi geçmiş",
             "tone": "danger" if overdue_suppliers or supplier_risks else "success",
@@ -9486,6 +9504,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Açık Şikayet",
+            "module_key": "suggestions",
             "value": len(open_complaints),
             "subtitle": f"{len(delayed_complaints)} gecikmiş, {len(critical_complaints)} kritik",
             "tone": "danger" if delayed_complaints or critical_complaints else "success",
@@ -9506,6 +9525,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Bekleyen Eğitim",
+            "module_key": "training",
             "value": len(pending_training_participants),
             "subtitle": "Okuma/onay ve katılım bekleyen",
             "tone": "warning" if pending_training_participants else "success",
@@ -9522,6 +9542,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Yaklaşan İç Denetim",
+            "module_key": "internal_audit",
             "value": len(upcoming_audits),
             "subtitle": "30 gün içindeki planlar",
             "tone": "purple" if upcoming_audits else "success",
@@ -9538,6 +9559,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "YGG Takibi",
+            "module_key": "management_review",
             "value": len(open_management_reviews),
             "subtitle": f"{len(overdue_management_reviews)} gecikmiş, {len(upcoming_management_reviews)} yaklaşan",
             "tone": "danger" if overdue_management_reviews else ("warning" if upcoming_management_reviews else "success"),
@@ -9558,6 +9580,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         },
         {
             "title": "Kalibrasyon Riski",
+            "module_key": "calibration",
             "value": len(overdue_calibrations) + len(due_calibrations),
             "subtitle": f"{len(overdue_calibrations)} geçmiş, {len(due_calibrations)} yaklaşan",
             "tone": "danger" if overdue_calibrations else ("warning" if due_calibrations else "success"),
@@ -9575,6 +9598,12 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
                 )[:3]
             ],
         },
+    ]
+    cards = [
+        card
+        for card in cards
+        if not card.get("module_key")
+        or company_module_enabled(card["module_key"])
     ]
     all_due_items = (
         management_due_items(all_actions=all_actions, visible_scope=True)
@@ -14105,6 +14134,12 @@ def delete_orientation_node(node_id):
     return jsonify({"ok": True, "nodes": orientation_nodes_payload()})
 
 
+def dashboard_company_options():
+    if not g.current_user_is_super_admin:
+        return []
+    return Company.query.filter_by(is_active=True).order_by(Company.code.asc()).all()
+
+
 def dashboard_context():
     all_actions = refresh_all_actions()
     filters = dashboard_filters()
@@ -14119,26 +14154,13 @@ def dashboard_context():
         if not action.is_completed and action.closure_approval_requested
     )
     total_count = len(all_actions)
-    can_view_management_due = can_view_management_due_dashboard()
-    iso_dashboard = iso_dashboard_context(
-        all_actions,
-        include_due_panel=can_view_management_due,
-    )
-
     return {
         "actions": actions,
-        "available_companies": Company.query.filter_by(is_active=True)
-        .order_by(Company.code.asc())
-        .all()
-        if g.current_user_is_super_admin
-        else [],
+        "available_companies": dashboard_company_options(),
         "delayed_count": delayed_count,
         "completed_count": completed_count,
         "pending_approval_count": pending_approval_count,
         "total_count": total_count,
-        "iso_dashboard": iso_dashboard,
-        "can_view_management_due_dashboard": can_view_management_due,
-        "can_export_reports": can_export_reports(),
         "can_complete_action": can_complete_action,
         "can_request_closure_action": can_request_closure_action,
         "can_approve_closure_action": can_approve_closure_action,
@@ -16155,6 +16177,35 @@ def archive_legal_document(document_id):
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.get("/iso-9001-yonetici-ozeti")
+@login_required
+def iso_executive_summary():
+    if not can_view_iso_executive_summary():
+        abort(403)
+    return render_template(
+        "iso_management_summary.html",
+        iso_dashboard=iso_dashboard_context(refresh_all_actions(), include_due_panel=False),
+        available_companies=dashboard_company_options(),
+    )
+
+
+@bp.get("/yonetici-termin-paneli")
+@login_required
+def management_due_dashboard():
+    if not can_view_management_due_dashboard():
+        abort(403)
+    due_items = management_due_items(all_actions=refresh_all_actions(), visible_scope=True)
+    return render_template(
+        "management_due_dashboard.html",
+        due_items=due_items,
+        due_summary=management_due_summary(due_items),
+        available_companies=dashboard_company_options(),
+        can_export_reports=(
+            company_module_enabled("report_center") and can_export_reports()
+        ),
+    )
 
 
 @bp.route("/satisa-hazirlik", methods=["GET", "POST"])

@@ -77,6 +77,8 @@ def onboarding_payload(**overrides):
         "package_key": "iso_core",
         "is_active": "on",
         "enabled_modules": [
+            "iso_executive_summary",
+            "management_due_dashboard",
             "organization",
             "calibration",
             "human_resources",
@@ -154,6 +156,8 @@ def test_company_onboarding_wizard_creates_complete_company_workspace(app, clien
         for module in CompanyModule.query.filter_by(company_id=company.id).all()
     }
     assert modules["documents"] is True
+    assert modules["iso_executive_summary"] is True
+    assert modules["management_due_dashboard"] is True
     assert modules["if_management"] is True
     assert modules["fmea_management"] is True
     assert modules["process_management"] is True
