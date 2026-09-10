@@ -186,7 +186,7 @@ def test_document_download_writes_audit_log(app, client):
     assert json.loads(log.new_values)["document_code"] == "PR.77"
 
 
-def test_audit_log_page_requires_management_permission(app, client):
+def test_audit_log_page_requires_superadmin_account(app, client):
     user = create_user("viewer")
     login(client, user)
 
@@ -195,7 +195,7 @@ def test_audit_log_page_requires_management_permission(app, client):
     assert response.status_code == 403
 
 
-def test_audit_log_page_renders_for_manager(app, client):
+def test_audit_log_page_rejects_permission_manager(app, client):
     user = create_user("manager", "roles.manage")
     db.session.add(
         AuditLog(
@@ -211,42 +211,7 @@ def test_audit_log_page_renders_for_manager(app, client):
 
     response = client.get("/denetim-logu")
 
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "Denetim Logu" in body
-    assert "Audit Deneme" in body
-    assert "Güncellendi" in body
-
-
-def test_audit_log_hides_database_safety_entries_from_non_superadmin(app, client):
-    user = create_user("manager", "roles.manage")
-    db.session.add_all(
-        [
-            AuditLog(
-                user_id=user.id,
-                entity_type="Action",
-                entity_id="1",
-                action="updated",
-                summary="Normal kayit",
-            ),
-            AuditLog(
-                entity_type="DatabaseSafety",
-                action="backup_created",
-                summary="SQLite veritabani yedegi olusturuldu",
-                new_values='{"backup_path": "/var/www/aksiyon-takip/instance/backups/actions.sqlite3"}',
-            ),
-        ]
-    )
-    db.session.commit()
-    login(client, user)
-
-    response = client.get("/denetim-logu")
-
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "Normal kayit" in body
-    assert "DatabaseSafety" not in body
-    assert "/var/www/aksiyon-takip" not in body
+    assert response.status_code == 403
 
 
 def test_audit_log_shows_database_safety_entries_to_superadmin_account(app, client):

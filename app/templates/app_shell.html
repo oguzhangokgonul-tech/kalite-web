@@ -18,6 +18,10 @@
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set iso_management_summary_active = request.endpoint == 'main.iso_executive_summary' %}
   {% set management_due_dashboard_active = request.endpoint == 'main.management_due_dashboard' %}
+  {% set iso_management_summary_visible = g.company_module_enabled('iso_executive_summary') and g.current_user.has_permission('iso_dashboard.view') %}
+  {% set management_due_dashboard_visible = g.company_module_enabled('management_due_dashboard') and g.current_user.has_permission('management_due_dashboard.view') %}
+  {% set company_management_status_active = iso_management_summary_active or management_due_dashboard_active %}
+  {% set admin_panel_group_active = company_onboarding_active or sales_readiness_active or system_backups_active or system_admin_panel_active or pilot_programs_active or legal_documents_active or audit_log_active %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}
   {% set fmea_management_active = request.endpoint in ['main.fmea_dashboard', 'main.create_fmea', 'main.fmea_detail', 'main.edit_fmea', 'main.mark_fmea_action_pending', 'main.close_fmea', 'main.archive_fmea'] %}
   {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
@@ -54,17 +58,28 @@
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
         </a>
-        {% if g.company_module_enabled('iso_executive_summary') and g.current_user.has_permission('iso_dashboard.view') %}
-          <a class="dashboard-nav-item dashboard-nav-item-wrap {% if iso_management_summary_active %}active{% endif %}" href="{{ url_for('main.iso_executive_summary') }}" title="ISO 9001 Yönetici Özeti">
-            <i class="bi bi-speedometer2"></i>
-            <span class="dashboard-nav-label-wrap">ISO 9001 Yönetici Özeti</span>
-          </a>
-        {% endif %}
-        {% if g.company_module_enabled('management_due_dashboard') and g.current_user.has_permission('management_due_dashboard.view') %}
-          <a class="dashboard-nav-item dashboard-nav-item-wrap {% if management_due_dashboard_active %}active{% endif %}" href="{{ url_for('main.management_due_dashboard') }}" title="Yönetici Termin Paneli">
-            <i class="bi bi-calendar2-week"></i>
-            <span class="dashboard-nav-label-wrap">Yönetici Termin Paneli</span>
-          </a>
+        {% if iso_management_summary_visible or management_due_dashboard_visible %}
+          <div class="dashboard-nav-group {% if company_management_status_active %}active{% endif %}">
+            <button class="dashboard-nav-item dashboard-nav-toggle dashboard-nav-item-wrap {% if company_management_status_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#companyManagementStatusNav" aria-expanded="{{ 'true' if company_management_status_active else 'false' }}" aria-controls="companyManagementStatusNav" title="Şirket İçi Yönetim Durumu">
+              <i class="bi bi-clipboard-data"></i>
+              <span class="dashboard-nav-label-wrap dashboard-nav-group-label">Şirket İçi Yönetim Durumu</span>
+              <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
+            </button>
+            <div class="dashboard-subnav collapse {% if company_management_status_active %}show{% endif %}" id="companyManagementStatusNav">
+              {% if iso_management_summary_visible %}
+                <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if iso_management_summary_active %}active{% endif %}" href="{{ url_for('main.iso_executive_summary') }}">
+                  <i class="bi bi-speedometer2"></i>
+                  <span>ISO 9001 Yönetici Özeti</span>
+                </a>
+              {% endif %}
+              {% if management_due_dashboard_visible %}
+                <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if management_due_dashboard_active %}active{% endif %}" href="{{ url_for('main.management_due_dashboard') }}">
+                  <i class="bi bi-calendar2-week"></i>
+                  <span>Yönetici Termin Paneli</span>
+                </a>
+              {% endif %}
+            </div>
+          </div>
         {% endif %}
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
@@ -77,42 +92,49 @@
             <i class="bi bi-buildings"></i>
             <span>Şirket Yönetimi</span>
           </a>
-          <a class="dashboard-nav-item {% if company_onboarding_active %}active{% endif %}" href="{{ url_for('main.company_onboarding_wizard') }}">
-            <i class="bi bi-magic"></i>
-            <span>Kurulum Sihirbaz&#305;</span>
-          </a>
           <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>
             <span>Rol Yönetimi</span>
           </a>
         {% endif %}
         {% if g.current_user_is_superadmin_account %}
-          <a class="dashboard-nav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
-            <i class="bi bi-rocket-takeoff"></i>
-            <span>Satışa Hazırlık</span>
-          </a>
-          <a class="dashboard-nav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
-            <i class="bi bi-cloud-arrow-up"></i>
-            <span>Sistem Yedekleri</span>
-          </a>
-          <a class="dashboard-nav-item {% if system_admin_panel_active %}active{% endif %}" href="{{ url_for('main.system_admin_panel') }}">
-            <i class="bi bi-speedometer2"></i>
-            <span>Admin Paneli</span>
-          </a>
-          <a class="dashboard-nav-item {% if pilot_programs_active %}active{% endif %}" href="{{ url_for('main.pilot_programs') }}">
-            <i class="bi bi-flag"></i>
-            <span>Pilot Program&#305;</span>
-          </a>
-          <a class="dashboard-nav-item {% if legal_documents_active %}active{% endif %}" href="{{ url_for('main.legal_documents_admin') }}">
-            <i class="bi bi-file-earmark-lock"></i>
-            <span>Hukuki Metinler</span>
-          </a>
-        {% endif %}
-        {% if g.current_user_is_super_admin or g.current_user.has_permission('roles.manage') or g.current_user.has_permission('users.manage') %}
-          <a class="dashboard-nav-item {% if audit_log_active %}active{% endif %}" href="{{ url_for('main.audit_log') }}">
-            <i class="bi bi-activity"></i>
-            <span>Denetim Logu</span>
-          </a>
+          <div class="dashboard-nav-group {% if admin_panel_group_active %}active{% endif %}">
+            <button class="dashboard-nav-item dashboard-nav-toggle {% if admin_panel_group_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#adminPanelNav" aria-expanded="{{ 'true' if admin_panel_group_active else 'false' }}" aria-controls="adminPanelNav">
+              <i class="bi bi-shield-lock"></i>
+              <span>Admin Paneli</span>
+              <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
+            </button>
+            <div class="dashboard-subnav collapse {% if admin_panel_group_active %}show{% endif %}" id="adminPanelNav">
+              <a class="dashboard-subnav-item {% if company_onboarding_active %}active{% endif %}" href="{{ url_for('main.company_onboarding_wizard') }}">
+                <i class="bi bi-magic"></i>
+                <span>Kurulum Sihirbazı</span>
+              </a>
+              <a class="dashboard-subnav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
+                <i class="bi bi-rocket-takeoff"></i>
+                <span>Satışa Hazırlık</span>
+              </a>
+              <a class="dashboard-subnav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
+                <i class="bi bi-cloud-arrow-up"></i>
+                <span>Sistem Yedekleri</span>
+              </a>
+              <a class="dashboard-subnav-item {% if system_admin_panel_active %}active{% endif %}" href="{{ url_for('main.system_admin_panel') }}">
+                <i class="bi bi-speedometer2"></i>
+                <span>Admin Paneli</span>
+              </a>
+              <a class="dashboard-subnav-item {% if pilot_programs_active %}active{% endif %}" href="{{ url_for('main.pilot_programs') }}">
+                <i class="bi bi-flag"></i>
+                <span>Pilot Programı</span>
+              </a>
+              <a class="dashboard-subnav-item {% if legal_documents_active %}active{% endif %}" href="{{ url_for('main.legal_documents_admin') }}">
+                <i class="bi bi-file-earmark-lock"></i>
+                <span>Hukuki Metinler</span>
+              </a>
+              <a class="dashboard-subnav-item {% if audit_log_active %}active{% endif %}" href="{{ url_for('main.audit_log') }}">
+                <i class="bi bi-activity"></i>
+                <span>Denetim Logu</span>
+              </a>
+            </div>
+          </div>
         {% endif %}
         {% if g.company_module_enabled('organization') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.organization', 'main.organization_legacy', 'main.orientation'] %}active{% endif %}" href="{{ url_for('main.organization') }}">

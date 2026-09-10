@@ -2412,6 +2412,17 @@ body {
     border-radius: 8px;
 }
 
+.dashboard-subnav-item-wrap {
+    min-height: 44px;
+    padding-block: 6px;
+    line-height: 1.2;
+}
+
+.dashboard-nav-group-label {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .dashboard-subnav-item i {
     display: inline-flex;
     align-items: center;
@@ -12457,6 +12468,11 @@ textarea.form-control::placeholder {
         overflow: visible;
         white-space: normal;
         line-height: 1.2;
+    }
+
+    .dashboard-sidebar:hover .dashboard-nav-toggle .dashboard-nav-group-label,
+    .dashboard-sidebar:focus-within .dashboard-nav-toggle .dashboard-nav-group-label {
+        max-width: 136px;
     }
 
     .dashboard-sidebar:hover .dashboard-subnav,

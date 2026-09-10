@@ -2607,6 +2607,18 @@ def super_admin_required(view):
     return wrapped_view
 
 
+def superadmin_account_required(view):
+    @wraps(view)
+    def wrapped_view(*args, **kwargs):
+        if g.current_user is None:
+            return redirect(url_for("main.login", next=request.full_path))
+        if not is_superadmin_account():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped_view
+
+
 QUALITY_TEST_ENDPOINTS = {
     "main.quality_test_page",
     "main.quality_test_parameters",
@@ -6063,11 +6075,7 @@ def legal_status_tone(status):
 
 
 def can_view_audit_log():
-    return g.current_user is not None and (
-        g.current_user_is_super_admin
-        or current_user_can("roles.manage")
-        or current_user_can("users.manage")
-    )
+    return is_superadmin_account()
 
 
 def sales_readiness_context():
@@ -20294,12 +20302,8 @@ def audit_log():
     if not can_view_audit_log():
         abort(403)
 
-    query = AuditLog.query
-    if not is_superadmin_account():
-        query = query.filter(AuditLog.entity_type != "DatabaseSafety")
-
     logs = (
-        scoped_query(query, AuditLog)
+        scoped_query(AuditLog.query, AuditLog)
         .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
         .limit(250)
         .all()
@@ -25126,7 +25130,7 @@ def company_logo(company_id):
 
 @bp.route("/kurulum-sihirbazi", methods=["GET", "POST"])
 @login_required
-@super_admin_required
+@superadmin_account_required
 def company_onboarding_wizard():
     from .company_onboarding import initialize_company_onboarding
     from .seed import ensure_default_roles
@@ -25208,7 +25212,7 @@ def company_onboarding_wizard():
 
 @bp.get("/companies/<int:company_id>/onboarding")
 @login_required
-@super_admin_required
+@superadmin_account_required
 def company_onboarding_status(company_id):
     company = Company.query.get_or_404(company_id)
     return render_template(
@@ -25226,7 +25230,7 @@ def company_onboarding_status(company_id):
 
 @bp.post("/companies/<int:company_id>/onboarding/repair")
 @login_required
-@super_admin_required
+@superadmin_account_required
 def repair_company_onboarding(company_id):
     from .company_onboarding import initialize_company_onboarding
 

@@ -120,6 +120,15 @@ def test_company_onboarding_wizard_requires_super_admin(app, client):
     assert response.status_code == 403
 
 
+def test_company_onboarding_wizard_rejects_non_account_super_admin(app, client):
+    user = create_user("role-super-admin", "super_admin")
+    login(client, user)
+
+    response = client.get("/kurulum-sihirbazi")
+
+    assert response.status_code == 403
+
+
 def test_company_onboarding_wizard_renders_for_super_admin(app, client):
     user = create_user("superadmin", "super_admin")
     login(client, user)
