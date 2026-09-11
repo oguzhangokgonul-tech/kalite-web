@@ -205,7 +205,7 @@ from .tenant import (
     tenant_company_from_host,
     tenant_url_for_company,
 )
-from .company_onboarding import ensure_company_department_schema
+from .company_onboarding import ensure_company_department_schema, sync_company_departments
 from .company_packages import (
     CUSTOM_PACKAGE_KEY,
     DEFAULT_PACKAGE_KEY,
@@ -3369,6 +3369,39 @@ def active_users():
     return query.order_by(User.full_name.asc()).all()
 
 
+def company_department_choices(company_id=None, include_names=()):
+    effective_company_id = current_company_id() if company_id is None else company_id
+    departments = []
+    if effective_company_id:
+        ensure_company_department_schema()
+        departments = [
+            item.name
+            for item in (
+                CompanyDepartment.query.filter_by(
+                    company_id=effective_company_id,
+                    is_active=True,
+                )
+                .order_by(CompanyDepartment.sort_order.asc(), CompanyDepartment.name.asc())
+                .all()
+            )
+        ]
+    if not departments:
+        departments = list(DEPARTMENTS)
+
+    seen = {department.casefold() for department in departments}
+    for name in include_names:
+        clean_name = (name or "").strip()
+        if not clean_name or clean_name.casefold() in seen:
+            continue
+        departments.append(clean_name)
+        seen.add(clean_name.casefold())
+    return tuple(departments)
+
+
+def document_department_choices(include_names=()):
+    return ("Tüm Departmanlar", *company_department_choices(include_names=include_names))
+
+
 def active_user_by_id(user_id):
     query = User.query.filter_by(id=user_id, is_active=True)
     company_id = current_company_id()
@@ -4004,7 +4037,7 @@ def parse_internal_audit_builder_form():
 
     if not evaluated_department or audited_user is None:
         raise ValueError("audit_scope_required")
-    if evaluated_department not in DEPARTMENTS:
+    if evaluated_department not in company_department_choices():
         raise ValueError("invalid_department")
 
     for index in indexes:
@@ -4361,7 +4394,7 @@ def parse_internal_audit_answer_form(audit, question, is_draft=False):
 
     if len(technical_findings) > 1000:
         raise ValueError("technical_findings_too_long")
-    if evaluated_department and evaluated_department not in DEPARTMENTS:
+    if evaluated_department and evaluated_department not in company_department_choices():
         raise ValueError("invalid_department")
     result_map = internal_audit_question_result_map(question)
     if result and result not in result_map:
@@ -5470,7 +5503,7 @@ def parse_document_form():
         raise ValueError("invalid_category")
     if not title or not document_code:
         raise ValueError("required_fields")
-    if department and department not in DOCUMENT_DEPARTMENTS:
+    if department and department not in document_department_choices():
         raise ValueError("invalid_department")
     if status not in DOCUMENT_STATUSES:
         raise ValueError("invalid_status")
@@ -5780,7 +5813,7 @@ def documents_category_context(category):
         "documents": documents,
         "filters": filters,
         "statuses": DOCUMENT_STATUSES,
-        "departments": DOCUMENT_DEPARTMENTS,
+        "departments": document_department_choices(),
         "document_file_meta": document_file_meta,
         "document_can_preview": document_can_preview,
         "document_status_tone": document_status_tone,
@@ -5808,7 +5841,9 @@ def document_form_context(document=None, category_slug=None):
         "categories": ordered_document_categories(),
         "selected_category": selected_category,
         "statuses": DOCUMENT_STATUSES,
-        "departments": DOCUMENT_DEPARTMENTS,
+        "departments": document_department_choices(
+            [document.department] if document and document.department else []
+        ),
         "form_data": form_data,
     }
 
@@ -8871,7 +8906,7 @@ def parse_maintenance_fault_form(fault=None):
             raise ValueError("invalid_machine")
     if not title:
         raise ValueError("required_fields")
-    if not reporting_department or reporting_department not in DEPARTMENTS:
+    if not reporting_department or reporting_department not in company_department_choices():
         raise ValueError("invalid_department")
     if reported_date is None:
         reported_date = fault.reported_at.date() if fault and fault.reported_at else date.today()
@@ -8901,7 +8936,7 @@ def maintenance_dashboard_context():
         "faults": faults,
         "filters": filters,
         "machine_statuses": MAINTENANCE_MACHINE_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "users": active_users(),
         "total_machine_count": len(all_machines),
         "active_machine_count": sum(1 for machine in all_machines if machine.is_active),
@@ -8942,7 +8977,11 @@ def maintenance_fault_form_context(fault=None, machine=None):
         .order_by(MaintenanceMachine.code.asc(), MaintenanceMachine.machine_name.asc())
         .all(),
         "users": active_users(),
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[fault.reporting_department]
+            if fault and fault.reporting_department
+            else []
+        ),
         "is_unplanned_selected": is_unplanned_maintenance_machine(selected_machine),
         "unplanned_maintenance_value": UNPLANNED_MAINTENANCE_VALUE,
         "unplanned_maintenance_label": UNPLANNED_MAINTENANCE_LABEL,
@@ -10276,7 +10315,7 @@ def parse_risk_form():
 
     if not values["title"]:
         raise ValueError("required_fields")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices():
         raise ValueError("invalid_department")
     if values["status"] not in RISK_STATUSES:
         raise ValueError("invalid_status")
@@ -10297,7 +10336,9 @@ def risk_form_context(risk=None):
     return {
         "risk": risk,
         "statuses": RISK_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[risk.department] if risk and risk.department else []
+        ),
         "score_options": range(1, 6),
         "users": active_users(),
         "actions": visible_actions_query()
@@ -10375,7 +10416,7 @@ def risk_dashboard_context():
         "linked_count": linked_count,
         "filters": filters,
         "statuses": RISK_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "can_manage_risks": can_manage_risks(),
         "can_delete_risks": can_delete_risks(),
         "can_create_actions": current_user_can("actions.create"),
@@ -11092,7 +11133,11 @@ def process_form_context(process_record=None):
         "process_record": process_record,
         "categories": PROCESS_CATEGORIES,
         "statuses": process_allowed_statuses(),
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[process_record.department]
+            if process_record and process_record.department
+            else []
+        ),
         "users": active_users(),
         "documents": documents,
         "risks": risks,
@@ -11302,7 +11347,7 @@ def quality_objective_owner_users(department=None):
     ):
         allowed_departments = [
             item
-            for item in DEPARTMENTS
+            for item in company_department_choices()
             if user_matches_process_department(g.current_user, item)
         ]
         owner_departments = [department] if department in allowed_departments else allowed_departments
@@ -11503,7 +11548,7 @@ def parse_quality_objective_form():
         raise ValueError("invalid_direction")
     if values["measurement_frequency"] not in QUALITY_OBJECTIVE_FREQUENCIES:
         raise ValueError("invalid_frequency")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices():
         raise ValueError("invalid_department")
     if (
         has_role(g.current_user, "department_manager")
@@ -11621,7 +11666,9 @@ def quality_objective_form_context(objective=None):
         "department",
         objective.department if objective else "",
     ).strip()
-    departments = DEPARTMENTS
+    departments = company_department_choices(
+        include_names=[objective.department] if objective and objective.department else []
+    )
     if (
         g.current_user
         and has_role(g.current_user, "department_manager")
@@ -11629,7 +11676,7 @@ def quality_objective_form_context(objective=None):
     ):
         departments = tuple(
             department
-            for department in DEPARTMENTS
+            for department in departments
             if user_matches_process_department(g.current_user, department)
         )
     return {
@@ -11693,7 +11740,7 @@ def quality_objective_dashboard_context():
         "filters": filters,
         "perspectives": QUALITY_OBJECTIVE_PERSPECTIVES,
         "statuses": QUALITY_OBJECTIVE_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "years": sorted(
             {
                 objective.period_end.year
@@ -12494,7 +12541,7 @@ def parse_complaint_form():
 
     if not values["customer_name"] or not values["subject"]:
         raise ValueError("required_fields")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices():
         raise ValueError("invalid_department")
     if values["status"] not in COMPLAINT_STATUSES:
         raise ValueError("invalid_status")
@@ -12553,7 +12600,7 @@ def complaint_dashboard_context():
         "filters": filters,
         "statuses": COMPLAINT_STATUSES,
         "priorities": COMPLAINT_PRIORITIES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "can_manage_complaints": can_manage_complaints(),
         "can_delete_complaints": can_delete_complaints(),
         "complaint_status_tone": complaint_status_tone,
@@ -12567,7 +12614,11 @@ def complaint_form_context(complaint=None):
         "complaint": complaint,
         "statuses": COMPLAINT_STATUSES,
         "priorities": COMPLAINT_PRIORITIES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[complaint.department]
+            if complaint and complaint.department
+            else []
+        ),
         "users": active_users(),
         "actions": scoped_query(Action.query, Action)
         .order_by(Action.termin_date.asc(), Action.id.asc())
@@ -12977,7 +13028,7 @@ def parse_supplier_form():
 
     if not values["name"]:
         raise ValueError("required_fields")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices():
         raise ValueError("invalid_department")
     if values["status"] not in SUPPLIER_STATUSES:
         raise ValueError("invalid_status")
@@ -13076,7 +13127,7 @@ def supplier_dashboard_context():
         "overdue_count": len(overdue_suppliers),
         "filters": filters,
         "statuses": SUPPLIER_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "recent_evaluations": supplier_recent_evaluations(suppliers),
         "can_manage_suppliers": can_manage_suppliers(),
         "can_evaluate_suppliers": can_evaluate_suppliers(),
@@ -13091,7 +13142,11 @@ def supplier_form_context(supplier=None):
     return {
         "supplier": supplier,
         "statuses": SUPPLIER_STATUSES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[supplier.department]
+            if supplier and supplier.department
+            else []
+        ),
         "form_data": request.form if request.method == "POST" else {},
     }
 
@@ -13417,7 +13472,9 @@ def parse_action_form(action=None, save_file=True):
 
     if not title or not responsible_user_id or not department:
         raise ValueError("required_fields")
-    if department not in DEPARTMENTS:
+    if department not in company_department_choices(
+        include_names=[action.department] if action and action.department else []
+    ):
         raise ValueError("invalid_department")
 
     try:
@@ -13587,7 +13644,9 @@ def parse_dof_form(dof=None, save_mode="open", update_workflow=True):
         if len(text_value) > 2000:
             raise ValueError("text_too_long")
 
-    if department and department not in DEPARTMENTS:
+    if department and department not in company_department_choices(
+        include_names=[dof.department] if dof and dof.department else []
+    ):
         raise ValueError("invalid_department")
     if priority and priority not in DOF_PRIORITIES:
         raise ValueError("invalid_priority")
@@ -13733,7 +13792,9 @@ def parse_dof_revision_form(dof):
         or not nonconformity_description
     ):
         raise ValueError("required_fields")
-    if department not in DEPARTMENTS:
+    if department not in company_department_choices(
+        include_names=[dof.department] if dof and dof.department else []
+    ):
         raise ValueError("invalid_department")
     if priority not in DOF_PRIORITIES:
         raise ValueError("invalid_priority")
@@ -14093,6 +14154,9 @@ def flash_company_form_error(error):
     if error_key in extra_messages:
         flash(extra_messages[error_key], "danger")
         return
+    if error_key == "departments_required":
+        flash("Şirket için en az bir aktif departman seçin veya ekleyin.", "danger")
+        return
     if error_key == "required_fields":
         flash("Şirket kodu ve şirket adı zorunludur.", "danger")
     elif error_key == "invalid_code":
@@ -14217,6 +14281,47 @@ def selected_onboarding_department_names():
         return parse_onboarding_department_names()
     except ValueError:
         return []
+
+
+def company_department_form_context(company):
+    if request.method == "POST":
+        selected_departments = {
+            department.strip()
+            for department in request.form.getlist("departments")
+            if department and department.strip()
+        }
+        return {
+            "departments": DEPARTMENTS,
+            "selected_departments": selected_departments,
+            "custom_departments": request.form.get("custom_departments", ""),
+            "active_department_count": len(selected_onboarding_department_names()),
+        }
+
+    ensure_company_department_schema()
+    active_departments = (
+        CompanyDepartment.query.filter_by(company_id=company.id, is_active=True)
+        .order_by(CompanyDepartment.sort_order.asc(), CompanyDepartment.name.asc())
+        .all()
+    )
+    active_names = [department.name for department in active_departments]
+    if not active_names:
+        active_names = default_onboarding_department_names()
+
+    standard_names = {department.casefold(): department for department in DEPARTMENTS}
+    selected_departments = {
+        standard_names[name.casefold()]
+        for name in active_names
+        if name.casefold() in standard_names
+    }
+    custom_departments = [
+        name for name in active_names if name.casefold() not in standard_names
+    ]
+    return {
+        "departments": DEPARTMENTS,
+        "selected_departments": selected_departments,
+        "custom_departments": "\n".join(custom_departments),
+        "active_department_count": len(active_names),
+    }
 
 
 def create_company_onboarding_user(company):
@@ -14957,7 +15062,7 @@ def dashboard_context():
         "can_complete_action": can_complete_action,
         "can_request_closure_action": can_request_closure_action,
         "can_approve_closure_action": can_approve_closure_action,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "filters": filters,
         "users": active_users(),
         "current_user_initials": user_initials(g.current_user),
@@ -14999,7 +15104,7 @@ def dof_dashboard_context():
         "effectiveness_count": effectiveness_count,
         "completed_count": completed_count,
         "delayed_count": delayed_count,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(),
         "filters": filters,
         "users": active_users() if can_view_all_dofs() else [g.current_user],
         "can_delete_dof": can_delete_dof,
@@ -16695,7 +16800,9 @@ def assigned_tasks_context():
     encountered_departments = sorted(
         {task["department"] for task in all_tasks if task["department"] not in {"", "-"}}
     )
-    departments = list(dict.fromkeys([*DEPARTMENTS, *encountered_departments]))
+    departments = list(
+        dict.fromkeys([*company_department_choices(), *encountered_departments])
+    )
 
     return {
         "tasks": paged_tasks,
@@ -16739,7 +16846,9 @@ def internal_audit_question_context(audit, question):
         "progress": internal_audit_progress(audit),
         "result_choices": internal_audit_question_result_choices(question),
         "result_map": internal_audit_question_result_map(question),
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[current_department, INTERNAL_AUDIT_LOCKED_DEPARTMENT]
+        ),
         "locked_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
         "evaluated_department": current_department,
         "evaluator_department": INTERNAL_AUDIT_LOCKED_DEPARTMENT,
@@ -18486,7 +18595,11 @@ def parse_change_request_form(change_request=None):
         raise ValueError("required_fields")
     if values["change_type"] not in CHANGE_REQUEST_TYPES:
         raise ValueError("invalid_change_type")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices(
+        include_names=[change_request.department]
+        if change_request and change_request.department
+        else []
+    ):
         raise ValueError("invalid_department")
     if values["risk_level"] not in CHANGE_REQUEST_RISK_LEVELS:
         raise ValueError("invalid_risk_level")
@@ -18689,7 +18802,11 @@ def change_request_form_context(change_request=None):
         "change_request": change_request,
         "change_types": CHANGE_REQUEST_TYPES,
         "risk_levels": CHANGE_REQUEST_RISK_LEVELS,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[change_request.department]
+            if change_request and change_request.department
+            else []
+        ),
         "users": active_users(),
         "documents": documents,
         "actions": actions,
@@ -18723,7 +18840,9 @@ def change_management_dashboard_context():
         "filters": filters,
         "statuses": CHANGE_REQUEST_STATUSES,
         "risk_levels": CHANGE_REQUEST_RISK_LEVELS,
-        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "departments": list(
+            dict.fromkeys([*company_department_choices(), *departments])
+        ),
         "can_create_change_requests": can_create_change_requests(),
         "can_manage_change_requests": can_manage_change_requests(),
         "can_approve_change_requests": can_approve_change_requests(),
@@ -19406,7 +19525,11 @@ def parse_deviation_form(deviation=None):
         raise ValueError("invalid_record_type")
     if values["source_type"] and values["source_type"] not in DEVIATION_SOURCE_TYPES:
         raise ValueError("invalid_source_type")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices(
+        include_names=[deviation.department]
+        if deviation and deviation.department
+        else []
+    ):
         raise ValueError("invalid_department")
     if values["severity"] not in DEVIATION_SEVERITIES:
         raise ValueError("invalid_severity")
@@ -19588,7 +19711,11 @@ def deviation_form_context(deviation=None):
         "record_types": DEVIATION_RECORD_TYPES,
         "source_types": DEVIATION_SOURCE_TYPES,
         "severities": DEVIATION_SEVERITIES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[deviation.department]
+            if deviation and deviation.department
+            else []
+        ),
         "users": active_users(),
         "documents": documents,
         "actions": actions,
@@ -19623,7 +19750,9 @@ def deviation_dashboard_context():
         "statuses": DEVIATION_STATUSES,
         "record_types": DEVIATION_RECORD_TYPES,
         "severities": DEVIATION_SEVERITIES,
-        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "departments": list(
+            dict.fromkeys([*company_department_choices(), *departments])
+        ),
         "can_create_deviations": can_create_deviations(),
         "can_manage_deviations": can_manage_deviations(),
         "can_approve_deviations": can_approve_deviations(),
@@ -20371,7 +20500,11 @@ def parse_incident_form(incident=None):
         raise ValueError("required_fields")
     if values["report_type"] not in INCIDENT_REPORT_TYPES:
         raise ValueError("invalid_report_type")
-    if values["department"] and values["department"] not in DEPARTMENTS:
+    if values["department"] and values["department"] not in company_department_choices(
+        include_names=[incident.department]
+        if incident and incident.department
+        else []
+    ):
         raise ValueError("invalid_department")
     if values["severity"] not in INCIDENT_SEVERITIES:
         raise ValueError("invalid_severity")
@@ -20561,7 +20694,11 @@ def incident_form_context(incident=None):
         "incident": incident,
         "report_types": INCIDENT_REPORT_TYPES,
         "severities": INCIDENT_SEVERITIES,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[incident.department]
+            if incident and incident.department
+            else []
+        ),
         "users": active_users(),
         "documents": documents,
         "actions": actions,
@@ -20599,7 +20736,9 @@ def incident_dashboard_context():
         "statuses": INCIDENT_STATUSES,
         "report_types": INCIDENT_REPORT_TYPES,
         "severities": INCIDENT_SEVERITIES,
-        "departments": list(dict.fromkeys([*DEPARTMENTS, *departments])),
+        "departments": list(
+            dict.fromkeys([*company_department_choices(), *departments])
+        ),
         "can_create_incidents": can_create_incidents(),
         "can_manage_incidents": can_manage_incidents(),
         "can_review_incidents": can_review_incidents(),
@@ -22712,7 +22851,7 @@ def parse_suggestion_form(include_defaults=True):
 
     if not owner_name or not definition:
         raise ValueError("required_fields")
-    if department and department not in DEPARTMENTS:
+    if department and department not in company_department_choices():
         raise ValueError("invalid_department")
 
     data = {
@@ -22866,7 +23005,11 @@ def suggestion_form_context(suggestion=None):
     ensure_default_suggestion_parameters()
     return {
         "suggestion": suggestion,
-        "departments": DEPARTMENTS,
+        "departments": company_department_choices(
+            include_names=[suggestion.department]
+            if suggestion and suggestion.department
+            else []
+        ),
         "statuses": SUGGESTION_STATUSES,
         "parameters": suggestion_parameter_query().all(),
         "selected_parameter_ids": {
@@ -23954,7 +24097,9 @@ def create_internal_audit():
         "internal_audit_builder.html",
         form_data=form_data,
         questions=questions,
-        departments=DEPARTMENTS,
+        departments=company_department_choices(
+            include_names=[INTERNAL_AUDIT_LOCKED_DEPARTMENT]
+        ),
         users=active_users(),
         standard_choices=INTERNAL_AUDIT_STANDARD_CHOICES,
         locked_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
@@ -24055,7 +24200,9 @@ def edit_internal_audit(audit_id):
         "internal_audit_builder.html",
         form_data=form_data,
         questions=questions,
-        departments=DEPARTMENTS,
+        departments=company_department_choices(
+            include_names=[fallback_department, INTERNAL_AUDIT_LOCKED_DEPARTMENT]
+        ),
         users=active_users(),
         standard_choices=INTERNAL_AUDIT_STANDARD_CHOICES,
         locked_department=INTERNAL_AUDIT_LOCKED_DEPARTMENT,
@@ -24484,7 +24631,9 @@ def create_dof():
     return render_template(
         "dof_form.html",
         users=active_users(),
-        departments=DEPARTMENTS,
+        departments=company_department_choices(
+            include_names=[form_data.get("department")]
+        ),
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
         root_cause_methods=ROOT_CAUSE_METHODS,
@@ -24627,7 +24776,7 @@ def edit_dof_draft(dof_id):
     return render_template(
         "dof_form.html",
         users=active_users(),
-        departments=DEPARTMENTS,
+        departments=company_department_choices(include_names=[dof.department]),
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
         root_cause_methods=ROOT_CAUSE_METHODS,
@@ -24675,7 +24824,7 @@ def dof_detail(dof_id):
         risk_level_tone=risk_level_tone,
         can_review_effectiveness=can_review_dof_effectiveness(dof),
         users=active_users(),
-        departments=DEPARTMENTS,
+        departments=company_department_choices(include_names=[dof.department]),
         priorities=DOF_PRIORITIES,
         sources=DOF_SOURCES,
         root_cause_methods=ROOT_CAUSE_METHODS,
@@ -25269,7 +25418,9 @@ def create_action():
         linked_risk=linked_risk,
         form_data=form_data,
         users=active_users(),
-        departments=DEPARTMENTS,
+        departments=company_department_choices(
+            include_names=[form_data.get("department")]
+        ),
         today=date.today().isoformat(),
         title="Yeni Aksiyon",
         capa_types=CAPA_TYPES,
@@ -25524,7 +25675,7 @@ def edit_action(action_id):
         linked_dof=action.source_dof,
         form_data=form_data,
         users=active_users(),
-        departments=DEPARTMENTS,
+        departments=company_department_choices(include_names=[action.department]),
         today=date.today().isoformat(),
         title="Aksiyon Düzenle",
         capa_types=CAPA_TYPES,
@@ -26553,11 +26704,25 @@ def edit_company(company_id):
         old_logo_paths = []
         new_logo_paths = []
         try:
+            department_names = None
+            if "custom_departments" in request.form or "departments" in request.form:
+                department_names = parse_onboarding_department_names()
             parse_company_form(company)
             selected_module_keys = selected_company_module_keys_from_form()
             apply_company_legal_profile_form(company)
             old_logo_paths, new_logo_paths = apply_company_logo_form(company)
             sync_company_modules(company, selected_module_keys)
+            if department_names is not None:
+                department_changes = sync_company_departments(company, department_names)
+                record_audit_event(
+                    "CompanyDepartmentCatalogue",
+                    "updated",
+                    f"{company.label} departman listesi güncellendi",
+                    entity_id=company.id,
+                    new_values=department_changes,
+                    company_id=company.id,
+                    commit=False,
+                )
             company.package_key = resolved_company_package_key(
                 selected_module_keys,
                 company.package_key,
@@ -26589,6 +26754,7 @@ def edit_company(company_id):
         core_module_keys=ISO_CORE_MODULE_KEYS,
         production_module_keys=PRODUCTION_PLUS_MODULE_KEYS,
         submit_label="Değişiklikleri Kaydet",
+        **company_department_form_context(company),
     )
 
 

@@ -94,14 +94,14 @@ def normalize_department_names(department_names=None):
     names = []
     seen = set()
     for name in source_names:
-        clean_name = (name or "").strip()
+        clean_name = (name or "").strip()[:160]
         if not clean_name:
             continue
         key = clean_name.casefold()
         if key in seen:
             continue
         seen.add(key)
-        names.append(clean_name[:160])
+        names.append(clean_name)
     return names
 
 
@@ -147,6 +147,62 @@ def initialize_company_departments(company, department_names=None):
         department.sort_order = index
         department.is_active = True
     return created_names
+
+
+def sync_company_departments(company, department_names):
+    """Replace a company's active department catalogue without deleting history."""
+    if company is None or company.id is None:
+        raise ValueError("company_required")
+    if department_names is None:
+        raise ValueError("departments_required")
+
+    normalized_names = normalize_department_names(department_names)
+    if not normalized_names:
+        raise ValueError("departments_required")
+
+    ensure_company_department_schema()
+    existing_departments = CompanyDepartment.query.filter_by(company_id=company.id).all()
+    existing_by_name = {
+        department.name.casefold(): department
+        for department in existing_departments
+    }
+    selected_keys = set()
+    changes = {
+        "added": [],
+        "reactivated": [],
+        "deactivated": [],
+        "active": list(normalized_names),
+    }
+
+    for index, department_name in enumerate(normalized_names, start=1):
+        key = department_name.casefold()
+        selected_keys.add(key)
+        department = existing_by_name.get(key)
+        if department is None:
+            department = CompanyDepartment(
+                company_id=company.id,
+                name=department_name,
+                sort_order=index,
+                is_active=True,
+            )
+            db.session.add(department)
+            existing_by_name[key] = department
+            changes["added"].append(department_name)
+            continue
+
+        if not department.is_active:
+            changes["reactivated"].append(department_name)
+        department.name = department_name
+        department.sort_order = index
+        department.is_active = True
+
+    for department in existing_departments:
+        if department.name.casefold() in selected_keys or not department.is_active:
+            continue
+        department.is_active = False
+        changes["deactivated"].append(department.name)
+
+    return changes
 
 
 def initialize_company_document_categories(company):

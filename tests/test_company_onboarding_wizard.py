@@ -7,6 +7,7 @@ from app.extensions import db
 from app.models import (
     AppSetting,
     AuditLog,
+    COMPANY_MODULE_KEYS,
     Company,
     CompanyDepartment,
     CompanyModule,
@@ -244,3 +245,165 @@ def test_company_onboarding_repair_is_idempotent(app, client):
         ).count()
         == 2
     )
+
+
+def company_edit_payload(company, **overrides):
+    data = {
+        "code": company.code,
+        "name": company.name,
+        "slug": company.slug,
+        "primary_domain": "",
+        "custom_domain": "",
+        "package_key": "production_plus",
+        "is_active": "on",
+        "enabled_modules": list(COMPANY_MODULE_KEYS),
+        "departments": ["Kalite"],
+        "custom_departments": "Ar-Ge\nLojistik",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_company_edit_manages_departments_per_company_without_deleting_history(app, client):
+    superadmin = create_user("superadmin", "super_admin")
+    company_a = Company(code="334", name="A Firma", slug="a-firma", is_active=True)
+    company_b = Company(code="335", name="B Firma", slug="b-firma", is_active=True)
+    db.session.add_all([company_a, company_b])
+    db.session.flush()
+    production = CompanyDepartment(
+        company_id=company_a.id,
+        name="Üretim",
+        sort_order=1,
+        is_active=True,
+    )
+    db.session.add_all(
+        [
+            production,
+            CompanyDepartment(
+                company_id=company_a.id,
+                name="Kalite",
+                sort_order=2,
+                is_active=True,
+            ),
+            CompanyDepartment(
+                company_id=company_a.id,
+                name="Ar-Ge",
+                sort_order=3,
+                is_active=True,
+            ),
+            CompanyDepartment(
+                company_id=company_b.id,
+                name="Yalnız B Departmanı",
+                sort_order=1,
+                is_active=True,
+            ),
+        ]
+    )
+    db.session.commit()
+    production_id = production.id
+    login(client, superadmin)
+
+    form_response = client.get(f"/companies/{company_a.id}/edit")
+
+    assert form_response.status_code == 200
+    body = form_response.get_data(as_text=True)
+    assert "3. Departmanlar" in body
+    assert "Ar-Ge" in body
+    assert "Yalnız B Departmanı" not in body
+
+    update_response = client.post(
+        f"/companies/{company_a.id}/edit",
+        data=company_edit_payload(company_a),
+    )
+
+    assert update_response.status_code == 302
+    active_a = {
+        item.name
+        for item in CompanyDepartment.query.filter_by(
+            company_id=company_a.id,
+            is_active=True,
+        ).all()
+    }
+    assert active_a == {"Kalite", "Ar-Ge", "Lojistik"}
+    assert db.session.get(CompanyDepartment, production_id).is_active is False
+    assert {
+        item.name
+        for item in CompanyDepartment.query.filter_by(
+            company_id=company_b.id,
+            is_active=True,
+        ).all()
+    } == {"Yalnız B Departmanı"}
+
+    with client.session_transaction() as session:
+        session["company_id"] = company_a.id
+    risk_form_response = client.get("/risk-yonetimi/yeni")
+    assert risk_form_response.status_code == 200
+    risk_form_body = risk_form_response.get_data(as_text=True)
+    assert 'value="Lojistik"' in risk_form_body
+    assert "Yalnız B Departmanı" not in risk_form_body
+
+    reactivate_response = client.post(
+        f"/companies/{company_a.id}/edit",
+        data=company_edit_payload(
+            company_a,
+            departments=["Kalite", "Üretim"],
+        ),
+    )
+
+    assert reactivate_response.status_code == 302
+    assert db.session.get(CompanyDepartment, production_id).is_active is True
+    assert CompanyDepartment.query.filter_by(
+        company_id=company_a.id,
+        name="Üretim",
+    ).count() == 1
+    assert AuditLog.query.filter_by(
+        company_id=company_a.id,
+        entity_type="CompanyDepartmentCatalogue",
+        action="updated",
+    ).count() == 2
+
+
+def test_company_edit_requires_at_least_one_active_department(app, client):
+    superadmin = create_user("superadmin", "super_admin")
+    company = Company(code="336", name="Bos Firma", slug="bos-firma", is_active=True)
+    db.session.add(company)
+    db.session.flush()
+    db.session.add(
+        CompanyDepartment(
+            company_id=company.id,
+            name="Kalite",
+            sort_order=1,
+            is_active=True,
+        )
+    )
+    db.session.commit()
+    login(client, superadmin)
+
+    response = client.post(
+        f"/companies/{company.id}/edit",
+        data=company_edit_payload(
+            company,
+            departments=[],
+            custom_departments="",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert "en az bir aktif departman" in response.get_data(as_text=True)
+    assert CompanyDepartment.query.filter_by(
+        company_id=company.id,
+        name="Kalite",
+        is_active=True,
+    ).count() == 1
+
+
+def test_company_department_management_rejects_non_super_admin(app, client):
+    company = Company(code="337", name="Yetki Firma", slug="yetki-firma", is_active=True)
+    db.session.add(company)
+    db.session.commit()
+    manager = create_user("company-manager", "management_representative", company)
+    login(client, manager)
+
+    response = client.get(f"/companies/{company.id}/edit")
+
+    assert response.status_code == 403
