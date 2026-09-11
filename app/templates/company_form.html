@@ -59,7 +59,7 @@
             type="text"
             maxlength="80"
             placeholder="erprefabrik"
-            value="{{ request.form.get('slug', company.slug if company else '') }}"
+            value="{{ request.form.get('slug', company.slug if company and company.slug else '') }}"
           >
           <div class="form-text">Bo&#351; b&#305;rak&#305;l&#305;rsa &#351;irket ad&#305;ndan otomatik olu&#351;ur.</div>
         </div>
@@ -81,7 +81,7 @@
             type="text"
             maxlength="255"
             placeholder="erprefabrik.{{ config.TENANT_BASE_DOMAIN }}"
-            value="{{ request.form.get('primary_domain', company.primary_domain if company else '') }}"
+            value="{{ request.form.get('primary_domain', company.primary_domain if company and company.primary_domain else '') }}"
           >
         </div>
         <div class="col-md-4">
@@ -93,7 +93,7 @@
             type="text"
             maxlength="255"
             placeholder="kalite.erprefabrik.com"
-            value="{{ request.form.get('custom_domain', company.custom_domain if company else '') }}"
+            value="{{ request.form.get('custom_domain', company.custom_domain if company and company.custom_domain else '') }}"
           >
         </div>
         <div class="col-12">
@@ -272,6 +272,50 @@
           {% endfor %}
         </div>
       </div>
+
+      {% if company %}
+        <div class="company-module-panel company-department-panel">
+          <div class="company-module-panel-header">
+            <div>
+              <h3>3. Departmanlar</h3>
+              <p>Bu &#351;irkette kullan&#305;lacak departmanlar&#305; se&#231;in veya her sat&#305;ra yeni bir departman ekleyin.</p>
+            </div>
+            <span class="company-module-note">{{ active_department_count }} aktif departman</span>
+          </div>
+
+          <div class="onboarding-department-grid">
+            {% for department in departments %}
+              <label class="onboarding-check-tile" for="company_department_{{ loop.index }}">
+                <input
+                  class="form-check-input"
+                  id="company_department_{{ loop.index }}"
+                  name="departments"
+                  type="checkbox"
+                  value="{{ department }}"
+                  {% if department in selected_departments %}checked{% endif %}
+                >
+                <span>{{ department }}</span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label" for="custom_departments">Ek Departmanlar</label>
+            <textarea
+              class="form-control"
+              id="custom_departments"
+              name="custom_departments"
+              rows="4"
+              maxlength="4000"
+              placeholder="Her sat&#305;ra bir departman yaz&#305;n"
+            >{{ custom_departments }}</textarea>
+            <div class="form-text">
+              <i class="bi bi-info-circle me-1"></i>
+              &#304;&#351;areti kald&#305;r&#305;lan veya listeden silinen departman pasife al&#305;n&#305;r; ge&#231;mi&#351; kay&#305;tlardan silinmez.
+            </div>
+          </div>
+        </div>
+      {% endif %}
 
       <div class="company-module-panel">
         <div class="company-module-panel-header">
