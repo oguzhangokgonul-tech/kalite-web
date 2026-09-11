@@ -1,0 +1,300 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ objective.objective_no }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(objective.objective_no, objective.title, icon="bi-bullseye") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_objective_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>Kalite Hedefleri</span>
+    </a>
+    {% if can_manage %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.edit_quality_objective', objective_id=objective.id) }}">
+        <i class="bi bi-pencil-square"></i>
+        <span>Düzenle</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-bar-chart-line"></i></span>
+      <span class="stat-label">Güncel Değer</span>
+      <strong>{{ format_value(objective.actual_value) }} {{ objective.unit }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-crosshair"></i></span>
+      <span class="stat-label">Hedef Değer</span>
+      <strong>{{ format_value(objective.target_value) }} {{ objective.unit }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-percent"></i></span>
+      <span class="stat-label">Gerçekleşme</span>
+      <strong>{% if objective.achievement_rate is not none %}%{{ format_value(objective.achievement_rate) }}{% else %}-{% endif %}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-warning">
+      <span class="stat-icon"><i class="bi bi-calendar2-check"></i></span>
+      <span class="stat-label">Sonraki Ölçüm</span>
+      <strong>{{ objective.next_measurement_date.strftime("%d.%m.%Y") if objective.next_measurement_date else "-" }}</strong>
+      {% if objective.delay_days %}
+        <small>{{ objective.delay_days }} gün gecikti</small>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-8">
+      <section class="document-list-card p-4 h-100">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+          <div class="d-flex align-items-center gap-3">
+            <span class="stat-icon"><i class="bi bi-card-checklist"></i></span>
+            <div>
+              <h2 class="h5 mb-1">Hedef Kartı</h2>
+              <p class="text-secondary mb-0">{{ objective.bsc_perspective }} perspektifi</p>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge(objective.health, tone=health_tone(objective.health)) }}
+            {{ ui.status_badge(objective.status, tone=status_tone(objective.status)) }}
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <small class="text-secondary">Hedef Sorumlusu</small>
+            <strong class="d-block">{{ objective.owner.full_name if objective.owner else "-" }}</strong>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Departman</small>
+            <strong class="d-block">{{ objective.department or "-" }}</strong>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Performans Göstergesi</small>
+            <p class="mb-0">{{ objective.metric_name }}</p>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Başlangıç Değeri</small>
+            <strong class="d-block">{{ format_value(objective.baseline_value) }} {{ objective.unit }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Hedef Yönü</small>
+            <strong class="d-block">{{ objective.target_direction }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">BSC Ağırlığı</small>
+            <strong class="d-block">%{{ format_value(objective.weight) }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Ölçüm Sıklığı</small>
+            <strong class="d-block">{{ objective.measurement_frequency }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Dönem Başlangıcı</small>
+            <strong class="d-block">{{ objective.period_start.strftime("%d.%m.%Y") if objective.period_start else "-" }}</strong>
+          </div>
+          <div class="col-md-3">
+            <small class="text-secondary">Dönem Sonu</small>
+            <strong class="d-block">{{ objective.period_end.strftime("%d.%m.%Y") if objective.period_end else "-" }}</strong>
+          </div>
+          <div class="col-12">
+            <small class="text-secondary">Açıklama</small>
+            <p class="mb-0">{{ objective.description or "-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Kaydı Oluşturan</small>
+            <p class="mb-0">{{ objective.created_by.full_name if objective.created_by else "-" }}</p>
+          </div>
+          <div class="col-md-6">
+            <small class="text-secondary">Oluşturulma Tarihi</small>
+            <p class="mb-0">{{ objective.created_at.strftime("%d.%m.%Y %H:%M") if objective.created_at else "-" }}</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col-xl-4">
+      <section class="document-list-card p-4 h-100">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="stat-icon"><i class="bi bi-link-45deg"></i></span>
+          <div>
+            <h2 class="h5 mb-1">Bağlı Kayıtlar</h2>
+            <p class="text-secondary mb-0">Süreç ve aksiyon ilişkileri.</p>
+          </div>
+        </div>
+        <div class="vstack gap-2">
+          {% if objective.process %}
+            <a class="btn btn-outline-primary justify-content-start text-start" href="{{ url_for('main.process_detail', process_id=objective.process.id) }}">
+              <i class="bi bi-diagram-3"></i>
+              <span>{{ objective.process.process_no }} - {{ objective.process.title }}</span>
+            </a>
+          {% endif %}
+          {% if objective.action %}
+            <a class="btn btn-outline-success justify-content-start text-start" href="{{ url_for('main.action_detail', action_id=objective.action.id) }}">
+              <i class="bi bi-check2-circle"></i>
+              <span>{{ objective.action.number_label }} - {{ objective.action.title }}</span>
+            </a>
+          {% endif %}
+          {% if not objective.process and not objective.action %}
+            <span class="text-secondary">Henüz bağlı kayıt yok.</span>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+  </div>
+
+  {% if (can_approve and objective.status in ["Taslak", "Aktif"]) or can_archive %}
+    <section class="document-list-card p-4 mt-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+          <h2 class="h5 mb-1">Durum İşlemleri</h2>
+          <p class="text-secondary mb-0">Hedefi kullanıma alın, tamamlayın veya denetim izini koruyarak arşivleyin.</p>
+        </div>
+        <div class="dashboard-row-actions">
+          {% if can_approve and objective.status == "Taslak" %}
+            <form action="{{ url_for('main.activate_quality_objective', objective_id=objective.id) }}" method="post" onsubmit="return confirm('Kalite hedefini aktifleştirmek istediğinize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-play-circle"></i>
+                <span>Aktifleştir</span>
+              </button>
+            </form>
+          {% endif %}
+          {% if can_approve and objective.status == "Aktif" %}
+            <form action="{{ url_for('main.complete_quality_objective', objective_id=objective.id) }}" method="post" onsubmit="return confirm('Kalite hedefini tamamlandı olarak işaretlemek istediğinize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-success" type="submit">
+                <i class="bi bi-check2-circle"></i>
+                <span>Tamamla</span>
+              </button>
+            </form>
+          {% endif %}
+          {% if can_archive %}
+            <form action="{{ url_for('main.archive_quality_objective', objective_id=objective.id) }}" method="post" onsubmit="return confirm('Kalite hedefini arşive almak istediğinize emin misiniz?');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger" type="submit">
+                <i class="bi bi-archive"></i>
+                <span>Arşivle</span>
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if can_measure %}
+    <section class="document-list-card p-4 mt-4">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <span class="stat-icon"><i class="bi bi-plus-circle"></i></span>
+        <div>
+          <h2 class="h5 mb-1">KPI Ölçümü Ekle</h2>
+          <p class="text-secondary mb-0">{{ objective.metric_name }} için yeni gerçekleşme değerini kaydedin.</p>
+        </div>
+      </div>
+      <form action="{{ url_for('main.add_quality_objective_measurement', objective_id=objective.id) }}" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label" for="measurement_date">Ölçüm Tarihi</label>
+            <input class="form-control" id="measurement_date" name="measurement_date" type="date" value="{{ objective.next_measurement_date.isoformat() if objective.next_measurement_date else '' }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="period_label">Dönem Etiketi</label>
+            <input class="form-control" id="period_label" name="period_label" maxlength="80" placeholder="Örn. 2026 / 3. Çeyrek">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="actual_value">Gerçekleşen Değer ({{ objective.unit }})</label>
+            <input class="form-control" id="actual_value" name="actual_value" inputmode="decimal" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="measurement_note">Açıklama</label>
+            <textarea class="form-control" id="measurement_note" name="note" rows="1"></textarea>
+          </div>
+          <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" type="submit">
+              <i class="bi bi-plus-lg"></i>
+              <span>Ölçüm Ekle</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="document-list-card overflow-hidden mt-4">
+    <div class="d-flex align-items-center gap-3 p-4 pb-3">
+      <span class="stat-icon"><i class="bi bi-clock-history"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Ölçüm Geçmişi</h2>
+        <p class="text-secondary mb-0">KPI gerçekleşmeleri ve kayıt notları.</p>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Ölçüm Tarihi</th>
+            <th>Dönem</th>
+            <th>Gerçekleşen</th>
+            <th>Hedef Anlık Değeri</th>
+            <th>Sonuç</th>
+            <th>Kaydeden</th>
+            <th>Not</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for measurement in objective.measurements %}
+            {% set measurement_met = measurement.actual_value <= measurement.target_value_snapshot if objective.target_direction == "En Fazla" else measurement.actual_value >= measurement.target_value_snapshot %}
+            <tr>
+              <td><strong>{{ measurement.measurement_date.strftime("%d.%m.%Y") }}</strong></td>
+              <td>{{ measurement.period_label or "-" }}</td>
+              <td>{{ format_value(measurement.actual_value) }} {{ objective.unit }}</td>
+              <td>{{ format_value(measurement.target_value_snapshot) }} {{ objective.unit }}</td>
+              <td>{{ ui.status_badge("Hedefe Ulaştı" if measurement_met else "Hedef Karşılanmadı", tone="success" if measurement_met else "danger") }}</td>
+              <td>
+                {{ measurement.entered_by.full_name if measurement.entered_by else "-" }}
+                <small class="d-block text-secondary">{{ measurement.created_at.strftime("%d.%m.%Y %H:%M") if measurement.created_at else "-" }}</small>
+              </td>
+              <td>{{ measurement.note or "-" }}</td>
+              <td>
+                {% set measurement_can_edit = can_edit_measurement(objective, measurement) %}
+                {% set measurement_can_delete = can_delete_measurement(objective, measurement) %}
+                {% if measurement_can_edit or measurement_can_delete %}
+                  <div class="dashboard-row-actions justify-content-end">
+                    {% if measurement_can_edit %}
+                      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_quality_objective_measurement', objective_id=objective.id, measurement_id=measurement.id) }}">
+                        <i class="bi bi-pencil-square"></i>
+                        <span>Düzelt</span>
+                      </a>
+                    {% endif %}
+                    {% if measurement_can_delete %}
+                      <form action="{{ url_for('main.delete_quality_objective_measurement', objective_id=objective.id, measurement_id=measurement.id) }}" method="post" onsubmit="return confirm('Bu KPI ölçümünü silmek istediğinize emin misiniz?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">
+                          <i class="bi bi-trash"></i>
+                          <span>Sil</span>
+                        </button>
+                      </form>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="d-block text-end text-secondary">-</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="8">
+                <strong>Henüz KPI ölçümü yok.</strong>
+                <span>İlk ölçüm girildiğinde gerçekleşme oranı ve hedef sağlığı hesaplanacak.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

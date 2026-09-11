@@ -22,6 +22,7 @@ ISO_CORE_MODULE_KEYS = {
     "risk_management",
     "fmea_management",
     "process_management",
+    "quality_objectives",
     "change_management",
     "deviation_management",
     "incident_near_miss",
@@ -49,8 +50,8 @@ PACKAGE_CATALOG = (
         "key": ISO_CORE_PACKAGE_KEY,
         "name": "ISO 9001 KYS Çekirdek",
         "description": (
-            "Doküman, IF/DÖF, iç denetim, kalibrasyon, risk, eğitim, "
-            "öneri/şikayet, YGG, tedarikçi ve rapor merkezi."
+            "Doküman, IF/DÖF, iç denetim, kalibrasyon, risk, kalite hedefleri, "
+            "eğitim, öneri/şikayet, YGG, tedarikçi ve rapor merkezi."
         ),
         "icon": "bi-patch-check",
         "module_keys": ISO_CORE_MODULE_KEYS,

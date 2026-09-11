@@ -1,0 +1,181 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = objective is defined and objective %}
+{% block title %}{{ "Kalite Hedefi Düzenle" if is_edit else "Yeni Kalite Hedefi" }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Kalite Hedefi Düzenle" if is_edit else "Yeni Kalite Hedefi", "Hedef tanımını, KPI ölçütünü, dönemi ve sorumlulukları kaydedin.", icon="bi-bullseye") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.quality_objective_detail', objective_id=objective.id) if is_edit else url_for('main.quality_objective_dashboard') }}">
+      <i class="bi bi-arrow-left"></i>
+      <span>{{ "Hedef Detayı" if is_edit else "Kalite Hedefleri" }}</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-card-checklist"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Hedef Kartı</h2>
+        <p class="text-secondary mb-0">BSC perspektifi, sahiplik ve hedef kapsamı.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label" for="objective_no">Hedef No</label>
+        <input class="form-control" id="objective_no" value="{{ objective.objective_no if is_edit else 'Otomatik atanır' }}" disabled>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="objective_status">Durum</label>
+        <input class="form-control" id="objective_status" value="{{ objective.status if is_edit else 'Taslak' }}" disabled>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="title">Hedef Adı</label>
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', objective.title if is_edit else '') }}" required maxlength="180">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="bsc_perspective">BSC Perspektifi</label>
+        {% set selected_perspective = form_data.get('bsc_perspective', objective.bsc_perspective if is_edit else perspectives[0]) %}
+        <select class="form-select" id="bsc_perspective" name="bsc_perspective" required>
+          {% for perspective in perspectives %}
+            <option value="{{ perspective }}" {% if selected_perspective == perspective %}selected{% endif %}>{{ perspective }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="department">Departman</label>
+        {% set selected_department = form_data.get('department', objective.department if is_edit else '') %}
+        <select class="form-select" id="department" name="department">
+          <option value="">Seçiniz</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if selected_department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="owner_user_id">Hedef Sorumlusu</label>
+        {% set selected_owner = form_data.get('owner_user_id', objective.owner_user_id if is_edit else '')|string %}
+        <select class="form-select" id="owner_user_id" name="owner_user_id" required>
+          <option value="">Seçiniz</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if selected_owner == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="description">Açıklama</label>
+        <textarea class="form-control" id="description" name="description" rows="3" placeholder="Hedefin amacı, kapsamı ve beklenen iş sonucunu belirtin.">{{ form_data.get('description', objective.description if is_edit else '') }}</textarea>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-speedometer2"></i></span>
+      <div>
+        <h2 class="h5 mb-1">KPI ve Hedef Değer</h2>
+        <p class="text-secondary mb-0">Başlangıç, hedef yönü, hedef değer ve BSC ağırlığı.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label" for="metric_name">Performans Göstergesi</label>
+        <input class="form-control" id="metric_name" name="metric_name" value="{{ form_data.get('metric_name', objective.metric_name if is_edit else '') }}" required maxlength="180" placeholder="Örn. Zamanında teslimat oranı">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="unit">Birim</label>
+        <input class="form-control" id="unit" name="unit" value="{{ form_data.get('unit', objective.unit if is_edit else '') }}" required maxlength="40" placeholder="%, gün, adet">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="baseline_value">Başlangıç Değeri</label>
+        <input class="form-control" id="baseline_value" name="baseline_value" value="{{ form_data.get('baseline_value', objective.baseline_value if is_edit else '') }}" required inputmode="decimal">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="target_value">Hedef Değer</label>
+        <input class="form-control" id="target_value" name="target_value" value="{{ form_data.get('target_value', objective.target_value if is_edit else '') }}" required inputmode="decimal">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="target_direction">Hedef Yönü</label>
+        {% set selected_direction = form_data.get('target_direction', objective.target_direction if is_edit else directions[0]) %}
+        <select class="form-select" id="target_direction" name="target_direction" required>
+          {% for direction in directions %}
+            <option value="{{ direction }}" {% if selected_direction == direction %}selected{% endif %}>{{ direction }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="weight">BSC Ağırlığı (%)</label>
+        <input class="form-control" id="weight" name="weight" type="number" min="0" max="100" step="0.01" value="{{ form_data.get('weight', objective.weight if is_edit else '0') }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="measurement_frequency">Ölçüm Sıklığı</label>
+        {% set selected_frequency = form_data.get('measurement_frequency', objective.measurement_frequency if is_edit else frequencies[0]) %}
+        <select class="form-select" id="measurement_frequency" name="measurement_frequency" required>
+          {% for frequency in frequencies %}
+            <option value="{{ frequency }}" {% if selected_frequency == frequency %}selected{% endif %}>{{ frequency }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <span class="stat-icon"><i class="bi bi-calendar3"></i></span>
+      <div>
+        <h2 class="h5 mb-1">Dönem ve Bağlantılar</h2>
+        <p class="text-secondary mb-0">Takvim, süreç ve aksiyon ilişkileri.</p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="period_start">Dönem Başlangıcı</label>
+        {% set period_start_value = form_data.get('period_start', objective.period_start.isoformat() if is_edit and objective.period_start else '') %}
+        <input class="form-control" id="period_start" name="period_start" type="date" value="{{ period_start_value }}">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="period_end">Dönem Sonu</label>
+        {% set period_end_value = form_data.get('period_end', objective.period_end.isoformat() if is_edit and objective.period_end else '') %}
+        <input class="form-control" id="period_end" name="period_end" type="date" value="{{ period_end_value }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="next_measurement_date">Sonraki Ölçüm Tarihi</label>
+        {% set next_measurement_value = form_data.get('next_measurement_date', objective.next_measurement_date.isoformat() if is_edit and objective.next_measurement_date else '') %}
+        <input class="form-control" id="next_measurement_date" name="next_measurement_date" type="date" value="{{ next_measurement_value }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="process_id">Bağlı Süreç</label>
+        {% set selected_process = form_data.get('process_id', objective.process_id if is_edit else '')|string %}
+        <select class="form-select" id="process_id" name="process_id">
+          <option value="">Yok</option>
+          {% for process_record in processes %}
+            <option value="{{ process_record.id }}" {% if selected_process == process_record.id|string %}selected{% endif %}>{{ process_record.process_no }} - {{ process_record.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="action_id">Bağlı Aksiyon</label>
+        {% set selected_action = form_data.get('action_id', objective.action_id if is_edit else '')|string %}
+        <select class="form-select" id="action_id" name="action_id">
+          <option value="">Yok</option>
+          {% for action in actions %}
+            <option value="{{ action.id }}" {% if selected_action == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-end gap-2 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_objective_detail', objective_id=objective.id) if is_edit else url_for('main.quality_objective_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-save"></i>
+        <span>{{ "Güncelle" if is_edit else "Taslak Kaydet" }}</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}

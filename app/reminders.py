@@ -19,6 +19,8 @@ from .models import (
     InternalAudit,
     MaintenanceFault,
     ManagementReview,
+    QUALITY_OBJECTIVE_STATUS_ACTIVE,
+    QualityObjective,
     RiskRecord,
     SupplierRecord,
     TrainingParticipant,
@@ -44,6 +46,10 @@ COMPLAINT_REMINDER_PERMISSIONS = ("complaints.manage",)
 MANAGEMENT_REVIEW_REMINDER_PERMISSIONS = ("management_review.manage",)
 SUPPLIER_REMINDER_PERMISSIONS = ("suppliers.manage", "suppliers.evaluate")
 CALIBRATION_REMINDER_PERMISSIONS = ("calibration.manage",)
+QUALITY_OBJECTIVE_REMINDER_PERMISSIONS = (
+    "quality_objective.manage",
+    "quality_objective.approve",
+)
 
 
 def _status_text(value):
@@ -554,6 +560,43 @@ def _calibration_reminders(company_id, run_date, days_before):
     return stats
 
 
+def _quality_objective_reminders(company_id, run_date, days_before):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    objectives = (
+        _company_query(QualityObjective, company_id)
+        .filter(QualityObjective.status == QUALITY_OBJECTIVE_STATUS_ACTIVE)
+        .filter(QualityObjective.next_measurement_date.isnot(None))
+        .filter(QualityObjective.next_measurement_date <= limit_date)
+        .all()
+    )
+    for objective in objectives:
+        severity, label = _due_state(objective.next_measurement_date, run_date)
+        users = _merge_users(
+            company_id,
+            [objective.owner_user_id],
+            QUALITY_OBJECTIVE_REMINDER_PERMISSIONS if severity == "danger" else (),
+        )
+        created, emails = _send_record_reminders(
+            users,
+            company_id=company_id,
+            kind="quality-objective",
+            record_id=objective.id,
+            title=f"Kalite hedefi ölçüm hatırlatması {objective.objective_no}",
+            message=(
+                f"{objective.objective_no} {objective.title} için KPI ölçüm durumu: "
+                f"{label}."
+            ),
+            target_url=f"/kalite-hedefleri/{objective.id}",
+            due_date=objective.next_measurement_date,
+            notification_type=severity,
+            run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -574,6 +617,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _management_review_reminders(company_id, run_date, days_before),
         lambda: _supplier_reminders(company_id, run_date, calibration_days),
         lambda: _calibration_reminders(company_id, run_date, calibration_days),
+        lambda: _quality_objective_reminders(company_id, run_date, days_before),
     )
     for build_stats in builders:
         item_stats = build_stats()

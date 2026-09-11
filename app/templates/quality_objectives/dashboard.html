@@ -1,0 +1,269 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Kalite Hedefleri{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Kalite Hedefleri", "ISO 9001 kalite hedeflerini, KPI gerçekleşmelerini ve BSC dağılımını izleyin.", icon="bi-bullseye") %}
+    {% if can_create_objectives %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_quality_objective') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Hedef</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary">
+      <span class="stat-icon"><i class="bi bi-bullseye"></i></span>
+      <span class="stat-label">Toplam Hedef</span>
+      <strong>{{ total_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-info">
+      <span class="stat-icon"><i class="bi bi-activity"></i></span>
+      <span class="stat-label">Aktif Hedef</span>
+      <strong>{{ active_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-success">
+      <span class="stat-icon"><i class="bi bi-check2-circle"></i></span>
+      <span class="stat-label">Hedefe Ulaşan</span>
+      <strong>{{ target_met_count }}</strong>
+    </div>
+    <div class="dashboard-stat-card stat-danger">
+      <span class="stat-icon"><i class="bi bi-graph-down-arrow"></i></span>
+      <span class="stat-label">Geride</span>
+      <strong>{{ behind_count }}</strong>
+    </div>
+  </div>
+
+  <form class="dashboard-filter-card" method="get">
+    <div class="dashboard-filter-grid">
+      <div>
+        <label class="form-label" for="search">Arama</label>
+        <div class="dashboard-search-control">
+          <i class="bi bi-search"></i>
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Hedef no, ad, KPI veya departman ara...">
+        </div>
+      </div>
+      <div>
+        <label class="form-label" for="perspective">BSC Perspektifi</label>
+        <select class="form-select" id="perspective" name="perspective">
+          <option value="">Tümü</option>
+          {% for perspective in perspectives %}
+            <option value="{{ perspective }}" {% if filters.perspective == perspective %}selected{% endif %}>{{ perspective }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="department">Departman</label>
+        <select class="form-select" id="department" name="department">
+          <option value="">Tümü</option>
+          {% for department in departments %}
+            <option value="{{ department }}" {% if filters.department == department %}selected{% endif %}>{{ department }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">Tümü</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="owner_user_id">Hedef Sorumlusu</label>
+        <select class="form-select" id="owner_user_id" name="owner_user_id">
+          <option value="">Tümü</option>
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if filters.owner_user_id == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="year">Hedef Yılı</label>
+        <select class="form-select" id="year" name="year">
+          <option value="">Tümü</option>
+          {% for year in years %}
+            <option value="{{ year }}" {% if filters.year == year|string %}selected{% endif %}>{{ year }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="archive">Arşiv</label>
+        <select class="form-select" id="archive" name="archive">
+          <option value="">Aktif kayıtlar</option>
+          <option value="1" {% if filters.archive == "1" %}selected{% endif %}>Arşiv dahil</option>
+        </select>
+      </div>
+      <div class="dashboard-filter-actions">
+        <button class="btn btn-primary" type="submit">
+          <i class="bi bi-funnel"></i>
+          <span>Filtrele</span>
+        </button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.quality_objective_dashboard') }}">
+          <i class="bi bi-arrow-clockwise"></i>
+          <span>Temizle</span>
+        </a>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-4 pb-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-grid-1x2"></i></span>
+        <div>
+          <h2 class="h5 mb-1">BSC Perspektif Özeti</h2>
+          <p class="text-secondary mb-0">Aktif hedeflerin ağırlık ve gerçekleşme dağılımı.</p>
+        </div>
+      </div>
+      <div class="text-md-end">
+        <small class="d-block text-secondary">Aktif BSC Ağırlığı</small>
+        <strong class="fs-5">%{{ format_value(active_weight) }}</strong>
+      </div>
+    </div>
+
+    {% if weight_warning %}
+      <div class="alert alert-warning d-flex align-items-start gap-2 mx-4 mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>Aktif hedeflerin toplam BSC ağırlığı %100 olmalıdır. Mevcut toplam: %{{ format_value(active_weight) }}.</span>
+      </div>
+    {% endif %}
+
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Perspektif</th>
+            <th>Aktif Hedef</th>
+            <th>Toplam Ağırlık</th>
+            <th>Ağırlıklı Puan</th>
+            <th>Gerçekleşme</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in perspective_rows %}
+            <tr>
+              <td><strong>{{ row.name }}</strong></td>
+              <td>{{ row.count }}</td>
+              <td>%{{ format_value(row.weight) }}</td>
+              <td>{{ format_value(row.score) }}</td>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="progress flex-grow-1" role="progressbar" aria-label="{{ row.name }} gerçekleşme oranı" aria-valuenow="{{ row.achievement }}" aria-valuemin="0" aria-valuemax="100" style="min-width: 90px; height: 8px;">
+                    <div class="progress-bar" style="width: {{ [row.achievement, 100]|min }}%"></div>
+                  </div>
+                  <strong>%{{ format_value(row.achievement) }}</strong>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 p-4 pb-3">
+      <div class="d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-list-check"></i></span>
+        <div>
+          <h2 class="h5 mb-1">Hedefler</h2>
+          <p class="text-secondary mb-0">Filtreye uyan hedefler ve güncel KPI sonuçları.</p>
+        </div>
+      </div>
+      {% if measurement_due_count %}
+        {{ ui.status_badge(measurement_due_count ~ " ölçüm yaklaşıyor", tone="warning", icon="bi-calendar2-week") }}
+      {% endif %}
+    </div>
+
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Hedef No / Adı</th>
+            <th>Perspektif</th>
+            <th>Sorumlu</th>
+            <th>KPI</th>
+            <th>Gerçekleşen / Hedef</th>
+            <th>Başarı</th>
+            <th>Sonraki Ölçüm</th>
+            <th>Durum</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for objective in objectives %}
+            <tr>
+              <td>
+                <a class="text-primary fw-semibold text-decoration-none" href="{{ url_for('main.quality_objective_detail', objective_id=objective.id) }}">{{ objective.objective_no }}</a>
+                <small class="d-block text-secondary">{{ objective.title }}</small>
+              </td>
+              <td>
+                {{ objective.bsc_perspective }}
+                <small class="d-block text-secondary">Ağırlık: %{{ format_value(objective.weight) }}</small>
+              </td>
+              <td>
+                <strong>{{ objective.owner.full_name if objective.owner else "-" }}</strong>
+                <small class="d-block text-secondary">{{ objective.department or "-" }}</small>
+              </td>
+              <td>
+                <strong>{{ objective.metric_name }}</strong>
+                <small class="d-block text-secondary">{{ objective.measurement_frequency }}</small>
+              </td>
+              <td>
+                <strong>{{ format_value(objective.actual_value) }} / {{ format_value(objective.target_value) }} {{ objective.unit }}</strong>
+                <small class="d-block text-secondary">{{ objective.target_direction }}</small>
+              </td>
+              <td>
+                {{ ui.status_badge(objective.health, tone=health_tone(objective.health)) }}
+                {% if objective.achievement_rate is not none %}
+                  <small class="d-block text-secondary mt-1">%{{ format_value(objective.achievement_rate) }}</small>
+                {% endif %}
+              </td>
+              <td>
+                {{ objective.next_measurement_date.strftime("%d.%m.%Y") if objective.next_measurement_date else "-" }}
+                {% if objective.delay_days %}
+                  <small class="d-block text-danger">{{ objective.delay_days }} gün gecikti</small>
+                {% endif %}
+              </td>
+              <td>{{ ui.status_badge(objective.status, tone=status_tone(objective.status)) }}</td>
+              <td>
+                <div class="dashboard-row-actions justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.quality_objective_detail', objective_id=objective.id) }}">
+                    <i class="bi bi-eye"></i>
+                    <span>Detay</span>
+                  </a>
+                  {% if can_manage_objective(objective) %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_quality_objective', objective_id=objective.id) }}">
+                      <i class="bi bi-pencil-square"></i>
+                      <span>Düzenle</span>
+                    </a>
+                  {% endif %}
+                  {% if can_archive_objective(objective) %}
+                    <form action="{{ url_for('main.archive_quality_objective', objective_id=objective.id) }}" method="post" onsubmit="return confirm('Kalite hedefini arşive almak istediğinize emin misiniz?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="bi bi-archive"></i>
+                        <span>Arşivle</span>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td class="dashboard-empty-row" colspan="9">
+                <strong>Filtreye uygun kalite hedefi bulunamadı.</strong>
+                <span>Filtreleri temizleyebilir veya yeni bir hedef oluşturabilirsiniz.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

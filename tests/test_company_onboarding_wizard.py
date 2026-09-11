@@ -87,6 +87,7 @@ def onboarding_payload(**overrides):
             "risk_management",
             "fmea_management",
             "process_management",
+            "quality_objectives",
             "change_management",
             "deviation_management",
             "incident_near_miss",
@@ -170,6 +171,7 @@ def test_company_onboarding_wizard_creates_complete_company_workspace(app, clien
     assert modules["if_management"] is True
     assert modules["fmea_management"] is True
     assert modules["process_management"] is True
+    assert modules["quality_objectives"] is True
     assert modules["change_management"] is True
     assert modules["deviation_management"] is True
     assert modules["incident_near_miss"] is True

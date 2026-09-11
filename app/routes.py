@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from calendar import monthrange
 from functools import wraps
 from io import BytesIO
 import json
@@ -160,6 +161,18 @@ from .models import (
     ProcessRecord,
     ProcessRelation,
     ProcessStep,
+    QualityObjective,
+    QualityObjectiveMeasurement,
+    QUALITY_OBJECTIVE_DIRECTIONS,
+    QUALITY_OBJECTIVE_DIRECTION_MINIMUM,
+    QUALITY_OBJECTIVE_FREQUENCIES,
+    QUALITY_OBJECTIVE_PERSPECTIVES,
+    QUALITY_OBJECTIVE_STATUS_ACTIVE,
+    QUALITY_OBJECTIVE_STATUS_ARCHIVED,
+    QUALITY_OBJECTIVE_STATUS_CANCELLED,
+    QUALITY_OBJECTIVE_STATUS_COMPLETED,
+    QUALITY_OBJECTIVE_STATUS_DRAFT,
+    QUALITY_OBJECTIVE_STATUSES,
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
@@ -521,6 +534,7 @@ PILOT_PROGRAM_MODULE_LABELS = {
     "risk_management": "Risk Yönetimi",
     "fmea_management": "FMEA Analizi",
     "process_management": "S\u00fcre\u00e7 Y\u00f6netimi",
+    "quality_objectives": "Kalite Hedefleri",
     "training": "Eğitim / Yeterlilik",
     "internal_audit": "İç Denetim Yönetimi",
     "management_review": "Yönetimin Gözden Geçirmesi",
@@ -2708,6 +2722,16 @@ MODULE_ENDPOINTS = {
     "main.delete_process_step": "process_management",
     "main.add_process_relation": "process_management",
     "main.delete_process_relation": "process_management",
+    "main.quality_objective_dashboard": "quality_objectives",
+    "main.create_quality_objective": "quality_objectives",
+    "main.quality_objective_detail": "quality_objectives",
+    "main.edit_quality_objective": "quality_objectives",
+    "main.add_quality_objective_measurement": "quality_objectives",
+    "main.edit_quality_objective_measurement": "quality_objectives",
+    "main.delete_quality_objective_measurement": "quality_objectives",
+    "main.activate_quality_objective": "quality_objectives",
+    "main.complete_quality_objective": "quality_objectives",
+    "main.archive_quality_objective": "quality_objectives",
     "main.change_management_dashboard": "change_management",
     "main.create_change_request": "change_management",
     "main.change_request_detail": "change_management",
@@ -7011,6 +7035,32 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 today=today,
             )
 
+    if company_module_enabled("quality_objectives") and (
+        not visible_scope or can_view_quality_objectives()
+    ):
+        for objective in quality_objective_query().filter_by(
+            status=QUALITY_OBJECTIVE_STATUS_ACTIVE
+        ).all():
+            append_management_due_item(
+                items,
+                module="Kalite Hedefi",
+                reference_no=objective.objective_no,
+                title=objective.title,
+                department=objective.department,
+                responsible=report_user_name(objective.owner),
+                due_date=objective.next_measurement_date or objective.period_end,
+                date_label="Ölçüm Termini",
+                status=objective.health,
+                priority="Yüksek" if objective.delay_days else "Orta",
+                detail_url=url_for(
+                    "main.quality_objective_detail",
+                    objective_id=objective.id,
+                ),
+                icon="bi-bullseye",
+                sort_id=objective.id,
+                today=today,
+            )
+
     items = sorted(items, key=management_due_item_sort_key)
     if limit is not None:
         return items[:limit]
@@ -7636,6 +7686,53 @@ def report_processes_data():
     }
 
 
+def report_quality_objectives_data():
+    objectives = sorted(
+        quality_objective_query(include_archived=True).all(),
+        key=quality_objective_sort_key,
+    )
+    rows = [
+        (
+            objective.objective_no,
+            objective.title,
+            objective.bsc_perspective,
+            objective.department or "-",
+            report_user_name(objective.owner),
+            objective.metric_name,
+            objective.unit,
+            format_quality_decimal(objective.baseline_value),
+            format_quality_decimal(objective.target_value),
+            format_quality_decimal(objective.actual_value),
+            f"%{objective.achievement_rate:.1f}" if objective.achievement_rate is not None else "-",
+            format_quality_decimal(objective.weight),
+            f"{objective.weighted_score:.1f}",
+            objective.status,
+            objective.health,
+            format_date(objective.period_start),
+            format_date(objective.period_end),
+            format_date(objective.next_measurement_date),
+            objective.action.number_label if objective.action else "-",
+            objective.process.process_no if objective.process else "-",
+        )
+        for objective in objectives
+    ]
+    return {
+        "headers": (
+            "Hedef No", "Kalite Hedefi", "BSC Perspektifi", "Departman",
+            "Sorumlu", "KPI / Gösterge", "Birim", "Başlangıç", "Hedef",
+            "Gerçekleşen", "Gerçekleşme Oranı", "Ağırlık", "Ağırlıklı Puan",
+            "Durum", "Sağlık", "Dönem Başlangıcı", "Dönem Sonu",
+            "Sonraki Ölçüm", "Bağlı Aksiyon", "Bağlı Süreç",
+        ),
+        "rows": rows,
+        "sheet_name": "Kalite Hedefleri",
+        "column_widths": (
+            18, 36, 24, 20, 24, 34, 14, 14, 14, 14,
+            20, 12, 18, 16, 18, 18, 18, 18, 18, 18,
+        ),
+    }
+
+
 def report_change_requests_data():
     changes = sorted(change_request_query().all(), key=change_request_sort_key)
     rows = [
@@ -8133,6 +8230,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "process.view",
         "required_export_permission": "process.export",
         "builder": report_processes_data,
+    },
+    {
+        "key": "quality_objectives",
+        "title": "Kalite Hedefleri ve KPI Raporu",
+        "description": "BSC perspektifi, hedef, gerçekleşen değer, ağırlıklı puan ve ölçüm terminleri.",
+        "icon": "bi-bullseye",
+        "tone": "success",
+        "module_key": "quality_objectives",
+        "required_permission": "quality_objective.view",
+        "required_export_permission": "quality_objective.export",
+        "builder": report_quality_objectives_data,
     },
     {
         "key": "change_requests",
@@ -9385,6 +9493,27 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
         if record.next_calibration_date
         and 0 <= (record.next_calibration_date - today).days <= 30
     ]
+    active_quality_objectives = (
+        quality_objective_query()
+        .filter_by(status=QUALITY_OBJECTIVE_STATUS_ACTIVE)
+        .all()
+        if company_module_enabled("quality_objectives")
+        and can_view_quality_objectives()
+        else []
+    )
+    quality_objectives_at_risk = sorted(
+        [
+            objective
+            for objective in active_quality_objectives
+            if objective.health in {"Geride", "Ölçüm Bekliyor"}
+            or objective.delay_days
+        ],
+        key=lambda objective: (
+            -objective.delay_days,
+            objective.next_measurement_date or objective.period_end or date.max,
+            objective.id,
+        ),
+    )
 
     cards = [
         {
@@ -9487,6 +9616,27 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
                     "status": f"RPN {risk.rpn}",
                 }
                 for risk in high_risks[:3]
+            ],
+        },
+        {
+            "title": "Kalite Hedefleri",
+            "module_key": "quality_objectives",
+            "value": len(quality_objectives_at_risk),
+            "subtitle": f"{len(active_quality_objectives)} aktif hedef",
+            "tone": "danger" if quality_objectives_at_risk else "success",
+            "icon": "bi-bullseye",
+            "href": url_for("main.quality_objective_dashboard"),
+            "items": [
+                {
+                    "label": objective.objective_no,
+                    "meta": objective.title,
+                    "status": (
+                        f"{objective.delay_days} gün gecikti"
+                        if objective.delay_days
+                        else objective.health
+                    ),
+                }
+                for objective in quality_objectives_at_risk[:3]
             ],
         },
         {
@@ -11034,6 +11184,641 @@ def process_detail_context(process_record):
         "process_status_tone": process_status_tone,
         "process_category_tone": process_category_tone,
     }
+
+
+def can_view_quality_objectives():
+    return any(
+        current_user_can(permission)
+        for permission in (
+            "quality_objective.view",
+            "quality_objective.create",
+            "quality_objective.manage",
+            "quality_objective.measure",
+            "quality_objective.approve",
+        )
+    )
+
+
+def can_create_quality_objectives():
+    return current_user_can("quality_objective.create")
+
+
+def can_manage_quality_objectives():
+    return current_user_can("quality_objective.manage")
+
+
+def can_approve_quality_objectives():
+    return current_user_can("quality_objective.approve")
+
+
+def can_measure_quality_objectives():
+    return current_user_can("quality_objective.measure")
+
+
+def can_delete_quality_objectives():
+    return current_user_can("quality_objective.delete")
+
+
+def can_export_quality_objectives():
+    return current_user_can("quality_objective.export") or current_user_can(
+        "reports.export"
+    )
+
+
+def can_manage_quality_objectives_companywide():
+    return bool(
+        getattr(g, "current_user_is_super_admin", False)
+        or is_management_representative()
+        or can_approve_quality_objectives()
+    )
+
+
+def can_manage_quality_objective(objective):
+    if (
+        objective is None
+        or objective.status
+        in {
+            QUALITY_OBJECTIVE_STATUS_COMPLETED,
+            QUALITY_OBJECTIVE_STATUS_CANCELLED,
+            QUALITY_OBJECTIVE_STATUS_ARCHIVED,
+        }
+        or g.current_user is None
+        or not can_manage_quality_objectives()
+    ):
+        return False
+    if can_manage_quality_objectives_companywide():
+        return True
+    if has_role(g.current_user, "department_manager"):
+        return user_matches_process_department(g.current_user, objective.department)
+    return bool(
+        objective.owner_user_id == g.current_user.id
+        or objective.created_by_user_id == g.current_user.id
+        or user_matches_process_department(g.current_user, objective.department)
+    )
+
+
+def can_measure_quality_objective(objective):
+    if (
+        objective is None
+        or objective.status != QUALITY_OBJECTIVE_STATUS_ACTIVE
+        or g.current_user is None
+        or not can_measure_quality_objectives()
+    ):
+        return False
+    if can_manage_quality_objectives_companywide():
+        return True
+    return bool(
+        objective.owner_user_id == g.current_user.id
+        or user_matches_process_department(g.current_user, objective.department)
+    )
+
+
+def can_edit_quality_objective_measurement(objective, measurement):
+    return bool(
+        can_manage_quality_objective(objective)
+        or (
+            can_measure_quality_objective(objective)
+            and measurement.entered_by_user_id == g.current_user.id
+        )
+    )
+
+
+def can_delete_quality_objective_measurement(objective, _measurement=None):
+    return can_manage_quality_objective(objective)
+
+
+def quality_objective_owner_users(department=None):
+    company_id = current_company_id()
+    users = [
+        user
+        for user in active_users()
+        if has_permission(user, "quality_objective.measure")
+        and (company_id is None or user.company_id == company_id)
+    ]
+    if (
+        g.current_user
+        and has_role(g.current_user, "department_manager")
+        and not can_manage_quality_objectives_companywide()
+    ):
+        allowed_departments = [
+            item
+            for item in DEPARTMENTS
+            if user_matches_process_department(g.current_user, item)
+        ]
+        owner_departments = [department] if department in allowed_departments else allowed_departments
+        users = [
+            user
+            for user in users
+            if any(
+                user_matches_process_department(user, item)
+                for item in owner_departments
+            )
+        ]
+    return users
+
+
+def quality_objective_query(include_archived=False):
+    query = scoped_query(QualityObjective.query, QualityObjective)
+    if not include_archived:
+        query = query.filter(
+            QualityObjective.status != QUALITY_OBJECTIVE_STATUS_ARCHIVED
+        )
+    return query
+
+
+def quality_objective_measurement_query():
+    return scoped_query(
+        QualityObjectiveMeasurement.query,
+        QualityObjectiveMeasurement,
+    )
+
+
+def quality_objective_status_tone(status):
+    return {
+        QUALITY_OBJECTIVE_STATUS_DRAFT: "muted",
+        QUALITY_OBJECTIVE_STATUS_ACTIVE: "blue",
+        QUALITY_OBJECTIVE_STATUS_COMPLETED: "success",
+        QUALITY_OBJECTIVE_STATUS_CANCELLED: "warning",
+        QUALITY_OBJECTIVE_STATUS_ARCHIVED: "muted",
+    }.get(status, "muted")
+
+
+def quality_objective_health_tone(health):
+    return {
+        "Hedefe Ulaştı": "success",
+        "Tamamlandı": "success",
+        "İzlemede": "warning",
+        "Geride": "danger",
+        "Ölçüm Bekliyor": "muted",
+        "Pasif": "muted",
+    }.get(health, "muted")
+
+
+def quality_objective_filters():
+    return {
+        "search": request.args.get("search", "").strip(),
+        "perspective": request.args.get("perspective", "").strip(),
+        "department": request.args.get("department", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "owner_user_id": request.args.get("owner_user_id", "").strip(),
+        "year": request.args.get("year", "").strip(),
+        "archive": request.args.get("archive", "").strip(),
+    }
+
+
+def quality_objective_no_sort_value(objective_no):
+    match = re.search(r"(\d+)$", objective_no or "")
+    return int(match.group(1)) if match else 0
+
+
+def quality_objective_sort_key(objective):
+    status_order = {
+        QUALITY_OBJECTIVE_STATUS_ACTIVE: 0,
+        QUALITY_OBJECTIVE_STATUS_DRAFT: 1,
+        QUALITY_OBJECTIVE_STATUS_COMPLETED: 2,
+        QUALITY_OBJECTIVE_STATUS_CANCELLED: 3,
+        QUALITY_OBJECTIVE_STATUS_ARCHIVED: 4,
+    }
+    return (
+        status_order.get(objective.status, 5),
+        objective.period_end or date.max,
+        quality_objective_no_sort_value(objective.objective_no),
+        objective.id,
+    )
+
+
+def filtered_quality_objectives(filters):
+    query = quality_objective_query(include_archived=filters["archive"] == "1")
+    if filters["search"]:
+        search_value = f"%{filters['search']}%"
+        query = query.filter(
+            or_(
+                QualityObjective.objective_no.ilike(search_value),
+                QualityObjective.title.ilike(search_value),
+                QualityObjective.metric_name.ilike(search_value),
+                QualityObjective.department.ilike(search_value),
+            )
+        )
+    if filters["perspective"]:
+        query = query.filter(
+            QualityObjective.bsc_perspective == filters["perspective"]
+        )
+    if filters["department"]:
+        query = query.filter(QualityObjective.department == filters["department"])
+    if filters["status"]:
+        query = query.filter(QualityObjective.status == filters["status"])
+    if filters["owner_user_id"]:
+        try:
+            owner_user_id = int(filters["owner_user_id"])
+        except ValueError:
+            owner_user_id = None
+        if owner_user_id:
+            query = query.filter(QualityObjective.owner_user_id == owner_user_id)
+    if filters["year"]:
+        try:
+            year = int(filters["year"])
+        except ValueError:
+            year = None
+        if year:
+            query = query.filter(
+                QualityObjective.period_end >= date(year, 1, 1),
+                QualityObjective.period_end <= date(year, 12, 31),
+            )
+    return sorted(query.all(), key=quality_objective_sort_key)
+
+
+def next_quality_objective_no():
+    prefix = f"KH-{date.today().year}-"
+    rows = (
+        scoped_query(
+            QualityObjective.query.with_entities(QualityObjective.objective_no),
+            QualityObjective,
+        )
+        .filter(QualityObjective.objective_no.like(f"{prefix}%"))
+        .all()
+    )
+    numbers = []
+    for (objective_no,) in rows:
+        try:
+            numbers.append(int((objective_no or "").replace(prefix, "")))
+        except ValueError:
+            continue
+    return f"{prefix}{(max(numbers) + 1 if numbers else 1):04d}"
+
+
+def parse_quality_objective_decimal(field_name, *, required=True):
+    raw_value = request.form.get(field_name, "").strip()
+    if not raw_value:
+        if required:
+            raise ValueError(f"required_{field_name}")
+        return None
+    if "," in raw_value:
+        raw_value = raw_value.replace(".", "").replace(",", ".")
+    try:
+        return Decimal(raw_value)
+    except (InvalidOperation, ValueError):
+        raise ValueError("invalid_decimal") from None
+
+
+def parse_quality_objective_form():
+    values = {
+        "title": request.form.get("title", "").strip(),
+        "bsc_perspective": request.form.get("bsc_perspective", "").strip(),
+        "department": request.form.get("department", "").strip(),
+        "owner_user_id": parse_optional_form_int("owner_user_id"),
+        "process_id": parse_optional_form_int("process_id"),
+        "action_id": parse_optional_form_int("action_id"),
+        "metric_name": request.form.get("metric_name", "").strip(),
+        "unit": request.form.get("unit", "").strip(),
+        "baseline_value": parse_quality_objective_decimal("baseline_value"),
+        "target_value": parse_quality_objective_decimal("target_value"),
+        "target_direction": request.form.get(
+            "target_direction",
+            QUALITY_OBJECTIVE_DIRECTION_MINIMUM,
+        ).strip(),
+        "weight": parse_quality_objective_decimal("weight"),
+        "period_start": parse_optional_date("period_start"),
+        "period_end": parse_optional_date("period_end"),
+        "next_measurement_date": parse_optional_date("next_measurement_date"),
+        "measurement_frequency": request.form.get(
+            "measurement_frequency",
+            QUALITY_OBJECTIVE_FREQUENCIES[0],
+        ).strip(),
+        "description": request.form.get("description", "").strip(),
+    }
+    if not all(
+        (
+            values["title"],
+            values["bsc_perspective"],
+            values["owner_user_id"],
+            values["metric_name"],
+            values["unit"],
+            values["period_end"],
+        )
+    ):
+        raise ValueError("required_fields")
+    if values["bsc_perspective"] not in QUALITY_OBJECTIVE_PERSPECTIVES:
+        raise ValueError("invalid_perspective")
+    if values["target_direction"] not in QUALITY_OBJECTIVE_DIRECTIONS:
+        raise ValueError("invalid_direction")
+    if values["measurement_frequency"] not in QUALITY_OBJECTIVE_FREQUENCIES:
+        raise ValueError("invalid_frequency")
+    if values["department"] and values["department"] not in DEPARTMENTS:
+        raise ValueError("invalid_department")
+    if (
+        has_role(g.current_user, "department_manager")
+        and not can_manage_quality_objectives_companywide()
+        and (
+            not values["department"]
+            or not user_matches_process_department(
+                g.current_user,
+                values["department"],
+            )
+        )
+    ):
+        raise ValueError("invalid_department_scope")
+    if values["weight"] < 0 or values["weight"] > 100:
+        raise ValueError("invalid_weight")
+    if values["period_start"] and values["period_start"] > values["period_end"]:
+        raise ValueError("invalid_period")
+    if (
+        values["next_measurement_date"]
+        and values["next_measurement_date"] > values["period_end"]
+    ):
+        raise ValueError("invalid_measurement_date")
+    for field_name, max_length in (
+        ("title", 180),
+        ("department", 80),
+        ("metric_name", 180),
+        ("unit", 40),
+    ):
+        if values[field_name] and len(values[field_name]) > max_length:
+            raise ValueError("field_too_long")
+    for key, value in list(values.items()):
+        if isinstance(value, str) and value == "":
+            values[key] = None
+    return values
+
+
+def validate_quality_objective_links(objective):
+    owner = active_user_by_id(objective.owner_user_id)
+    if owner is None:
+        raise ValueError("invalid_owner_user_id")
+    if current_company_id() and owner.company_id != current_company_id():
+        raise ValueError("invalid_owner_user_id")
+    if not has_permission(owner, "quality_objective.measure"):
+        raise ValueError("owner_cannot_measure")
+    if (
+        has_role(g.current_user, "department_manager")
+        and not can_manage_quality_objectives_companywide()
+        and not user_matches_process_department(owner, objective.department)
+    ):
+        raise ValueError("invalid_owner_department")
+    if objective.process_id:
+        process_record = process_query(include_archived=True).filter_by(
+            id=objective.process_id
+        ).first()
+        if process_record is None:
+            raise ValueError("invalid_process_id")
+    if objective.action_id:
+        action = scoped_query(Action.query, Action).filter_by(id=objective.action_id).first()
+        if action is None:
+            raise ValueError("invalid_action_id")
+
+
+def quality_objective_form_error_message(error_key):
+    return {
+        "required_fields": "Hedef adı, perspektif, sorumlu, gösterge, birim ve dönem sonu zorunludur.",
+        "required_baseline_value": "Başlangıç değeri zorunludur.",
+        "required_target_value": "Hedef değeri zorunludur.",
+        "required_weight": "BSC ağırlığı zorunludur.",
+        "invalid_decimal": "Sayısal alanlara geçerli bir değer girin.",
+        "invalid_perspective": "Geçerli bir BSC perspektifi seçin.",
+        "invalid_direction": "Geçerli bir hedef yönü seçin.",
+        "invalid_frequency": "Geçerli bir ölçüm sıklığı seçin.",
+        "invalid_department": "Geçerli bir departman seçin.",
+        "invalid_department_scope": "Departman yöneticisi yalnızca kendi departmanı için hedef oluşturabilir.",
+        "invalid_weight": "BSC ağırlığı 0 ile 100 arasında olmalıdır.",
+        "invalid_period": "Dönem başlangıcı dönem sonundan sonra olamaz.",
+        "invalid_measurement_date": "Sonraki ölçüm tarihi dönem sonundan sonra olamaz.",
+        "invalid_owner_user_id": "Geçerli bir hedef sorumlusu seçin.",
+        "owner_cannot_measure": "Hedef sorumlusu KPI ölçümü girme yetkisine sahip olmalıdır.",
+        "invalid_owner_department": "Hedef sorumlusu seçilen departmanla eşleşmelidir.",
+        "invalid_process_id": "Geçerli bir süreç bağlantısı seçin.",
+        "invalid_action_id": "Geçerli bir aksiyon bağlantısı seçin.",
+        "field_too_long": "Bazı alanlar izin verilen uzunluğu aşıyor.",
+    }.get(error_key, "Kalite hedefi kaydedilemedi.")
+
+
+def quality_objective_snapshot(objective):
+    return {
+        "objective_no": objective.objective_no,
+        "title": objective.title,
+        "bsc_perspective": objective.bsc_perspective,
+        "department": objective.department,
+        "owner_user_id": objective.owner_user_id,
+        "metric_name": objective.metric_name,
+        "baseline_value": objective.baseline_value,
+        "target_value": objective.target_value,
+        "target_direction": objective.target_direction,
+        "weight": objective.weight,
+        "period_end": objective.period_end,
+        "next_measurement_date": objective.next_measurement_date,
+        "status": objective.status,
+    }
+
+
+def quality_objective_form_context(objective=None):
+    processes = []
+    if company_module_enabled("process_management") and can_view_processes():
+        processes = sorted(process_query().all(), key=process_sort_key)
+    actions = (
+        scoped_query(Action.query, Action)
+        .order_by(Action.termin_date.asc(), Action.id.asc())
+        .all()
+    )
+    selected_department = request.form.get(
+        "department",
+        objective.department if objective else "",
+    ).strip()
+    departments = DEPARTMENTS
+    if (
+        g.current_user
+        and has_role(g.current_user, "department_manager")
+        and not can_manage_quality_objectives_companywide()
+    ):
+        departments = tuple(
+            department
+            for department in DEPARTMENTS
+            if user_matches_process_department(g.current_user, department)
+        )
+    return {
+        "objective": objective,
+        "form_data": request.form if request.method == "POST" else {},
+        "perspectives": QUALITY_OBJECTIVE_PERSPECTIVES,
+        "directions": QUALITY_OBJECTIVE_DIRECTIONS,
+        "frequencies": QUALITY_OBJECTIVE_FREQUENCIES,
+        "departments": departments,
+        "users": quality_objective_owner_users(selected_department),
+        "processes": processes,
+        "actions": actions,
+    }
+
+
+def quality_objective_dashboard_context():
+    filters = quality_objective_filters()
+    objectives = filtered_quality_objectives(filters)
+    all_objectives = quality_objective_query(include_archived=True).all()
+    active_objectives = [
+        objective
+        for objective in all_objectives
+        if objective.status == QUALITY_OBJECTIVE_STATUS_ACTIVE
+    ]
+    perspective_rows = []
+    for perspective in QUALITY_OBJECTIVE_PERSPECTIVES:
+        rows = [
+            objective
+            for objective in active_objectives
+            if objective.bsc_perspective == perspective
+        ]
+        total_weight = sum(float(objective.weight or 0) for objective in rows)
+        weighted_score = sum(objective.weighted_score for objective in rows)
+        perspective_rows.append(
+            {
+                "name": perspective,
+                "count": len(rows),
+                "weight": total_weight,
+                "score": weighted_score,
+                "achievement": (weighted_score / total_weight * 100)
+                if total_weight
+                else 0,
+            }
+        )
+    active_weight = sum(float(objective.weight or 0) for objective in active_objectives)
+    return {
+        "objectives": objectives,
+        "total_count": len(all_objectives),
+        "active_count": len(active_objectives),
+        "target_met_count": sum(1 for objective in active_objectives if objective.target_met),
+        "behind_count": sum(1 for objective in active_objectives if objective.health == "Geride"),
+        "measurement_due_count": sum(
+            1
+            for objective in active_objectives
+            if objective.next_measurement_date
+            and objective.next_measurement_date <= date.today() + timedelta(days=30)
+        ),
+        "active_weight": active_weight,
+        "weight_warning": bool(active_objectives and round(active_weight, 2) != 100),
+        "perspective_rows": perspective_rows,
+        "filters": filters,
+        "perspectives": QUALITY_OBJECTIVE_PERSPECTIVES,
+        "statuses": QUALITY_OBJECTIVE_STATUSES,
+        "departments": DEPARTMENTS,
+        "years": sorted(
+            {
+                objective.period_end.year
+                for objective in all_objectives
+                if objective.period_end
+            },
+            reverse=True,
+        ),
+        "users": active_users(),
+        "can_create_objectives": can_create_quality_objectives(),
+        "can_manage_objective": can_manage_quality_objective,
+        "can_archive_objective": lambda objective: bool(
+            can_delete_quality_objectives()
+            and objective.status != QUALITY_OBJECTIVE_STATUS_ARCHIVED
+        ),
+        "status_tone": quality_objective_status_tone,
+        "health_tone": quality_objective_health_tone,
+        "format_value": format_quality_decimal,
+    }
+
+
+def quality_objective_detail_context(objective):
+    return {
+        "objective": objective,
+        "can_manage": can_manage_quality_objective(objective),
+        "can_measure": can_measure_quality_objective(objective),
+        "can_approve": can_approve_quality_objectives(),
+        "can_archive": can_delete_quality_objectives()
+        and objective.status != QUALITY_OBJECTIVE_STATUS_ARCHIVED,
+        "can_edit_measurement": can_edit_quality_objective_measurement,
+        "can_delete_measurement": can_delete_quality_objective_measurement,
+        "status_tone": quality_objective_status_tone,
+        "health_tone": quality_objective_health_tone,
+        "format_value": format_quality_decimal,
+    }
+
+
+def parse_quality_objective_measurement_form(objective):
+    values = {
+        "measurement_date": parse_optional_date("measurement_date"),
+        "period_label": request.form.get("period_label", "").strip(),
+        "actual_value": parse_quality_objective_decimal("actual_value"),
+        "note": request.form.get("note", "").strip(),
+    }
+    if not values["measurement_date"]:
+        raise ValueError("required_measurement_date")
+    if objective.period_start and values["measurement_date"] < objective.period_start:
+        raise ValueError("measurement_outside_period")
+    if objective.period_end and values["measurement_date"] > objective.period_end:
+        raise ValueError("measurement_outside_period")
+    if values["period_label"] and len(values["period_label"]) > 80:
+        raise ValueError("field_too_long")
+    values["period_label"] = values["period_label"] or None
+    values["note"] = values["note"] or None
+    values["target_value_snapshot"] = objective.target_value
+    return values
+
+
+def quality_objective_measurement_error_message(error_key):
+    return {
+        "required_measurement_date": "Ölçüm tarihi zorunludur.",
+        "required_actual_value": "Gerçekleşen değer zorunludur.",
+        "invalid_decimal": "Gerçekleşen değer geçerli bir sayı olmalıdır.",
+        "field_too_long": "Dönem etiketi en fazla 80 karakter olabilir.",
+        "duplicate_measurement": "Bu hedef için aynı tarihte daha önce ölçüm girilmiş.",
+        "measurement_outside_period": "Ölçüm tarihi kalite hedefinin dönem aralığında olmalıdır.",
+    }.get(error_key, "KPI ölçümü kaydedilemedi.")
+
+
+def add_months(value, months):
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def next_quality_objective_measurement_date(objective, measurement_date):
+    months_by_frequency = {
+        "Aylık": 1,
+        "3 Aylık": 3,
+        "6 Aylık": 6,
+        "Yıllık": 12,
+    }
+    next_date = add_months(
+        measurement_date,
+        months_by_frequency.get(objective.measurement_frequency, 1),
+    )
+    if objective.period_end and next_date > objective.period_end:
+        return None
+    return next_date
+
+
+def recalculate_quality_objective_measurement_date(objective):
+    latest = (
+        quality_objective_measurement_query()
+        .filter_by(objective_id=objective.id)
+        .order_by(
+            QualityObjectiveMeasurement.measurement_date.desc(),
+            QualityObjectiveMeasurement.id.desc(),
+        )
+        .first()
+    )
+    objective.next_measurement_date = (
+        next_quality_objective_measurement_date(objective, latest.measurement_date)
+        if latest
+        else objective.period_start
+    )
+    return latest
+
+
+def mark_quality_objective_sales_readiness_without_commit():
+    has_objective = QualityObjective.query.first() is not None
+    has_measurement = QualityObjectiveMeasurement.query.first() is not None
+    has_audit = (
+        AuditLog.query.filter_by(
+            entity_type="QualityObjective",
+            action="quality_objective_created",
+        ).first()
+        is not None
+    )
+    if has_objective and has_measurement and has_audit:
+        mark_sales_readiness_item_done_without_commit(
+            "competitor_quality_objectives"
+        )
 
 
 TRAINING_TYPES = ("Doküman Okuma Onayı", "Eğitim", "Sınav / Yeterlilik")
@@ -15005,6 +15790,63 @@ def assigned_process_tasks(scope):
     return rows
 
 
+def assigned_quality_objective_tasks(scope):
+    if not company_module_enabled("quality_objectives") or not can_view_quality_objectives():
+        return []
+
+    user_id = g.current_user.id
+    query = quality_objective_query(include_archived=True)
+    if scope == "created":
+        query = query.filter_by(created_by_user_id=user_id)
+    else:
+        query = query.filter_by(owner_user_id=user_id)
+
+    rows = []
+    for objective in query.all():
+        if objective.is_closed and scope != "created":
+            continue
+        status = objective.status
+        status_key = {
+            QUALITY_OBJECTIVE_STATUS_DRAFT: "pending",
+            QUALITY_OBJECTIVE_STATUS_ACTIVE: "open",
+            QUALITY_OBJECTIVE_STATUS_COMPLETED: "completed",
+            QUALITY_OBJECTIVE_STATUS_CANCELLED: "cancelled",
+            QUALITY_OBJECTIVE_STATUS_ARCHIVED: "cancelled",
+        }.get(objective.status, "open")
+        if objective.delay_days:
+            status, status_key = "Gecikti", "delayed"
+        elif objective.status == QUALITY_OBJECTIVE_STATUS_ACTIVE:
+            status = objective.health
+        rows.append(
+            assigned_task_row(
+                module_key="quality_objective",
+                module_label="Kalite Hedefi",
+                module_icon="bullseye",
+                module_tone="document",
+                title=objective.title,
+                description=(
+                    f"{objective.metric_name}: "
+                    f"{format_quality_decimal(objective.actual_value)} / "
+                    f"{format_quality_decimal(objective.target_value)} {objective.unit}"
+                ),
+                reference_no=objective.objective_no,
+                department=objective.department or objective.bsc_perspective,
+                due_date=objective.next_measurement_date or objective.period_end,
+                status=status,
+                status_key=status_key,
+                priority="Yüksek" if status_key == "delayed" else "Orta",
+                detail_url=url_for(
+                    "main.quality_objective_detail",
+                    objective_id=objective.id,
+                ),
+                created_at=objective.created_at,
+                sort_id=objective.id,
+                date_label="Ölçüm Termini",
+            )
+        )
+    return rows
+
+
 def assigned_complaint_tasks(scope):
     if not company_module_enabled("suggestions") or not can_view_complaints():
         return []
@@ -15682,6 +16524,7 @@ def assigned_all_tasks(scope):
         + assigned_risk_tasks(scope)
         + assigned_fmea_tasks(scope)
         + assigned_process_tasks(scope)
+        + assigned_quality_objective_tasks(scope)
         + assigned_complaint_tasks(scope)
         + assigned_management_review_tasks(scope)
         + assigned_document_revision_tasks(scope)
@@ -15712,6 +16555,7 @@ ASSIGNED_TAB_MODULES = {
         "risk",
         "fmea",
         "process",
+        "quality_objective",
         "training",
         "document_revision",
         "change_management",
@@ -15734,6 +16578,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("risk", "Risk"),
     ("fmea", "FMEA"),
     ("process", "S\u00fcre\u00e7 Y\u00f6netimi"),
+    ("quality_objective", "Kalite Hedefi"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
@@ -17062,6 +17907,386 @@ def delete_process_relation(relation_id):
     db.session.commit()
     flash("S\u00fcre\u00e7 ba\u011flant\u0131s\u0131 silindi.", "success")
     return redirect(url_for("main.process_detail", process_id=source_process_id))
+
+
+@bp.route("/kalite-hedefleri")
+@login_required
+def quality_objective_dashboard():
+    if not can_view_quality_objectives():
+        abort(403)
+    return render_template(
+        "quality_objectives/dashboard.html",
+        **quality_objective_dashboard_context(),
+    )
+
+
+@bp.route("/kalite-hedefleri/yeni", methods=["GET", "POST"])
+@login_required
+def create_quality_objective():
+    if not can_create_quality_objectives():
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            values = parse_quality_objective_form()
+            objective = QualityObjective(
+                objective_no=next_quality_objective_no(),
+                status=QUALITY_OBJECTIVE_STATUS_DRAFT,
+                created_by_user_id=g.current_user.id,
+                **values,
+            )
+            assign_current_company(objective)
+            validate_quality_objective_links(objective)
+            db.session.add(objective)
+            db.session.flush()
+            record_audit_event(
+                "QualityObjective",
+                "quality_objective_created",
+                f"{objective.objective_no} kalite hedefi oluşturuldu",
+                entity_id=objective.id,
+                new_values=quality_objective_snapshot(objective),
+                company_id=objective.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            db.session.commit()
+            flash("Kalite hedefi taslak olarak oluşturuldu.", "success")
+            return redirect(
+                url_for("main.quality_objective_detail", objective_id=objective.id)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            flash(quality_objective_form_error_message(str(error)), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash("Hedef numarası oluşturulamadı. Lütfen tekrar deneyin.", "danger")
+
+    return render_template(
+        "quality_objectives/form.html",
+        **quality_objective_form_context(),
+    )
+
+
+@bp.route("/kalite-hedefleri/<int:objective_id>")
+@login_required
+def quality_objective_detail(objective_id):
+    if not can_view_quality_objectives():
+        abort(403)
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    ensure_same_company(objective)
+    return render_template(
+        "quality_objectives/detail.html",
+        **quality_objective_detail_context(objective),
+    )
+
+
+@bp.route("/kalite-hedefleri/<int:objective_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_quality_objective(objective_id):
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    ensure_same_company(objective)
+    if not can_manage_quality_objective(objective):
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            old_values = quality_objective_snapshot(objective)
+            values = parse_quality_objective_form()
+            for key, value in values.items():
+                setattr(objective, key, value)
+            validate_quality_objective_links(objective)
+            record_audit_event(
+                "QualityObjective",
+                "quality_objective_updated",
+                f"{objective.objective_no} kalite hedefi güncellendi",
+                entity_id=objective.id,
+                old_values=old_values,
+                new_values=quality_objective_snapshot(objective),
+                company_id=objective.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            mark_quality_objective_sales_readiness_without_commit()
+            db.session.commit()
+            flash("Kalite hedefi güncellendi.", "success")
+            return redirect(
+                url_for("main.quality_objective_detail", objective_id=objective.id)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            flash(quality_objective_form_error_message(str(error)), "danger")
+
+    return render_template(
+        "quality_objectives/form.html",
+        **quality_objective_form_context(objective),
+    )
+
+
+@bp.post("/kalite-hedefleri/<int:objective_id>/aktiflestir")
+@login_required
+def activate_quality_objective(objective_id):
+    if not can_approve_quality_objectives():
+        abort(403)
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    ensure_same_company(objective)
+    if objective.status != QUALITY_OBJECTIVE_STATUS_DRAFT:
+        flash("Yalnızca taslak hedefler aktifleştirilebilir.", "warning")
+        return redirect(url_for("main.quality_objective_detail", objective_id=objective.id))
+
+    objective.status = QUALITY_OBJECTIVE_STATUS_ACTIVE
+    if not objective.next_measurement_date:
+        objective.next_measurement_date = objective.period_start or date.today()
+        if objective.period_end and objective.next_measurement_date > objective.period_end:
+            objective.next_measurement_date = objective.period_end
+    record_audit_event(
+        "QualityObjective",
+        "quality_objective_activated",
+        f"{objective.objective_no} kalite hedefi aktifleştirildi",
+        entity_id=objective.id,
+        new_values={
+            "status": objective.status,
+            "next_measurement_date": objective.next_measurement_date,
+            "owner_user_id": objective.owner_user_id,
+        },
+        company_id=objective.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    db.session.commit()
+    flash("Kalite hedefi aktifleştirildi.", "success")
+    return redirect(url_for("main.quality_objective_detail", objective_id=objective.id))
+
+
+@bp.post("/kalite-hedefleri/<int:objective_id>/tamamla")
+@login_required
+def complete_quality_objective(objective_id):
+    if not can_approve_quality_objectives():
+        abort(403)
+    objective = quality_objective_query().filter_by(id=objective_id).first_or_404()
+    ensure_same_company(objective)
+    if objective.status != QUALITY_OBJECTIVE_STATUS_ACTIVE:
+        flash("Yalnızca aktif hedefler tamamlanabilir.", "warning")
+    elif not objective.measurements:
+        flash("Hedef tamamlanmadan önce en az bir ölçüm kaydedin.", "danger")
+    else:
+        objective.status = QUALITY_OBJECTIVE_STATUS_COMPLETED
+        objective.next_measurement_date = None
+        record_audit_event(
+            "QualityObjective",
+            "quality_objective_completed",
+            f"{objective.objective_no} kalite hedefi tamamlandı",
+            entity_id=objective.id,
+            new_values={
+                "status": objective.status,
+                "actual_value": objective.actual_value,
+                "achievement_rate": objective.achievement_rate,
+                "weighted_score": objective.weighted_score,
+            },
+            company_id=objective.company_id,
+            user_id=g.current_user.id,
+            commit=False,
+        )
+        mark_quality_objective_sales_readiness_without_commit()
+        db.session.commit()
+        flash("Kalite hedefi tamamlandı.", "success")
+    return redirect(url_for("main.quality_objective_detail", objective_id=objective.id))
+
+
+@bp.post("/kalite-hedefleri/<int:objective_id>/arsivle")
+@login_required
+def archive_quality_objective(objective_id):
+    if not can_delete_quality_objectives():
+        abort(403)
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    ensure_same_company(objective)
+    if objective.status == QUALITY_OBJECTIVE_STATUS_ARCHIVED:
+        flash("Kalite hedefi zaten arşivde.", "warning")
+        return redirect(url_for("main.quality_objective_dashboard"))
+
+    old_status = objective.status
+    objective.status = QUALITY_OBJECTIVE_STATUS_ARCHIVED
+    objective.archived_at = datetime.utcnow()
+    objective.next_measurement_date = None
+    record_audit_event(
+        "QualityObjective",
+        "quality_objective_archived",
+        f"{objective.objective_no} kalite hedefi arşivlendi",
+        entity_id=objective.id,
+        old_values={"status": old_status},
+        new_values={"status": objective.status},
+        company_id=objective.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    db.session.commit()
+    flash("Kalite hedefi arşive alındı.", "success")
+    return redirect(url_for("main.quality_objective_dashboard"))
+
+
+@bp.post("/kalite-hedefleri/<int:objective_id>/olcum")
+@login_required
+def add_quality_objective_measurement(objective_id):
+    objective = quality_objective_query().filter_by(id=objective_id).first_or_404()
+    ensure_same_company(objective)
+    if not can_measure_quality_objective(objective):
+        abort(403)
+    try:
+        values = parse_quality_objective_measurement_form(objective)
+        measurement = QualityObjectiveMeasurement(
+            objective_id=objective.id,
+            company_id=objective.company_id,
+            entered_by_user_id=g.current_user.id,
+            **values,
+        )
+        db.session.add(measurement)
+        db.session.flush()
+        recalculate_quality_objective_measurement_date(objective)
+        record_audit_event(
+            "QualityObjectiveMeasurement",
+            "measurement_recorded",
+            f"{objective.objective_no} KPI ölçümü kaydedildi",
+            entity_id=measurement.id,
+            new_values={
+                "objective_id": objective.id,
+                "measurement_date": measurement.measurement_date,
+                "actual_value": measurement.actual_value,
+                "target_value": measurement.target_value_snapshot,
+                "entered_by_user_id": measurement.entered_by_user_id,
+            },
+            company_id=objective.company_id,
+            user_id=g.current_user.id,
+            commit=False,
+        )
+        mark_quality_objective_sales_readiness_without_commit()
+        db.session.commit()
+        flash("KPI ölçümü kaydedildi.", "success")
+    except ValueError as error:
+        db.session.rollback()
+        flash(quality_objective_measurement_error_message(str(error)), "danger")
+    except IntegrityError:
+        db.session.rollback()
+        flash(quality_objective_measurement_error_message("duplicate_measurement"), "danger")
+    return redirect(url_for("main.quality_objective_detail", objective_id=objective.id))
+
+
+@bp.route(
+    "/kalite-hedefleri/<int:objective_id>/olcum/<int:measurement_id>/duzenle",
+    methods=["GET", "POST"],
+)
+@login_required
+def edit_quality_objective_measurement(objective_id, measurement_id):
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    measurement = quality_objective_measurement_query().filter_by(
+        id=measurement_id,
+        objective_id=objective.id,
+    ).first_or_404()
+    ensure_same_company(objective)
+    ensure_same_company(measurement)
+    if not can_edit_quality_objective_measurement(objective, measurement):
+        abort(403)
+
+    if request.method == "POST":
+        try:
+            old_values = {
+                "measurement_date": measurement.measurement_date,
+                "actual_value": measurement.actual_value,
+                "period_label": measurement.period_label,
+                "note": measurement.note,
+            }
+            values = parse_quality_objective_measurement_form(objective)
+            values.pop("target_value_snapshot", None)
+            for key, value in values.items():
+                setattr(measurement, key, value)
+            db.session.flush()
+            recalculate_quality_objective_measurement_date(objective)
+            record_audit_event(
+                "QualityObjectiveMeasurement",
+                "measurement_corrected",
+                f"{objective.objective_no} KPI ölçümü düzeltildi",
+                entity_id=measurement.id,
+                old_values=old_values,
+                new_values={
+                    "measurement_date": measurement.measurement_date,
+                    "actual_value": measurement.actual_value,
+                    "period_label": measurement.period_label,
+                    "note": measurement.note,
+                    "target_value_snapshot": measurement.target_value_snapshot,
+                    "entered_by_user_id": measurement.entered_by_user_id,
+                    "next_measurement_date": objective.next_measurement_date,
+                },
+                company_id=objective.company_id,
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            db.session.commit()
+            flash("KPI ölçümü düzeltildi.", "success")
+            return redirect(
+                url_for("main.quality_objective_detail", objective_id=objective.id)
+            )
+        except ValueError as error:
+            db.session.rollback()
+            flash(quality_objective_measurement_error_message(str(error)), "danger")
+        except IntegrityError:
+            db.session.rollback()
+            flash(quality_objective_measurement_error_message("duplicate_measurement"), "danger")
+
+    return render_template(
+        "quality_objectives/measurement_form.html",
+        objective=objective,
+        measurement=measurement,
+        form_data=request.form if request.method == "POST" else {},
+        format_value=format_quality_decimal,
+    )
+
+
+@bp.post(
+    "/kalite-hedefleri/<int:objective_id>/olcum/<int:measurement_id>/sil"
+)
+@login_required
+def delete_quality_objective_measurement(objective_id, measurement_id):
+    objective = quality_objective_query(include_archived=True).filter_by(
+        id=objective_id
+    ).first_or_404()
+    measurement = quality_objective_measurement_query().filter_by(
+        id=measurement_id,
+        objective_id=objective.id,
+    ).first_or_404()
+    ensure_same_company(objective)
+    ensure_same_company(measurement)
+    if not can_delete_quality_objective_measurement(objective, measurement):
+        abort(403)
+
+    old_values = {
+        "measurement_date": measurement.measurement_date,
+        "actual_value": measurement.actual_value,
+        "entered_by_user_id": measurement.entered_by_user_id,
+    }
+    record_audit_event(
+        "QualityObjectiveMeasurement",
+        "measurement_deleted",
+        f"{objective.objective_no} KPI ölçümü silindi",
+        entity_id=measurement.id,
+        old_values=old_values,
+        company_id=objective.company_id,
+        user_id=g.current_user.id,
+        commit=False,
+    )
+    db.session.delete(measurement)
+    db.session.flush()
+    recalculate_quality_objective_measurement_date(objective)
+    db.session.commit()
+    flash("KPI ölçümü silindi.", "success")
+    return redirect(url_for("main.quality_objective_detail", objective_id=objective.id))
 
 
 def can_view_change_requests():

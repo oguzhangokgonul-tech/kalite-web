@@ -204,6 +204,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "quality_objectives",
+        "name": "Kalite Hedefleri",
+        "description": "ISO 9001 kalite hedefleri, KPI ölçümleri ve BSC perspektifleri.",
+        "icon": "bi-bullseye",
+        "sort_order": 57.5,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
@@ -440,6 +448,36 @@ PROCESS_RELATION_TYPES = (
     PROCESS_RELATION_INPUT,
     PROCESS_RELATION_OUTPUT,
     PROCESS_RELATION_LINKED,
+)
+QUALITY_OBJECTIVE_PERSPECTIVES = (
+    "Finansal",
+    "Müşteri",
+    "İç Süreçler",
+    "Öğrenme ve Gelişim",
+)
+QUALITY_OBJECTIVE_FREQUENCIES = (
+    "Aylık",
+    "3 Aylık",
+    "6 Aylık",
+    "Yıllık",
+)
+QUALITY_OBJECTIVE_DIRECTION_MINIMUM = "En Az"
+QUALITY_OBJECTIVE_DIRECTION_MAXIMUM = "En Fazla"
+QUALITY_OBJECTIVE_DIRECTIONS = (
+    QUALITY_OBJECTIVE_DIRECTION_MINIMUM,
+    QUALITY_OBJECTIVE_DIRECTION_MAXIMUM,
+)
+QUALITY_OBJECTIVE_STATUS_DRAFT = "Taslak"
+QUALITY_OBJECTIVE_STATUS_ACTIVE = "Aktif"
+QUALITY_OBJECTIVE_STATUS_COMPLETED = "Tamamlandı"
+QUALITY_OBJECTIVE_STATUS_CANCELLED = "İptal"
+QUALITY_OBJECTIVE_STATUS_ARCHIVED = "Arşiv"
+QUALITY_OBJECTIVE_STATUSES = (
+    QUALITY_OBJECTIVE_STATUS_DRAFT,
+    QUALITY_OBJECTIVE_STATUS_ACTIVE,
+    QUALITY_OBJECTIVE_STATUS_COMPLETED,
+    QUALITY_OBJECTIVE_STATUS_CANCELLED,
+    QUALITY_OBJECTIVE_STATUS_ARCHIVED,
 )
 QUALITY_TEST_MODULE_BY_SLUG = {
     "beton-deneyi": "quality_test_concrete",
@@ -1490,6 +1528,166 @@ class ProcessRelation(db.Model):
         back_populates="incoming_relations",
         foreign_keys=[target_process_id],
     )
+
+
+class QualityObjective(db.Model):
+    __tablename__ = "quality_objectives"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "objective_no",
+            name="uq_quality_objectives_company_objective_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    objective_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(180), nullable=False)
+    bsc_perspective = db.Column(db.String(60), nullable=False)
+    department = db.Column(db.String(80), nullable=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    process_id = db.Column(db.Integer, db.ForeignKey("process_records.id"), nullable=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
+    metric_name = db.Column(db.String(180), nullable=False)
+    unit = db.Column(db.String(40), nullable=False)
+    baseline_value = db.Column(db.Numeric(14, 4), nullable=False)
+    target_value = db.Column(db.Numeric(14, 4), nullable=False)
+    target_direction = db.Column(
+        db.String(20),
+        nullable=False,
+        default=QUALITY_OBJECTIVE_DIRECTION_MINIMUM,
+    )
+    weight = db.Column(db.Numeric(5, 2), nullable=False, default=0)
+    period_start = db.Column(db.Date, nullable=True)
+    period_end = db.Column(db.Date, nullable=False)
+    next_measurement_date = db.Column(db.Date, nullable=True)
+    measurement_frequency = db.Column(db.String(40), nullable=False, default="Aylık")
+    status = db.Column(db.String(40), nullable=False, default=QUALITY_OBJECTIVE_STATUS_DRAFT)
+    description = db.Column(db.Text, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    process = db.relationship("ProcessRecord", foreign_keys=[process_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    measurements = db.relationship(
+        "QualityObjectiveMeasurement",
+        back_populates="objective",
+        cascade="all, delete-orphan",
+        order_by="QualityObjectiveMeasurement.measurement_date.desc(), QualityObjectiveMeasurement.id.desc()",
+    )
+
+    @property
+    def latest_measurement(self):
+        return self.measurements[0] if self.measurements else None
+
+    @property
+    def actual_value(self):
+        latest = self.latest_measurement
+        return latest.actual_value if latest else None
+
+    @property
+    def achievement_rate(self):
+        if self.actual_value is None:
+            return None
+        baseline = float(self.baseline_value or 0)
+        target = float(self.target_value or 0)
+        actual = float(self.actual_value)
+        distance = target - baseline
+        if distance == 0:
+            return 100.0 if actual == target else 0.0
+        return max(0.0, ((actual - baseline) / distance) * 100)
+
+    @property
+    def weighted_score(self):
+        if self.achievement_rate is None:
+            return 0.0
+        return min(self.achievement_rate, 100.0) * float(self.weight or 0) / 100.0
+
+    @property
+    def target_met(self):
+        if self.actual_value is None:
+            return False
+        actual = float(self.actual_value)
+        target = float(self.target_value or 0)
+        if self.target_direction == QUALITY_OBJECTIVE_DIRECTION_MAXIMUM:
+            return actual <= target
+        return actual >= target
+
+    @property
+    def health(self):
+        if self.status in {QUALITY_OBJECTIVE_STATUS_ARCHIVED, QUALITY_OBJECTIVE_STATUS_CANCELLED}:
+            return "Pasif"
+        if self.status == QUALITY_OBJECTIVE_STATUS_COMPLETED:
+            return "Tamamlandı"
+        if self.achievement_rate is None:
+            return "Ölçüm Bekliyor"
+        if self.target_met:
+            return "Hedefe Ulaştı"
+        if self.achievement_rate >= 80:
+            return "İzlemede"
+        return "Geride"
+
+    @property
+    def is_closed(self):
+        return self.status in {
+            QUALITY_OBJECTIVE_STATUS_COMPLETED,
+            QUALITY_OBJECTIVE_STATUS_CANCELLED,
+            QUALITY_OBJECTIVE_STATUS_ARCHIVED,
+        }
+
+    @property
+    def delay_days(self):
+        due_date = self.next_measurement_date or self.period_end
+        if self.is_closed or not due_date:
+            return 0
+        return max((date.today() - due_date).days, 0)
+
+
+class QualityObjectiveMeasurement(db.Model):
+    __tablename__ = "quality_objective_measurements"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "objective_id",
+            "measurement_date",
+            name="uq_quality_objective_measurements_company_objective_date",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
+    objective_id = db.Column(
+        db.Integer,
+        db.ForeignKey("quality_objectives.id"),
+        nullable=False,
+        index=True,
+    )
+    measurement_date = db.Column(db.Date, nullable=False, index=True)
+    period_label = db.Column(db.String(80), nullable=True)
+    actual_value = db.Column(db.Numeric(14, 4), nullable=False)
+    target_value_snapshot = db.Column(db.Numeric(14, 4), nullable=False)
+    note = db.Column(db.Text, nullable=True)
+    entered_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    objective = db.relationship("QualityObjective", back_populates="measurements")
+    entered_by = db.relationship("User", foreign_keys=[entered_by_user_id])
 
 
 class TrainingRecord(db.Model):

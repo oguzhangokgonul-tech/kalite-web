@@ -199,6 +199,48 @@ PERMISSION_CATALOG = (
         "description": "S\u00fcre\u00e7 y\u00f6netimi kay\u0131tlar\u0131n\u0131 rapor merkezinden d\u0131\u015fa aktar\u0131r.",
     },
     {
+        "key": "quality_objective.view",
+        "label": "Kalite hedeflerini görüntüleme",
+        "group": "Kalite Hedefleri",
+        "description": "Kalite hedeflerini, KPI ölçümlerini ve BSC özetini görüntüler.",
+    },
+    {
+        "key": "quality_objective.create",
+        "label": "Kalite hedefi oluşturma",
+        "group": "Kalite Hedefleri",
+        "description": "Yeni kalite hedefi ve KPI kartı oluşturur.",
+    },
+    {
+        "key": "quality_objective.manage",
+        "label": "Kalite hedefi yönetimi",
+        "group": "Kalite Hedefleri",
+        "description": "Yetkili olduğu kalite hedeflerini, sorumluları ve bağlantıları yönetir.",
+    },
+    {
+        "key": "quality_objective.measure",
+        "label": "Kalite hedefi ölçümü",
+        "group": "Kalite Hedefleri",
+        "description": "Sorumlusu olduğu hedeflere dönemsel KPI ölçümü girer.",
+    },
+    {
+        "key": "quality_objective.approve",
+        "label": "Kalite hedefi onayı",
+        "group": "Kalite Hedefleri",
+        "description": "Kalite hedeflerini aktifleştirir ve tamamlar.",
+    },
+    {
+        "key": "quality_objective.delete",
+        "label": "Kalite hedefi arşivleme",
+        "group": "Kalite Hedefleri",
+        "description": "Kalite hedeflerini denetim izi korunacak şekilde arşive alır.",
+    },
+    {
+        "key": "quality_objective.export",
+        "label": "Kalite hedefi raporu alma",
+        "group": "Kalite Hedefleri",
+        "description": "Kalite hedefleri ve KPI ölçümlerini rapor merkezinden dışa aktarır.",
+    },
+    {
         "key": "change_management.view",
         "label": "De\u011fi\u015fiklikleri g\u00f6r\u00fcnt\u00fcleme",
         "group": "De\u011fi\u015fiklik Y\u00f6netimi",
@@ -528,6 +570,13 @@ ROLE_DEFINITIONS = (
             "process.manage",
             "process.delete",
             "process.export",
+            "quality_objective.view",
+            "quality_objective.create",
+            "quality_objective.manage",
+            "quality_objective.measure",
+            "quality_objective.approve",
+            "quality_objective.delete",
+            "quality_objective.export",
             "change_management.view",
             "change_management.create",
             "change_management.manage",
@@ -591,6 +640,9 @@ ROLE_DEFINITIONS = (
             "fmea.export",
             "process.view",
             "process.export",
+            "quality_objective.view",
+            "quality_objective.approve",
+            "quality_objective.export",
             "change_management.view",
             "change_management.approve",
             "change_management.export",
@@ -629,6 +681,10 @@ ROLE_DEFINITIONS = (
             "process.view",
             "process.create",
             "process.manage",
+            "quality_objective.view",
+            "quality_objective.create",
+            "quality_objective.manage",
+            "quality_objective.measure",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -661,6 +717,8 @@ ROLE_DEFINITIONS = (
             "fmea.view",
             "fmea.create",
             "process.view",
+            "quality_objective.view",
+            "quality_objective.measure",
             "change_management.view",
             "change_management.create",
             "deviation.view",
@@ -682,6 +740,7 @@ ROLE_DEFINITIONS = (
             "documents.view",
             "fmea.view",
             "process.view",
+            "quality_objective.view",
             "change_management.view",
             "deviation.view",
             "incident.view",
@@ -1423,6 +1482,165 @@ def ensure_runtime_schema():
                     f"ON process_relations ({column_name})"
                 )
             )
+
+    if "quality_objectives" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE quality_objectives (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    objective_no VARCHAR(40) NOT NULL,
+                    title VARCHAR(180) NOT NULL,
+                    bsc_perspective VARCHAR(60) NOT NULL,
+                    department VARCHAR(80),
+                    owner_user_id INTEGER,
+                    process_id INTEGER,
+                    action_id INTEGER,
+                    metric_name VARCHAR(180) NOT NULL,
+                    unit VARCHAR(40) NOT NULL,
+                    baseline_value NUMERIC(14, 4) NOT NULL,
+                    target_value NUMERIC(14, 4) NOT NULL,
+                    target_direction VARCHAR(20) NOT NULL DEFAULT 'En Az',
+                    weight NUMERIC(5, 2) NOT NULL DEFAULT 0,
+                    period_start DATE,
+                    period_end DATE NOT NULL,
+                    next_measurement_date DATE,
+                    measurement_frequency VARCHAR(40) NOT NULL DEFAULT 'Aylık',
+                    status VARCHAR(40) NOT NULL DEFAULT 'Taslak',
+                    description TEXT,
+                    archived_at DATETIME,
+                    created_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(owner_user_id) REFERENCES users (id),
+                    FOREIGN KEY(process_id) REFERENCES process_records (id),
+                    FOREIGN KEY(action_id) REFERENCES actions (id),
+                    FOREIGN KEY(created_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("quality_objectives")
+
+    if "quality_objectives" in tables:
+        columns = {column["name"] for column in inspector.get_columns("quality_objectives")}
+        objective_columns = {
+            "company_id": "ALTER TABLE quality_objectives ADD COLUMN company_id INTEGER",
+            "objective_no": "ALTER TABLE quality_objectives ADD COLUMN objective_no VARCHAR(40) NOT NULL DEFAULT ''",
+            "title": "ALTER TABLE quality_objectives ADD COLUMN title VARCHAR(180) NOT NULL DEFAULT ''",
+            "bsc_perspective": "ALTER TABLE quality_objectives ADD COLUMN bsc_perspective VARCHAR(60) NOT NULL DEFAULT 'İç Süreçler'",
+            "department": "ALTER TABLE quality_objectives ADD COLUMN department VARCHAR(80)",
+            "owner_user_id": "ALTER TABLE quality_objectives ADD COLUMN owner_user_id INTEGER",
+            "process_id": "ALTER TABLE quality_objectives ADD COLUMN process_id INTEGER",
+            "action_id": "ALTER TABLE quality_objectives ADD COLUMN action_id INTEGER",
+            "metric_name": "ALTER TABLE quality_objectives ADD COLUMN metric_name VARCHAR(180) NOT NULL DEFAULT ''",
+            "unit": "ALTER TABLE quality_objectives ADD COLUMN unit VARCHAR(40) NOT NULL DEFAULT ''",
+            "baseline_value": "ALTER TABLE quality_objectives ADD COLUMN baseline_value NUMERIC(14, 4) NOT NULL DEFAULT 0",
+            "target_value": "ALTER TABLE quality_objectives ADD COLUMN target_value NUMERIC(14, 4) NOT NULL DEFAULT 0",
+            "target_direction": "ALTER TABLE quality_objectives ADD COLUMN target_direction VARCHAR(20) NOT NULL DEFAULT 'En Az'",
+            "weight": "ALTER TABLE quality_objectives ADD COLUMN weight NUMERIC(5, 2) NOT NULL DEFAULT 0",
+            "period_start": "ALTER TABLE quality_objectives ADD COLUMN period_start DATE",
+            "period_end": "ALTER TABLE quality_objectives ADD COLUMN period_end DATE",
+            "next_measurement_date": "ALTER TABLE quality_objectives ADD COLUMN next_measurement_date DATE",
+            "measurement_frequency": "ALTER TABLE quality_objectives ADD COLUMN measurement_frequency VARCHAR(40) NOT NULL DEFAULT 'Aylık'",
+            "status": "ALTER TABLE quality_objectives ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Taslak'",
+            "description": "ALTER TABLE quality_objectives ADD COLUMN description TEXT",
+            "archived_at": "ALTER TABLE quality_objectives ADD COLUMN archived_at DATETIME",
+            "created_by_user_id": "ALTER TABLE quality_objectives ADD COLUMN created_by_user_id INTEGER",
+            "created_at": "ALTER TABLE quality_objectives ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE quality_objectives ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in objective_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_quality_objectives_company_id", "company_id"),
+            ("ix_quality_objectives_objective_no", "objective_no"),
+            ("ix_quality_objectives_status", "status"),
+            ("ix_quality_objectives_bsc_perspective", "bsc_perspective"),
+            ("ix_quality_objectives_owner_user_id", "owner_user_id"),
+            ("ix_quality_objectives_period_end", "period_end"),
+            ("ix_quality_objectives_next_measurement_date", "next_measurement_date"),
+        ):
+            db.session.execute(
+                text(f"CREATE INDEX IF NOT EXISTS {index_name} ON quality_objectives ({column_name})")
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_quality_objectives_company_objective_no "
+                "ON quality_objectives (company_id, objective_no)"
+            )
+        )
+
+    if "quality_objective_measurements" not in tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE quality_objective_measurements (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    company_id INTEGER,
+                    objective_id INTEGER NOT NULL,
+                    measurement_date DATE NOT NULL,
+                    period_label VARCHAR(80),
+                    actual_value NUMERIC(14, 4) NOT NULL,
+                    target_value_snapshot NUMERIC(14, 4) NOT NULL,
+                    note TEXT,
+                    entered_by_user_id INTEGER,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(company_id) REFERENCES companies (id),
+                    FOREIGN KEY(objective_id) REFERENCES quality_objectives (id),
+                    FOREIGN KEY(entered_by_user_id) REFERENCES users (id)
+                )
+                """
+            )
+        )
+        changed = True
+        tables.add("quality_objective_measurements")
+
+    if "quality_objective_measurements" in tables:
+        columns = {
+            column["name"]
+            for column in inspector.get_columns("quality_objective_measurements")
+        }
+        measurement_columns = {
+            "company_id": "ALTER TABLE quality_objective_measurements ADD COLUMN company_id INTEGER",
+            "objective_id": "ALTER TABLE quality_objective_measurements ADD COLUMN objective_id INTEGER NOT NULL DEFAULT 0",
+            "measurement_date": "ALTER TABLE quality_objective_measurements ADD COLUMN measurement_date DATE",
+            "period_label": "ALTER TABLE quality_objective_measurements ADD COLUMN period_label VARCHAR(80)",
+            "actual_value": "ALTER TABLE quality_objective_measurements ADD COLUMN actual_value NUMERIC(14, 4) NOT NULL DEFAULT 0",
+            "target_value_snapshot": "ALTER TABLE quality_objective_measurements ADD COLUMN target_value_snapshot NUMERIC(14, 4) NOT NULL DEFAULT 0",
+            "note": "ALTER TABLE quality_objective_measurements ADD COLUMN note TEXT",
+            "entered_by_user_id": "ALTER TABLE quality_objective_measurements ADD COLUMN entered_by_user_id INTEGER",
+            "created_at": "ALTER TABLE quality_objective_measurements ADD COLUMN created_at DATETIME",
+            "updated_at": "ALTER TABLE quality_objective_measurements ADD COLUMN updated_at DATETIME",
+        }
+        for column_name, statement in measurement_columns.items():
+            if column_name not in columns:
+                db.session.execute(text(statement))
+                changed = True
+        for index_name, column_name in (
+            ("ix_quality_objective_measurements_company_id", "company_id"),
+            ("ix_quality_objective_measurements_objective_id", "objective_id"),
+            ("ix_quality_objective_measurements_measurement_date", "measurement_date"),
+        ):
+            db.session.execute(
+                text(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} "
+                    f"ON quality_objective_measurements ({column_name})"
+                )
+            )
+        db.session.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS "
+                "uq_quality_objective_measurements_company_objective_date "
+                "ON quality_objective_measurements (company_id, objective_id, measurement_date)"
+            )
+        )
 
     if "change_requests" not in tables:
         db.session.execute(
@@ -2780,6 +2998,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_incident_near_miss",
             "sales_readiness:competitor_fmea",
             "sales_readiness:competitor_process_bpm",
+            "sales_readiness:competitor_quality_objectives",
         ):
             db.session.execute(
                 text(
