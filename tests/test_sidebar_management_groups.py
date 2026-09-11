@@ -118,3 +118,16 @@ def test_admin_panel_group_opens_on_active_child(app, client):
     body = response.get_data(as_text=True)
     assert 'data-bs-target="#adminPanelNav" aria-expanded="true"' in body
     assert 'class="dashboard-subnav collapse show" id="adminPanelNav"' in body
+
+
+def test_sidebar_has_scroll_and_keyboard_navigation_contract(app, client):
+    superadmin = create_user("superadmin")
+    login(client, superadmin)
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'class="vp-skip-link" href="#dashboardMainContent"' in body
+    assert 'class="dashboard-sidebar-nav" aria-label="Ana men&#252;" tabindex="0"' in body
+    assert 'id="dashboardMainContent" tabindex="-1"' in body

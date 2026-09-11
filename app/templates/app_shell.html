@@ -6,6 +6,7 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
+  <a class="vp-skip-link" href="#dashboardMainContent">Ana i&#231;eri&#287;e ge&#231;</a>
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
   {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
@@ -54,7 +55,7 @@
         <img class="dashboard-brand-logo sidebar-logo-expanded" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-400.png') }}" alt="VolkaPortal — Kurumsal Süreç Yönetim Platformu" width="400" height="105">
         {% endif %}
       </a>
-      <nav class="dashboard-sidebar-nav" aria-label="Ana menü">
+      <nav class="dashboard-sidebar-nav" aria-label="Ana men&#252;" tabindex="0">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
           <span>Ana Sayfa</span>
@@ -340,7 +341,7 @@
   </button>
 
   <div class="dashboard-main">
-    <section class="dashboard-content {% block content_extra_class %}{% endblock %}">
+    <section class="dashboard-content {% block content_extra_class %}{% endblock %}" id="dashboardMainContent" tabindex="-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="dashboard-alert-stack">
