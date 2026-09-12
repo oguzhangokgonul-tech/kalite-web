@@ -1,0 +1,28 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ inspection.inspection_no }} Kontrolü{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(inspection.inspection_no ~ " - " ~ inspection.title, inspection.version.name_snapshot ~ " / v" ~ inspection.version.version_number, icon="bi-clipboard2-check") %}<a class="btn btn-outline-secondary btn-lg" href="{{ url_for('inspections.detail', inspection_id=inspection.id) }}"><i class="bi bi-arrow-left"></i><span>Muayene Detayı</span></a>{% endcall %}
+  <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="vstack gap-3">
+    {% for field in inspection.version.fields %}{% set row = values.get(field.id, {}) %}{% set value = row.get('value', '') %}
+      <section class="document-list-card p-4">
+        <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><div><span class="text-secondary">{{ loop.index }}. Kontrol maddesi</span><h2 class="h5 mb-0">{{ field.label }}{% if field.is_required %} <span class="text-danger">*</span>{% endif %}</h2></div><span class="badge text-bg-light">{{ field.field_type }}</span></div>
+        <div class="row g-3">
+          <div class="col-lg-6"><label class="form-label" for="answer_{{ field.id }}">Kontrol Değeri</label>
+          {% if field.field_type == 'long_text' %}<textarea class="form-control" id="answer_{{ field.id }}" name="answer_{{ field.id }}" rows="3">{{ value or '' }}</textarea>
+          {% elif field.field_type == 'number' %}<input class="form-control" type="number" step="any" id="answer_{{ field.id }}" name="answer_{{ field.id }}" value="{{ value or '' }}">
+          {% elif field.field_type == 'date' %}<input class="form-control" type="date" id="answer_{{ field.id }}" name="answer_{{ field.id }}" value="{{ value or '' }}">
+          {% elif field.field_type == 'yes_no' %}<select class="form-select" id="answer_{{ field.id }}" name="answer_{{ field.id }}"><option value="">Seçiniz</option><option value="Evet" {% if value == 'Evet' %}selected{% endif %}>Evet</option><option value="Hayır" {% if value == 'Hayır' %}selected{% endif %}>Hayır</option></select>
+          {% elif field.field_type == 'single_choice' %}<select class="form-select" id="answer_{{ field.id }}" name="answer_{{ field.id }}"><option value="">Seçiniz</option>{% for option in field.options %}<option value="{{ option }}" {% if value == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select>
+          {% elif field.field_type == 'multiple_choice' %}<div class="border rounded p-3">{% for option in field.options %}<div class="form-check"><input class="form-check-input" type="checkbox" id="answer_{{ field.id }}_{{ loop.index }}" name="answer_{{ field.id }}" value="{{ option }}" {% if value and option in value %}checked{% endif %}><label class="form-check-label" for="answer_{{ field.id }}_{{ loop.index }}">{{ option }}</label></div>{% endfor %}</div>
+          {% else %}<input class="form-control" id="answer_{{ field.id }}" name="answer_{{ field.id }}" maxlength="5000" value="{{ value or '' }}">{% endif %}</div>
+          <div class="col-lg-3"><label class="form-label" for="result_{{ field.id }}">Sonuç</label><select class="form-select" id="result_{{ field.id }}" name="result_{{ field.id }}"><option value="">Sonuç seçin</option>{% for option in result_options %}<option value="{{ option }}" {% if row.get('compliance_result') == option %}selected{% endif %}>{{ option }}</option>{% endfor %}</select></div>
+          <div class="col-lg-3"><label class="form-label" for="explanation_{{ field.id }}">Açıklama</label><textarea class="form-control" id="explanation_{{ field.id }}" name="explanation_{{ field.id }}" rows="2">{{ row.get('explanation','') or '' }}</textarea></div>
+        </div>
+      </section>
+    {% endfor %}
+    </div>
+    <div class="document-list-card p-3 mt-4 d-flex flex-wrap justify-content-end gap-2"><button class="btn btn-outline-secondary" name="action" value="draft" type="submit"><i class="bi bi-save"></i><span>Taslak Kaydet</span></button><button class="btn btn-success" name="action" value="submit" type="submit"><i class="bi bi-send-check"></i><span>İncelemeye Gönder</span></button></div>
+  </form>
+{% endblock %}

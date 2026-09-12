@@ -1,0 +1,40 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Saha Kontrol ve Muayene{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("Saha Kontrol ve Muayene", "Planlanan kontrolleri, saha sonuçlarını ve bulgu kapanışlarını yönetin.", icon="bi-clipboard2-check") %}
+    {% if can_export %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('inspections.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Raporu</span></a>{% endif %}
+    {% if can_manage %}<a class="btn btn-primary btn-lg" href="{{ url_for('inspections.create_inspection') }}"><i class="bi bi-plus-lg"></i><span>Yeni Muayene</span></a>{% endif %}
+  {% endcall %}
+
+  <form class="document-list-card p-3 mb-4" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-5"><label class="form-label" for="search">Ara</label><input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Muayene no, başlık, konum veya referans"></div>
+      <div class="col-md-3"><label class="form-label" for="department">Departman</label><select class="form-select" id="department" name="department"><option value="">Tümü</option>{% for item in departments %}<option value="{{ item }}" {% if filters.department == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for key, label in statuses.items() %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-search"></i><span>Filtrele</span></button><a class="btn btn-outline-secondary" href="{{ url_for('inspections.dashboard') }}" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a></div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead><tr><th>Muayene No</th><th>Kontrol</th><th>Departman / Konum</th><th>Uygulayıcı</th><th>Termin</th><th>Sonuç</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+        <tbody>
+        {% for item in records %}
+          <tr>
+            <td><strong>{{ item.inspection_no }}</strong></td>
+            <td><strong class="text-primary">{{ item.title }}</strong><small class="d-block text-secondary">{{ item.version.name_snapshot }} / v{{ item.version.version_number }}</small></td>
+            <td>{{ item.department or '-' }}<small class="d-block text-secondary">{{ item.location or item.reference or '-' }}</small></td>
+            <td>{{ item.inspector.full_name }}</td>
+            <td>{{ item.due_date.strftime('%d.%m.%Y') if item.due_date else '-' }}</td>
+            <td>{{ ui.status_badge(item.overall_result or 'Bekliyor') }}</td>
+            <td>{{ ui.status_badge(statuses.get(item.status, item.status)) }}</td>
+            <td><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('inspections.detail', inspection_id=item.id) }}"><i class="bi bi-eye"></i><span>Aç</span></a></div></td>
+          </tr>
+        {% else %}<tr><td colspan="8" class="dashboard-empty-row"><strong>Muayene kaydı bulunamadı.</strong><span>Yayınlanmış bir dinamik form şablonuyla yeni saha kontrolü oluşturabilirsiniz.</span></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

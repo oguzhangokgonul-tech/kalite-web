@@ -220,6 +220,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "inspection_management",
+        "name": "Saha Kontrol ve Muayene",
+        "description": "Yayınlanmış checklistlerle saha kontrolleri, bulgular ve kapanış takibi.",
+        "icon": "bi-clipboard2-check",
+        "sort_order": 57.8,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
@@ -3503,6 +3511,190 @@ class DynamicFormAnswer(db.Model):
             return __import__("json").loads(self.value_json)
         except (TypeError, ValueError):
             return self.value_json
+
+
+INSPECTION_STATUSES = (
+    "planned",
+    "in_progress",
+    "review_pending",
+    "correction_pending",
+    "effectiveness_review",
+    "completed",
+    "archived",
+)
+INSPECTION_ITEM_RESULTS = ("Uygun", "Uygun Değil", "Uygulanamaz")
+INSPECTION_OVERALL_RESULTS = INSPECTION_ITEM_RESULTS
+INSPECTION_FINDING_SEVERITIES = ("Düşük", "Orta", "Yüksek", "Kritik")
+INSPECTION_FINDING_STATUSES = ("open", "closed")
+
+
+class InspectionRecord(db.Model):
+    __tablename__ = "inspection_records"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "inspection_no",
+            name="uq_inspection_records_company_no",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    inspection_no = db.Column(db.String(30), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    location = db.Column(db.String(255), nullable=True)
+    reference = db.Column(db.String(255), nullable=True)
+    inspector_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    planned_date = db.Column(db.Date, nullable=True, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="planned", index=True)
+    overall_result = db.Column(db.String(30), nullable=True, index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    version = db.relationship("DynamicFormVersion")
+    inspector = db.relationship("User", foreign_keys=[inspector_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    item_results = db.relationship(
+        "InspectionItemResult",
+        back_populates="inspection",
+        cascade="all, delete-orphan",
+        order_by="InspectionItemResult.field_id.asc()",
+    )
+    findings = db.relationship(
+        "InspectionFinding",
+        back_populates="inspection",
+        cascade="all, delete-orphan",
+        order_by="InspectionFinding.id.asc()",
+    )
+
+    @property
+    def open_findings(self):
+        return [finding for finding in self.findings if finding.status == "open"]
+
+
+class InspectionItemResult(db.Model):
+    __tablename__ = "inspection_item_results"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "inspection_id",
+            "field_id",
+            name="uq_inspection_item_results_inspection_field",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    inspection_id = db.Column(
+        db.Integer,
+        db.ForeignKey("inspection_records.id"),
+        nullable=False,
+        index=True,
+    )
+    field_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_fields.id"),
+        nullable=False,
+        index=True,
+    )
+    value_json = db.Column(db.Text, nullable=True)
+    compliance_result = db.Column(db.String(30), nullable=True, index=True)
+    explanation = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    inspection = db.relationship("InspectionRecord", back_populates="item_results")
+    field = db.relationship("DynamicFormField")
+
+    @property
+    def value(self):
+        if self.value_json is None:
+            return None
+        try:
+            return __import__("json").loads(self.value_json)
+        except (TypeError, ValueError):
+            return self.value_json
+
+
+class InspectionFinding(db.Model):
+    __tablename__ = "inspection_findings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    inspection_id = db.Column(
+        db.Integer,
+        db.ForeignKey("inspection_records.id"),
+        nullable=False,
+        index=True,
+    )
+    item_result_id = db.Column(
+        db.Integer,
+        db.ForeignKey("inspection_item_results.id"),
+        nullable=True,
+        index=True,
+    )
+    item_label_snapshot = db.Column(db.String(180), nullable=True)
+    observed_value_json = db.Column(db.Text, nullable=True)
+    result_snapshot = db.Column(db.String(30), nullable=True)
+    explanation_snapshot = db.Column(db.Text, nullable=True)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    severity = db.Column(db.String(20), nullable=False, default="Orta", index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default="open", index=True)
+    resolution = db.Column(db.Text, nullable=True)
+    closed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    inspection = db.relationship("InspectionRecord", back_populates="findings")
+    item_result = db.relationship("InspectionItemResult")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    closed_by = db.relationship("User", foreign_keys=[closed_by_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+    @property
+    def observed_value(self):
+        if self.observed_value_json is None:
+            return None
+        try:
+            return __import__("json").loads(self.observed_value_json)
+        except (TypeError, ValueError):
+            return self.observed_value_json
 
 
 class Notification(db.Model):

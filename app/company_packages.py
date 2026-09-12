@@ -24,6 +24,7 @@ ISO_CORE_MODULE_KEYS = {
     "process_management",
     "quality_objectives",
     "dynamic_forms",
+    "inspection_management",
     "change_management",
     "deviation_management",
     "incident_near_miss",

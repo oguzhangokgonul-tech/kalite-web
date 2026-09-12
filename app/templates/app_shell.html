@@ -28,6 +28,7 @@
   {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
   {% set quality_objectives_active = request.endpoint in ['main.quality_objective_dashboard', 'main.create_quality_objective', 'main.quality_objective_detail', 'main.edit_quality_objective', 'main.add_quality_objective_measurement', 'main.edit_quality_objective_measurement', 'main.delete_quality_objective_measurement', 'main.activate_quality_objective', 'main.complete_quality_objective', 'main.archive_quality_objective'] %}
   {% set dynamic_forms_active = request.endpoint and request.endpoint.startswith('dynamic_forms.') %}
+  {% set inspections_active = request.endpoint and request.endpoint.startswith('inspections.') %}
   {% set change_management_active = request.endpoint in ['main.change_management_dashboard', 'main.create_change_request', 'main.change_request_detail', 'main.edit_change_request', 'main.approve_change_request', 'main.reject_change_request', 'main.mark_change_request_implemented', 'main.close_change_request_effectiveness', 'main.archive_change_request', 'main.download_change_request_file'] %}
   {% set deviation_management_active = request.endpoint in ['main.deviation_dashboard', 'main.create_deviation', 'main.deviation_detail', 'main.edit_deviation', 'main.start_deviation_review', 'main.record_deviation_decision', 'main.complete_deviation_action', 'main.close_deviation_effectiveness', 'main.archive_deviation', 'main.download_deviation_file'] %}
   {% set incident_management_active = request.endpoint in ['main.incident_dashboard', 'main.create_incident', 'main.incident_detail', 'main.edit_incident', 'main.start_incident_review', 'main.record_incident_decision', 'main.complete_incident_action', 'main.close_incident_effectiveness', 'main.archive_incident', 'main.download_incident_file'] %}
@@ -257,6 +258,12 @@
         <a class="dashboard-nav-item {% if dynamic_forms_active %}active{% endif %}" href="{{ url_for('dynamic_forms.dashboard') }}">
           <i class="bi bi-ui-checks-grid"></i>
           <span>Dinamik Formlar</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('inspection_management') and (g.current_user.has_permission('inspection.view') or g.current_user.has_permission('inspection.manage') or g.current_user.has_permission('inspection.perform') or g.current_user.has_permission('inspection.review')) %}
+        <a class="dashboard-nav-item {% if inspections_active %}active{% endif %}" href="{{ url_for('inspections.dashboard') }}">
+          <i class="bi bi-clipboard2-check"></i>
+          <span>Saha Kontrol ve Muayene</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('change_management') and (g.current_user.has_permission('change_management.view') or g.current_user.has_permission('change_management.create') or g.current_user.has_permission('change_management.manage') or g.current_user.has_permission('change_management.approve')) %}
