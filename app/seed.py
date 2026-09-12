@@ -540,6 +540,42 @@ PERMISSION_CATALOG = (
         "group": "Dinamik Formlar",
         "description": "Form sonuçlarını Excel olarak dışa aktarır.",
     },
+    {
+        "key": "inspection.view",
+        "label": "Saha kontrollerini görüntüleme",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Şirketin saha kontrol ve muayene kayıtlarını görüntüler.",
+    },
+    {
+        "key": "inspection.manage",
+        "label": "Saha kontrollerini yönetme",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Muayene planlarını oluşturur ve şirket kayıtlarını yönetir.",
+    },
+    {
+        "key": "inspection.perform",
+        "label": "Saha kontrolü uygulama",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Kendisine atanan saha kontrolünü uygular ve bulgu kapatır.",
+    },
+    {
+        "key": "inspection.review",
+        "label": "Saha kontrolü inceleme",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Atanan muayenelerin inceleme ve etkinlik onayını yapar.",
+    },
+    {
+        "key": "inspection.export",
+        "label": "Saha kontrol raporu alma",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Saha kontrol sonuçlarını Excel olarak dışa aktarır.",
+    },
+    {
+        "key": "inspection.archive",
+        "label": "Saha kontrolü arşivleme",
+        "group": "Saha Kontrol ve Muayene",
+        "description": "Tamamlanan saha kontrollerini arşive alır.",
+    },
 )
 
 DEFAULT_COMPANIES = (
@@ -803,6 +839,27 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in DYNAMIC_FORM_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+INSPECTION_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "inspection.view",
+        "inspection.manage",
+        "inspection.perform",
+        "inspection.review",
+        "inspection.export",
+        "inspection.archive",
+    ),
+    "management": ("inspection.view", "inspection.review", "inspection.export"),
+    "department_manager": ("inspection.view", "inspection.perform", "inspection.review"),
+    "department_staff": ("inspection.perform",),
+    "viewer": ("inspection.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in INSPECTION_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3017,6 +3074,9 @@ def ensure_runtime_schema():
         DynamicFormSubmission,
         DynamicFormTemplate,
         DynamicFormVersion,
+        InspectionFinding,
+        InspectionItemResult,
+        InspectionRecord,
     )
 
     for model in (
@@ -3027,6 +3087,9 @@ def ensure_runtime_schema():
         DynamicFormAssignmentRecipient,
         DynamicFormSubmission,
         DynamicFormAnswer,
+        InspectionRecord,
+        InspectionItemResult,
+        InspectionFinding,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3078,6 +3141,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_change_management",
             "sales_readiness:competitor_deviation_management",
             "sales_readiness:competitor_dynamic_checklist",
+            "sales_readiness:competitor_inspection_management",
         ):
             db.session.execute(
                 text(

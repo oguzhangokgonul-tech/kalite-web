@@ -1,0 +1,46 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ inspection.inspection_no }}{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(inspection.inspection_no ~ " - " ~ inspection.title, inspection.version.name_snapshot ~ " / v" ~ inspection.version.version_number, icon="bi-clipboard2-check") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('inspections.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Muayeneler</span></a>
+    {% if can_manage and inspection.status == 'planned' %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('inspections.edit_inspection', inspection_id=inspection.id) }}"><i class="bi bi-pencil-square"></i><span>Düzenle</span></a>{% endif %}
+    {% if can_perform and inspection.status == 'planned' %}<form method="post" action="{{ url_for('inspections.start', inspection_id=inspection.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary btn-lg" type="submit"><i class="bi bi-play-fill"></i><span>Kontrolü Başlat</span></button></form>{% endif %}
+    {% if can_perform and inspection.status == 'in_progress' %}<a class="btn btn-primary btn-lg" href="{{ url_for('inspections.perform', inspection_id=inspection.id) }}"><i class="bi bi-pencil-square"></i><span>Kontrolü Doldur</span></a>{% endif %}
+  {% endcall %}
+
+  <section class="document-list-card p-4 mb-4"><div class="row g-3">
+    <div class="col-md-3"><small class="text-secondary">Durum</small><div>{{ ui.status_badge(status_label(inspection.status)) }}</div></div>
+    <div class="col-md-3"><small class="text-secondary">Genel Sonuç</small><div>{{ ui.status_badge(inspection.overall_result or 'Bekliyor') }}</div></div>
+    <div class="col-md-3"><small class="text-secondary">Uygulayıcı</small><strong class="d-block">{{ inspection.inspector.full_name }}</strong></div>
+    <div class="col-md-3"><small class="text-secondary">İnceleyen</small><strong class="d-block">{{ inspection.reviewer.full_name }}</strong></div>
+    <div class="col-md-3"><small class="text-secondary">Departman</small><strong class="d-block">{{ inspection.department or '-' }}</strong></div>
+    <div class="col-md-3"><small class="text-secondary">Konum</small><strong class="d-block">{{ inspection.location or '-' }}</strong></div>
+    <div class="col-md-3"><small class="text-secondary">Referans</small><strong class="d-block">{{ inspection.reference or '-' }}</strong></div>
+    <div class="col-md-3"><small class="text-secondary">Termin</small><strong class="d-block">{{ inspection.due_date.strftime('%d.%m.%Y') if inspection.due_date else '-' }}</strong></div>
+  </div></section>
+
+  {% if inspection.review_note %}
+  <section class="alert alert-warning d-flex gap-3 align-items-start mb-4" role="status">
+    <i class="bi bi-arrow-counterclockwise fs-4"></i>
+    <div><strong>Düzeltme Notu</strong><div>{{ inspection.review_note }}</div></div>
+  </section>
+  {% endif %}
+
+  <section class="document-list-card overflow-hidden mb-4"><div class="p-3 border-bottom d-flex justify-content-between align-items-center"><h2 class="h5 mb-0">Kontrol Sonuçları</h2>{% if can_perform and inspection.status in ['in_progress','correction_pending'] and inspection.item_results %}<a class="btn btn-sm btn-outline-danger" href="{{ url_for('inspections.create_finding', inspection_id=inspection.id) }}"><i class="bi bi-plus-lg"></i><span>Bulgu Ekle</span></a>{% endif %}</div><div class="table-responsive"><table class="table dashboard-table align-middle mb-0"><thead><tr><th>Madde</th><th>Değer</th><th>Sonuç</th><th>Açıklama</th></tr></thead><tbody>{% for field in inspection.version.fields %}{% set item = results.get(field.id) %}<tr><td><strong>{{ loop.index }}. {{ field.label }}</strong></td><td>{% if item and item.value is iterable and item.value is not string %}{{ item.value|join(', ') }}{% else %}{{ item.value if item and item.value not in [None,''] else '-' }}{% endif %}</td><td>{{ ui.status_badge(item.compliance_result if item and item.compliance_result else 'Bekliyor') }}</td><td>{{ item.explanation if item and item.explanation else '-' }}</td></tr>{% endfor %}</tbody></table></div></section>
+
+  <section class="document-list-card overflow-hidden mb-4"><div class="p-3 border-bottom"><h2 class="h5 mb-0">Bulgular</h2></div><div class="table-responsive"><table class="table dashboard-table align-middle mb-0"><thead><tr><th>Bulgu</th><th>İlk Tespit</th><th>Önem</th><th>Sorumlu</th><th>Termin</th><th>Durum</th><th>Kapanış</th></tr></thead><tbody>{% for finding in inspection.findings %}<tr><td><strong>{{ finding.title }}</strong>{% if finding.description %}<small class="d-block text-secondary">{{ finding.description }}</small>{% endif %}</td><td>{{ finding.item_label_snapshot or (finding.item_result.field.label if finding.item_result else '-') }}{% if finding.result_snapshot %}<small class="d-block text-secondary">{{ finding.result_snapshot }}</small>{% endif %}</td><td>{{ ui.status_badge(finding.severity) }}</td><td>{{ finding.responsible.full_name }}</td><td>{{ finding.due_date.strftime('%d.%m.%Y') if finding.due_date else '-' }}</td><td>{{ ui.status_badge('Açık' if finding.status == 'open' else 'Kapandı') }}</td><td>{% if finding.status == 'open' and (can_manage or finding.responsible_user_id == g.current_user.id) %}<form class="d-flex gap-2" method="post" action="{{ url_for('inspections.close_finding', finding_id=finding.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control form-control-sm" name="resolution" required placeholder="Kapatma açıklaması"><button class="btn btn-sm btn-outline-success" type="submit"><i class="bi bi-check-lg"></i><span>Kapat</span></button></form>{% else %}{{ finding.resolution or '-' }}{% endif %}</td></tr>{% else %}<tr><td colspan="7" class="dashboard-empty-row"><strong>Bulgu bulunmuyor.</strong></td></tr>{% endfor %}</tbody></table></div></section>
+
+  <div class="d-flex flex-wrap justify-content-end gap-2">
+    {% if can_review and inspection.status in ['review_pending','effectiveness_review'] %}
+      <form class="d-flex flex-wrap justify-content-end gap-2 w-100" method="post" action="{{ url_for('inspections.return_for_correction', inspection_id=inspection.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label class="visually-hidden" for="review_note">Düzeltme gerekçesi</label>
+        <input class="form-control" id="review_note" name="review_note" maxlength="5000" required placeholder="Düzeltmeye gönderme gerekçesi" style="max-width: 32rem;">
+        <button class="btn btn-outline-warning" type="submit"><i class="bi bi-arrow-counterclockwise"></i><span>Düzeltmeye Gönder</span></button>
+      </form>
+      <form method="post" action="{{ url_for('inspections.approve', inspection_id=inspection.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success" type="submit"><i class="bi bi-check-circle"></i><span>Onayla ve Tamamla</span></button></form>
+    {% endif %}
+    {% if can_archive and inspection.status == 'completed' %}<form method="post" action="{{ url_for('inspections.archive', inspection_id=inspection.id) }}" onsubmit="return confirm('Bu muayene arşive alınsın mı?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary" type="submit"><i class="bi bi-archive"></i><span>Arşivle</span></button></form>{% endif %}
+  </div>
+{% endblock %}

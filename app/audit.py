@@ -47,6 +47,8 @@ TRACKED_MODEL_NAMES = {
     "InternalAuditQuestion",
     "IncidentFile",
     "IncidentReport",
+    "InspectionFinding",
+    "InspectionRecord",
     "CompanyLegalProfile",
     "LegalAcceptance",
     "LegalDocument",
@@ -86,6 +88,9 @@ SENSITIVE_FIELD_NAMES = {
     "token",
     "remember_token",
     "csrf_token",
+    "value_json",
+    "observed_value_json",
+    "explanation_snapshot",
 }
 
 NOISY_FIELD_NAMES = {"updated_at"}

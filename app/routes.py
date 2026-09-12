@@ -2653,6 +2653,18 @@ MODULE_ENDPOINTS = {
     "dynamic_forms.submission_detail": "dynamic_forms",
     "dynamic_forms.version_results": "dynamic_forms",
     "dynamic_forms.export_version": "dynamic_forms",
+    "inspections.dashboard": "inspection_management",
+    "inspections.create_inspection": "inspection_management",
+    "inspections.edit_inspection": "inspection_management",
+    "inspections.start": "inspection_management",
+    "inspections.perform": "inspection_management",
+    "inspections.detail": "inspection_management",
+    "inspections.create_finding": "inspection_management",
+    "inspections.close_finding": "inspection_management",
+    "inspections.approve": "inspection_management",
+    "inspections.return_for_correction": "inspection_management",
+    "inspections.archive": "inspection_management",
+    "inspections.export_excel": "inspection_management",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -2896,7 +2908,7 @@ def selected_company_module_keys_from_form():
     selected = set(request.form.getlist("enabled_modules"))
     selected = {key for key in selected if key in COMPANY_MODULE_KEYS}
     if selected_company_package_key() == "iso_core":
-        selected.add("dynamic_forms")
+        selected.update({"dynamic_forms", "inspection_management"})
     child_keys = {
         item["key"]
         for item in COMPANY_MODULE_CATALOG
@@ -16635,6 +16647,7 @@ def assigned_incident_tasks(scope):
 
 def assigned_all_tasks(scope):
     from .dynamic_forms import assigned_task_rows
+    from .inspections import assigned_task_rows as assigned_inspection_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -16657,6 +16670,7 @@ def assigned_all_tasks(scope):
         + assigned_deviation_tasks(scope)
         + assigned_incident_tasks(scope)
         + assigned_task_rows(scope, assigned_task_row)
+        + assigned_inspection_task_rows(scope, assigned_task_row)
     )
 
 
@@ -16684,6 +16698,7 @@ ASSIGNED_TAB_MODULES = {
         "deviation",
         "incident",
         "dynamic_form",
+        "inspection",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -16703,6 +16718,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("process", "S\u00fcre\u00e7 Y\u00f6netimi"),
     ("quality_objective", "Kalite Hedefi"),
     ("dynamic_form", "Dinamik Form"),
+    ("inspection", "Saha Kontrol"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
