@@ -23,6 +23,7 @@ ISO_CORE_MODULE_KEYS = {
     "fmea_management",
     "process_management",
     "quality_objectives",
+    "dynamic_forms",
     "change_management",
     "deviation_management",
     "incident_near_miss",

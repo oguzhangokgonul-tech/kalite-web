@@ -11,6 +11,7 @@ load_dotenv()
 from .config import Config
 from .extensions import csrf, db, migrate
 from .routes import bp
+from .dynamic_forms import bp as dynamic_forms_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -28,6 +29,7 @@ def create_app(config_class=Config):
     register_audit_listeners()
 
     app.register_blueprint(bp)
+    app.register_blueprint(dynamic_forms_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):

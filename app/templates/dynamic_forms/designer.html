@@ -1,0 +1,37 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Form Tasarımcısı{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("Form Tasarımcısı", "Alanları sıralayın, zorunlulukları ve seçenekleri belirleyin.", icon="bi-ui-checks-grid") %}<a class="btn btn-outline-secondary btn-lg" href="{{ url_for('dynamic_forms.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Dinamik Formlar</span></a>{% endcall %}
+  <form class="document-list-card p-4" method="post" id="designerForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3 mb-4">
+      <div class="col-md-8"><label class="form-label" for="name">Form Adı</label><input class="form-control" id="name" name="name" maxlength="180" required value="{{ form_data.get('name', version.name_snapshot if version else '') }}"></div>
+      <div class="col-md-4"><label class="form-label">Sürüm</label><input class="form-control" disabled value="v{{ version.version_number if version else 1 }} / Taslak"></div>
+      <div class="col-12"><label class="form-label" for="description">Açıklama</label><textarea class="form-control" id="description" name="description" rows="2">{{ form_data.get('description', version.description_snapshot if version else '') }}</textarea></div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mb-3"><div><h2 class="h5 mb-1">Form Alanları</h2><small class="text-secondary">Ok butonlarıyla alan sırasını değiştirin.</small></div><button class="btn btn-outline-primary" type="button" id="addField"><i class="bi bi-plus-lg"></i><span>Alan Ekle</span></button></div>
+    <div class="vstack gap-3" id="fieldList">
+      {% for field in designer_rows %}
+      <div class="border rounded p-3 dynamic-field-row">
+        <div class="row g-3 align-items-end">
+          <div class="col-lg-4"><label class="form-label">Alan Başlığı</label><input class="form-control" name="field_label" required maxlength="180" value="{{ field.label }}"></div>
+          <div class="col-lg-3"><label class="form-label">Alan Tipi</label><select class="form-select field-type" name="field_type">{% for value, label in field_types %}<option value="{{ value }}" {% if field.field_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+          <div class="col-lg-3 field-options-wrap {% if field.field_type not in ['single_choice','multiple_choice'] %}d-none{% endif %}"><label class="form-label">Seçenekler <small>(satır başına bir)</small></label><textarea class="form-control" name="field_options" rows="2">{{ field.options_text }}</textarea></div>
+          <div class="col-lg-2"><div class="form-check mb-2"><input class="form-check-input required-box" type="checkbox" {% if field.is_required %}checked{% endif %}><label class="form-check-label">Zorunlu</label></div><div class="btn-group"><button class="btn btn-sm btn-outline-secondary move-up" type="button" title="Yukarı"><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-outline-secondary move-down" type="button" title="Aşağı"><i class="bi bi-arrow-down"></i></button><button class="btn btn-sm btn-outline-danger remove-field" type="button" title="Kaldır"><i class="bi bi-trash"></i></button></div></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('dynamic_forms.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-save"></i><span>Taslağı Kaydet</span></button></div>
+  </form>
+  <template id="fieldTemplate"><div class="border rounded p-3 dynamic-field-row"><div class="row g-3 align-items-end"><div class="col-lg-4"><label class="form-label">Alan Başlığı</label><input class="form-control" name="field_label" required maxlength="180"></div><div class="col-lg-3"><label class="form-label">Alan Tipi</label><select class="form-select field-type" name="field_type">{% for value, label in field_types %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></div><div class="col-lg-3 field-options-wrap d-none"><label class="form-label">Seçenekler <small>(satır başına bir)</small></label><textarea class="form-control" name="field_options" rows="2"></textarea></div><div class="col-lg-2"><div class="form-check mb-2"><input class="form-check-input required-box" type="checkbox"><label class="form-check-label">Zorunlu</label></div><div class="btn-group"><button class="btn btn-sm btn-outline-secondary move-up" type="button" title="Yukarı"><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-outline-secondary move-down" type="button" title="Aşağı"><i class="bi bi-arrow-down"></i></button><button class="btn btn-sm btn-outline-danger remove-field" type="button" title="Kaldır"><i class="bi bi-trash"></i></button></div></div></div></div></template>
+  <script>
+  (() => { const list=document.getElementById('fieldList'), tpl=document.getElementById('fieldTemplate');
+    const sync=()=>[...list.children].forEach((row,i)=>{const box=row.querySelector('.required-box');box.name='field_required';box.value=String(i);});
+    const wire=row=>{const type=row.querySelector('.field-type'), wrap=row.querySelector('.field-options-wrap'); const toggle=()=>wrap.classList.toggle('d-none',!['single_choice','multiple_choice'].includes(type.value)); type.addEventListener('change',toggle); toggle();
+      row.querySelector('.remove-field').onclick=()=>{row.remove();sync();}; row.querySelector('.move-up').onclick=()=>{if(row.previousElementSibling)list.insertBefore(row,row.previousElementSibling);sync();}; row.querySelector('.move-down').onclick=()=>{if(row.nextElementSibling)list.insertBefore(row.nextElementSibling,row);sync();}; };
+    [...list.children].forEach(wire); document.getElementById('addField').onclick=()=>{const row=tpl.content.firstElementChild.cloneNode(true);list.appendChild(row);wire(row);sync();}; if(!list.children.length)document.getElementById('addField').click();sync();
+  })();
+  </script>
+{% endblock %}

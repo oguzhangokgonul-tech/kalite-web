@@ -510,6 +510,36 @@ PERMISSION_CATALOG = (
         "group": "Organizasyon",
         "description": "Organizasyon şeması kişi/departman kutularını yönetir.",
     },
+    {
+        "key": "dynamic_forms.view",
+        "label": "Dinamik formları görüntüleme",
+        "group": "Dinamik Formlar",
+        "description": "Form şablonlarını, atamaları ve izinli sonuçları görüntüler.",
+    },
+    {
+        "key": "dynamic_forms.manage",
+        "label": "Dinamik form tasarımı",
+        "group": "Dinamik Formlar",
+        "description": "Form şablonlarını, alanlarını ve yayın sürümlerini yönetir.",
+    },
+    {
+        "key": "dynamic_forms.assign",
+        "label": "Dinamik form atama",
+        "group": "Dinamik Formlar",
+        "description": "Yayınlanmış formları kullanıcı veya departmana atar.",
+    },
+    {
+        "key": "dynamic_forms.respond",
+        "label": "Dinamik form yanıtlama",
+        "group": "Dinamik Formlar",
+        "description": "Kendisine veya departmanına atanan formları doldurur.",
+    },
+    {
+        "key": "dynamic_forms.export",
+        "label": "Dinamik form raporu alma",
+        "group": "Dinamik Formlar",
+        "description": "Form sonuçlarını Excel olarak dışa aktarır.",
+    },
 )
 
 DEFAULT_COMPANIES = (
@@ -751,6 +781,31 @@ ROLE_DEFINITIONS = (
         ],
     },
 )
+
+DYNAMIC_FORM_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "dynamic_forms.view",
+        "dynamic_forms.manage",
+        "dynamic_forms.assign",
+        "dynamic_forms.respond",
+        "dynamic_forms.export",
+    ),
+    "management": (
+        "dynamic_forms.view",
+        "dynamic_forms.respond",
+        "dynamic_forms.export",
+    ),
+    "department_manager": ("dynamic_forms.view", "dynamic_forms.respond"),
+    "department_staff": ("dynamic_forms.respond",),
+    "viewer": ("dynamic_forms.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in DYNAMIC_FORM_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
 
 REMOVED_ROLE_MAPPINGS = {
     "executive_approver": "management",
@@ -2954,6 +3009,27 @@ def ensure_runtime_schema():
             )
             db.session.commit()
 
+    from .models import (
+        DynamicFormAnswer,
+        DynamicFormAssignment,
+        DynamicFormAssignmentRecipient,
+        DynamicFormField,
+        DynamicFormSubmission,
+        DynamicFormTemplate,
+        DynamicFormVersion,
+    )
+
+    for model in (
+        DynamicFormTemplate,
+        DynamicFormVersion,
+        DynamicFormField,
+        DynamicFormAssignment,
+        DynamicFormAssignmentRecipient,
+        DynamicFormSubmission,
+        DynamicFormAnswer,
+    ):
+        model.__table__.create(bind=db.engine, checkfirst=True)
+
     tables = set(inspect(db.engine).get_table_names())
     if "app_settings" in tables:
         from .legal import ensure_legal_schema
@@ -2999,6 +3075,8 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_fmea",
             "sales_readiness:competitor_process_bpm",
             "sales_readiness:competitor_quality_objectives",
+            "sales_readiness:competitor_change_management",
+            "sales_readiness:competitor_deviation_management",
         ):
             db.session.execute(
                 text(

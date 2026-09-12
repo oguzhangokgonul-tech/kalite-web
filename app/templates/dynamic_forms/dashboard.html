@@ -1,0 +1,87 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Dinamik Formlar{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Dinamik Formlar", "Yayınlanabilir checklist ve formları tek noktadan yönetin.", icon="bi-ui-checks-grid") %}
+    {% if can_manage %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('dynamic_forms.create_template') }}">
+        <i class="bi bi-plus-lg"></i><span>Yeni Şablon</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="dashboard-metrics">
+    <div class="dashboard-stat-card stat-primary"><span class="stat-icon"><i class="bi bi-ui-checks-grid"></i></span><span class="stat-label">Şablon</span><strong>{{ templates|length }}</strong></div>
+    <div class="dashboard-stat-card stat-warning"><span class="stat-icon"><i class="bi bi-hourglass-split"></i></span><span class="stat-label">Bekleyen Atama</span><strong>{{ pending_assignment_count }}</strong></div>
+    <div class="dashboard-stat-card stat-success"><span class="stat-icon"><i class="bi bi-check-circle"></i></span><span class="stat-label">Tamamlanan</span><strong>{{ completed_assignment_count }}</strong></div>
+  </div>
+
+  {% if templates %}
+  <section class="document-list-card overflow-hidden mb-4">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead><tr><th>Kod</th><th>Form / Checklist</th><th>Sürüm</th><th>Durum</th><th>Alan</th><th class="text-end">İşlemler</th></tr></thead>
+        <tbody>
+        {% for template in templates %}
+          {% set version = template.draft_version or template.published_version or template.current_version %}
+          <tr>
+            <td><strong>{{ template.code }}</strong></td>
+            <td><strong class="text-primary">{{ template.name }}</strong>{% if template.description %}<small class="d-block text-secondary">{{ template.description }}</small>{% endif %}</td>
+            <td>v{{ version.version_number if version else '-' }}</td>
+            <td>{{ ui.status_badge({'draft':'Taslak','published':'Yayında','archived':'Arşiv'}.get(template.status, template.status)) }}</td>
+            <td>{{ version.fields|length if version else 0 }}</td>
+            <td><div class="dashboard-row-actions justify-content-end">
+              {% if version and version.status == 'draft' and can_manage %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dynamic_forms.edit_version', version_id=version.id) }}"><i class="bi bi-pencil-square"></i><span>Düzenle</span></a>{% endif %}
+              {% if template.published_version and can_assign %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dynamic_forms.assign_form', version_id=template.published_version.id) }}"><i class="bi bi-person-plus"></i><span>Ata</span></a>{% endif %}
+              {% if template.published_version and can_export %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dynamic_forms.version_results', version_id=template.published_version.id) }}"><i class="bi bi-bar-chart"></i><span>Sonuçlar</span></a>{% endif %}
+              {% if can_manage and template.status != 'archived' %}
+                <form method="post" action="{{ url_for('dynamic_forms.create_new_version', template_id=template.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary" title="Yeni sürüm" type="submit"><i class="bi bi-files"></i></button></form>
+                <form method="post" action="{{ url_for('dynamic_forms.copy_template', template_id=template.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary" title="Şablonu kopyala" type="submit"><i class="bi bi-copy"></i></button></form>
+                <form method="post" action="{{ url_for('dynamic_forms.archive_template', template_id=template.id) }}" onsubmit="return confirm('Bu şablon arşive alınsın mı?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger" title="Arşivle" type="submit"><i class="bi bi-archive"></i></button></form>
+              {% endif %}
+            </div></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="document-list-card overflow-hidden">
+    <div class="p-3 border-bottom"><h2 class="h5 mb-0">Form Atamaları</h2></div>
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead><tr><th>Form</th><th>Atanan</th><th>Termin</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+        <tbody>
+        {% for assignment in assignments %}
+          {% set submission = assignment.current_submission %}
+          <tr>
+            <td><strong>{{ assignment.version.name_snapshot }}</strong><small class="d-block text-secondary">{{ assignment.version.template.code }} / v{{ assignment.version.version_number }}</small></td>
+            <td>{{ assignment.target_label }}</td>
+            <td>{{ assignment.due_date.strftime('%d.%m.%Y') if assignment.due_date else '-' }}</td>
+            <td>
+              {% if assignment.is_fully_completed %}
+                {{ ui.status_badge('Tamamlandı') }}
+              {% elif submission and submission.status == 'draft' %}
+                {{ ui.status_badge('Taslak') }}
+              {% elif assignment.recipient_count > 1 and assignment.completed_submission_count %}
+                {{ ui.status_badge(assignment.completed_submission_count ~ '/' ~ assignment.recipient_count ~ ' tamamlandı') }}
+              {% else %}
+                {{ ui.status_badge('Yanıt Bekliyor') }}
+              {% endif %}
+            </td>
+            <td><div class="dashboard-row-actions justify-content-end">
+              {% if submission and submission.status == 'completed' %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dynamic_forms.submission_detail', submission_id=submission.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a>
+              {% elif assignment.current_user_can_respond %}<a class="btn btn-sm btn-primary" href="{{ url_for('dynamic_forms.fill_assignment', assignment_id=assignment.id) }}"><i class="bi bi-pencil-square"></i><span>Doldur</span></a>
+              {% elif can_manage or can_export %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dynamic_forms.version_results', version_id=assignment.version_id) }}"><i class="bi bi-bar-chart"></i><span>Sonuçlar</span></a>{% endif %}
+            </div></td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="dashboard-empty-row"><strong>Henüz form ataması yok.</strong><span>Yayınlanan formlar kullanıcıya veya departmana atanabilir.</span></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

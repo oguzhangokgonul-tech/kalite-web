@@ -1,0 +1,9 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Form Sonucu{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(submission.assignment.version.name_snapshot, submission.assignment.version.template.code ~ " / v" ~ submission.assignment.version.version_number, icon="bi-check2-square") %}<a class="btn btn-outline-secondary btn-lg" href="{{ url_for('dynamic_forms.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Dinamik Formlar</span></a>{% endcall %}
+  <section class="document-list-card p-4"><div class="row g-3 mb-4"><div class="col-md-4"><small class="text-secondary">Yanıtlayan</small><strong class="d-block">{{ submission.respondent.full_name }}</strong></div><div class="col-md-4"><small class="text-secondary">Durum</small><strong class="d-block">{{ 'Tamamlandı' if submission.status == 'completed' else 'Taslak' }}</strong></div><div class="col-md-4"><small class="text-secondary">Gönderim</small><strong class="d-block">{{ submission.submitted_at.strftime('%d.%m.%Y %H:%M') if submission.submitted_at else '-' }}</strong></div></div>
+    <div class="vstack gap-3">{% for field in submission.assignment.version.fields %}{% set value = answers.get(field.id) %}<div class="border rounded p-3"><small class="text-secondary">{{ loop.index }}. {{ field.label }}</small><strong class="d-block mt-1">{% if value is iterable and value is not string %}{{ value|join(', ') }}{% else %}{{ value or '-' }}{% endif %}</strong></div>{% endfor %}</div>
+  </section>
+{% endblock %}
