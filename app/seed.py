@@ -3077,6 +3077,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_quality_objectives",
             "sales_readiness:competitor_change_management",
             "sales_readiness:competitor_deviation_management",
+            "sales_readiness:competitor_dynamic_checklist",
         ):
             db.session.execute(
                 text(

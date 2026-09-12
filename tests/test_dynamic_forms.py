@@ -405,3 +405,4 @@ def test_runtime_schema_creates_tables_and_marks_existing_modules(app):
         ensure_runtime_schema()
         assert db.session.get(AppSetting, "sales_readiness:competitor_change_management").value == "1"
         assert db.session.get(AppSetting, "sales_readiness:competitor_deviation_management").value == "1"
+        assert db.session.get(AppSetting, "sales_readiness:competitor_dynamic_checklist").value == "1"
