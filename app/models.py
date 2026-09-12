@@ -212,6 +212,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "dynamic_forms",
+        "name": "Dinamik Formlar",
+        "description": "Yeniden kullanılabilir checklist ve form şablonları, atamalar ve sonuçlar.",
+        "icon": "bi-ui-checks-grid",
+        "sort_order": 57.7,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
@@ -3194,6 +3202,307 @@ class ActionHistory(db.Model):
 
     action = db.relationship("Action", back_populates="histories")
     actor = db.relationship("User")
+
+
+DYNAMIC_FORM_TEMPLATE_STATUSES = ("draft", "published", "archived")
+DYNAMIC_FORM_VERSION_STATUSES = ("draft", "published", "archived")
+DYNAMIC_FORM_FIELD_TYPES = (
+    "short_text",
+    "long_text",
+    "number",
+    "date",
+    "yes_no",
+    "single_choice",
+    "multiple_choice",
+)
+DYNAMIC_FORM_ASSIGNMENT_STATUSES = ("assigned", "completed", "cancelled")
+DYNAMIC_FORM_SUBMISSION_STATUSES = ("draft", "completed")
+
+
+class DynamicFormTemplate(db.Model):
+    __tablename__ = "dynamic_form_templates"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "code",
+            name="uq_dynamic_form_templates_company_code",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    code = db.Column(db.String(40), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    current_version_number = db.Column(db.Integer, nullable=False, default=1)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    versions = db.relationship(
+        "DynamicFormVersion",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        order_by="DynamicFormVersion.version_number.desc()",
+    )
+
+    @property
+    def current_version(self):
+        return next(
+            (
+                version
+                for version in self.versions
+                if version.version_number == self.current_version_number
+            ),
+            self.versions[0] if self.versions else None,
+        )
+
+
+class DynamicFormVersion(db.Model):
+    __tablename__ = "dynamic_form_versions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "template_id",
+            "version_number",
+            name="uq_dynamic_form_versions_template_version",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_templates.id"),
+        nullable=False,
+        index=True,
+    )
+    version_number = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    name_snapshot = db.Column(db.String(180), nullable=False)
+    description_snapshot = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    published_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    template = db.relationship("DynamicFormTemplate", back_populates="versions")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    published_by = db.relationship("User", foreign_keys=[published_by_user_id])
+    fields = db.relationship(
+        "DynamicFormField",
+        back_populates="version",
+        cascade="all, delete-orphan",
+        order_by="DynamicFormField.sort_order.asc(), DynamicFormField.id.asc()",
+    )
+    assignments = db.relationship(
+        "DynamicFormAssignment",
+        back_populates="version",
+        cascade="all, delete-orphan",
+    )
+
+
+class DynamicFormField(db.Model):
+    __tablename__ = "dynamic_form_fields"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "version_id",
+            "field_key",
+            name="uq_dynamic_form_fields_version_key",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    field_key = db.Column(db.String(80), nullable=False)
+    label = db.Column(db.String(180), nullable=False)
+    field_type = db.Column(db.String(30), nullable=False)
+    is_required = db.Column(db.Boolean, nullable=False, default=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    options_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    version = db.relationship("DynamicFormVersion", back_populates="fields")
+
+    @property
+    def options(self):
+        if not self.options_json:
+            return []
+        try:
+            value = __import__("json").loads(self.options_json)
+        except (TypeError, ValueError):
+            return []
+        return [str(item) for item in value] if isinstance(value, list) else []
+
+
+class DynamicFormAssignment(db.Model):
+    __tablename__ = "dynamic_form_assignments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    assigned_department = db.Column(db.String(160), nullable=True, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default="assigned", index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    version = db.relationship("DynamicFormVersion", back_populates="assignments")
+    assigned_user = db.relationship("User", foreign_keys=[assigned_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    submissions = db.relationship(
+        "DynamicFormSubmission",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        order_by="DynamicFormSubmission.created_at.desc()",
+    )
+    recipients = db.relationship(
+        "DynamicFormAssignmentRecipient",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        order_by="DynamicFormAssignmentRecipient.id.asc()",
+    )
+
+    @property
+    def target_label(self):
+        if self.assigned_user is not None:
+            return self.assigned_user.full_name
+        return self.assigned_department or "-"
+
+
+class DynamicFormAssignmentRecipient(db.Model):
+    __tablename__ = "dynamic_form_assignment_recipients"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "assignment_id",
+            "user_id",
+            name="uq_dynamic_form_assignment_recipients_assignment_user",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    assignment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_assignments.id"),
+        nullable=False,
+        index=True,
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    assignment = db.relationship("DynamicFormAssignment", back_populates="recipients")
+    user = db.relationship("User")
+
+
+class DynamicFormSubmission(db.Model):
+    __tablename__ = "dynamic_form_submissions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "assignment_id",
+            "respondent_user_id",
+            name="uq_dynamic_form_submissions_assignment_respondent",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    assignment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_assignments.id"),
+        nullable=False,
+        index=True,
+    )
+    respondent_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    assignment = db.relationship("DynamicFormAssignment", back_populates="submissions")
+    respondent = db.relationship("User", foreign_keys=[respondent_user_id])
+    answers = db.relationship(
+        "DynamicFormAnswer",
+        back_populates="submission",
+        cascade="all, delete-orphan",
+        order_by="DynamicFormAnswer.field_id.asc()",
+    )
+
+
+class DynamicFormAnswer(db.Model):
+    __tablename__ = "dynamic_form_answers"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "submission_id",
+            "field_id",
+            name="uq_dynamic_form_answers_submission_field",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    submission_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_submissions.id"),
+        nullable=False,
+        index=True,
+    )
+    field_id = db.Column(
+        db.Integer,
+        db.ForeignKey("dynamic_form_fields.id"),
+        nullable=False,
+        index=True,
+    )
+    value_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    submission = db.relationship("DynamicFormSubmission", back_populates="answers")
+    field = db.relationship("DynamicFormField")
+
+    @property
+    def value(self):
+        if self.value_json is None:
+            return None
+        try:
+            return __import__("json").loads(self.value_json)
+        except (TypeError, ValueError):
+            return self.value_json
 
 
 class Notification(db.Model):

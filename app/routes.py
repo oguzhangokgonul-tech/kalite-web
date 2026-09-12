@@ -2641,6 +2641,18 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "dynamic_forms.dashboard": "dynamic_forms",
+    "dynamic_forms.create_template": "dynamic_forms",
+    "dynamic_forms.edit_version": "dynamic_forms",
+    "dynamic_forms.publish_version": "dynamic_forms",
+    "dynamic_forms.create_new_version": "dynamic_forms",
+    "dynamic_forms.copy_template": "dynamic_forms",
+    "dynamic_forms.archive_template": "dynamic_forms",
+    "dynamic_forms.assign_form": "dynamic_forms",
+    "dynamic_forms.fill_assignment": "dynamic_forms",
+    "dynamic_forms.submission_detail": "dynamic_forms",
+    "dynamic_forms.version_results": "dynamic_forms",
+    "dynamic_forms.export_version": "dynamic_forms",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -2883,6 +2895,8 @@ def enforce_company_module_access():
 def selected_company_module_keys_from_form():
     selected = set(request.form.getlist("enabled_modules"))
     selected = {key for key in selected if key in COMPANY_MODULE_KEYS}
+    if selected_company_package_key() == "iso_core":
+        selected.add("dynamic_forms")
     child_keys = {
         item["key"]
         for item in COMPANY_MODULE_CATALOG
@@ -16620,6 +16634,8 @@ def assigned_incident_tasks(scope):
 
 
 def assigned_all_tasks(scope):
+    from .dynamic_forms import assigned_task_rows
+
     return (
         assigned_action_tasks(scope)
         + assigned_internal_audit_tasks(scope)
@@ -16640,6 +16656,7 @@ def assigned_all_tasks(scope):
         + assigned_change_management_tasks(scope)
         + assigned_deviation_tasks(scope)
         + assigned_incident_tasks(scope)
+        + assigned_task_rows(scope, assigned_task_row)
     )
 
 
@@ -16666,6 +16683,7 @@ ASSIGNED_TAB_MODULES = {
         "change_management",
         "deviation",
         "incident",
+        "dynamic_form",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -16684,6 +16702,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("fmea", "FMEA"),
     ("process", "S\u00fcre\u00e7 Y\u00f6netimi"),
     ("quality_objective", "Kalite Hedefi"),
+    ("dynamic_form", "Dinamik Form"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
