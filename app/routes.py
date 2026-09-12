@@ -2665,6 +2665,17 @@ MODULE_ENDPOINTS = {
     "inspections.return_for_correction": "inspection_management",
     "inspections.archive": "inspection_management",
     "inspections.export_excel": "inspection_management",
+    "stakeholders.dashboard": "stakeholder_management",
+    "stakeholders.create_party": "stakeholder_management",
+    "stakeholders.edit_party": "stakeholder_management",
+    "stakeholders.detail": "stakeholder_management",
+    "stakeholders.activate": "stakeholder_management",
+    "stakeholders.archive": "stakeholder_management",
+    "stakeholders.create_requirement": "stakeholder_management",
+    "stakeholders.edit_requirement": "stakeholder_management",
+    "stakeholders.archive_requirement": "stakeholder_management",
+    "stakeholders.review_party": "stakeholder_management",
+    "stakeholders.export_excel": "stakeholder_management",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -2908,7 +2919,7 @@ def selected_company_module_keys_from_form():
     selected = set(request.form.getlist("enabled_modules"))
     selected = {key for key in selected if key in COMPANY_MODULE_KEYS}
     if selected_company_package_key() == "iso_core":
-        selected.update({"dynamic_forms", "inspection_management"})
+        selected.update({"dynamic_forms", "inspection_management", "stakeholder_management"})
     child_keys = {
         item["key"]
         for item in COMPANY_MODULE_CATALOG
@@ -16648,6 +16659,7 @@ def assigned_incident_tasks(scope):
 def assigned_all_tasks(scope):
     from .dynamic_forms import assigned_task_rows
     from .inspections import assigned_task_rows as assigned_inspection_task_rows
+    from .stakeholders import assigned_task_rows as assigned_stakeholder_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -16671,6 +16683,7 @@ def assigned_all_tasks(scope):
         + assigned_incident_tasks(scope)
         + assigned_task_rows(scope, assigned_task_row)
         + assigned_inspection_task_rows(scope, assigned_task_row)
+        + assigned_stakeholder_task_rows(scope, assigned_task_row)
     )
 
 
@@ -16699,6 +16712,7 @@ ASSIGNED_TAB_MODULES = {
         "incident",
         "dynamic_form",
         "inspection",
+        "stakeholder",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "supplier"},
@@ -16719,6 +16733,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("quality_objective", "Kalite Hedefi"),
     ("dynamic_form", "Dinamik Form"),
     ("inspection", "Saha Kontrol"),
+    ("stakeholder", "İlgili Taraf"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

@@ -576,6 +576,36 @@ PERMISSION_CATALOG = (
         "group": "Saha Kontrol ve Muayene",
         "description": "Tamamlanan saha kontrollerini arşive alır.",
     },
+    {
+        "key": "stakeholder.view",
+        "label": "İlgili tarafları görüntüleme",
+        "group": "İlgili Taraflar ve Beklentiler",
+        "description": "Yetkili olduğu ilgili taraf ve beklenti kayıtlarını görüntüler.",
+    },
+    {
+        "key": "stakeholder.manage",
+        "label": "İlgili tarafları yönetme",
+        "group": "İlgili Taraflar ve Beklentiler",
+        "description": "İlgili tarafları ve ihtiyaç/beklenti kayıtlarını oluşturur ve yönetir.",
+    },
+    {
+        "key": "stakeholder.review",
+        "label": "İlgili taraf değerlendirmesi",
+        "group": "İlgili Taraflar ve Beklentiler",
+        "description": "İlgili taraf ve beklenti değerlendirmelerini kaydeder.",
+    },
+    {
+        "key": "stakeholder.export",
+        "label": "İlgili taraf matrisi raporu",
+        "group": "İlgili Taraflar ve Beklentiler",
+        "description": "İlgili taraf ve beklenti matrisini Excel olarak indirir.",
+    },
+    {
+        "key": "stakeholder.archive",
+        "label": "İlgili tarafları arşivleme",
+        "group": "İlgili Taraflar ve Beklentiler",
+        "description": "İlgili taraf kayıtlarını denetim izi korunarak arşivler.",
+    },
 )
 
 DEFAULT_COMPANIES = (
@@ -860,6 +890,26 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in INSPECTION_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+STAKEHOLDER_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "stakeholder.view",
+        "stakeholder.manage",
+        "stakeholder.review",
+        "stakeholder.export",
+        "stakeholder.archive",
+    ),
+    "management": ("stakeholder.view", "stakeholder.review", "stakeholder.export"),
+    "department_manager": ("stakeholder.view",),
+    "department_staff": ("stakeholder.view",),
+    "viewer": ("stakeholder.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in STAKEHOLDER_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3077,6 +3127,9 @@ def ensure_runtime_schema():
         InspectionFinding,
         InspectionItemResult,
         InspectionRecord,
+        StakeholderParty,
+        StakeholderRequirement,
+        StakeholderReview,
     )
 
     for model in (
@@ -3090,6 +3143,9 @@ def ensure_runtime_schema():
         InspectionRecord,
         InspectionItemResult,
         InspectionFinding,
+        StakeholderParty,
+        StakeholderRequirement,
+        StakeholderReview,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3142,6 +3198,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_deviation_management",
             "sales_readiness:competitor_dynamic_checklist",
             "sales_readiness:competitor_inspection_management",
+            "sales_readiness:competitor_stakeholder_management",
         ):
             db.session.execute(
                 text(

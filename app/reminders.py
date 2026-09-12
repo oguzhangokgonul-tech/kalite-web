@@ -23,6 +23,8 @@ from .models import (
     QualityObjective,
     RiskRecord,
     SupplierRecord,
+    StakeholderParty,
+    StakeholderRequirement,
     TrainingParticipant,
     TrainingRecord,
 )
@@ -50,6 +52,7 @@ QUALITY_OBJECTIVE_REMINDER_PERMISSIONS = (
     "quality_objective.manage",
     "quality_objective.approve",
 )
+STAKEHOLDER_REMINDER_PERMISSIONS = ("stakeholder.manage", "stakeholder.review")
 
 
 def _status_text(value):
@@ -597,6 +600,79 @@ def _quality_objective_reminders(company_id, run_date, days_before):
     return stats
 
 
+def _stakeholder_reminders(company_id, run_date, days_before):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    parties = (
+        _company_query(StakeholderParty, company_id)
+        .filter(StakeholderParty.status == "active")
+        .filter(StakeholderParty.next_review_date <= limit_date)
+        .all()
+    )
+    for party in parties:
+        severity, label = _due_state(party.next_review_date, run_date)
+        users = _merge_users(
+            company_id,
+            [party.owner_user_id],
+            STAKEHOLDER_REMINDER_PERMISSIONS if severity == "danger" else (),
+        )
+        created, emails = _send_record_reminders(
+            users,
+            company_id=company_id,
+            kind="stakeholder-review",
+            record_id=party.id,
+            title=f"İlgili taraf gözden geçirme {party.party_no}",
+            message=f"{party.party_no} {party.name} için gözden geçirme durumu: {label}.",
+            target_url=f"/ilgili-taraflar/{party.id}",
+            due_date=party.next_review_date,
+            notification_type=severity,
+            run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+
+    requirements = (
+        _company_query(StakeholderRequirement, company_id)
+        .join(StakeholderParty, StakeholderRequirement.party_id == StakeholderParty.id)
+        .filter(
+            StakeholderRequirement.is_active.is_(True),
+            StakeholderRequirement.fulfillment_status != "met",
+            StakeholderRequirement.due_date.isnot(None),
+            StakeholderRequirement.due_date <= limit_date,
+            StakeholderParty.status == "active",
+        )
+        .all()
+    )
+    for requirement in requirements:
+        severity, label = _due_state(requirement.due_date, run_date)
+        users = _merge_users(
+            company_id,
+            [requirement.responsible_user_id],
+            STAKEHOLDER_REMINDER_PERMISSIONS if severity == "danger" else (),
+        )
+        created, emails = _send_record_reminders(
+            users,
+            company_id=company_id,
+            kind="stakeholder-requirement-due",
+            record_id=requirement.id,
+            title=f"Beklenti termin hatırlatması {requirement.party.party_no}",
+            message=(
+                f"{requirement.party.party_no} '{requirement.title}' beklentisi için "
+                f"termin durumu: {label}."
+            ),
+            target_url=(
+                f"/ilgili-taraflar/{requirement.party_id}/degerlendir"
+                f"?requirement_id={requirement.id}"
+            ),
+            due_date=requirement.due_date,
+            notification_type=severity,
+            run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -618,6 +694,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _supplier_reminders(company_id, run_date, calibration_days),
         lambda: _calibration_reminders(company_id, run_date, calibration_days),
         lambda: _quality_objective_reminders(company_id, run_date, days_before),
+        lambda: _stakeholder_reminders(company_id, run_date, 30),
     )
     for build_stats in builders:
         item_stats = build_stats()

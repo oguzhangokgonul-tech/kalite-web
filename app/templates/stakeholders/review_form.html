@@ -1,0 +1,16 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}İlgili Taraf Değerlendirmesi{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("İlgili Taraf Değerlendirmesi", party.party_no ~ " - " ~ party.name, icon="bi-clipboard-check") %}<a class="btn btn-outline-secondary btn-lg" href="{{ url_for('stakeholders.detail', party_id=party.id) }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>{% endcall %}
+  <form class="document-list-card p-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if requirement %}<input type="hidden" name="requirement_id" value="{{ requirement.id }}"><div class="alert alert-light border"><strong>{{ requirement.title }}</strong><span class="d-block text-secondary">{{ requirement.description or 'Açıklama girilmemiş.' }}</span></div>{% endif %}
+    <div class="row g-3">
+      <div class="col-md-5"><label class="form-label" for="outcome">Değerlendirme Sonucu</label><select class="form-select" id="outcome" name="outcome" required><option value="">Seçin</option>{% for key, label in fulfillment_labels.items() %}<option value="{{ key }}" {% if values.get('outcome') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label" for="next_review_date">Sonraki Gözden Geçirme</label><input class="form-control" id="next_review_date" name="next_review_date" type="date" required value="{{ values.get('next_review_date', party.next_review_date.isoformat()) }}"></div>
+      <div class="col-12"><label class="form-label" for="summary">Değerlendirme Özeti</label><textarea class="form-control" id="summary" name="summary" rows="4" required>{{ values.get('summary', '') }}</textarea></div>
+      <div class="col-12"><label class="form-label" for="evidence_note">Kanıt / Not</label><textarea class="form-control" id="evidence_note" name="evidence_note" rows="3">{{ values.get('evidence_note', '') }}</textarea></div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('stakeholders.detail', party_id=party.id) }}">Vazgeç</a><button class="btn btn-success" type="submit"><i class="bi bi-check-circle"></i><span>Değerlendirmeyi Kaydet</span></button></div>
+  </form>
+{% endblock %}

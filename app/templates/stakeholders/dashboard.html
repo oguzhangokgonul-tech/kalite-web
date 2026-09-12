@@ -1,0 +1,42 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}İlgili Taraflar ve Beklentiler{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("İlgili Taraflar ve Beklentiler", "ISO 9001 ilgili taraflarını, ihtiyaçlarını ve gözden geçirmelerini yönetin.", icon="bi-people") %}
+    {% if can_export %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('stakeholders.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Matrisi</span></a>{% endif %}
+    {% if can_create %}<a class="btn btn-primary btn-lg" href="{{ url_for('stakeholders.create_party') }}"><i class="bi bi-plus-lg"></i><span>Yeni İlgili Taraf</span></a>{% endif %}
+  {% endcall %}
+
+  <form class="document-list-card p-3 mb-4" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-5"><label class="form-label" for="search">Ara</label><input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Kayıt no, ilgili taraf veya kategori"></div>
+      <div class="col-md-3"><label class="form-label" for="department">Departman</label><select class="form-select" id="department" name="department"><option value="">Tümü</option>{% for item in departments %}<option value="{{ item }}" {% if filters.department == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-search"></i><span>Filtrele</span></button><a class="btn btn-outline-secondary" href="{{ url_for('stakeholders.dashboard') }}" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a></div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead><tr><th>Kayıt No</th><th>İlgili Taraf</th><th>Departman / Sorumlu</th><th>Etki × Önem</th><th>Beklentiler</th><th>Gözden Geçirme</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+        <tbody>
+        {% for item in records %}
+          {% set active_requirements = item.requirements|selectattr('is_active')|list %}
+          {% set unmet = active_requirements|selectattr('fulfillment_status', 'in', ['partial', 'not_met'])|list %}
+          <tr>
+            <td><strong>{{ item.party_no }}</strong></td>
+            <td><strong class="text-primary">{{ item.name }}</strong><small class="d-block text-secondary">{{ item.category }}</small></td>
+            <td>{{ item.department or '-' }}<small class="d-block text-secondary">{{ item.owner.full_name }}</small></td>
+            <td><strong>{{ item.influence_score }} × {{ item.importance_score }} = {{ item.priority_score }}</strong></td>
+            <td><strong>{{ active_requirements|length }}</strong>{% if unmet %}<small class="d-block text-danger">{{ unmet|length }} takip gerekli</small>{% endif %}</td>
+            <td><span class="{% if item.status == 'active' and item.next_review_date < today %}text-danger fw-semibold{% endif %}">{{ item.next_review_date.strftime('%d.%m.%Y') }}</span></td>
+            <td>{{ ui.status_badge(status_labels.get(item.status, item.status)) }}</td>
+            <td><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('stakeholders.detail', party_id=item.id) }}"><i class="bi bi-eye"></i><span>Aç</span></a></div></td>
+          </tr>
+        {% else %}<tr><td colspan="8" class="dashboard-empty-row"><strong>İlgili taraf kaydı bulunamadı.</strong><span>Müşteri, çalışan, tedarikçi ve diğer ilgili tarafları buradan tanımlayabilirsiniz.</span></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

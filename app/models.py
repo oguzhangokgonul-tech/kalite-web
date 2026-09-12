@@ -228,6 +228,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "stakeholder_management",
+        "name": "İlgili Taraflar ve Beklentiler",
+        "description": "ISO 9001 ilgili taraflarını, beklentilerini ve periyodik değerlendirmelerini izler.",
+        "icon": "bi-people",
+        "sort_order": 57.9,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
@@ -3695,6 +3703,125 @@ class InspectionFinding(db.Model):
             return __import__("json").loads(self.observed_value_json)
         except (TypeError, ValueError):
             return self.observed_value_json
+
+
+STAKEHOLDER_PARTY_STATUSES = ("draft", "active", "archived")
+STAKEHOLDER_INTERNAL_EXTERNAL = ("internal", "external")
+STAKEHOLDER_RELEVANCE_STATUSES = ("relevant", "not_relevant", "under_review")
+STAKEHOLDER_FULFILLMENT_STATUSES = ("not_assessed", "met", "partial", "not_met")
+
+
+class StakeholderParty(db.Model):
+    __tablename__ = "stakeholder_parties"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "party_no", name="uq_stakeholder_parties_company_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    party_no = db.Column(db.String(30), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    internal_external = db.Column(db.String(20), nullable=False, default="external")
+    category = db.Column(db.String(100), nullable=False)
+    relevance_status = db.Column(db.String(30), nullable=False, default="relevant")
+    relevance_reason = db.Column(db.Text, nullable=True)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    influence_score = db.Column(db.Integer, nullable=False, default=1)
+    importance_score = db.Column(db.Integer, nullable=False, default=1)
+    review_interval_months = db.Column(db.Integer, nullable=False, default=12)
+    last_review_date = db.Column(db.Date, nullable=True)
+    next_review_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    requirements = db.relationship(
+        "StakeholderRequirement",
+        back_populates="party",
+        cascade="all, delete-orphan",
+        order_by="StakeholderRequirement.id.asc()",
+    )
+    reviews = db.relationship(
+        "StakeholderReview",
+        back_populates="party",
+        cascade="all, delete-orphan",
+        order_by="StakeholderReview.reviewed_at.desc()",
+    )
+
+    @property
+    def priority_score(self):
+        return (self.influence_score or 0) * (self.importance_score or 0)
+
+
+class StakeholderRequirement(db.Model):
+    __tablename__ = "stakeholder_requirements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    party_id = db.Column(db.Integer, db.ForeignKey("stakeholder_parties.id"), nullable=False, index=True)
+    requirement_type = db.Column(db.String(40), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    source = db.Column(db.String(255), nullable=True)
+    climate_related = db.Column(db.Boolean, nullable=False, default=False)
+    process = db.Column(db.String(160), nullable=True)
+    fulfillment_status = db.Column(db.String(30), nullable=False, default="not_assessed", index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    improvement_plan = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    party = db.relationship("StakeholderParty", back_populates="requirements")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    reviews = db.relationship(
+        "StakeholderReview",
+        back_populates="requirement",
+        cascade="all, delete-orphan",
+        order_by="StakeholderReview.reviewed_at.desc()",
+    )
+
+
+class StakeholderReview(db.Model):
+    __tablename__ = "stakeholder_reviews"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    party_id = db.Column(db.Integer, db.ForeignKey("stakeholder_parties.id"), nullable=False, index=True)
+    requirement_id = db.Column(db.Integer, db.ForeignKey("stakeholder_requirements.id"), nullable=True, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewed_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+    party_name_snapshot = db.Column(db.String(180), nullable=False)
+    requirement_title_snapshot = db.Column(db.String(180), nullable=True)
+    requirement_source_snapshot = db.Column(db.String(255), nullable=True)
+    fulfillment_status_before = db.Column(db.String(30), nullable=True)
+    outcome = db.Column(db.String(30), nullable=False, index=True)
+    summary = db.Column(db.Text, nullable=False)
+    evidence_note = db.Column(db.Text, nullable=True)
+    next_review_date = db.Column(db.Date, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    party = db.relationship("StakeholderParty", back_populates="reviews")
+    requirement = db.relationship("StakeholderRequirement", back_populates="reviews")
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
 
 
 class Notification(db.Model):
