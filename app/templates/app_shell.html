@@ -8,7 +8,7 @@
 {% block content %}
   <a class="vp-skip-link" href="#dashboardMainContent">Ana i&#231;eri&#287;e ge&#231;</a>
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
-  {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}
+  {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] or (request.endpoint or '').startswith('customer_portal.') %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
   {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
@@ -223,6 +223,12 @@
               <i class="bi bi-chat-left-text"></i>
               <span>Şikayet</span>
             </a>
+            {% if g.company_module_enabled('customer_feedback_portal') and g.current_user.has_permission('customer_portal.view') %}
+            <a class="dashboard-subnav-item {% if (request.endpoint or '').startswith('customer_portal.') %}active{% endif %}" href="{{ url_for('customer_portal.dashboard') }}">
+              <i class="bi bi-inboxes"></i>
+              <span>Müşteri Geri Bildirimleri</span>
+            </a>
+            {% endif %}
           </div>
         </div>
         {% endif %}

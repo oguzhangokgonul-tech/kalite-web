@@ -22,6 +22,10 @@ TRACKED_MODEL_NAMES = {
     "ChangeRequest",
     "ChangeRequestFile",
     "ComplaintRecord",
+    "ComplaintMessage",
+    "ComplaintFile",
+    "ComplaintStatusHistory",
+    "CustomerPortalSetting",
     "ComplianceEvaluation",
     "ComplianceFile",
     "ComplianceObligation",
@@ -98,6 +102,12 @@ SENSITIVE_FIELD_NAMES = {
     "value_json",
     "observed_value_json",
     "explanation_snapshot",
+    "contact_email",
+    "contact_phone",
+    "consent_text",
+    "email_hash",
+    "ip_hash",
+    "body",
 }
 
 NOISY_FIELD_NAMES = {"updated_at"}

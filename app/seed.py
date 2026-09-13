@@ -385,6 +385,60 @@ PERMISSION_CATALOG = (
         "description": "Şikayet kayıtlarını silebilir.",
     },
     {
+        "key": "customer_portal.view",
+        "label": "Müşteri geri bildirimlerini görüntüleme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Yetki kapsamındaki doğrulanmış müşteri talep ve geri bildirimlerini görüntüler.",
+    },
+    {
+        "key": "customer_portal.triage",
+        "label": "Müşteri geri bildirimi ön inceleme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Kayıt türü, öncelik, durum ve termin bilgilerini düzenler.",
+    },
+    {
+        "key": "customer_portal.assign",
+        "label": "Müşteri geri bildirimi atama",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Kayıtları şirket içindeki departman ve sorumlulara atar.",
+    },
+    {
+        "key": "customer_portal.respond",
+        "label": "Müşteriye yanıt verme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Müşteriye açık yanıt ve kurum içi not ekler.",
+    },
+    {
+        "key": "customer_portal.close",
+        "label": "Müşteri geri bildirimi kapatma",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Çözüm özetiyle müşteri geri bildirimini sonuçlandırır.",
+    },
+    {
+        "key": "customer_portal.settings",
+        "label": "Müşteri portalı ayarları",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Firma portalı, SLA, doğrulama ve dosya limitlerini yönetir.",
+    },
+    {
+        "key": "customer_portal.archive",
+        "label": "Müşteri geri bildirimi arşivleme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Kapanan kayıtları denetim izi korunarak arşivler.",
+    },
+    {
+        "key": "customer_portal.file_download",
+        "label": "Müşteri geri bildirimi eki indirme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Yetkili kayıtlardaki müşteri ve kurum eklerini indirir.",
+    },
+    {
+        "key": "customer_portal.export",
+        "label": "Müşteri geri bildirimi raporu",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Yetki kapsamındaki müşteri geri bildirimlerini Excel olarak dışa aktarır.",
+    },
+    {
         "key": "management_review.view",
         "label": "YGG görüntüleme",
         "group": "Yönetimin Gözden Geçirmesi",
@@ -739,6 +793,15 @@ ROLE_DEFINITIONS = (
             "complaints.view",
             "complaints.manage",
             "complaints.delete",
+            "customer_portal.view",
+            "customer_portal.triage",
+            "customer_portal.assign",
+            "customer_portal.respond",
+            "customer_portal.close",
+            "customer_portal.settings",
+            "customer_portal.archive",
+            "customer_portal.file_download",
+            "customer_portal.export",
             "management_review.view",
             "management_review.manage",
             "management_review.delete",
@@ -792,6 +855,11 @@ ROLE_DEFINITIONS = (
             "incident.export",
             "training.view",
             "complaints.view",
+            "customer_portal.view",
+            "customer_portal.respond",
+            "customer_portal.close",
+            "customer_portal.file_download",
+            "customer_portal.export",
             "management_review.view",
             "management_review.manage",
             "suppliers.view",
@@ -834,6 +902,10 @@ ROLE_DEFINITIONS = (
             "training.view",
             "complaints.view",
             "complaints.manage",
+            "customer_portal.view",
+            "customer_portal.triage",
+            "customer_portal.respond",
+            "customer_portal.file_download",
             "management_review.view",
             "suppliers.view",
             "suppliers.evaluate",
@@ -865,6 +937,9 @@ ROLE_DEFINITIONS = (
             "incident.create",
             "training.view",
             "complaints.view",
+            "customer_portal.view",
+            "customer_portal.respond",
+            "customer_portal.file_download",
             "suppliers.view",
             "vehicles.view",
         ],
@@ -3226,6 +3301,10 @@ def ensure_runtime_schema():
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
+    from .customer_portal import ensure_customer_portal_schema
+
+    ensure_customer_portal_schema()
+
     tables = set(inspect(db.engine).get_table_names())
     if "app_settings" in tables:
         from .legal import ensure_legal_schema
@@ -3277,6 +3356,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_inspection_management",
             "sales_readiness:competitor_stakeholder_management",
             "sales_readiness:competitor_compliance_obligations",
+            "sales_readiness:competitor_customer_request_portal",
         ):
             db.session.execute(
                 text(

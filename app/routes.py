@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from calendar import monthrange
 from functools import wraps
@@ -28,7 +28,7 @@ from flask import (
     session,
     url_for,
 )
-from sqlalchemy import inspect, or_, text
+from sqlalchemy import and_, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from .audit import record_audit_event
@@ -2737,6 +2737,14 @@ MODULE_ENDPOINTS = {
     "main.create_complaint": "suggestions",
     "main.edit_complaint": "suggestions",
     "main.delete_complaint": "suggestions",
+    "customer_portal.dashboard": "customer_feedback_portal",
+    "customer_portal.detail": "customer_feedback_portal",
+    "customer_portal.update": "customer_feedback_portal",
+    "customer_portal.add_message": "customer_feedback_portal",
+    "customer_portal.archive": "customer_feedback_portal",
+    "customer_portal.internal_file": "customer_feedback_portal",
+    "customer_portal.settings": "customer_feedback_portal",
+    "customer_portal.export_excel": "customer_feedback_portal",
     "main.dof_management": "if_management",
     "main.create_dof": "if_management",
     "main.edit_dof_draft": "if_management",
@@ -2932,7 +2940,19 @@ def selected_company_module_keys_from_form():
     selected = set(request.form.getlist("enabled_modules"))
     selected = {key for key in selected if key in COMPANY_MODULE_KEYS}
     if selected_company_package_key() == "iso_core":
-        selected.update({"dynamic_forms", "inspection_management", "stakeholder_management", "compliance_management"})
+        selected.update(
+            {
+                "dynamic_forms",
+                "inspection_management",
+                "stakeholder_management",
+                "compliance_management",
+                "customer_feedback_portal",
+            }
+        )
+    for item in COMPANY_MODULE_CATALOG:
+        parent_key = item.get("parent_key")
+        if parent_key and item["key"] in selected:
+            selected.add(parent_key)
     child_keys = {
         item["key"]
         for item in COMPANY_MODULE_CATALOG
@@ -7073,6 +7093,54 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
                 sort_id=complaint.id,
                 today=today,
             )
+
+    if company_module_enabled("customer_feedback_portal") and (
+        not visible_scope or current_user_can("customer_portal.view")
+    ):
+        portal_records = customer_feedback_query(
+            visible_scope=visible_scope
+        ).filter(ComplaintRecord.email_verified_at.isnot(None))
+        for complaint in portal_records.all():
+            if complaint.is_closed:
+                continue
+            detail_url = url_for(
+                "customer_portal.detail",
+                record_id=complaint.id,
+            )
+            if not complaint.first_response_at and complaint.first_response_due_at:
+                append_management_due_item(
+                    items,
+                    module="Müşteri Geri Bildirimi",
+                    reference_no=complaint.complaint_no,
+                    title=complaint.subject,
+                    department=complaint.department,
+                    responsible=report_user_name(complaint.responsible),
+                    due_date=complaint.first_response_due_at.date(),
+                    date_label="İlk Yanıt SLA",
+                    status=complaint.status,
+                    priority="Yüksek",
+                    detail_url=detail_url,
+                    icon="bi-inboxes",
+                    sort_id=complaint.id,
+                    today=today,
+                )
+            if complaint.resolution_due_at:
+                append_management_due_item(
+                    items,
+                    module="Müşteri Geri Bildirimi",
+                    reference_no=complaint.complaint_no,
+                    title=complaint.subject,
+                    department=complaint.department,
+                    responsible=report_user_name(complaint.responsible),
+                    due_date=complaint.resolution_due_at.date(),
+                    date_label="Çözüm SLA",
+                    status=complaint.status,
+                    priority=complaint.priority,
+                    detail_url=detail_url,
+                    icon="bi-inboxes",
+                    sort_id=complaint.id,
+                    today=today,
+                )
 
     if company_module_enabled("supplier_management") and (
         not visible_scope or can_view_suppliers()
@@ -12486,7 +12554,49 @@ def can_delete_complaints():
 
 
 def complaint_query():
-    return scoped_query(ComplaintRecord.query, ComplaintRecord)
+    return scoped_query(ComplaintRecord.query, ComplaintRecord).filter(
+        or_(
+            ComplaintRecord.source.is_(None),
+            ComplaintRecord.source != "Müşteri Portalı",
+        )
+    )
+
+
+def customer_feedback_query(include_archived=False, visible_scope=True):
+    query = scoped_query(ComplaintRecord.query, ComplaintRecord).filter_by(
+        source="Müşteri Portalı"
+    )
+    if not include_archived:
+        query = query.filter(ComplaintRecord.is_archived.is_(False))
+    if not visible_scope or g.current_user is None:
+        return query
+    if (
+        current_user_can("customer_portal.assign")
+        or has_role(g.current_user, "management")
+        or (
+            current_user_can("customer_portal.triage")
+            and not has_role(g.current_user, "department_manager")
+        )
+    ):
+        return query
+    if has_role(g.current_user, "department_manager"):
+        departments = [
+            department.name
+            for department in scoped_query(
+                CompanyDepartment.query, CompanyDepartment
+            ).filter_by(is_active=True)
+            if user_matches_document_department(
+                g.current_user,
+                normalize_for_role(department.name).strip(),
+            )
+        ]
+        return query.filter(
+            or_(
+                ComplaintRecord.responsible_user_id == g.current_user.id,
+                ComplaintRecord.department.in_(departments),
+            )
+        )
+    return query.filter(ComplaintRecord.responsible_user_id == g.current_user.id)
 
 
 def complaint_filters():
@@ -16007,7 +16117,7 @@ def assigned_complaint_tasks(scope):
         return []
 
     user_id = g.current_user.id
-    query = scoped_query(ComplaintRecord.query, ComplaintRecord)
+    query = complaint_query()
     if scope == "created":
         query = query.filter_by(created_by_user_id=user_id)
     else:
@@ -16039,6 +16149,80 @@ def assigned_complaint_tasks(scope):
                 ),
                 created_at=complaint.created_at,
                 sort_id=complaint.id,
+            )
+        )
+    return rows
+
+
+def assigned_customer_feedback_tasks(scope):
+    if (
+        not company_module_enabled("customer_feedback_portal")
+        or not current_user_can("customer_portal.view")
+    ):
+        return []
+    if scope == "created":
+        return []
+
+    user_id = g.current_user.id
+    query = customer_feedback_query().filter(
+        ComplaintRecord.email_verified_at.isnot(None)
+    )
+    ownership_filter = ComplaintRecord.responsible_user_id == user_id
+    if current_user_can("customer_portal.triage") or current_user_can(
+        "customer_portal.assign"
+    ):
+        ownership_filter = or_(
+            ownership_filter,
+            and_(
+                ComplaintRecord.responsible_user_id.is_(None),
+                ComplaintRecord.status == "Yeni",
+            ),
+        )
+    query = query.filter(ownership_filter)
+
+    rows = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for complaint in query.all():
+        if complaint.is_closed:
+            status_key = "completed"
+            due_at = complaint.resolution_due_at
+            date_label = "Çözüm SLA"
+        elif not complaint.first_response_at and complaint.first_response_due_at:
+            status_key = "open"
+            due_at = complaint.first_response_due_at
+            date_label = "İlk Yanıt SLA"
+        else:
+            status_key = "open"
+            due_at = complaint.resolution_due_at
+            date_label = "Çözüm SLA"
+
+        status = complaint.status
+        if status_key == "open" and due_at and due_at < now:
+            status, status_key = "SLA Gecikti", "delayed"
+        elif complaint.responsible_user_id is None:
+            status = "Ön İnceleme Bekliyor"
+
+        rows.append(
+            assigned_task_row(
+                module_key="customer_feedback",
+                module_label="Müşteri Geri Bildirimi",
+                module_icon="inboxes",
+                module_tone="complaint",
+                title=complaint.subject,
+                description=complaint.customer_name,
+                reference_no=complaint.complaint_no,
+                department=complaint.department,
+                due_date=due_at.date() if due_at else complaint.due_date,
+                status=status,
+                status_key=status_key,
+                priority=complaint.priority,
+                detail_url=url_for(
+                    "customer_portal.detail",
+                    record_id=complaint.id,
+                ),
+                created_at=complaint.created_at,
+                sort_id=complaint.id,
+                date_label=date_label,
             )
         )
     return rows
@@ -16686,6 +16870,7 @@ def assigned_all_tasks(scope):
         + assigned_process_tasks(scope)
         + assigned_quality_objective_tasks(scope)
         + assigned_complaint_tasks(scope)
+        + assigned_customer_feedback_tasks(scope)
         + assigned_management_review_tasks(scope)
         + assigned_document_revision_tasks(scope)
         + assigned_suggestion_tasks(scope)
@@ -16731,7 +16916,7 @@ ASSIGNED_TAB_MODULES = {
         "compliance",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
-    "feedback": {"suggestion", "complaint", "supplier"},
+    "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
     "management": {"management_review"},
 }
 
@@ -16755,6 +16940,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
     ("complaint", "Şikayet"),
+    ("customer_feedback", "Müşteri Geri Bildirimi"),
     ("deviation", "Sapma"),
     ("calibration", "Kalibrasyon"),
     ("quality_test", "Beton Deneyi"),

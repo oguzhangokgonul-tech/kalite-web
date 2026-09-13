@@ -466,3 +466,22 @@ def send_test_email(to_address):
     subject = f"{subject} Test e-postası"
     body = f"Bu e-posta {site_name} SMTP ayarlarını test etmek için gönderildi."
     return send_mail_now(settings, [to_address], subject, body)
+
+
+def send_recipient_email(to_address, subject, body):
+    """Queue a plain-text e-mail to an external recipient without exposing SMTP errors."""
+    address = str(to_address or "").strip()
+    if not address:
+        return False
+    settings = _mail_settings()
+    if not _mail_enabled(settings):
+        return False
+    _mail_executor.submit(
+        _send_mail_safely,
+        settings,
+        [address],
+        str(subject or "")[:255],
+        str(body or ""),
+        current_app.logger,
+    )
+    return True

@@ -188,6 +188,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "customer_feedback_portal",
+        "name": "Müşteri Talep ve Geri Bildirim",
+        "description": "Müşterilerin güvenli bağlantıyla talep, şikayet ve geri bildirim oluşturup takip etmesini sağlar.",
+        "icon": "bi-inboxes",
+        "sort_order": 36,
+        "parent_key": "suggestions",
+    },
+    {
         "key": "fmea_management",
         "name": "FMEA Analizi",
         "description": "Hata türü ve etkileri analizi, RPN puanı ve aksiyon takibi.",
@@ -1823,6 +1831,11 @@ class ComplaintRecord(db.Model):
     customer_name = db.Column(db.String(180), nullable=False)
     contact_name = db.Column(db.String(160), nullable=True)
     contact_phone = db.Column(db.String(80), nullable=True)
+    contact_email = db.Column(db.String(255), nullable=True, index=True)
+    record_type = db.Column(db.String(40), nullable=False, default="Şikayet", index=True)
+    source = db.Column(db.String(40), nullable=False, default="İç Kayıt", index=True)
+    customer_reference = db.Column(db.String(120), nullable=True)
+    product_reference = db.Column(db.String(180), nullable=True)
     department = db.Column(db.String(80), nullable=True)
     subject = db.Column(db.String(180), nullable=False)
     description = db.Column(db.Text, nullable=True)
@@ -1831,6 +1844,29 @@ class ComplaintRecord(db.Model):
     closing_note = db.Column(db.Text, nullable=True)
     received_date = db.Column(db.Date, nullable=True)
     due_date = db.Column(db.Date, nullable=True)
+    public_status = db.Column(db.String(40), nullable=False, default="Alındı", index=True)
+    email_verified_at = db.Column(db.DateTime, nullable=True, index=True)
+    first_response_due_at = db.Column(db.DateTime, nullable=True, index=True)
+    resolution_due_at = db.Column(db.DateTime, nullable=True, index=True)
+    first_response_at = db.Column(db.DateTime, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    customer_solution_summary = db.Column(db.Text, nullable=True)
+    customer_rating = db.Column(db.Integer, nullable=True)
+    customer_rating_comment = db.Column(db.Text, nullable=True)
+    consent_text = db.Column(db.Text, nullable=True)
+    consent_version = db.Column(db.String(40), nullable=True)
+    consented_at = db.Column(db.DateTime, nullable=True)
+    last_customer_message_at = db.Column(db.DateTime, nullable=True)
+    is_archived = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    archived_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey(
+            "users.id",
+            name="fk_complaint_records_archived_by_user_id",
+        ),
+        nullable=True,
+    )
     closed_at = db.Column(db.DateTime, nullable=True)
     status = db.Column(db.String(40), nullable=False, default="Açık")
     priority = db.Column(db.String(40), nullable=False, default="Orta")
@@ -1848,18 +1884,128 @@ class ComplaintRecord(db.Model):
 
     responsible = db.relationship("User", foreign_keys=[responsible_user_id])
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    archived_by = db.relationship("User", foreign_keys=[archived_by_user_id])
     action = db.relationship("Action", foreign_keys=[action_id])
     dof = db.relationship("Dof", foreign_keys=[dof_id])
 
     @property
     def is_closed(self):
-        return self.status == "Kapandı" or self.closed_at is not None
+        return self.status in {"Kapandı", "Kapatıldı", "Reddedildi", "Arşiv"} or self.closed_at is not None
 
     @property
     def delay_days(self):
         if self.is_closed or not self.due_date:
             return 0
         return max((date.today() - self.due_date).days, 0)
+
+
+class CustomerPortalSetting(db.Model):
+    __tablename__ = "customer_portal_settings"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, unique=True, index=True)
+    is_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    welcome_text = db.Column(db.Text, nullable=True)
+    consent_text = db.Column(db.Text, nullable=False, default="Kişisel verilerimin talebimin yönetilmesi amacıyla işlenmesini kabul ediyorum.")
+    consent_version = db.Column(db.String(40), nullable=False, default="1.0")
+    verification_hours = db.Column(db.Integer, nullable=False, default=24)
+    tracking_days = db.Column(db.Integer, nullable=False, default=90)
+    submission_limit_hour = db.Column(db.Integer, nullable=False, default=5)
+    max_file_mb = db.Column(db.Integer, nullable=False, default=10)
+    first_response_hours = db.Column(db.Integer, nullable=False, default=24)
+    resolution_hours = db.Column(db.Integer, nullable=False, default=168)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    company = db.relationship("Company")
+
+
+class CustomerPortalToken(db.Model):
+    __tablename__ = "customer_portal_tokens"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    complaint_id = db.Column(db.Integer, db.ForeignKey("complaint_records.id"), nullable=False, index=True)
+    purpose = db.Column(db.String(30), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    used_at = db.Column(db.DateTime, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    complaint = db.relationship("ComplaintRecord", backref=db.backref("portal_tokens", cascade="all, delete-orphan"))
+
+
+class ComplaintMessage(db.Model):
+    __tablename__ = "complaint_messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    complaint_id = db.Column(db.Integer, db.ForeignKey("complaint_records.id"), nullable=False, index=True)
+    sender_type = db.Column(db.String(20), nullable=False)
+    sender_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    sender_name = db.Column(db.String(160), nullable=True)
+    body = db.Column(db.Text, nullable=False)
+    visibility = db.Column(db.String(20), nullable=False, default="public", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    complaint = db.relationship("ComplaintRecord", backref=db.backref("messages", cascade="all, delete-orphan", order_by="ComplaintMessage.created_at"))
+    sender_user = db.relationship("User", foreign_keys=[sender_user_id])
+
+
+class ComplaintFile(db.Model):
+    __tablename__ = "complaint_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    complaint_id = db.Column(db.Integer, db.ForeignKey("complaint_records.id"), nullable=False, index=True)
+    message_id = db.Column(db.Integer, db.ForeignKey("complaint_messages.id"), nullable=True, index=True)
+    visibility = db.Column(db.String(20), nullable=False, default="public", index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    uploaded_by_customer = db.Column(db.Boolean, nullable=False, default=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    complaint = db.relationship("ComplaintRecord", backref=db.backref("files", cascade="all, delete-orphan"))
+    message = db.relationship("ComplaintMessage", backref=db.backref("files", cascade="all, delete-orphan"))
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class ComplaintStatusHistory(db.Model):
+    __tablename__ = "complaint_status_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    complaint_id = db.Column(db.Integer, db.ForeignKey("complaint_records.id"), nullable=False, index=True)
+    internal_status = db.Column(db.String(40), nullable=False)
+    public_status = db.Column(db.String(40), nullable=False)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    source = db.Column(db.String(30), nullable=False, default="system")
+    note = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    complaint = db.relationship("ComplaintRecord", backref=db.backref("status_history", cascade="all, delete-orphan", order_by="ComplaintStatusHistory.created_at"))
+    changed_by = db.relationship("User", foreign_keys=[changed_by_user_id])
+
+
+class CustomerPortalAttempt(db.Model):
+    __tablename__ = "customer_portal_attempts"
+    __table_args__ = (
+        db.Index("ix_customer_portal_attempt_scope_created", "company_id", "action", "ip_hash", "created_at"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    action = db.Column(db.String(30), nullable=False)
+    ip_hash = db.Column(db.String(64), nullable=False)
+    email_hash = db.Column(db.String(64), nullable=True)
+    success = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
 
 
 class ManagementReview(db.Model):

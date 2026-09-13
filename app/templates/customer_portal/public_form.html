@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Müşteri Talep ve Geri Bildirim Portalı{% endblock %}
+{% block navbar %}{% endblock %}
+{% block body_class %}bg-light{% endblock %}
+{% block main_class %}container py-4 py-lg-5{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 920px;">
+  <header class="d-flex align-items-center gap-3 mb-4">
+    <span class="d-inline-flex align-items-center justify-content-center border rounded bg-white text-primary" style="width:52px;height:52px"><i class="bi bi-inboxes fs-4"></i></span>
+    <div>
+      <h1 class="h3 mb-1">{{ company.name }} Müşteri Portalı</h1>
+      <p class="text-secondary mb-0">Talep ve geri bildiriminizi güvenli biçimde iletin.</p>
+    </div>
+  </header>
+  <section class="bg-white border rounded p-3 p-md-4 shadow-sm">
+    {% if setting.welcome_text %}<p class="text-secondary">{{ setting.welcome_text }}</p>{% endif %}
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="position-absolute overflow-hidden" style="width:1px;height:1px;left:-10000px" aria-hidden="true">
+        <label for="website">Web sitesi</label><input id="website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="row g-3">
+        <div class="col-md-4"><label class="form-label" for="record_type">Kayıt Türü *</label><select class="form-select" id="record_type" name="record_type" required><option value="">Seçin</option>{% for item in record_types %}<option value="{{ item }}" {% if request.form.get('record_type') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label" for="customer_name">Firma / Müşteri Adı *</label><input class="form-control" id="customer_name" name="customer_name" maxlength="180" required value="{{ request.form.get('customer_name', '') }}"></div>
+        <div class="col-md-4"><label class="form-label" for="contact_name">Ad Soyad *</label><input class="form-control" id="contact_name" name="contact_name" maxlength="160" required value="{{ request.form.get('contact_name', '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="contact_email">E-posta *</label><input class="form-control" id="contact_email" name="contact_email" type="email" maxlength="255" required value="{{ request.form.get('contact_email', '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="contact_phone">Telefon *</label><input class="form-control" id="contact_phone" name="contact_phone" maxlength="80" required value="{{ request.form.get('contact_phone', '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="customer_reference">Müşteri Referansı *</label><input class="form-control" id="customer_reference" name="customer_reference" maxlength="120" required value="{{ request.form.get('customer_reference', '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="product_reference">Ürün / Sipariş / Parti No *</label><input class="form-control" id="product_reference" name="product_reference" maxlength="180" required value="{{ request.form.get('product_reference', '') }}"></div>
+        <div class="col-12"><label class="form-label" for="subject">Konu *</label><input class="form-control" id="subject" name="subject" maxlength="180" required value="{{ request.form.get('subject', '') }}"></div>
+        <div class="col-12"><label class="form-label" for="description">Açıklama *</label><textarea class="form-control" id="description" name="description" rows="5" maxlength="5000" required>{{ request.form.get('description', '') }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="attachment">Ek dosya</label><input class="form-control" id="attachment" name="attachment" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"><small class="text-secondary">PDF, görsel, Word veya Excel; en fazla {{ setting.max_file_mb }} MB.</small></div>
+        <div class="col-12"><div class="form-check"><input class="form-check-input" id="consent" name="consent" type="checkbox" required><label class="form-check-label" for="consent">{{ setting.consent_text }} *</label></div></div>
+      </div>
+      <div class="d-flex justify-content-end mt-4"><button class="btn btn-primary" type="submit"><i class="bi bi-send me-1"></i> Gönder ve E-postamı Doğrula</button></div>
+    </form>
+    {% if verification_url %}<div class="alert alert-info mt-3 mb-0"><strong>Test doğrulama bağlantısı:</strong> <a href="{{ verification_url }}">Kaydı doğrula</a></div>{% endif %}
+  </section>
+</div>
+{% endblock %}

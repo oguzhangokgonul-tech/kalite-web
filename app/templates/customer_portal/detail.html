@@ -1,0 +1,101 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ record.complaint_no }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header(record.complaint_no, record.customer_name ~ " · " ~ record.record_type, icon="bi-inbox") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=1 if record.is_archived else 0) }}"><i class="bi bi-arrow-left"></i> Listeye Dön</a>
+{% endcall %}
+
+{% if record.is_archived %}
+  <div class="alert alert-secondary"><i class="bi bi-archive me-1"></i> Bu kayıt arşivdedir ve salt okunur gösterilir.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <section class="document-list-card p-3 p-md-4 mb-3">
+      <h2 class="h5">{{ record.subject }}</h2>
+      <p class="text-break">{{ record.description }}</p>
+      <div class="row g-3 small">
+        <div class="col-md-4"><span class="text-secondary d-block">İlgili Kişi</span><strong>{{ record.contact_name }}</strong></div>
+        <div class="col-md-4"><span class="text-secondary d-block">E-posta</span><strong class="text-break">{{ record.contact_email }}</strong></div>
+        <div class="col-md-4"><span class="text-secondary d-block">Telefon</span><strong>{{ record.contact_phone or '-' }}</strong></div>
+        <div class="col-md-6"><span class="text-secondary d-block">Müşteri Referansı</span><strong>{{ record.customer_reference or '-' }}</strong></div>
+        <div class="col-md-6"><span class="text-secondary d-block">Ürün / Sipariş / Parti</span><strong>{{ record.product_reference or '-' }}</strong></div>
+      </div>
+    </section>
+
+    <section class="document-list-card p-3 p-md-4">
+      <h2 class="h5 mb-3">Yazışma ve Not Geçmişi</h2>
+      <div class="vstack gap-2">
+        {% for item in messages %}
+          <article class="border rounded p-3 {% if item.visibility == 'internal' %}bg-warning-subtle{% elif item.sender_type == 'customer' %}bg-light{% endif %}">
+            <div class="d-flex justify-content-between gap-2">
+              <strong>{{ item.sender_name or ('Müşteri' if item.sender_type == 'customer' else 'Sistem') }}</strong>
+              <span class="badge {% if item.visibility == 'internal' %}text-bg-warning{% else %}text-bg-light border{% endif %}">{{ 'İç Not' if item.visibility == 'internal' else 'Müşteriye Açık' }}</span>
+            </div>
+            <p class="mb-1 mt-2 text-break">{{ item.body }}</p>
+            <small class="text-secondary">{{ item.created_at.strftime('%d.%m.%Y %H:%M') }}</small>
+            {% if can_download %}
+              {% for file in item.files if file.is_active %}
+                <a class="btn btn-sm btn-outline-primary ms-2" href="{{ url_for('customer_portal.internal_file', record_id=record.id, file_id=file.id) }}"><i class="bi bi-paperclip"></i> {{ file.original_name }}</a>
+              {% endfor %}
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+
+      {% if can_respond and not record.is_archived %}
+        <form class="border-top mt-4 pt-3" method="post" enctype="multipart/form-data" action="{{ url_for('customer_portal.add_message', record_id=record.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-2">
+            <div class="col-md-8"><label class="form-label" for="message">Mesaj / Not</label><textarea class="form-control" id="message" name="message" rows="3" maxlength="3000" required></textarea></div>
+            <div class="col-md-4"><label class="form-label" for="visibility">Görünürlük</label><select class="form-select mb-2" id="visibility" name="visibility"><option value="public">Müşteriye Açık Yanıt</option><option value="internal">Yalnız Kurum İçi Not</option></select><input class="form-control" name="attachment" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></div>
+            <div class="col-12 text-end"><button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Kaydet</button></div>
+          </div>
+        </form>
+      {% endif %}
+    </section>
+  </div>
+
+  <div class="col-xl-4">
+    <section class="document-list-card p-3 p-md-4 mb-3">
+      <h2 class="h5">Süreç Yönetimi</h2>
+      {% if can_update and not record.is_archived %}
+        <form method="post" action="{{ url_for('customer_portal.update', record_id=record.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="form-label mt-2">Durum</label>
+          <select class="form-select" name="status">
+            {% for item in statuses if can_triage or item == record.status or item in ['Kapatıldı', 'Reddedildi'] %}<option value="{{ item }}" {% if record.status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
+          </select>
+          <label class="form-label mt-2">Öncelik</label>
+          <select class="form-select" name="priority" {% if not can_triage %}disabled{% endif %}>{% for item in priorities %}<option value="{{ item }}" {% if record.priority == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+          <label class="form-label mt-2">Departman</label>
+          <select class="form-select" name="department" {% if not can_assign %}disabled{% endif %}><option value="">Seçin</option>{% for item in departments %}<option value="{{ item.name }}" {% if record.department == item.name %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select>
+          <label class="form-label mt-2">Sorumlu</label>
+          <select class="form-select" name="responsible_user_id" {% if not can_assign %}disabled{% endif %}><option value="">Seçin</option>{% for item in users %}<option value="{{ item.id }}" {% if record.responsible_user_id == item.id %}selected{% endif %}>{{ item.full_name }}</option>{% endfor %}</select>
+          <div class="row g-2">
+            <div class="col-6"><label class="form-label mt-2">İlk Yanıt Termini</label><input class="form-control" name="first_response_due_at" type="datetime-local" value="{{ record.first_response_due_at.strftime('%Y-%m-%dT%H:%M') if record.first_response_due_at else '' }}" {% if not can_triage %}disabled{% endif %}></div>
+            <div class="col-6"><label class="form-label mt-2">Çözüm Termini</label><input class="form-control" name="resolution_due_at" type="datetime-local" value="{{ record.resolution_due_at.strftime('%Y-%m-%dT%H:%M') if record.resolution_due_at else '' }}" {% if not can_triage %}disabled{% endif %}></div>
+          </div>
+          <label class="form-label mt-2">Aksiyon</label>
+          <select class="form-select" name="action_id" {% if not can_assign %}disabled{% endif %}><option value="">Yok</option>{% for item in actions %}<option value="{{ item.id }}" {% if record.action_id == item.id %}selected{% endif %}>{{ item.number_label }} - {{ item.title }}</option>{% endfor %}</select>
+          <label class="form-label mt-2">IF/DÖF</label>
+          <select class="form-select" name="dof_id" {% if not can_assign %}disabled{% endif %}><option value="">Yok</option>{% for item in dofs %}<option value="{{ item.id }}" {% if record.dof_id == item.id %}selected{% endif %}>{{ item.dof_no }} - {{ item.title or 'IF kaydı' }}</option>{% endfor %}</select>
+          <label class="form-label mt-2">Müşteriye Gösterilecek Çözüm Özeti</label>
+          <textarea class="form-control" name="customer_solution_summary" rows="3">{{ record.customer_solution_summary or '' }}</textarea>
+          <button class="btn btn-primary w-100 mt-3" type="submit"><i class="bi bi-save"></i> Süreci Kaydet</button>
+        </form>
+      {% else %}
+        <p class="text-secondary mb-0">Bu kayıt salt okunur.</p>
+      {% endif %}
+    </section>
+
+    {% if files and can_download %}
+      <section class="document-list-card p-3 mb-3"><h2 class="h6">Tüm Ekler</h2><div class="vstack gap-2">{% for file in files %}<a class="btn btn-sm btn-outline-primary text-start text-truncate" href="{{ url_for('customer_portal.internal_file', record_id=record.id, file_id=file.id) }}"><i class="bi bi-paperclip"></i> {{ file.original_name }} <small>({{ 'İç' if file.visibility == 'internal' else 'Açık' }})</small></a>{% endfor %}</div></section>
+    {% endif %}
+    {% if can_archive and record.is_closed and not record.is_archived %}
+      <form method="post" action="{{ url_for('customer_portal.archive', record_id=record.id) }}" onsubmit="return confirm('Kayıt arşive alınsın mı?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger w-100" type="submit"><i class="bi bi-archive"></i> Arşive Al</button></form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{{ record.complaint_no }} Takip{% endblock %}
+{% block navbar %}{% endblock %}
+{% block body_class %}bg-light{% endblock %}
+{% block main_class %}container py-4 py-lg-5{% endblock %}
+{% block content %}
+<div class="mx-auto" style="max-width: 960px;">
+  <header class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div><h1 class="h3 mb-1">{{ record.complaint_no }}</h1><p class="text-secondary mb-0">{{ record.record_type }} takip ekranı</p></div>
+    <span class="badge text-bg-primary fs-6 px-3 py-2">{{ record.public_status }}</span>
+  </header>
+  <section class="bg-white border rounded p-3 p-md-4 mb-3">
+    <div class="row g-3"><div class="col-md-6"><small class="text-secondary d-block">Konu</small><strong>{{ record.subject }}</strong></div><div class="col-md-3"><small class="text-secondary d-block">Alınma Tarihi</small><strong>{{ record.received_date.strftime('%d.%m.%Y') if record.received_date else '-' }}</strong></div><div class="col-md-3"><small class="text-secondary d-block">Durum</small><strong>{{ record.public_status }}</strong></div>{% if record.customer_solution_summary %}<div class="col-12"><small class="text-secondary d-block">Çözüm Özeti</small><p class="mb-0">{{ record.customer_solution_summary }}</p></div>{% endif %}</div>
+  </section>
+  <section class="bg-white border rounded p-3 p-md-4 mb-3">
+    <h2 class="h5 mb-3"><i class="bi bi-chat-square-text text-primary me-2"></i>Yazışmalar</h2>
+    <div class="vstack gap-2">{% for item in messages %}<article class="border rounded p-3 {% if item.sender_type == 'customer' %}bg-light{% endif %}"><div class="d-flex justify-content-between gap-2 mb-2"><strong>{{ 'Siz' if item.sender_type == 'customer' else item.sender_name or 'Firma Yetkilisi' }}</strong><small class="text-secondary">{{ item.created_at.strftime('%d.%m.%Y %H:%M') }}</small></div><p class="mb-0 text-break">{{ item.body }}</p></article>{% endfor %}</div>
+    {% if files %}<div class="mt-3"><strong class="small">Ekler</strong><div class="d-flex flex-wrap gap-2 mt-2">{% for file in files %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_portal.public_file', raw_token=raw_token, file_id=file.id) }}"><i class="bi bi-paperclip"></i> {{ file.original_name }}</a>{% endfor %}</div></div>{% endif %}
+  </section>
+  {% if not record.is_closed %}<form class="bg-white border rounded p-3 p-md-4" method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">Yeni Mesaj</h2><textarea class="form-control mb-3" name="message" rows="4" maxlength="3000" required></textarea><input class="form-control mb-3" name="attachment" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"><div class="text-end"><button class="btn btn-primary" type="submit"><i class="bi bi-send"></i> Mesajı Gönder</button></div></form>{% elif record.customer_rating is none %}<form class="bg-white border rounded p-3 p-md-4" method="post" action="{{ url_for('customer_portal.rate', raw_token=raw_token) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">Memnuniyet Değerlendirmesi</h2><div class="row g-3"><div class="col-md-3"><select class="form-select" name="rating" required><option value="">Puan seçin</option>{% for score in range(1, 6) %}<option value="{{ score }}">{{ score }} / 5</option>{% endfor %}</select></div><div class="col-md-7"><input class="form-control" name="comment" maxlength="1000" placeholder="Yorumunuz (isteğe bağlı)"></div><div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Kaydet</button></div></div></form>{% endif %}
+</div>
+{% endblock %}

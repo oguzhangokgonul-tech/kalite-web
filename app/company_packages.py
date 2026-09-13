@@ -18,6 +18,7 @@ ISO_CORE_MODULE_KEYS = {
     "calibration",
     "human_resources",
     "suggestions",
+    "customer_feedback_portal",
     "if_management",
     "risk_management",
     "fmea_management",
