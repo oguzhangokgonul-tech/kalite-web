@@ -606,6 +606,48 @@ PERMISSION_CATALOG = (
         "group": "İlgili Taraflar ve Beklentiler",
         "description": "İlgili taraf kayıtlarını denetim izi korunarak arşivler.",
     },
+    {
+        "key": "compliance.view",
+        "label": "Mevzuat kayıtlarını görüntüleme",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Yasal yükümlülükleri, revizyonları ve uygunluk değerlendirmelerini görüntüler.",
+    },
+    {
+        "key": "compliance.manage",
+        "label": "Mevzuat kayıtlarını yönetme",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Yükümlülük ve yeni mevzuat revizyonu oluşturur, sorumlulukları yönetir.",
+    },
+    {
+        "key": "compliance.verify",
+        "label": "Mevzuat revizyonu doğrulama",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Başka bir kullanıcı tarafından girilen mevzuat revizyonunu resmî kaynaktan doğrular.",
+    },
+    {
+        "key": "compliance.evaluate",
+        "label": "Mevzuat uygunluk değerlendirmesi",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Doğrulanmış mevzuat sürümüne uygunluk değerlendirmesi ve kanıt kaydeder.",
+    },
+    {
+        "key": "compliance.export",
+        "label": "Mevzuat raporu alma",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Mevzuat envanteri, revizyon ve değerlendirme kanıtlarını Excel olarak indirir.",
+    },
+    {
+        "key": "compliance.archive",
+        "label": "Mevzuat kayıtlarını arşivleme",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Mevzuat kayıtlarını denetim izi korunarak yürürlükten kaldırır veya arşivler.",
+    },
+    {
+        "key": "compliance.evidence_download",
+        "label": "Mevzuat kanıtlarını indirme",
+        "group": "Yasal Şartlar ve Mevzuat",
+        "description": "Mevzuat kaynak ve uygunluk kanıt dosyalarını indirir.",
+    },
 )
 
 DEFAULT_COMPANIES = (
@@ -869,6 +911,33 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in DYNAMIC_FORM_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+COMPLIANCE_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "compliance.view", "compliance.manage", "compliance.verify",
+        "compliance.evaluate", "compliance.export", "compliance.archive",
+        "compliance.evidence_download",
+    ),
+    "management": (
+        "compliance.view", "compliance.verify", "compliance.evaluate",
+        "compliance.export", "compliance.evidence_download",
+    ),
+    "department_manager": (
+        "compliance.view", "compliance.evaluate", "compliance.evidence_download",
+    ),
+    "department_staff": (
+        "compliance.view",
+        "compliance.evaluate",
+        "compliance.evidence_download",
+    ),
+    "viewer": ("compliance.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in COMPLIANCE_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3130,6 +3199,10 @@ def ensure_runtime_schema():
         StakeholderParty,
         StakeholderRequirement,
         StakeholderReview,
+        ComplianceObligation,
+        ComplianceRevision,
+        ComplianceEvaluation,
+        ComplianceFile,
     )
 
     for model in (
@@ -3146,6 +3219,10 @@ def ensure_runtime_schema():
         StakeholderParty,
         StakeholderRequirement,
         StakeholderReview,
+        ComplianceObligation,
+        ComplianceRevision,
+        ComplianceEvaluation,
+        ComplianceFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3199,6 +3276,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_dynamic_checklist",
             "sales_readiness:competitor_inspection_management",
             "sales_readiness:competitor_stakeholder_management",
+            "sales_readiness:competitor_compliance_obligations",
         ):
             db.session.execute(
                 text(

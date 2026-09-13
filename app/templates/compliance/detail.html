@@ -1,0 +1,64 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ obligation.obligation_no }}{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(obligation.obligation_no ~ ' · ' ~ obligation.title, obligation.category ~ ' / ' ~ obligation.department, icon='bi-bank') %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('compliance.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Listeye Dön</span></a>
+    {% if can_manage and obligation.status in ['draft', 'verification_pending'] %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('compliance.edit_obligation', obligation_id=obligation.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+    {% if can_manage and obligation.status in ['active', 'repealed'] and not obligation.pending_revision %}<a class="btn btn-primary btn-lg" href="{{ url_for('compliance.create_revision', obligation_id=obligation.id) }}"><i class="bi bi-files"></i><span>Yeni Revizyon</span></a>{% endif %}
+    {% if can_evaluate and obligation.status == 'active' and obligation.latest_verified_revision %}<a class="btn btn-success btn-lg" href="{{ url_for('compliance.evaluate', obligation_id=obligation.id) }}"><i class="bi bi-clipboard2-check"></i><span>Değerlendir</span></a>{% endif %}
+  {% endcall %}
+  <div class="alert alert-warning d-flex gap-2"><i class="bi bi-exclamation-triangle"></i><span>{{ legal_notice }}</span></div>
+
+  <section class="document-list-card p-4 mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><h2 class="h5 mb-1">Yükümlülük Bilgileri</h2><span class="text-secondary">Kuruluşa uygulanabilirlik ve takip sorumluluğu</span></div><div class="d-flex flex-wrap gap-2">{{ ui.status_badge(status_labels.get(obligation.status, obligation.status)) }}{{ ui.status_badge(criticality_labels.get(obligation.criticality, obligation.criticality), 'danger' if obligation.criticality in ['critical', 'high'] else 'warning') }}</div></div>
+    <div class="row g-3">
+      <div class="col-md-3"><small class="text-secondary d-block">Tür</small><strong>{{ obligation.obligation_type }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Yetkili Kurum</small><strong>{{ obligation.authority or '-' }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Yasal Referans</small><strong>{{ obligation.legal_reference or '-' }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Uygulanabilirlik</small><strong>{{ applicability_labels.get(obligation.applicability_status, obligation.applicability_status) }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Sorumlu</small><strong>{{ obligation.owner.full_name }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Süreç</small><strong>{{ obligation.process or '-' }}</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">İnceleme Periyodu</small><strong>{{ obligation.review_interval_months }} ay</strong></div>
+      <div class="col-md-3"><small class="text-secondary d-block">Sonraki İnceleme</small><strong>{{ obligation.next_review_date.strftime('%d.%m.%Y') }}</strong></div>
+      {% if obligation.applicability_reason %}<div class="col-12"><small class="text-secondary d-block">Uygulanabilirlik Gerekçesi</small><p class="mb-0">{{ obligation.applicability_reason }}</p></div>{% endif %}
+    </div>
+  </section>
+
+  <section class="document-list-card overflow-hidden mb-4">
+    <div class="p-4 border-bottom"><h2 class="h5 mb-1">Mevzuat Revizyonları</h2><span class="text-secondary">Doğrulanmış sürümler değiştirilemez; değişiklikler yeni revizyon olarak izlenir.</span></div>
+    <div class="table-responsive"><table class="table dashboard-table align-middle mb-0"><thead><tr><th>Revizyon</th><th>Tarihler</th><th>Resmî Kaynak</th><th>Özet</th><th>Doğrulama</th><th>Dosya</th><th class="text-end">İşlem</th></tr></thead><tbody>
+      {% for revision in obligation.revisions %}<tr>
+        <td><strong>{{ revision.revision_no }}</strong><small class="d-block">{{ ui.status_badge(revision_status_labels.get(revision.status, revision.status)) }}</small></td>
+        <td><small class="d-block">Yayın: {{ revision.publication_date.strftime('%d.%m.%Y') if revision.publication_date else '-' }}</small><small class="d-block">Yürürlük: {{ revision.effective_date.strftime('%d.%m.%Y') if revision.effective_date else '-' }}</small></td>
+        <td><a href="{{ revision.official_source_url }}" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> Resmî kaynağı aç</a></td>
+        <td class="text-wrap" style="min-width:220px">{{ revision.change_summary }}</td>
+        <td>{{ revision.verified_by.full_name if revision.verified_by else 'Bekliyor' }}<small class="d-block text-secondary">{{ revision.verified_at.strftime('%d.%m.%Y %H:%M') if revision.verified_at else revision.created_by.full_name ~ ' gönderdi' }}</small></td>
+        <td>{% for file in revision.files if file.is_active %}{% if can_download %}<a class="d-block" href="{{ url_for('compliance.download_file', file_id=file.id) }}"><i class="bi bi-paperclip"></i> {{ file.original_name }}</a>{% else %}<span class="d-block"><i class="bi bi-paperclip"></i> {{ file.original_name }}</span>{% endif %}{% else %}-{% endfor %}</td>
+        <td>
+          <div class="d-flex flex-column align-items-end gap-2">
+            {% if can_verify and revision.status == 'verification_pending' and revision.created_by_user_id != g.current_user.id %}
+              <form method="post" action="{{ url_for('compliance.verify_revision', revision_id=revision.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-success" type="submit"><i class="bi bi-patch-check"></i><span>Doğrula</span></button></form>
+              <form class="d-flex gap-1" method="post" action="{{ url_for('compliance.return_revision', revision_id=revision.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input class="form-control form-control-sm" style="min-width:180px" name="reason" maxlength="2000" required placeholder="Düzeltme gerekçesi"><button class="btn btn-sm btn-outline-danger text-nowrap" type="submit"><i class="bi bi-arrow-return-left"></i><span>İade Et</span></button></form>
+            {% elif revision.status == 'verification_pending' and revision.created_by_user_id == g.current_user.id %}
+              <small class="text-secondary">Başka yetkili doğrulamalı</small>
+            {% elif revision.status == 'returned' %}
+              {% if revision.verification_note %}<small class="text-danger text-wrap" style="max-width:260px">{{ revision.verification_note }}</small>{% endif %}
+              {% if can_manage %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('compliance.edit_revision', revision_id=revision.id) }}"><i class="bi bi-pencil"></i><span>Düzelt</span></a>{% endif %}
+            {% endif %}
+          </div>
+        </td>
+      </tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="document-list-card overflow-hidden mb-4">
+    <div class="p-4 border-bottom"><h2 class="h5 mb-1">Uygunluk Değerlendirmeleri</h2><span class="text-secondary">Her değerlendirme, o anki yükümlülük ve doğrulanmış revizyon bilgilerini saklar.</span></div>
+    <div class="table-responsive"><table class="table dashboard-table align-middle mb-0"><thead><tr><th>Tarih</th><th>Değerlendiren</th><th>Sürüm</th><th>Sonuç</th><th>Özet / Kanıt</th><th>Bağlantılar</th><th>Sonraki İnceleme</th></tr></thead><tbody>
+      {% for item in obligation.evaluations %}<tr><td>{{ item.evaluated_at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ item.evaluator.full_name }}</td><td>{{ item.revision_no_snapshot }}</td><td>{{ ui.status_badge(evaluation_labels.get(item.outcome, item.outcome), 'success' if item.outcome == 'compliant' else 'danger' if item.outcome == 'noncompliant' else 'warning') }}</td><td class="text-wrap" style="min-width:240px">{{ item.summary }}{% if item.evidence_note %}<small class="d-block text-secondary">Kanıt: {{ item.evidence_note }}</small>{% endif %}{% for file in item.files if file.is_active %}{% if can_download %}<a class="d-block" href="{{ url_for('compliance.download_file', file_id=file.id) }}"><i class="bi bi-paperclip"></i> {{ file.original_name }}</a>{% endif %}{% endfor %}</td><td><small class="d-block">Risk: {{ item.risk.risk_no if item.risk else '-' }}</small><small class="d-block">Aksiyon: {{ item.action.action_number if item.action else '-' }}</small><small class="d-block">Doküman: {{ item.document.document_code if item.document else '-' }}</small>{% if item.improvement_plan %}<small class="d-block text-secondary">Plan: {{ item.improvement_plan }}</small>{% endif %}</td><td>{{ item.next_review_date.strftime('%d.%m.%Y') }}</td></tr>
+      {% else %}<tr><td colspan="7" class="dashboard-empty-row"><strong>Henüz uygunluk değerlendirmesi yok.</strong><span>Doğrulanmış sürüm aktifleştirildiğinde sorumlu değerlendirme kaydedebilir.</span></td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  {% if can_archive and obligation.status != 'archived' %}<div class="d-flex justify-content-end gap-2">{% if obligation.status == 'active' %}<form method="post" action="{{ url_for('compliance.repeal', obligation_id=obligation.id) }}" onsubmit="return confirm('Bu yükümlülük yürürlükten kalktı olarak işaretlensin mi?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-warning" type="submit"><i class="bi bi-slash-circle"></i><span>Yürürlükten Kaldır</span></button></form>{% endif %}<form method="post" action="{{ url_for('compliance.archive', obligation_id=obligation.id) }}" onsubmit="return confirm('Kayıt arşivlensin mi? Geçmiş korunacaktır.')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-danger" type="submit"><i class="bi bi-archive"></i><span>Arşivle</span></button></form></div>{% endif %}
+{% endblock %}

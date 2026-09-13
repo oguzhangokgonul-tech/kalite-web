@@ -1,0 +1,21 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Mevzuat Revizyonunu Düzelt' if revision else 'Yeni Mevzuat Revizyonu' }}{% endblock %}
+{% block app_content %}
+  {% call ui.page_header('Mevzuat Revizyonunu Düzelt' if revision else 'Yeni Mevzuat Revizyonu', obligation.obligation_no ~ " için doğrulanabilir sürüm bilgilerini tamamlayın.", icon="bi-files") %}<a class="btn btn-outline-secondary btn-lg" href="{{ url_for('compliance.detail', obligation_id=obligation.id) }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>{% endcall %}
+  <div class="alert alert-warning d-flex gap-2"><i class="bi bi-exclamation-triangle"></i><span>{{ legal_notice }}</span></div>
+  {% if revision and revision.verification_note %}<div class="alert alert-danger"><strong>Düzeltme gerekçesi:</strong> {{ revision.verification_note }}</div>{% endif %}
+  <form class="document-list-card p-4" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3">
+      <div class="col-md-4"><label class="form-label" for="revision_no">Revizyon / Değişiklik No</label><input class="form-control" id="revision_no" name="revision_no" maxlength="40" required value="{{ values.get('revision_no', '') }}"></div>
+      <div class="col-md-4"><label class="form-label" for="publication_date">Yayın Tarihi</label><input class="form-control" id="publication_date" name="publication_date" type="date" value="{{ values.get('publication_date', '') }}"></div>
+      <div class="col-md-4"><label class="form-label" for="effective_date">Yürürlük Tarihi</label><input class="form-control" id="effective_date" name="effective_date" type="date" value="{{ values.get('effective_date', '') }}"></div>
+      <div class="col-md-4"><label class="form-label" for="repeal_date">Yürürlükten Kalkma Tarihi</label><input class="form-control" id="repeal_date" name="repeal_date" type="date" value="{{ values.get('repeal_date', '') }}"></div>
+      <div class="col-md-8"><label class="form-label" for="official_source_url">Resmî Kaynak Bağlantısı</label><input class="form-control" id="official_source_url" name="official_source_url" type="url" maxlength="1000" required value="{{ values.get('official_source_url', '') }}"></div>
+      <div class="col-12"><label class="form-label" for="change_summary">Değişiklik Özeti</label><textarea class="form-control" id="change_summary" name="change_summary" rows="5" maxlength="10000" required>{{ values.get('change_summary', '') }}</textarea></div>
+      <div class="col-12"><label class="form-label" for="source_file">Kaynak Dosyası <span class="text-secondary">(opsiyonel)</span></label><input class="form-control" id="source_file" name="source_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png"></div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('compliance.detail', obligation_id=obligation.id) }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-send-check"></i><span>Doğrulamaya Gönder</span></button></div>
+  </form>
+{% endblock %}

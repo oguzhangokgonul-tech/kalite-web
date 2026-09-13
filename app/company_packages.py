@@ -26,6 +26,7 @@ ISO_CORE_MODULE_KEYS = {
     "dynamic_forms",
     "inspection_management",
     "stakeholder_management",
+    "compliance_management",
     "change_management",
     "deviation_management",
     "incident_near_miss",

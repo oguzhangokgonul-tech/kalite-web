@@ -236,6 +236,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "compliance_management",
+        "name": "Yasal Şartlar ve Mevzuat",
+        "description": "Yasal yükümlülükleri, doğrulanmış mevzuat revizyonlarını ve uygunluk değerlendirmelerini izler.",
+        "icon": "bi-bank",
+        "sort_order": 57.95,
+        "parent_key": None,
+    },
+    {
         "key": "change_management",
         "name": "De\u011fi\u015fiklik Y\u00f6netimi",
         "description": "Dok\u00fcman, proses, ekipman ve sistem de\u011fi\u015fikliklerinde onay, uygulama ve etkinlik takibi.",
@@ -3822,6 +3830,222 @@ class StakeholderReview(db.Model):
     party = db.relationship("StakeholderParty", back_populates="reviews")
     requirement = db.relationship("StakeholderRequirement", back_populates="reviews")
     reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+
+
+COMPLIANCE_OBLIGATION_STATUSES = (
+    "draft",
+    "verification_pending",
+    "active",
+    "repealed",
+    "archived",
+)
+COMPLIANCE_REVISION_STATUSES = (
+    "draft",
+    "verification_pending",
+    "returned",
+    "verified",
+    "superseded",
+)
+COMPLIANCE_EVALUATION_OUTCOMES = (
+    "not_assessed",
+    "compliant",
+    "partial",
+    "noncompliant",
+    "not_applicable",
+)
+
+
+class ComplianceObligation(db.Model):
+    __tablename__ = "compliance_obligations"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id", "obligation_no", name="uq_compliance_obligations_company_no"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    obligation_no = db.Column(db.String(30), nullable=False)
+    title = db.Column(db.String(240), nullable=False)
+    category = db.Column(db.String(100), nullable=False)
+    authority = db.Column(db.String(180), nullable=True)
+    region = db.Column(db.String(100), nullable=True)
+    obligation_type = db.Column(db.String(80), nullable=False)
+    legal_reference = db.Column(db.String(255), nullable=True)
+    applicability_status = db.Column(db.String(30), nullable=False, default="applicable")
+    applicability_reason = db.Column(db.Text, nullable=True)
+    department = db.Column(db.String(160), nullable=False, index=True)
+    process = db.Column(db.String(160), nullable=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    criticality = db.Column(db.String(20), nullable=False, default="medium", index=True)
+    review_interval_months = db.Column(db.Integer, nullable=False, default=12)
+    last_review_date = db.Column(db.Date, nullable=True)
+    next_review_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="draft", index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    repealed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    revisions = db.relationship(
+        "ComplianceRevision",
+        back_populates="obligation",
+        cascade="all, delete-orphan",
+        order_by="ComplianceRevision.created_at.desc()",
+    )
+    evaluations = db.relationship(
+        "ComplianceEvaluation",
+        back_populates="obligation",
+        cascade="all, delete-orphan",
+        order_by="ComplianceEvaluation.evaluated_at.desc()",
+    )
+
+    @property
+    def latest_verified_revision(self):
+        return next((item for item in self.revisions if item.status == "verified"), None)
+
+    @property
+    def pending_revision(self):
+        return next(
+            (
+                item
+                for item in self.revisions
+                if item.status in {"verification_pending", "returned"}
+            ),
+            None,
+        )
+
+    @property
+    def latest_evaluation(self):
+        return self.evaluations[0] if self.evaluations else None
+
+
+class ComplianceRevision(db.Model):
+    __tablename__ = "compliance_revisions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "obligation_id", "revision_no", name="uq_compliance_revisions_obligation_no"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    obligation_id = db.Column(
+        db.Integer, db.ForeignKey("compliance_obligations.id"), nullable=False, index=True
+    )
+    revision_no = db.Column(db.String(40), nullable=False)
+    publication_date = db.Column(db.Date, nullable=True)
+    effective_date = db.Column(db.Date, nullable=True)
+    repeal_date = db.Column(db.Date, nullable=True)
+    official_source_url = db.Column(db.String(1000), nullable=False)
+    change_summary = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="verification_pending", index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    verified_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    verification_note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    obligation = db.relationship("ComplianceObligation", back_populates="revisions")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    verified_by = db.relationship("User", foreign_keys=[verified_by_user_id])
+    evaluations = db.relationship(
+        "ComplianceEvaluation",
+        back_populates="revision",
+        cascade="all, delete-orphan",
+        order_by="ComplianceEvaluation.evaluated_at.desc()",
+    )
+    files = db.relationship(
+        "ComplianceFile",
+        back_populates="revision",
+        cascade="all, delete-orphan",
+        order_by="ComplianceFile.created_at.asc()",
+    )
+
+
+class ComplianceEvaluation(db.Model):
+    __tablename__ = "compliance_evaluations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    obligation_id = db.Column(
+        db.Integer, db.ForeignKey("compliance_obligations.id"), nullable=False, index=True
+    )
+    revision_id = db.Column(
+        db.Integer, db.ForeignKey("compliance_revisions.id"), nullable=False, index=True
+    )
+    evaluator_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    evaluated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+    outcome = db.Column(db.String(30), nullable=False, index=True)
+    summary = db.Column(db.Text, nullable=False)
+    evidence_note = db.Column(db.Text, nullable=True)
+    next_review_date = db.Column(db.Date, nullable=False, index=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=True, index=True)
+    improvement_plan = db.Column(db.Text, nullable=True)
+    obligation_no_snapshot = db.Column(db.String(30), nullable=False)
+    obligation_title_snapshot = db.Column(db.String(240), nullable=False)
+    legal_reference_snapshot = db.Column(db.String(255), nullable=True)
+    revision_no_snapshot = db.Column(db.String(40), nullable=False)
+    official_source_url_snapshot = db.Column(db.String(1000), nullable=False)
+    owner_name_snapshot = db.Column(db.String(180), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    obligation = db.relationship("ComplianceObligation", back_populates="evaluations")
+    revision = db.relationship("ComplianceRevision", back_populates="evaluations")
+    evaluator = db.relationship("User", foreign_keys=[evaluator_user_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    document = db.relationship("Document", foreign_keys=[document_id])
+    files = db.relationship(
+        "ComplianceFile",
+        back_populates="evaluation",
+        cascade="all, delete-orphan",
+        order_by="ComplianceFile.created_at.asc()",
+    )
+
+
+class ComplianceFile(db.Model):
+    __tablename__ = "compliance_files"
+    __table_args__ = (
+        db.CheckConstraint(
+            "(revision_id IS NOT NULL AND evaluation_id IS NULL) OR "
+            "(revision_id IS NULL AND evaluation_id IS NOT NULL)",
+            name="ck_compliance_files_single_parent",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    revision_id = db.Column(
+        db.Integer, db.ForeignKey("compliance_revisions.id"), nullable=True, index=True
+    )
+    evaluation_id = db.Column(
+        db.Integer, db.ForeignKey("compliance_evaluations.id"), nullable=True, index=True
+    )
+    file_kind = db.Column(db.String(30), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    revision = db.relationship("ComplianceRevision", back_populates="files")
+    evaluation = db.relationship("ComplianceEvaluation", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class Notification(db.Model):

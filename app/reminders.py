@@ -14,6 +14,7 @@ from .models import (
     CalibrationRecord,
     ComplaintRecord,
     Company,
+    CompanyModule,
     DocumentRevisionRequest,
     Dof,
     InternalAudit,
@@ -25,6 +26,8 @@ from .models import (
     SupplierRecord,
     StakeholderParty,
     StakeholderRequirement,
+    ComplianceObligation,
+    ComplianceRevision,
     TrainingParticipant,
     TrainingRecord,
 )
@@ -53,6 +56,8 @@ QUALITY_OBJECTIVE_REMINDER_PERMISSIONS = (
     "quality_objective.approve",
 )
 STAKEHOLDER_REMINDER_PERMISSIONS = ("stakeholder.manage", "stakeholder.review")
+COMPLIANCE_REMINDER_PERMISSIONS = ("compliance.manage", "compliance.verify")
+COMPLIANCE_VERIFY_PERMISSION = ("compliance.verify",)
 
 
 def _status_text(value):
@@ -673,6 +678,103 @@ def _stakeholder_reminders(company_id, run_date, days_before):
     return stats
 
 
+def _compliance_reminders(company_id, run_date):
+    stats = {"notifications": 0, "emails": 0}
+    if not CompanyModule.query.filter_by(
+        company_id=company_id,
+        module_key="compliance_management",
+        is_enabled=True,
+    ).first():
+        return stats
+    expired_revisions = (
+        _company_query(ComplianceRevision, company_id)
+        .join(
+            ComplianceObligation,
+            ComplianceRevision.obligation_id == ComplianceObligation.id,
+        )
+        .filter(
+            ComplianceRevision.status == "verified",
+            ComplianceRevision.repeal_date.isnot(None),
+            ComplianceRevision.repeal_date <= run_date,
+            ComplianceObligation.status == "active",
+        )
+        .all()
+    )
+    for revision in expired_revisions:
+        revision.obligation.status = "repealed"
+        revision.obligation.repealed_at = datetime.now()
+    limit_date = run_date + timedelta(days=30)
+    obligations = (
+        _company_query(ComplianceObligation, company_id)
+        .filter(ComplianceObligation.status == "active")
+        .filter(ComplianceObligation.next_review_date <= limit_date)
+        .all()
+    )
+    for obligation in obligations:
+        days = (obligation.next_review_date - run_date).days
+        if days > 0 and days not in {30, 7}:
+            continue
+        severity, label = _due_state(obligation.next_review_date, run_date)
+        users = _merge_users(
+            company_id,
+            [obligation.owner_user_id],
+            COMPLIANCE_REMINDER_PERMISSIONS if severity == "danger" else (),
+        )
+        created, emails = _send_record_reminders(
+            users,
+            company_id=company_id,
+            kind="compliance-review",
+            record_id=obligation.id,
+            title=f"Mevzuat inceleme hatırlatması {obligation.obligation_no}",
+            message=(
+                f"{obligation.obligation_no} {obligation.title} için inceleme durumu: {label}. "
+                "Güncelliği resmî kaynaktan doğrulayın."
+            ),
+            target_url=f"/mevzuat-takibi/{obligation.id}",
+            due_date=obligation.next_review_date,
+            notification_type=severity,
+            run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+
+    pending_revisions = (
+        _company_query(ComplianceRevision, company_id)
+        .join(
+            ComplianceObligation,
+            ComplianceRevision.obligation_id == ComplianceObligation.id,
+        )
+        .filter(
+            ComplianceRevision.status == "verification_pending",
+            ComplianceObligation.status != "archived",
+        )
+        .all()
+    )
+    for revision in pending_revisions:
+        verifiers = [
+            user
+            for user in users_with_permissions(company_id, COMPLIANCE_VERIFY_PERMISSION)
+            if user.id != revision.created_by_user_id
+        ]
+        created, emails = _send_record_reminders(
+            verifiers,
+            company_id=company_id,
+            kind="compliance-verification",
+            record_id=revision.id,
+            title=f"Mevzuat doğrulaması {revision.obligation.obligation_no}",
+            message=(
+                f"{revision.obligation.obligation_no} {revision.revision_no} mevzuat revizyonu "
+                "resmî kaynak doğrulamanızı bekliyor."
+            ),
+            target_url=f"/mevzuat-takibi/{revision.obligation_id}",
+            notification_type="warning",
+            run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -695,6 +797,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _calibration_reminders(company_id, run_date, calibration_days),
         lambda: _quality_objective_reminders(company_id, run_date, days_before),
         lambda: _stakeholder_reminders(company_id, run_date, 30),
+        lambda: _compliance_reminders(company_id, run_date),
     )
     for build_stats in builders:
         item_stats = build_stats()

@@ -1,0 +1,45 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Yasal Şartlar ve Mevzuat{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("Yasal Şartlar ve Mevzuat", "Yükümlülükleri, resmî kaynak doğrulamalarını ve uygunluk durumunu izleyin.", icon="bi-bank") %}
+    {% if can_export %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('compliance.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Raporu</span></a>{% endif %}
+    {% if can_manage %}<a class="btn btn-primary btn-lg" href="{{ url_for('compliance.create_obligation') }}"><i class="bi bi-plus-lg"></i><span>Yeni Yükümlülük</span></a>{% endif %}
+  {% endcall %}
+
+  <div class="alert alert-warning d-flex align-items-start gap-2" role="note"><i class="bi bi-exclamation-triangle mt-1"></i><span>{{ legal_notice }}</span></div>
+
+  <form class="document-list-card p-3 mb-4" method="get">
+    <div class="row g-3 align-items-end">
+      <div class="col-lg-5"><label class="form-label" for="search">Ara</label><input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Kayıt no, mevzuat adı, kurum veya referans"></div>
+      <div class="col-md-3"><label class="form-label" for="department">Departman</label><select class="form-select" id="department" name="department"><option value="">Tümü</option>{% for item in departments %}<option value="{{ item }}" {% if filters.department == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2 d-flex gap-2"><button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-search"></i><span>Filtrele</span></button><a class="btn btn-outline-secondary" href="{{ url_for('compliance.dashboard') }}" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a></div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0">
+        <thead><tr><th>Kayıt No</th><th>Yükümlülük</th><th>Departman / Sorumlu</th><th>Kritiklik</th><th>Güncel Revizyon</th><th>Uygunluk</th><th>İnceleme</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+        <tbody>
+          {% for item in records %}
+            {% set revision = item.latest_verified_revision or item.pending_revision %}
+            {% set evaluation = item.latest_evaluation %}
+            <tr>
+              <td><strong>{{ item.obligation_no }}</strong></td>
+              <td><strong class="text-primary">{{ item.title }}</strong><small class="d-block text-secondary">{{ item.category }} · {{ item.legal_reference or 'Referans belirtilmedi' }}</small></td>
+              <td>{{ item.department }}<small class="d-block text-secondary">{{ item.owner.full_name }}</small></td>
+              <td>{{ ui.status_badge(criticality_labels.get(item.criticality, item.criticality), 'danger' if item.criticality in ['critical', 'high'] else 'warning' if item.criticality == 'medium' else 'secondary') }}</td>
+              <td>{{ revision.revision_no if revision else '-' }}<small class="d-block text-secondary">{{ revision.verified_at.strftime('%d.%m.%Y') if revision and revision.verified_at else 'Doğrulama bekliyor' }}</small></td>
+              <td>{{ ui.status_badge(evaluation_labels.get(evaluation.outcome, evaluation.outcome) if evaluation else 'Değerlendirilmedi', 'success' if evaluation and evaluation.outcome == 'compliant' else 'danger' if evaluation and evaluation.outcome == 'noncompliant' else 'warning') }}</td>
+              <td><span class="{% if item.status == 'active' and item.next_review_date < today %}text-danger fw-semibold{% endif %}">{{ item.next_review_date.strftime('%d.%m.%Y') }}</span></td>
+              <td>{{ ui.status_badge(status_labels.get(item.status, item.status)) }}</td>
+              <td><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('compliance.detail', obligation_id=item.id) }}"><i class="bi bi-eye"></i><span>Aç</span></a></div></td>
+            </tr>
+          {% else %}<tr><td colspan="9" class="dashboard-empty-row"><strong>Mevzuat yükümlülüğü bulunamadı.</strong><span>Kuruluşunuza uygulanan yasal şartları resmî kaynaklarıyla kaydedebilirsiniz.</span></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
