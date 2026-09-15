@@ -137,6 +137,7 @@ def test_manual_audit_event_records_request_context(app):
 
     with app.test_request_context(
         "/download",
+        environ_base={"REMOTE_ADDR": "127.0.0.1"},
         headers={"User-Agent": "pytest-agent", "X-Forwarded-For": "10.0.0.1"},
     ):
         from flask import g

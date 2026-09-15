@@ -6,6 +6,10 @@
 {% block app_content %}
   {% call ui.page_header("Öneri Yönetimi", "Öneri değerlendirme kayıtlarını ve puanlarını takip edin.", icon="bi-lightbulb") %}
     <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.suggestions_dashboard') if request.args.get('mine') == '1' else url_for('main.suggestions_dashboard', mine=1) }}">
+        <i class="bi bi-person-lines-fill"></i>
+        <span>{{ 'Tüm Öneriler' if request.args.get('mine') == '1' else 'Önerilerim' }}</span>
+      </a>
       {% if can_manage_parameters %}
         <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.suggestion_parameters') }}">
           <i class="bi bi-sliders"></i>
@@ -45,6 +49,7 @@
         <span>Yeni Öneri</span>
       </a>
     {% endcall %}
+    {% if suggestions %}
     <div class="table-responsive">
       <table class="table dashboard-table maintenance-table align-middle mb-0">
         <thead>
@@ -91,10 +96,13 @@
                       <span>Değerlendir</span>
                     </a>
                   {% endif %}
+                  {% if can_edit_suggestion(suggestion) %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_suggestion', suggestion_id=suggestion.id) }}">
                     <i class="bi bi-pencil-square"></i>
                     <span>Düzenle</span>
                   </a>
+                  {% endif %}
+                  {% if can_delete_suggestion(suggestion) %}
                   <form action="{{ url_for('main.delete_suggestion', suggestion_id=suggestion.id) }}" method="post" onsubmit="return confirm('Öneri kaydını silmek istediğinize emin misiniz?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline-danger" type="submit">
@@ -102,20 +110,17 @@
                       <span>Sil</span>
                     </button>
                   </form>
+                  {% endif %}
                 </div>
-              </td>
-            </tr>
-          {% else %}
-            <tr>
-              <td class="dashboard-empty-row" colspan="7">
-                <strong>Henüz öneri kaydı yok.</strong>
-                <span>Yeni Öneri butonuyla ilk değerlendirme kaydını oluşturabilirsiniz.</span>
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% else %}
+    <div class="text-center text-secondary p-4" role="status">Henüz öneri kaydı yok.</div>
+    {% endif %}
     <div class="dashboard-table-footer">
       <span>Toplam {{ suggestions|length }} öneri</span>
     </div>

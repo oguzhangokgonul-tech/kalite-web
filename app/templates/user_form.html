@@ -42,12 +42,12 @@
       </div>
       <div class="app-form-full">
         <label class="form-label" for="password">Şifre</label>
-        <input class="form-control" id="password" name="password" type="password" {% if not user %}required{% endif %}>
+        <input class="form-control" id="password" name="password" type="password" minlength="{{ config.PASSWORD_MIN_LENGTH }}" maxlength="{{ config.PASSWORD_MAX_LENGTH|default(128) }}" {% if not user %}required{% endif %}>
         {% if user %}
           <div class="form-text">Şifreyi değiştirmek istemiyorsanız boş bırakın.</div>
         {% endif %}
         {% if not user %}
-          <div class="form-text">Parola en az 4 karakter olmalıdır.</div>
+          <div class="form-text">Parola en az {{ config.PASSWORD_MIN_LENGTH }} karakter olmalıdır.</div>
         {% endif %}
       </div>
     </div>

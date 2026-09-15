@@ -356,3 +356,20 @@ def test_viewer_cannot_open_internal_portal_and_checklist_is_marked(app, client)
     ensure_runtime_schema()
     setting = db.session.get(AppSetting, "sales_readiness:competitor_customer_request_portal")
     assert setting is not None and setting.value == "1"
+
+
+def test_department_manager_does_not_match_department_by_substring(app, client):
+    verification_raw, record = submit_and_extract_verification(client)
+    verify_and_extract_tracking(client, verification_raw)
+    record.department = "Kalite"
+    manager = create_user("customer_portal.view", role_key="department_manager")
+    manager.title = "IT Müdürü"
+    db.session.commit()
+    login(client, manager)
+
+    response = client.get(
+        f"/musteri-geri-bildirimleri/{record.id}",
+        headers={"Host": "portal-firma.volkaportal.com"},
+    )
+
+    assert response.status_code == 403

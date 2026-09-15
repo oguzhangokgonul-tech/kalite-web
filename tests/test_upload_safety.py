@@ -10,12 +10,34 @@ from app.models import Action, AppSetting, DEPARTMENTS, Document, Suggestion
 from app.routes import (
     existing_uploaded_file_path,
     safe_original_filename,
+    save_suggestion_attachment,
+    save_uploaded_file,
     store_uploaded_file,
     uploaded_file_path,
 )
 from app.seed import ensure_runtime_schema
 
 from .helpers import create_company, create_user, first_document_category, login, upload_tuple
+
+
+@pytest.mark.parametrize("kind", ("action", "suggestion"))
+def test_invalid_replacement_does_not_delete_existing_attachment(app, kind):
+    stored_name = "old-attachment.pdf"
+    path = Path(app.config["UPLOAD_FOLDER"]) / stored_name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"Original evidence")
+    if kind == "action":
+        record = Action(file_stored_name=stored_name, file_original_name="old.pdf")
+        save = save_uploaded_file
+        field = "action_file"
+    else:
+        record = Suggestion(attachment_stored_name=stored_name, attachment_original_name="old.pdf")
+        save = save_suggestion_attachment
+        field = "attachment"
+    with app.test_request_context("/", method="POST", data={field: upload_tuple(b"invalid", "bad.exe")}):
+        with pytest.raises(ValueError, match="invalid_file_type"):
+            save(record)
+    assert path.read_bytes() == b"Original evidence"
 
 
 def action_payload(responsible):

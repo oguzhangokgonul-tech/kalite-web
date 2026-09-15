@@ -9,6 +9,7 @@ from sqlalchemy import event
 
 from .extensions import db
 from .models import AuditLog
+from .request_security import request_client_ip
 
 
 TRACKED_MODEL_NAMES = {
@@ -314,11 +315,7 @@ def audit_request_context(obj):
     if company_id is None and current_user is not None:
         company_id = current_user.company_id
 
-    forwarded_for = request.headers.get("X-Forwarded-For")
-    if forwarded_for:
-        ip_address = forwarded_for.split(",", 1)[0].strip()[:80]
-    elif request.remote_addr:
-        ip_address = request.remote_addr[:80]
+    ip_address = request_client_ip(default=None)
     raw_user_agent = request.headers.get("User-Agent")
     if raw_user_agent:
         user_agent = raw_user_agent[:255]

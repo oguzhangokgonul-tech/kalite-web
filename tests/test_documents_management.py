@@ -61,6 +61,30 @@ def test_document_permissions_and_company_isolation(app, client):
     assert client.get(f"/documents/{foreign_document.id}/download").status_code == 404
 
 
+def test_document_upload_rejects_foreign_company_category(app, client):
+    company_a = create_company("319")
+    company_b = create_company("320")
+    manager = create_user(
+        "document-tenant-manager",
+        company=company_a,
+        role_key="management_representative",
+    )
+    foreign_category = first_document_category(company_b)
+    login(client, manager, company_a)
+
+    response = client.post(
+        "/documents/upload",
+        data={
+            **document_payload(foreign_category),
+            "document_file": upload_tuple(b"%PDF-1.4\nforeign\n", "foreign.pdf"),
+        },
+    )
+
+    assert response.status_code == 200
+    assert Document.query.count() == 0
+    assert "Geçerli bir doküman kategorisi seçin" in response.get_data(as_text=True)
+
+
 def test_document_upload_download_revision_request_and_approval(app, client):
     company = create_company("313")
     manager = create_user(
@@ -131,6 +155,15 @@ def test_document_upload_download_revision_request_and_approval(app, client):
     assert revision_request.status == DOCUMENT_REVISION_APPROVED_STATUS
     assert document.revision_no == "1"
     assert document.original_file_name == "montaj-r1.pdf"
+    assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\nnew\n"
+
+    before_count = Document.query.count()
+    repeated = client.post(
+        f"/documents/revision-requests/{revision_request.id}/approve",
+        data={"document_file": upload_tuple(b"%PDF-1.4\nrepeat\n", "repeat.pdf")},
+    )
+    assert repeated.status_code == 409
+    assert Document.query.count() == before_count
     assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\nnew\n"
 
     archive = Document.query.filter(

@@ -45,6 +45,7 @@ from .models import (
     User,
 )
 from .notifications import add_notifications, mark_notifications_email_sent
+from .request_security import request_client_ip
 from .tenant import tenant_url_for_company
 
 
@@ -220,8 +221,7 @@ def _user_matches_department(user, department):
     department_key = department.strip().casefold()
     return any(
         department_key == value
-        or department_key in value
-        or value in department_key
+        or re.match(rf"^{re.escape(department_key)}(?:\s|/|-|\(|$)", value)
         for value in values
         if value
     )
@@ -314,8 +314,7 @@ def _valid_token(raw_token, purpose):
 
 
 def _request_ip_hash():
-    forwarded = request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
-    address = forwarded or request.remote_addr or "unknown"
+    address = request_client_ip()
     secret = str(current_app.config.get("SECRET_KEY", "portal"))
     return hmac.new(secret.encode(), address.encode(), hashlib.sha256).hexdigest()
 

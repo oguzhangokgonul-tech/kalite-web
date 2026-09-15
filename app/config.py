@@ -70,7 +70,16 @@ class Config:
     LOGIN_IP_MAX_FAILED_ATTEMPTS = int(
         os.environ.get("LOGIN_IP_MAX_FAILED_ATTEMPTS", "20")
     )
-    PASSWORD_MIN_LENGTH = int(os.environ.get("PASSWORD_MIN_LENGTH", "4"))
+    PASSWORD_MIN_LENGTH = min(256, max(10, int(os.environ.get("PASSWORD_MIN_LENGTH", "10"))))
+    PASSWORD_MAX_LENGTH = min(
+        256,
+        max(PASSWORD_MIN_LENGTH, int(os.environ.get("PASSWORD_MAX_LENGTH", "128"))),
+    )
+    TRUSTED_PROXY_IPS = tuple(
+        value.strip()
+        for value in os.environ.get("TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(",")
+        if value.strip()
+    )
 
     MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "false").lower() in {
         "1",

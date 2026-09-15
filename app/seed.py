@@ -3383,6 +3383,12 @@ def ensure_default_companies():
 
 def ensure_default_users(reset_passwords=True):
     ensure_runtime_schema()
+    from flask import current_app
+
+    if current_app.config.get("APP_ENV") == "production":
+        ensure_default_roles()
+        db.session.commit()
+        return
     ensure_default_companies()
     primary_company = Company.query.filter_by(code=PRIMARY_COMPANY_CODE).first()
     from .company_onboarding import initialize_company_workspace

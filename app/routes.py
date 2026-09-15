@@ -48,6 +48,7 @@ from .notifications import (
     safe_notification_target_url,
 )
 from .reminders import maybe_run_due_reminders_for_request
+from .request_security import request_client_ip
 from .personnel_seed import PERSONNEL_CONTACT_DEFAULTS
 from .models import (
     Action,
@@ -680,7 +681,10 @@ def load_logged_in_user():
 
     ensure_legal_schema()
     user_id = session.get("user_id")
-    g.current_user = User.query.get(user_id) if user_id else None
+    g.current_user = db.session.get(User, user_id) if user_id else None
+    if user_id and (g.current_user is None or not g.current_user.is_active):
+        session.clear()
+        g.current_user = None
     g.current_company = None
     g.tenant_company = tenant_company_from_host(request.host)
     session.pop("company_code", None)
@@ -700,6 +704,7 @@ def load_logged_in_user():
         g.current_user_is_super_admin = has_role(g.current_user, "super_admin")
         g.current_user_is_superadmin_account = (
             (g.current_user.username or "").strip().lower() == "superadmin"
+            and g.current_user.company_id is None
         )
         session_company_id = session.get("company_id")
         if (
@@ -838,6 +843,9 @@ def ensure_login_attempt_schema():
                         """
                     )
                 )
+            columns = {column["name"] for column in inspect(connection).get_columns("login_attempts")}
+            if "company_id" not in columns:
+                connection.execute(text("ALTER TABLE login_attempts ADD COLUMN company_id INTEGER"))
             connection.execute(
                 text(
                     "CREATE INDEX IF NOT EXISTS ix_login_attempts_username_created_at "
@@ -5223,8 +5231,7 @@ def current_document_acknowledgement(document, user=None):
 
 
 def document_acknowledgement_request_meta():
-    forwarded_for = request.headers.get("X-Forwarded-For", "")
-    ip_address = forwarded_for.split(",", 1)[0].strip() if forwarded_for else request.remote_addr
+    ip_address = request_client_ip(default=None)
     user_agent = request.headers.get("User-Agent", "")
     return (
         ip_address[:80] if ip_address else None,
@@ -5565,10 +5572,11 @@ def parse_document_form():
     except ValueError:
         raise ValueError("invalid_category") from None
 
-    category = DocumentCategory.query.filter_by(
-        id=category_id,
-        is_active=True,
-    ).first()
+    category = (
+        scoped_query(DocumentCategory.query, DocumentCategory)
+        .filter_by(id=category_id, is_active=True)
+        .first()
+    )
     if category is None:
         raise ValueError("invalid_category")
     if not title or not document_code:
@@ -12391,9 +12399,11 @@ def user_department_keys(user):
 
 def user_matches_document_department(user, document_department_key):
     return any(
-        document_department_key == user_key
-        or document_department_key in user_key
-        or user_key in document_department_key
+        user_key == document_department_key
+        or re.match(
+            rf"^{re.escape(document_department_key)}(?:\s|/|-|\(|$)",
+            user_key,
+        )
         for user_key in user_department_keys(user)
     )
 
@@ -13387,12 +13397,12 @@ def save_uploaded_file(action):
     if not uploaded_file or not uploaded_file.filename:
         return
 
-    delete_uploaded_file(action)
     safe_name, stored_name, mime_type = store_uploaded_file(
         uploaded_file,
         folder="actions/files",
         company_id=action.company_id,
     )
+    delete_uploaded_file(action)
 
     action.file_original_name = safe_name
     action.file_stored_name = stored_name
@@ -14570,7 +14580,15 @@ def flash_company_onboarding_error(error):
     elif error_key == "initial_username_exists":
         flash("Bu şirkette aynı kullanıcı adı zaten var.", "danger")
     elif error_key == "password_too_short":
-        flash("İlk kullanıcı parolası en az 4 karakter olmalıdır.", "danger")
+        flash(
+            f"İlk kullanıcı parolası en az {current_app.config['PASSWORD_MIN_LENGTH']} karakter olmalıdır.",
+            "danger",
+        )
+    elif error_key == "password_too_long":
+        flash(
+            f"İlk kullanıcı parolası en fazla {current_app.config.get('PASSWORD_MAX_LENGTH', 128)} karakter olabilir.",
+            "danger",
+        )
     elif error_key == "initial_role_required":
         flash("İlk kullanıcı için en az bir rol seçin.", "danger")
     else:
@@ -14638,7 +14656,7 @@ def normalize_login_identity(value):
 
 
 def login_client_ip():
-    return (request.remote_addr or "unknown")[:45]
+    return request_client_ip()[:45]
 
 
 def login_user_agent():
@@ -14656,6 +14674,8 @@ def login_counter_start(username=None, ip_address=None):
     query = LoginAttempt.query.filter(LoginAttempt.success.is_(True))
     if username is not None:
         query = query.filter(LoginAttempt.username == username)
+        company = getattr(g, "tenant_company", None)
+        query = query.filter(LoginAttempt.company_id == (company.id if company else None))
     if ip_address is not None:
         query = query.filter(LoginAttempt.ip_address == ip_address)
     last_success_at = query.with_entities(db.func.max(LoginAttempt.created_at)).scalar()
@@ -14673,6 +14693,8 @@ def recent_failed_login_count(username=None, ip_address=None):
     )
     if username is not None:
         query = query.filter(LoginAttempt.username == username)
+        company = getattr(g, "tenant_company", None)
+        query = query.filter(LoginAttempt.company_id == (company.id if company else None))
     if ip_address is not None:
         query = query.filter(LoginAttempt.ip_address == ip_address)
     return query.count()
@@ -14693,8 +14715,10 @@ def login_rate_limit_reason(username, ip_address):
 
 
 def log_login_attempt(username, ip_address, success, reason):
+    company = getattr(g, "tenant_company", None)
     db.session.add(
         LoginAttempt(
+            company_id=company.id if company else None,
             username=username or None,
             ip_address=ip_address,
             user_agent=login_user_agent(),
@@ -14732,6 +14756,8 @@ def find_login_user(identity, company=None):
 def validate_password_policy(password):
     if not password or len(password) < current_app.config["PASSWORD_MIN_LENGTH"]:
         raise ValueError("password_too_short")
+    if len(password) > current_app.config.get("PASSWORD_MAX_LENGTH", 128):
+        raise ValueError("password_too_long")
 
 
 def flash_user_form_error(error):
@@ -14742,7 +14768,15 @@ def flash_user_form_error(error):
     if error_key == "username_exists":
         flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
     elif error_key == "password_too_short":
-        flash("Parola en az 4 karakter olmalıdır.", "danger")
+        flash(
+            f"Parola en az {current_app.config['PASSWORD_MIN_LENGTH']} karakter olmalıdır.",
+            "danger",
+        )
+    elif error_key == "password_too_long":
+        flash(
+            f"Parola en fazla {current_app.config.get('PASSWORD_MAX_LENGTH', 128)} karakter olabilir.",
+            "danger",
+        )
     else:
         flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
 
@@ -14759,6 +14793,8 @@ def login():
         ip_address = login_client_ip()
         tenant_company = getattr(g, "tenant_company", None)
 
+        user = find_login_user(identity, tenant_company)
+        identity = normalize_login_identity(user.username) if user else identity
         lock_reason = login_rate_limit_reason(identity, ip_address)
         if lock_reason:
             log_login_attempt(identity, ip_address, False, lock_reason)
@@ -14840,7 +14876,6 @@ NOTIFICATION_FILTERS = (
     ("change", "De\u011fi\u015fiklik"),
     ("deviation", "Sapma"),
     ("incident", "Olay / Ramak Kala"),
-    ("incident", "Olay"),
 )
 
 
@@ -16371,6 +16406,7 @@ def assigned_suggestion_tasks(scope):
             .all()
         )
         for suggestion in suggestions:
+            refresh_suggestion_evaluation_status(suggestion)
             status = suggestion.status or SUGGESTION_PENDING_APPROVAL_STATUS
             status_key = (
                 "completed"
@@ -16398,7 +16434,7 @@ def assigned_suggestion_tasks(scope):
     if current_user_can(SUGGESTION_EVALUATE_PERMISSION) or can_manage_suggestion_evaluators():
         evaluable_suggestions = (
             scoped_query(Suggestion.query, Suggestion)
-            .filter_by(status=SUGGESTION_IN_EVALUATION_STATUS)
+            .filter(Suggestion.status.in_([SUGGESTION_IN_EVALUATION_STATUS, SUGGESTION_COMPLETED_STATUS]))
             .all()
         )
         for suggestion in evaluable_suggestions:
@@ -22579,6 +22615,19 @@ def approve_document_revision_request(request_id):
         DocumentRevisionRequest,
     ).filter_by(id=request_id).first_or_404()
     ensure_same_company(revision_request)
+    if revision_request.status != DOCUMENT_REVISION_PENDING_STATUS:
+        abort(409)
+    try:
+        # Claim the pending row before any file/archive work, without changing audit state.
+        claimed = db.session.execute(text(
+            "UPDATE document_revision_requests SET status = status "
+            "WHERE id = :id AND status = :pending"
+        ), {"id": revision_request.id, "pending": DOCUMENT_REVISION_PENDING_STATUS})
+    except OperationalError:
+        db.session.rollback()
+        abort(409)
+    if claimed.rowcount != 1:
+        abort(409)
     document = revision_request.document
     ensure_same_company(document)
     uploaded_files = document_uploads()
@@ -22982,6 +23031,27 @@ def can_manage_suggestion_evaluators():
     return getattr(g, "current_user_is_super_admin", False) or is_management_representative()
 
 
+def can_view_suggestion(suggestion):
+    return (
+        suggestion.status != SUGGESTION_PENDING_APPROVAL_STATUS
+        or suggestion.created_by_user_id == g.current_user.id
+        or can_manage_suggestion_evaluators()
+    )
+
+
+def can_edit_suggestion(suggestion):
+    if suggestion.evaluations or suggestion.status == SUGGESTION_COMPLETED_STATUS:
+        return False
+    return can_manage_suggestion_evaluators() or (
+        suggestion.created_by_user_id == g.current_user.id
+        and suggestion.status == SUGGESTION_PENDING_APPROVAL_STATUS
+    )
+
+
+def can_delete_suggestion(suggestion):
+    return can_manage_suggestion_evaluators() or can_edit_suggestion(suggestion)
+
+
 def suggestion_evaluator_users():
     return [
         user
@@ -23000,8 +23070,15 @@ def can_evaluate_suggestion(suggestion):
     )
 
 
-def suggestion_user_completed_evaluation(suggestion, user_id):
-    return any(evaluation.evaluator_user_id == user_id for evaluation in suggestion.evaluations)
+def suggestion_user_completed_evaluation(suggestion, user_id, required_parameter_ids=None):
+    if required_parameter_ids is None:
+        required_parameter_ids = {parameter.id for parameter in suggestion_parameter_query().all()}
+    rated_parameter_ids = {
+        evaluation.parameter_id
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_user_id == user_id and 1 <= evaluation.rating <= 10
+    }
+    return bool(required_parameter_ids) and required_parameter_ids.issubset(rated_parameter_ids)
 
 
 def refresh_suggestion_evaluation_status(suggestion):
@@ -23011,13 +23088,9 @@ def refresh_suggestion_evaluation_status(suggestion):
     if not required_users:
         suggestion.status = SUGGESTION_IN_EVALUATION_STATUS
         return
-    completed_user_ids = {
-        evaluation.evaluator_user_id
-        for evaluation in suggestion.evaluations
-        if evaluation.evaluator_user_id
-    }
-    required_user_ids = {user.id for user in required_users}
-    if required_user_ids.issubset(completed_user_ids):
+    required_parameter_ids = {parameter.id for parameter in suggestion_parameter_query().all()}
+    if all(suggestion_user_completed_evaluation(suggestion, user.id, required_parameter_ids)
+           for user in required_users):
         suggestion.status = SUGGESTION_COMPLETED_STATUS
     else:
         suggestion.status = SUGGESTION_IN_EVALUATION_STATUS
@@ -23025,7 +23098,9 @@ def refresh_suggestion_evaluation_status(suggestion):
 
 def suggestion_query():
     query = scoped_query(Suggestion.query, Suggestion)
-    if not can_manage_suggestion_evaluators():
+    if request.args.get("mine") == "1":
+        query = query.filter(Suggestion.created_by_user_id == g.current_user.id)
+    elif not can_manage_suggestion_evaluators():
         query = query.filter(Suggestion.status != SUGGESTION_PENDING_APPROVAL_STATUS)
     return query.order_by(Suggestion.created_at.desc())
 
@@ -23131,13 +23206,13 @@ def save_suggestion_attachment(suggestion):
     uploaded_file = request.files.get("attachment")
     if not uploaded_file or not uploaded_file.filename:
         return
-    if suggestion.attachment_stored_name:
-        delete_stored_upload(suggestion.attachment_stored_name)
     safe_name, stored_name, mime_type = store_uploaded_file(
         uploaded_file,
         folder="suggestions",
         company_id=suggestion.company_id or current_company_id(),
     )
+    if suggestion.attachment_stored_name:
+        delete_stored_upload(suggestion.attachment_stored_name)
     suggestion.attachment_original_name = safe_name
     suggestion.attachment_stored_name = stored_name
     suggestion.attachment_mime_type = mime_type
@@ -23177,10 +23252,11 @@ def save_suggestion_evaluation(suggestion):
     if not parameter_by_id:
         raise ValueError("missing_parameters")
 
-    changed = False
+    ratings = {}
     for parameter_id, parameter in parameter_by_id.items():
         raw_rating = request.form.get(f"rating_{parameter_id}", "").strip()
         if not raw_rating:
+            ratings[parameter_id] = None
             continue
         try:
             rating = int(raw_rating)
@@ -23188,14 +23264,24 @@ def save_suggestion_evaluation(suggestion):
             raise ValueError("invalid_rating") from exc
         if rating < 1 or rating > 10:
             raise ValueError("invalid_rating")
+        ratings[parameter_id] = rating
 
-        evaluation = (
-            SuggestionEvaluation.query.filter_by(
-                suggestion_id=suggestion.id,
-                parameter_id=parameter.id,
-                evaluator_department=evaluator_label,
-            ).first()
-        )
+    existing = {
+        evaluation.parameter_id: evaluation
+        for evaluation in suggestion.evaluations
+        if evaluation.evaluator_user_id == g.current_user.id
+    }
+    if not any(rating is not None for rating in ratings.values()) and not existing:
+        raise ValueError("missing_rating")
+
+    for parameter_id, parameter in parameter_by_id.items():
+        rating = ratings[parameter_id]
+        evaluation = existing.get(parameter_id)
+        if rating is None:
+            if evaluation is not None:
+                suggestion.evaluations.remove(evaluation)
+                db.session.delete(evaluation)
+            continue
         if evaluation is None:
             evaluation = SuggestionEvaluation(
                 suggestion=suggestion,
@@ -23209,10 +23295,6 @@ def save_suggestion_evaluation(suggestion):
         evaluation.evaluator_user_id = g.current_user.id
         evaluation.rating = rating
         evaluation.comment = comment or None
-        changed = True
-
-    if not changed:
-        raise ValueError("missing_rating")
 
 
 def suggestion_evaluation_summary(suggestion):
@@ -23230,16 +23312,7 @@ def suggestion_evaluation_summary(suggestion):
 
 
 def suggestion_evaluator_summary(suggestion):
-    completed_user_ids = {
-        evaluation.evaluator_user_id
-        for evaluation in suggestion.evaluations
-        if evaluation.evaluator_user_id
-    }
-    completed_labels = {
-        evaluation.evaluator_department
-        for evaluation in suggestion.evaluations
-        if evaluation.evaluator_department
-    }
+    required_parameter_ids = {parameter.id for parameter in suggestion_parameter_query().all()}
     summary = []
     for user in suggestion_evaluator_users():
         name = (user.full_name or user.username or "").strip()
@@ -23248,7 +23321,7 @@ def suggestion_evaluator_summary(suggestion):
         summary.append(
             {
                 "name": name,
-                "completed": user.id in completed_user_ids or name in completed_labels,
+                "completed": suggestion_user_completed_evaluation(suggestion, user.id, required_parameter_ids),
             }
         )
     return sorted(summary, key=lambda item: (item["completed"], item["name"].casefold()))
@@ -23291,6 +23364,8 @@ def suggestions_dashboard():
         can_manage_parameters=can_manage_suggestion_parameters(),
         can_manage_evaluators=can_manage_suggestion_evaluators(),
         can_evaluate_suggestion=can_evaluate_suggestion,
+        can_edit_suggestion=can_edit_suggestion,
+        can_delete_suggestion=can_delete_suggestion,
         can_approve_suggestions=can_manage_suggestion_evaluators(),
         format_date=format_date,
     )
@@ -23347,7 +23422,11 @@ def create_suggestion():
 def suggestion_detail(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    if not can_view_suggestion(suggestion):
+        abort(403)
     ensure_default_suggestion_parameters()
+    refresh_suggestion_evaluation_status(suggestion)
+    db.session.commit()
     current_user_evaluations = {
         evaluation.parameter_id: evaluation
         for evaluation in suggestion.evaluations
@@ -23370,6 +23449,7 @@ def suggestion_detail(suggestion_id):
         current_user_evaluations=current_user_evaluations,
         current_user_comment=current_user_comment,
         can_evaluate_current_suggestion=can_evaluate_suggestion(suggestion),
+        can_edit_current_suggestion=can_edit_suggestion(suggestion),
         format_date=format_date,
     )
 
@@ -23380,6 +23460,7 @@ def evaluate_suggestion(suggestion_id):
     ensure_default_suggestion_parameters()
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    refresh_suggestion_evaluation_status(suggestion)
     if not can_evaluate_suggestion(suggestion):
         abort(403)
     try:
@@ -23387,6 +23468,8 @@ def evaluate_suggestion(suggestion_id):
         refresh_suggestion_evaluation_status(suggestion)
         db.session.commit()
         flash("Öneri değerlendirmesi kaydedildi.", "success")
+        if not suggestion_user_completed_evaluation(suggestion, g.current_user.id):
+            flash("Değerlendirme eksik: tüm aktif kriterler için puan seçin.", "warning")
     except ValueError as error:
         db.session.rollback()
         error_key = str(error)
@@ -23422,6 +23505,8 @@ def edit_suggestion(suggestion_id):
     ensure_default_suggestion_parameters()
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    if not can_edit_suggestion(suggestion):
+        abort(403)
     if request.method == "POST":
         try:
             for key, value in parse_suggestion_form(include_defaults=False).items():
@@ -23509,6 +23594,8 @@ def suggestion_evaluators():
 def delete_suggestion(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    if not can_delete_suggestion(suggestion):
+        abort(403)
     if suggestion.attachment_stored_name:
         delete_stored_upload(suggestion.attachment_stored_name)
     db.session.delete(suggestion)
@@ -23522,6 +23609,8 @@ def delete_suggestion(suggestion_id):
 def download_suggestion_attachment(suggestion_id):
     suggestion = Suggestion.query.get_or_404(suggestion_id)
     ensure_same_company(suggestion)
+    if not can_view_suggestion(suggestion):
+        abort(403)
     if not suggestion.attachment_stored_name:
         flash("Bu öneriye ait ek dosya bulunamadı.", "warning")
         return redirect(url_for("main.suggestion_detail", suggestion_id=suggestion.id))
@@ -26223,16 +26312,19 @@ def request_action_closure(action_id):
         f"{g.current_user.full_name} kapatma onayı gönderdi.",
         actor=g.current_user,
     )
-    admin_user = oguzhan_user()
-    if admin_user:
+    approvers = [
+        user for user in active_users()
+        if has_permission(user, "roles.manage") or has_role(user, "management_representative")
+    ]
+    if approvers:
         notify_users(
-            {admin_user.id},
+            {user.id for user in approvers},
             action,
             f"{action.number_label} {action.title} aksiyonu için kapatma onayı bekliyor.",
             exclude_user_id=g.current_user.id,
         )
     db.session.commit()
-    flash("Kapatma onayı Oğuzhan'a gönderildi.", "success")
+    flash("Kapatma talebi onay yetkililerinin incelemesine açıldı.", "success")
     return redirect(url_for("main.action_detail", action_id=action.id))
 
 
@@ -26814,7 +26906,7 @@ def company_onboarding_wizard():
                         ensure_ascii=False,
                         sort_keys=True,
                     ),
-                    ip_address=request.remote_addr,
+                    ip_address=request_client_ip(default=None),
                     user_agent=(request.user_agent.string or "")[:255],
                 )
             )
@@ -26882,7 +26974,7 @@ def repair_company_onboarding(company_id):
                     ensure_ascii=False,
                     sort_keys=True,
                 ),
-                ip_address=request.remote_addr,
+                ip_address=request_client_ip(default=None),
                 user_agent=(request.user_agent.string or "")[:255],
             )
         )

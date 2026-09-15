@@ -4,13 +4,13 @@ Bu adim canli sunucuda migration uygulamasini kontrollu yapmak icin eklendi.
 Yeni komut:
 
 ```bash
-sudo -u aksiyon ./venv/bin/python -m flask --app app:create_app tenant-health
+sudo -u aksiyon ./venv-py312/bin/python -m flask --app app:create_app tenant-health
 ```
 
 Komut su kontrolleri yapar:
 
 - Beklenen temel tablolar var mi?
-- `alembic_version` head degeri `202608130005` mu?
+- `alembic_version` değeri repodaki güncel Alembic head ile aynı mı?
 - Tenant kapsamli tablolarda `company_id` kolonu var mi?
 - Sirket bazli unique yapilar dogrulanabiliyor mu?
 - `001` Er Prefabrik ve `000` Deneme Hesabi mevcut mu?
@@ -25,12 +25,12 @@ Komut su kontrolleri yapar:
 
 ```bash
 cd /var/www/aksiyon-takip
-cp /var/data/aksiyon-takip/actions.db /var/data/aksiyon-takip/actions-before-step11-$(date +%Y%m%d-%H%M%S).db
-git pull origin main
 sudo systemctl stop aksiyon-takip
-sudo -u aksiyon ./venv/bin/python -m flask --app app:create_app db upgrade
-sudo -u aksiyon ./venv/bin/python -m flask --app app:create_app tenant-health
-sudo -u aksiyon ./venv/bin/python -m pytest tests/test_tenant.py
+sudo -u aksiyon ./venv-py312/bin/python -m flask --app app:create_app full-backup
+sudo -u aksiyon ./venv-py312/bin/python -m flask --app app:create_app backup-verify /path/to/verified-backup.zip
+sudo -u aksiyon git pull --ff-only origin main
+sudo -u aksiyon ./venv-py312/bin/python -m flask --app app:create_app db upgrade
+sudo -u aksiyon ./venv-py312/bin/python -m flask --app app:create_app tenant-health
 sudo systemctl start aksiyon-takip
 sudo systemctl status aksiyon-takip --no-pager
 ```
@@ -50,16 +50,11 @@ Beklenen:
 
 ## Geri Donus Plani
 
-Migration veya saglik kontrolu basarisiz olursa:
-
-```bash
-sudo systemctl stop aksiyon-takip
-cp /var/data/aksiyon-takip/actions-before-step11-YYYYMMDD-HHMMSS.db /var/data/aksiyon-takip/actions.db
-sudo systemctl start aksiyon-takip
-sudo systemctl status aksiyon-takip --no-pager
-```
-
-`YYYYMMDD-HHMMSS` yerine aldiginiz yedek dosyanin gercek tarih/saat ekini yazin.
+Migration veya saglik kontrolu basarisizsa servisi durmus tutun. Dogrulanmis
+tam yedek ve eslesen kod/config geri donusu icin BACKUP_RESTORE.md kullanin;
+canli restore Lider onayi gerektirir. Calisan SQLite dosyasini cp ile
+kopyalamayin. CLI ortaminda servisle ayni DB/upload ve SECRET_KEY ayarlarini
+koruyun; ornek komutlardaki yedek yolunu gercek paketle degistirin.
 
 ## Notlar
 

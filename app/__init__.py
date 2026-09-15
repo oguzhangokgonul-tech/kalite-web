@@ -1,10 +1,11 @@
 from flask import Flask
 from flask.cli import with_appcontext
-from flask import flash, jsonify, redirect, request, url_for
+from flask import flash, g, jsonify, redirect, request, url_for
 from flask_wtf.csrf import CSRFError
 from pathlib import Path
 from dotenv import load_dotenv
 import click
+from urllib.parse import urlsplit
 
 load_dotenv()
 
@@ -50,13 +51,72 @@ def create_app(config_class=Config):
             message,
             "danger",
         )
-        return redirect(request.referrer or url_for("main.dashboard"))
+        fallback = url_for("main.dashboard")
+        referrer = urlsplit(request.referrer or "")
+        if referrer.scheme in {"http", "https"} and referrer.netloc == request.host:
+            target = referrer.path or "/"
+            if referrer.query:
+                target = f"{target}?{referrer.query}"
+        else:
+            target = fallback
+        return redirect(target)
+
+    @app.after_request
+    def apply_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), geolocation=(), microphone=()",
+        )
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "base-uri 'self'; frame-ancestors 'self'; object-src 'none'; form-action 'self'",
+        )
+        if app.config.get("APP_ENV") == "production":
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+        if request.endpoint != "static" and (
+            getattr(g, "current_user", None) is not None
+            or request.endpoint == "main.login"
+            or request.blueprint == "customer_portal"
+        ):
+            response.headers["Cache-Control"] = "no-store, private"
+        return response
 
     @app.cli.command("seed-users")
     @with_appcontext
     def seed_users_command():
         ensure_default_users(reset_passwords=False)
-        print("Varsayılan kullanıcılar oluşturuldu/güncellendi.")
+        if app.config.get("APP_ENV") == "production":
+            click.echo("Sistem şeması ve roller hazırlandı; üretimde demo hesap oluşturulmadı.")
+        else:
+            click.echo("Varsayılan geliştirme kullanıcıları oluşturuldu/güncellendi.")
+
+    @app.cli.command("create-superadmin")
+    @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
+    @with_appcontext
+    def create_superadmin_command(password):
+        from .models import User
+        from .routes import validate_password_policy
+        from .seed import ensure_default_roles
+
+        if User.query.filter_by(username="superadmin", company_id=None).first():
+            raise click.ClickException("Superadmin zaten var; mevcut hesap değiştirilmedi.")
+        try:
+            validate_password_policy(password)
+        except ValueError as error:
+            raise click.ClickException("Parola yapılandırılmış uzunluk sınırlarına uymuyor.") from error
+        roles = ensure_default_roles()
+        user = User(username="superadmin", full_name="Sistem Yöneticisi", is_active=True)
+        user.set_password(password)
+        user.roles.append(roles["super_admin"])
+        db.session.add(user)
+        db.session.commit()
+        click.echo("Superadmin güvenli olarak oluşturuldu.")
 
     @app.cli.command("seed-maintenance-machines")
     @with_appcontext

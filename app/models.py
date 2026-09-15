@@ -965,6 +965,7 @@ class LoginAttempt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(160), nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     user_agent = db.Column(db.String(255), nullable=True)
     success = db.Column(db.Boolean, nullable=False, default=False)
     reason = db.Column(db.String(40), nullable=False)
@@ -3133,8 +3134,8 @@ class SuggestionEvaluation(db.Model):
         db.UniqueConstraint(
             "suggestion_id",
             "parameter_id",
-            "evaluator_department",
-            name="uq_suggestion_evaluations_department_parameter",
+            "evaluator_user_id",
+            name="uq_suggestion_evaluations_user_parameter",
         ),
     )
 

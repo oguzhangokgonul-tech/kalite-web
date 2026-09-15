@@ -25,6 +25,9 @@ Flask, SQLite, SQLAlchemy ve Bootstrap ile hazırlanmış kalite yönetim sistem
 
 ## Kurulum
 
+Python 3.10 veya daha yeni bir sürüm kullanın. Canlı ortamda yalnızca
+üretim bağımlılıklarını kurun:
+
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
@@ -34,7 +37,9 @@ pip install -r requirements.txt
 Bu projede sanal ortam klasörünüz `venv` ise komutlar:
 
 ```powershell
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\venv\Scripts\python.exe -m pytest -q
+.\venv\Scripts\python.exe -m pip_audit -r requirements.txt
 ```
 
 ## Ortam ve Güvenlik Ayarları
@@ -58,7 +63,12 @@ Production / VPS ortamı için:
 ```text
 APP_ENV=production
 SECRET_KEY=<urettiginiz-guclu-secret-key>
+AUTO_BOOTSTRAP_DATABASE=false
 ```
+
+Gunicorn uygulamayı içe aktarırken veritabanı şemasını değiştirmez. Canlı
+dağıtımda servis yeniden başlatılmadan önce `flask db upgrade` ve gerekiyorsa
+`flask seed-users` komutlarını açıkça çalıştırın.
 
 `APP_ENV=production` olduğunda session cookie ayarları `Secure`, `HttpOnly` ve `SameSite=Lax` olarak çalışır. Local HTTP geliştirme ortamında `Secure` kapalı kalır. `SECRET_KEY` değiştirildiğinde mevcut kullanıcı oturumları geçersiz olur ve kullanıcıların tekrar giriş yapması gerekir.
 
@@ -68,10 +78,12 @@ Giriş güvenliği varsayılanları:
 LOGIN_MAX_FAILED_ATTEMPTS=5
 LOGIN_LOCKOUT_MINUTES=10
 LOGIN_IP_MAX_FAILED_ATTEMPTS=20
-PASSWORD_MIN_LENGTH=4
+PASSWORD_MIN_LENGTH=10
+PASSWORD_MAX_LENGTH=128
+TRUSTED_PROXY_IPS=127.0.0.1,::1
 ```
 
-Bu ayarlarla aynı kullanıcı adı için 5 hatalı denemeden sonra 10 dakika geçici kilit uygulanır. Aynı IP adresinden kısa sürede çok fazla hatalı giriş yapılırsa IP bazlı geçici engel devreye girer. Yeni kullanıcı oluşturma ve parola güncelleme işlemlerinde sadece minimum 4 karakter kontrolü yapılır.
+Bu ayarlarla aynı kullanıcı adı için 5 hatalı denemeden sonra 10 dakika geçici kilit uygulanır. Aynı IP adresinden kısa sürede çok fazla hatalı giriş yapılırsa IP bazlı geçici engel devreye girer. Yeni kullanıcı oluşturma ve parola güncelleme işlemlerinde 10-128 karakter sınırı uygulanır. Proxy başlıkları yalnızca `TRUSTED_PROXY_IPS` listesindeki Nginx/ters proxy adreslerinden geldiğinde güvenilir kabul edilir.
 
 ## Veritabanını Hazırlama
 
@@ -89,7 +101,17 @@ Bu komut SQLite veritabanını oluşturur ve migration dosyalarını uygular.
 
 Yüklenen dosyalar varsayılan olarak `instance/uploads` klasöründe saklanır.
 
-İlk migration sonrasında varsayılan kullanıcılar otomatik oluşturulur:
+İlk kurulumda migration sonrasında üretim yöneticisini güçlü, size özel bir
+parolayla oluşturun. Parola terminalde gizli olarak sorulur:
+
+```bash
+flask --app run.py create-superadmin
+```
+
+`APP_ENV=production` iken `seed-users` yalnızca şema/rolleri hazırlar;
+demo şirketi veya bilinen parolalı kullanıcı oluşturmaz ve mevcut hesapların
+aktiflik/yetki kararlarını değiştirmez. Aşağıdaki hesaplar yalnızca yerel
+geliştirme içindir, üretim ortamında kullanılmamalıdır:
 
 ```text
 Kullanıcı adı: oguzhan
@@ -243,7 +265,10 @@ Render start command için şu komutu kullanın:
 gunicorn run:app
 ```
 
-Uygulama açılırken tabloları oluşturur ve varsayılan kullanıcıları eksikse otomatik ekler. Mevcut kullanıcıların görev, e-posta ve ad soyad bilgileri restart sırasında ezilmez. Oğuzhan kullanıcısının admin yetkileri korunur.
+Gunicorn açılırken tablo veya kullanıcı oluşturulmaz. Dağıtım öncesinde
+doğrulanmış yedek alın, Python 3.10+ ortamında üretim bağımlılıklarını kurun,
+`pip check`, `flask --app run.py db upgrade` ve `tenant-health` çalıştırın.
+Yeni kurulumlarda ilk yönetici `create-superadmin` ile açıkça oluşturulur.
 
 Varsayılan kullanıcı şifrelerini acil durumda tekrar üretmek için Environment bölümünde geçici olarak şu değeri kullanabilirsiniz:
 

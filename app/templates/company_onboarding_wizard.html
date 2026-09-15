@@ -310,7 +310,7 @@
           </div>
           <div class="col-md-4">
             <label class="form-label" for="initial_password">Ge&#231;ici Parola</label>
-            <input class="form-control form-control-lg" id="initial_password" name="initial_password" type="password" minlength="4" required>
+            <input class="form-control form-control-lg" id="initial_password" name="initial_password" type="password" minlength="{{ config.PASSWORD_MIN_LENGTH }}" maxlength="{{ config.PASSWORD_MAX_LENGTH|default(128) }}" required>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="initial_title">G&#246;rev / &#220;nvan</label>

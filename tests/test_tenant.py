@@ -455,10 +455,14 @@ def test_existing_uploaded_file_path_falls_back_to_legacy_path(app):
 
 
 def test_tenant_health_check_passes_for_expected_schema(app, companies):
+    from app.tenant_health import expected_migration_heads
+
+    expected_head = next(iter(expected_migration_heads()))
     with app.app_context():
         db.session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)"))
         db.session.execute(
-            text("INSERT INTO alembic_version (version_num) VALUES ('202608130005')")
+            text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
+            {"version": expected_head},
         )
         db.session.add(
             User(

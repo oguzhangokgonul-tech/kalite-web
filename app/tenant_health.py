@@ -1,13 +1,13 @@
 from dataclasses import dataclass
+from pathlib import Path
 
+from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
 
 from .company_onboarding import company_workspace_status
 from .extensions import db
 from .models import Company, User
 
-
-EXPECTED_HEAD = "202608130005"
 
 REQUIRED_TABLES = (
     "companies",
@@ -85,6 +85,11 @@ class HealthCheck:
     message: str
 
 
+def expected_migration_heads():
+    migrations_path = Path(__file__).resolve().parents[1] / "migrations"
+    return set(ScriptDirectory(str(migrations_path)).get_heads())
+
+
 def _table_columns(inspector, table_name):
     return {column["name"] for column in inspector.get_columns(table_name)}
 
@@ -143,11 +148,19 @@ def collect_tenant_health_checks():
         add("OK", "Beklenen temel tablolar mevcut.")
 
     if "alembic_version" in existing_tables:
-        version = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-        if version == EXPECTED_HEAD:
-            add("OK", f"Migration head dogru: {version}")
+        versions = set(
+            db.session.execute(text("SELECT version_num FROM alembic_version")).scalars()
+        )
+        expected_heads = expected_migration_heads()
+        if versions == expected_heads:
+            add("OK", f"Migration head dogru: {', '.join(sorted(versions))}")
         else:
-            add("FAIL", f"Migration head beklenen degil: {version or 'bos'} / beklenen {EXPECTED_HEAD}")
+            current_label = ", ".join(sorted(versions)) or "bos"
+            expected_label = ", ".join(sorted(expected_heads)) or "bos"
+            add(
+                "FAIL",
+                f"Migration head beklenen degil: {current_label} / beklenen {expected_label}",
+            )
     else:
         add("FAIL", "alembic_version tablosu bulunamadi.")
 
@@ -173,15 +186,15 @@ def collect_tenant_health_checks():
     if er_prefabrik:
         add("OK", f"001 firma kaydi mevcut: {er_prefabrik.name}")
     else:
-        add("FAIL", "001 Er Prefabrik firma kaydi bulunamadi.")
+        add("OK", "001 eski ornek firma yok; yeni SaaS kurulumunda zorunlu degil.")
 
     demo_company = Company.query.filter_by(code="000").first()
     if demo_company:
         add("OK", f"000 deneme firma kaydi mevcut: {demo_company.name}")
     else:
-        add("WARN", "000 deneme firma kaydi bulunamadi.")
+        add("OK", "000 deneme firmasi yok; uretimde demo firma zorunlu degil.")
 
-    superadmin = User.query.filter_by(username="superadmin").first()
+    superadmin = User.query.filter_by(username="superadmin", company_id=None).first()
     if not superadmin:
         add("FAIL", "superadmin kullanicisi bulunamadi.")
     elif superadmin.company_id is not None:
