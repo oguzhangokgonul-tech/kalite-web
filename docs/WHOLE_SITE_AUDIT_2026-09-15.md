@@ -87,7 +87,8 @@ garantisi degildir.
   Yerelde tum aktif kriterlerde 1-10 puan olmadan kisi tamamlamis sayilmiyor.
   Kismi kayit saklanir, bos secim eski kisisel puani siler, gorev acik kalir.
   Yeni aktif kriter onceki tamamlanmayi yeniden eksik yapar. Workflow ve
-  Gorevlerim regresyonu: 15 passed, 28 warnings. Bu kod henuz canliya dagitilmadi.
+  Gorevlerim regresyonu: 15 passed, 28 warnings. Kod sonrasinda
+  1cd6e45 surumuyle canliya dagitildi; LIVE_RELEASE_2026-09-15.md kanitlari.
 - Bazi route'lar runtime schema kontrol/onarimlarini halen cagiriyor.
   Migration eksiklerini kapatmak bunlari tamamen kaldirmis sayilmaz.
   Production DDL'nin tum endpoint'lerden ayrilmasi ayri kontrollu calisma olmali.
@@ -111,8 +112,9 @@ garantisi degildir.
 ## Dagitim Kapisi
 
 Ilk denetim turunda canliya alma yapilmadi. Sonraki kullanici onayiyla yalnizca
-Python runtime ve yedekleme gereklilikleri canlida tamamlandi; uygulama kodu
-ve yeni migration'lar dagitilmadi. Ayrinti: LIVE_RUNTIME_2026-09-15.md.
+Python runtime ve yedekleme gereklilikleri canlida tamamlandi. Daha sonraki
+acik canliya alma onayiyla uygulama kodu ve migration'lar da dagitildi.
+Ayrinti: LIVE_RUNTIME_2026-09-15.md ve LIVE_RELEASE_2026-09-15.md.
 Kod dagitimindan once Python/venv 3.10+ dogrulanmali, tam yedek
 alinip dogrulanmali, dependencies kurulup pip check yapilmali, servis dururken
 migration ve tenant-health calistirilmali. Her komutun cikis kodu kontrol

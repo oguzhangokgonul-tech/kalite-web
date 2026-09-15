@@ -67,6 +67,8 @@ sudo -u aksiyon ./venv-py312/bin/python -m pip check
 Kod dagitimi oncesi yeni tam yedek alinmali ve dogrulanmali. Uygulama factory
 CLI girisi --app app:create_app eski run.py seed davranisini atlar.
 Yeni 202609150001/202609150002 migration'lari bu runtime isleminde uygulanmadi.
+Sonraki acik kullanici onayiyla 1cd6e45 kodu ve bu migration'lar canliya
+alinmistir. Yayinin kanitlari: LIVE_RELEASE_2026-09-15.md.
 
 Geri donus: servisi durdurun, yalnizca python312.conf dosyasini drop-in
 klasorunun disina tasiyin, daemon-reload yapin ve servisi baslatin.
