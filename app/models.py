@@ -356,6 +356,7 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {"key": "problem_solving", "name": "A3 / 8D Problem Çözme", "description": "Karmaşık problemleri ekip, kök neden, çözüm ve etkinlik kapılarıyla yönetir.", "icon": "bi-diagram-2", "sort_order": 75, "parent_key": None},
+    {"key": "lessons_learned", "name": "Alınan Dersler", "description": "Doğrulanmış öğrenimleri aranabilir kurumsal bilgiye dönüştürür.", "icon": "bi-journal-check", "sort_order": 76, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4753,6 +4754,67 @@ class ProblemSolvingFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     case = db.relationship("ProblemSolvingCase", back_populates="files")
     step = db.relationship("ProblemSolvingStep", foreign_keys=[step_id])
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class LessonLearned(db.Model):
+    __tablename__ = "lessons_learned"
+    __table_args__ = (db.UniqueConstraint("company_id", "lesson_no", name="uq_lessons_learned_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    lesson_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    category = db.Column(db.String(120), nullable=False, default="Genel", server_default="Genel", index=True)
+    tags = db.Column(db.String(500), nullable=True)
+    situation = db.Column(db.Text, nullable=False)
+    lesson = db.Column(db.Text, nullable=False)
+    recommendation = db.Column(db.Text, nullable=False)
+    applicability = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(30), nullable=False, default="Taslak", server_default="Taslak", index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    problem_solving_case_id = db.Column(db.Integer, db.ForeignKey("problem_solving_cases.id"), nullable=True, index=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    kaizen_project_id = db.Column(db.Integer, db.ForeignKey("kaizen_projects.id"), nullable=True, index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    published_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    reuse_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    published_by = db.relationship("User", foreign_keys=[published_by_user_id])
+    problem_solving_case = db.relationship("ProblemSolvingCase", foreign_keys=[problem_solving_case_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    kaizen_project = db.relationship("KaizenProject", foreign_keys=[kaizen_project_id])
+    files = db.relationship("LessonLearnedFile", back_populates="lesson_record", cascade="all, delete-orphan", order_by="LessonLearnedFile.created_at")
+
+
+class LessonLearnedFile(db.Model):
+    __tablename__ = "lesson_learned_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    lesson_id = db.Column(db.Integer, db.ForeignKey("lessons_learned.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    lesson_record = db.relationship("LessonLearned", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

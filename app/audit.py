@@ -101,6 +101,8 @@ TRACKED_MODEL_NAMES = {
     "FiveSAuditItem",
     "FiveSAuditFile",
     "ProblemSolvingCase",
+    "LessonLearned",
+    "LessonLearnedFile",
     "ProblemSolvingTeamMember",
     "ProblemSolvingStep",
     "ProblemSolvingFile",

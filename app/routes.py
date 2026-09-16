@@ -2738,6 +2738,15 @@ MODULE_ENDPOINTS = {
     "problem_solving.review_step": "problem_solving",
     "problem_solving.archive": "problem_solving",
     "problem_solving.download_file": "problem_solving",
+    "lessons_learned.dashboard": "lessons_learned",
+    "lessons_learned.create": "lessons_learned",
+    "lessons_learned.detail": "lessons_learned",
+    "lessons_learned.update": "lessons_learned",
+    "lessons_learned.submit": "lessons_learned",
+    "lessons_learned.review": "lessons_learned",
+    "lessons_learned.reuse": "lessons_learned",
+    "lessons_learned.archive": "lessons_learned",
+    "lessons_learned.download_file": "lessons_learned",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17061,6 +17070,7 @@ def assigned_all_tasks(scope):
     from .kaizen import assigned_task_rows as assigned_kaizen_task_rows
     from .five_s import assigned_task_rows as assigned_five_s_task_rows
     from .problem_solving import assigned_task_rows as assigned_problem_solving_task_rows
+    from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17092,6 +17102,7 @@ def assigned_all_tasks(scope):
         + assigned_kaizen_task_rows(scope, assigned_task_row)
         + assigned_five_s_task_rows(scope, assigned_task_row)
         + assigned_problem_solving_task_rows(scope, assigned_task_row)
+        + assigned_lessons_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17127,6 +17138,7 @@ ASSIGNED_TAB_MODULES = {
         "kaizen",
         "five_s",
         "problem_solving",
+        "lessons",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17154,6 +17166,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("kaizen", "Kaizen"),
     ("five_s", "5S Denetimi"),
     ("problem_solving", "A3 / 8D"),
+    ("lessons", "Alınan Dersler"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

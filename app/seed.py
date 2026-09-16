@@ -660,6 +660,14 @@ PERMISSION_CATALOG = (
     {"key": "problem_solving.review", "label": "A3/8D aşaması inceleme", "group": "A3 / 8D", "description": "Aktif aşamayı onaylar veya revizyona gönderir."},
     {"key": "problem_solving.archive", "label": "A3/8D kaydı arşivleme", "group": "A3 / 8D", "description": "Tamamlanan veya iptal edilen problem kaydını arşivler."},
     {"key": "problem_solving.file_download", "label": "A3/8D kanıt dosyası indirme", "group": "A3 / 8D", "description": "Yetkili problem kaydının kanıt dosyasını indirir."},
+    {"key": "lessons.view", "label": "Yayınlanmış alınan dersleri görüntüleme", "group": "Alınan Dersler", "description": "Şirketin doğrulanmış bilgi bankasını görüntüler."},
+    {"key": "lessons.view_all", "label": "Tüm alınan ders kayıtlarını görüntüleme", "group": "Alınan Dersler", "description": "Taslak ve incelemedeki kayıtlar dahil şirket sicilini görüntüler."},
+    {"key": "lessons.create", "label": "Alınan ders kaydı oluşturma", "group": "Alınan Dersler", "description": "Yeni kurumsal öğrenim taslağı oluşturur."},
+    {"key": "lessons.update", "label": "Alınan ders taslağını güncelleme", "group": "Alınan Dersler", "description": "Sahibi olduğu taslağı düzenler ve incelemeye gönderir."},
+    {"key": "lessons.review", "label": "Alınan ders doğrulama ve yayınlama", "group": "Alınan Dersler", "description": "Kayıtları doğrular, yayınlar veya revizyona gönderir."},
+    {"key": "lessons.manage", "label": "Alınan dersler yönetimi", "group": "Alınan Dersler", "description": "Şirket bilgi bankasının tüm iş akışını yönetir."},
+    {"key": "lessons.archive", "label": "Alınan ders arşivleme", "group": "Alınan Dersler", "description": "Yayınlanmış kayıtları denetim izi korunarak arşivler."},
+    {"key": "lessons.file_download", "label": "Alınan ders kanıtı indirme", "group": "Alınan Dersler", "description": "Yetkili olduğu ders kaydının kanıtını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -3411,6 +3419,8 @@ def ensure_runtime_schema():
         ProblemSolvingTeamMember,
         ProblemSolvingStep,
         ProblemSolvingFile,
+        LessonLearned,
+        LessonLearnedFile,
     )
 
     for model in (
@@ -3450,6 +3460,8 @@ def ensure_runtime_schema():
         ProblemSolvingTeamMember,
         ProblemSolvingStep,
         ProblemSolvingFile,
+        LessonLearned,
+        LessonLearnedFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3515,6 +3527,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_kaizen_projects",
             "sales_readiness:competitor_five_s_audit",
             "sales_readiness:competitor_a3_problem_solving",
+            "sales_readiness:competitor_lessons_learned",
         ):
             db.session.execute(
                 text(
