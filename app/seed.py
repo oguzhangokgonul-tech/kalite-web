@@ -652,6 +652,14 @@ PERMISSION_CATALOG = (
     {"key": "five_s.resolve", "label": "5S bulgusu kapatma", "group": "5S Denetimi", "description": "Atanan bulguyu açıklama ve kanıtla kapatır."},
     {"key": "five_s.archive", "label": "5S denetimi arşivleme", "group": "5S Denetimi", "description": "Tamamlanan ve bulguları kapatılan denetimi arşivler."},
     {"key": "five_s.file_download", "label": "5S kanıt dosyası indirme", "group": "5S Denetimi", "description": "Yetkili 5S kaydının kanıt dosyasını indirir."},
+    {"key": "problem_solving.view", "label": "Atandığı A3/8D kayıtlarını görüntüleme", "group": "A3 / 8D", "description": "Lider, inceleyen veya ekip üyesi olduğu problem kayıtlarını görüntüler."},
+    {"key": "problem_solving.view_all", "label": "Tüm A3/8D kayıtlarını görüntüleme", "group": "A3 / 8D", "description": "Şirket problem çözme sicilini görüntüler."},
+    {"key": "problem_solving.create", "label": "A3/8D kaydı oluşturma", "group": "A3 / 8D", "description": "Yeni A3 veya 8D problem çözme vakası açar."},
+    {"key": "problem_solving.manage", "label": "A3/8D süreç yönetimi", "group": "A3 / 8D", "description": "Problem kaydı, ekip ve süreç bağlantılarını yönetir."},
+    {"key": "problem_solving.update", "label": "A3/8D aşamasına katkı", "group": "A3 / 8D", "description": "Aktif problem çözme aşamasını kanıtla incelemeye gönderir."},
+    {"key": "problem_solving.review", "label": "A3/8D aşaması inceleme", "group": "A3 / 8D", "description": "Aktif aşamayı onaylar veya revizyona gönderir."},
+    {"key": "problem_solving.archive", "label": "A3/8D kaydı arşivleme", "group": "A3 / 8D", "description": "Tamamlanan veya iptal edilen problem kaydını arşivler."},
+    {"key": "problem_solving.file_download", "label": "A3/8D kanıt dosyası indirme", "group": "A3 / 8D", "description": "Yetkili problem kaydının kanıt dosyasını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -3399,6 +3407,10 @@ def ensure_runtime_schema():
         FiveSAudit,
         FiveSAuditItem,
         FiveSAuditFile,
+        ProblemSolvingCase,
+        ProblemSolvingTeamMember,
+        ProblemSolvingStep,
+        ProblemSolvingFile,
     )
 
     for model in (
@@ -3434,6 +3446,10 @@ def ensure_runtime_schema():
         FiveSAudit,
         FiveSAuditItem,
         FiveSAuditFile,
+        ProblemSolvingCase,
+        ProblemSolvingTeamMember,
+        ProblemSolvingStep,
+        ProblemSolvingFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3498,6 +3514,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_equipment_lifecycle",
             "sales_readiness:competitor_kaizen_projects",
             "sales_readiness:competitor_five_s_audit",
+            "sales_readiness:competitor_a3_problem_solving",
         ):
             db.session.execute(
                 text(

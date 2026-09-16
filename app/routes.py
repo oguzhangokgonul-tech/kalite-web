@@ -2731,6 +2731,13 @@ MODULE_ENDPOINTS = {
     "five_s.resolve_item": "five_s_audit",
     "five_s.archive": "five_s_audit",
     "five_s.download_file": "five_s_audit",
+    "problem_solving.dashboard": "problem_solving",
+    "problem_solving.create": "problem_solving",
+    "problem_solving.detail": "problem_solving",
+    "problem_solving.update_step": "problem_solving",
+    "problem_solving.review_step": "problem_solving",
+    "problem_solving.archive": "problem_solving",
+    "problem_solving.download_file": "problem_solving",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17053,6 +17060,7 @@ def assigned_all_tasks(scope):
     from .equipment import assigned_task_rows as assigned_equipment_task_rows
     from .kaizen import assigned_task_rows as assigned_kaizen_task_rows
     from .five_s import assigned_task_rows as assigned_five_s_task_rows
+    from .problem_solving import assigned_task_rows as assigned_problem_solving_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17083,6 +17091,7 @@ def assigned_all_tasks(scope):
         + assigned_equipment_task_rows(scope, assigned_task_row)
         + assigned_kaizen_task_rows(scope, assigned_task_row)
         + assigned_five_s_task_rows(scope, assigned_task_row)
+        + assigned_problem_solving_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17117,6 +17126,7 @@ ASSIGNED_TAB_MODULES = {
         "equipment",
         "kaizen",
         "five_s",
+        "problem_solving",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17143,6 +17153,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("equipment", "Ekipman"),
     ("kaizen", "Kaizen"),
     ("five_s", "5S Denetimi"),
+    ("problem_solving", "A3 / 8D"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

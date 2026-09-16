@@ -355,6 +355,7 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 74,
         "parent_key": None,
     },
+    {"key": "problem_solving", "name": "A3 / 8D Problem Çözme", "description": "Karmaşık problemleri ekip, kök neden, çözüm ve etkinlik kapılarıyla yönetir.", "icon": "bi-diagram-2", "sort_order": 75, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4653,6 +4654,105 @@ class FiveSAuditFile(db.Model):
 
     audit = db.relationship("FiveSAudit", back_populates="files")
     item = db.relationship("FiveSAuditItem", foreign_keys=[item_id])
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class ProblemSolvingCase(db.Model):
+    __tablename__ = "problem_solving_cases"
+    __table_args__ = (db.UniqueConstraint("company_id", "case_no", name="uq_problem_solving_cases_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    case_no = db.Column(db.String(40), nullable=False, index=True)
+    method = db.Column(db.String(10), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    leader_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    priority = db.Column(db.String(20), nullable=False, default="Orta")
+    opened_date = db.Column(db.Date, nullable=False, default=date.today)
+    target_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Açık", index=True)
+    current_step = db.Column(db.Integer, nullable=False, default=1)
+    problem_statement = db.Column(db.Text, nullable=False)
+    impact = db.Column(db.Text, nullable=True)
+    containment_summary = db.Column(db.Text, nullable=True)
+    final_result = db.Column(db.Text, nullable=True)
+    dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    kaizen_project_id = db.Column(db.Integer, db.ForeignKey("kaizen_projects.id"), nullable=True, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    leader = db.relationship("User", foreign_keys=[leader_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    dof = db.relationship("Dof", foreign_keys=[dof_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    kaizen_project = db.relationship("KaizenProject", foreign_keys=[kaizen_project_id])
+    team_members = db.relationship("ProblemSolvingTeamMember", back_populates="case", cascade="all, delete-orphan")
+    steps = db.relationship("ProblemSolvingStep", back_populates="case", cascade="all, delete-orphan", order_by="ProblemSolvingStep.step_order.asc()")
+    files = db.relationship("ProblemSolvingFile", back_populates="case", cascade="all, delete-orphan")
+
+
+class ProblemSolvingTeamMember(db.Model):
+    __tablename__ = "problem_solving_team_members"
+    __table_args__ = (db.UniqueConstraint("case_id", "user_id", name="uq_problem_solving_team_case_user"),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("problem_solving_cases.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    role_name = db.Column(db.String(80), nullable=False, default="Ekip Üyesi")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    case = db.relationship("ProblemSolvingCase", back_populates="team_members")
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
+class ProblemSolvingStep(db.Model):
+    __tablename__ = "problem_solving_steps"
+    __table_args__ = (db.UniqueConstraint("case_id", "step_order", name="uq_problem_solving_case_step"),)
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("problem_solving_cases.id"), nullable=False, index=True)
+    step_order = db.Column(db.Integer, nullable=False)
+    step_key = db.Column(db.String(20), nullable=False)
+    title = db.Column(db.String(180), nullable=False)
+    guidance = db.Column(db.Text, nullable=True)
+    content = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(30), nullable=False, default="Bekliyor", index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    review_note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+    case = db.relationship("ProblemSolvingCase", back_populates="steps")
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+
+
+class ProblemSolvingFile(db.Model):
+    __tablename__ = "problem_solving_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    case_id = db.Column(db.Integer, db.ForeignKey("problem_solving_cases.id"), nullable=False, index=True)
+    step_id = db.Column(db.Integer, db.ForeignKey("problem_solving_steps.id"), nullable=True, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    case = db.relationship("ProblemSolvingCase", back_populates="files")
+    step = db.relationship("ProblemSolvingStep", foreign_keys=[step_id])
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

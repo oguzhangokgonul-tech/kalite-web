@@ -53,6 +53,7 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
 - `equipment_lifecycle.mjs`: ekipman kartı oluşturma ve yaşam döngüsü detayının mobil/tablet akışı.
 - `kaizen.mjs`: Kaizen projesi oluşturma ve proje detayının mobil/tablet akışı.
 - `five_s.mjs`: 5S denetimi oluşturma, mobil puanlama ve taslak kaydetme akışı.
+- `problem_solving.mjs`: A3 kaydı oluşturma ve mobilde aşamayı incelemeye gönderme akışı.
 
 Ekran görüntüleri ve JSON sonuçları `.tmp-ui-audit/responsive/` altında oluşur.
 Bu çıktılar geçicidir. Form testleri kayıtları değiştirir; temiz başlangıç için
