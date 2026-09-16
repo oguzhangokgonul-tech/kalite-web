@@ -595,6 +595,48 @@ PERMISSION_CATALOG = (
         "description": "Kalibrasyon kayıtlarını ekler, düzenler ve siler.",
     },
     {
+        "key": "equipment.view",
+        "label": "Zimmetli ekipmanı görüntüleme",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Oluşturduğu veya sorumlusu olduğu ekipman kartlarını görüntüler.",
+    },
+    {
+        "key": "equipment.view_all",
+        "label": "Tüm ekipmanları görüntüleme",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Şirket ekipman sicilini görüntüler.",
+    },
+    {
+        "key": "equipment.create",
+        "label": "Ekipman kartı oluşturma",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Yeni cihaz ve ekipman ana kartı oluşturur.",
+    },
+    {
+        "key": "equipment.manage",
+        "label": "Ekipman yaşam döngüsü yönetimi",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Teknik bilgileri, zimmeti, bakım ve kalibrasyon bağlantılarını yönetir.",
+    },
+    {
+        "key": "equipment.event",
+        "label": "Ekipman olayı kaydetme",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Bakım, kalibrasyon, transfer ve durum olaylarını geçmişe ekler.",
+    },
+    {
+        "key": "equipment.archive",
+        "label": "Ekipmanı arşivleme",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Kullanım dışı veya hurda ekipmanı denetim izi korunarak arşivler.",
+    },
+    {
+        "key": "equipment.file_download",
+        "label": "Ekipman teknik dosyası indirme",
+        "group": "Ekipman Yaşam Döngüsü",
+        "description": "Yetkili ekipmanın teknik dosyasını indirir.",
+    },
+    {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
         "group": "Kalite Deneyleri",
@@ -3331,6 +3373,9 @@ def ensure_runtime_schema():
         OfficialCorrespondence,
         OfficialCorrespondenceFile,
         OfficialCorrespondenceDistribution,
+        EquipmentAsset,
+        EquipmentLifecycleEvent,
+        EquipmentAssetFile,
     )
 
     for model in (
@@ -3356,6 +3401,9 @@ def ensure_runtime_schema():
         OfficialCorrespondence,
         OfficialCorrespondenceFile,
         OfficialCorrespondenceDistribution,
+        EquipmentAsset,
+        EquipmentLifecycleEvent,
+        EquipmentAssetFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3417,6 +3465,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_customer_request_portal",
             "sales_readiness:competitor_advanced_supplier_quality",
             "sales_readiness:competitor_ebys",
+            "sales_readiness:competitor_equipment_lifecycle",
         ):
             db.session.execute(
                 text(

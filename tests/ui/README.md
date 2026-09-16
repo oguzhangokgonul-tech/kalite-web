@@ -50,6 +50,7 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
   formlarının taşmadan açılması; mobilde kayıtların kaydedilip geçmişte görünmesi.
 
 - `ebys.mjs`: resmî yazışma oluşturma ve detay ekranının mobil/tablet akışı.
+- `equipment_lifecycle.mjs`: ekipman kartı oluşturma ve yaşam döngüsü detayının mobil/tablet akışı.
 
 Ekran görüntüleri ve JSON sonuçları `.tmp-ui-audit/responsive/` altında oluşur.
 Bu çıktılar geçicidir. Form testleri kayıtları değiştirir; temiz başlangıç için

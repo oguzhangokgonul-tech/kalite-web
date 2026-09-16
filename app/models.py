@@ -331,6 +331,14 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 71,
         "parent_key": None,
     },
+    {
+        "key": "equipment_lifecycle",
+        "name": "Cihaz / Ekipman Yaşam Döngüsü",
+        "description": "Cihaz ve ekipmanların kabulden zimmet, bakım, kalibrasyon ve hurdaya kadar geçmişini izler.",
+        "icon": "bi-pc-display-horizontal",
+        "sort_order": 72,
+        "parent_key": None,
+    },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4340,6 +4348,99 @@ class OfficialCorrespondenceDistribution(db.Model):
 
     correspondence = db.relationship("OfficialCorrespondence", back_populates="distributions")
     user = db.relationship("User", foreign_keys=[user_id])
+
+
+class EquipmentAsset(db.Model):
+    __tablename__ = "equipment_assets"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "asset_code", name="uq_equipment_assets_company_code"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    asset_code = db.Column(db.String(50), nullable=False, index=True)
+    name = db.Column(db.String(220), nullable=False, index=True)
+    category = db.Column(db.String(120), nullable=True, index=True)
+    manufacturer = db.Column(db.String(160), nullable=True)
+    brand_model = db.Column(db.String(180), nullable=True)
+    serial_no = db.Column(db.String(160), nullable=True, index=True)
+    purchase_date = db.Column(db.Date, nullable=True)
+    commissioning_date = db.Column(db.Date, nullable=True)
+    warranty_end_date = db.Column(db.Date, nullable=True, index=True)
+    location = db.Column(db.String(160), nullable=True, index=True)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    custodian_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    maintenance_machine_id = db.Column(
+        db.Integer, db.ForeignKey("maintenance_machines.id"), nullable=True, index=True
+    )
+    calibration_record_id = db.Column(
+        db.Integer, db.ForeignKey("calibration_records.id"), nullable=True, index=True
+    )
+    next_maintenance_date = db.Column(db.Date, nullable=True, index=True)
+    next_inspection_date = db.Column(db.Date, nullable=True, index=True)
+    criticality = db.Column(db.String(20), nullable=False, default="Orta")
+    status = db.Column(db.String(30), nullable=False, default="Aktif", index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    custodian = db.relationship("User", foreign_keys=[custodian_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    maintenance_machine = db.relationship("MaintenanceMachine", foreign_keys=[maintenance_machine_id])
+    calibration_record = db.relationship("CalibrationRecord", foreign_keys=[calibration_record_id])
+    events = db.relationship(
+        "EquipmentLifecycleEvent",
+        back_populates="asset",
+        cascade="all, delete-orphan",
+        order_by="EquipmentLifecycleEvent.event_date.desc()",
+    )
+    files = db.relationship(
+        "EquipmentAssetFile",
+        back_populates="asset",
+        cascade="all, delete-orphan",
+    )
+
+
+class EquipmentLifecycleEvent(db.Model):
+    __tablename__ = "equipment_lifecycle_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey("equipment_assets.id"), nullable=False, index=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    event_date = db.Column(db.Date, nullable=False, default=date.today, index=True)
+    description = db.Column(db.Text, nullable=False)
+    old_status = db.Column(db.String(30), nullable=True)
+    new_status = db.Column(db.String(30), nullable=True)
+    old_location = db.Column(db.String(160), nullable=True)
+    new_location = db.Column(db.String(160), nullable=True)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    asset = db.relationship("EquipmentAsset", back_populates="events")
+    performed_by = db.relationship("User", foreign_keys=[performed_by_user_id])
+
+
+class EquipmentAssetFile(db.Model):
+    __tablename__ = "equipment_asset_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey("equipment_assets.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    asset = db.relationship("EquipmentAsset", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class Notification(db.Model):
