@@ -55,6 +55,7 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
 - `five_s.mjs`: 5S denetimi oluşturma, mobil puanlama ve taslak kaydetme akışı.
 - `problem_solving.mjs`: A3 kaydı oluşturma ve mobilde aşamayı incelemeye gönderme akışı.
 - `lessons_learned.mjs`: alınan ders taslağı oluşturma ve mobil/tablet taşma kontrolü.
+- `help_desk.mjs`: iç talep oluşturma ile mobil/tablet taşma kontrolü.
 
 Ekran görüntüleri ve JSON sonuçları `.tmp-ui-audit/responsive/` altında oluşur.
 Bu çıktılar geçicidir. Form testleri kayıtları değiştirir; temiz başlangıç için

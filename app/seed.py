@@ -668,6 +668,15 @@ PERMISSION_CATALOG = (
     {"key": "lessons.manage", "label": "Alınan dersler yönetimi", "group": "Alınan Dersler", "description": "Şirket bilgi bankasının tüm iş akışını yönetir."},
     {"key": "lessons.archive", "label": "Alınan ders arşivleme", "group": "Alınan Dersler", "description": "Yayınlanmış kayıtları denetim izi korunarak arşivler."},
     {"key": "lessons.file_download", "label": "Alınan ders kanıtı indirme", "group": "Alınan Dersler", "description": "Yetkili olduğu ders kaydının kanıtını indirir."},
+    {"key": "helpdesk.view", "label": "Kendi iç taleplerini görüntüleme", "group": "İç Talep / Help Desk", "description": "Açtığı veya sorumlusu olduğu talepleri görüntüler."},
+    {"key": "helpdesk.view_all", "label": "Tüm iç talepleri görüntüleme", "group": "İç Talep / Help Desk", "description": "Şirketin tüm iç talep kuyruğunu görüntüler."},
+    {"key": "helpdesk.create", "label": "İç talep oluşturma", "group": "İç Talep / Help Desk", "description": "Yeni şirket içi destek talebi açar."},
+    {"key": "helpdesk.assign", "label": "İç talep sorumlusu atama", "group": "İç Talep / Help Desk", "description": "Talepleri aktif şirket personeline atar."},
+    {"key": "helpdesk.work", "label": "Atanan iç talebi çözme", "group": "İç Talep / Help Desk", "description": "Atanan talebi işleme alır ve çözüm sunar."},
+    {"key": "helpdesk.comment", "label": "İç talebe yorum ekleme", "group": "İç Talep / Help Desk", "description": "Erişebildiği taleplere yorum ve dosya ekler."},
+    {"key": "helpdesk.manage", "label": "İç talep süreç yönetimi", "group": "İç Talep / Help Desk", "description": "Tüm talep, atama ve çözüm akışını yönetir."},
+    {"key": "helpdesk.archive", "label": "İç talep arşivleme", "group": "İç Talep / Help Desk", "description": "Kapatılan talepleri denetim izi korunarak arşivler."},
+    {"key": "helpdesk.file_download", "label": "İç talep dosyası indirme", "group": "İç Talep / Help Desk", "description": "Yetkili olduğu talebin dosyalarını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -3421,6 +3430,9 @@ def ensure_runtime_schema():
         ProblemSolvingFile,
         LessonLearned,
         LessonLearnedFile,
+        HelpDeskTicket,
+        HelpDeskComment,
+        HelpDeskFile,
     )
 
     for model in (
@@ -3462,6 +3474,9 @@ def ensure_runtime_schema():
         ProblemSolvingFile,
         LessonLearned,
         LessonLearnedFile,
+        HelpDeskTicket,
+        HelpDeskComment,
+        HelpDeskFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3528,6 +3543,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_five_s_audit",
             "sales_readiness:competitor_a3_problem_solving",
             "sales_readiness:competitor_lessons_learned",
+            "sales_readiness:competitor_help_desk",
         ):
             db.session.execute(
                 text(

@@ -2747,6 +2747,16 @@ MODULE_ENDPOINTS = {
     "lessons_learned.reuse": "lessons_learned",
     "lessons_learned.archive": "lessons_learned",
     "lessons_learned.download_file": "lessons_learned",
+    "help_desk.dashboard": "help_desk",
+    "help_desk.create": "help_desk",
+    "help_desk.detail": "help_desk",
+    "help_desk.assign": "help_desk",
+    "help_desk.start": "help_desk",
+    "help_desk.resolve": "help_desk",
+    "help_desk.finish": "help_desk",
+    "help_desk.comment": "help_desk",
+    "help_desk.archive": "help_desk",
+    "help_desk.download_file": "help_desk",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17071,6 +17081,7 @@ def assigned_all_tasks(scope):
     from .five_s import assigned_task_rows as assigned_five_s_task_rows
     from .problem_solving import assigned_task_rows as assigned_problem_solving_task_rows
     from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
+    from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17103,6 +17114,7 @@ def assigned_all_tasks(scope):
         + assigned_five_s_task_rows(scope, assigned_task_row)
         + assigned_problem_solving_task_rows(scope, assigned_task_row)
         + assigned_lessons_task_rows(scope, assigned_task_row)
+        + assigned_helpdesk_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17139,6 +17151,7 @@ ASSIGNED_TAB_MODULES = {
         "five_s",
         "problem_solving",
         "lessons",
+        "helpdesk",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17167,6 +17180,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("five_s", "5S Denetimi"),
     ("problem_solving", "A3 / 8D"),
     ("lessons", "Alınan Dersler"),
+    ("helpdesk", "İç Talep"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

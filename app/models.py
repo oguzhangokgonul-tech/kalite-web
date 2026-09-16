@@ -357,6 +357,7 @@ COMPANY_MODULE_CATALOG = (
     },
     {"key": "problem_solving", "name": "A3 / 8D Problem Çözme", "description": "Karmaşık problemleri ekip, kök neden, çözüm ve etkinlik kapılarıyla yönetir.", "icon": "bi-diagram-2", "sort_order": 75, "parent_key": None},
     {"key": "lessons_learned", "name": "Alınan Dersler", "description": "Doğrulanmış öğrenimleri aranabilir kurumsal bilgiye dönüştürür.", "icon": "bi-journal-check", "sort_order": 76, "parent_key": None},
+    {"key": "help_desk", "name": "İç Talep / Help Desk", "description": "Şirket içi destek taleplerini SLA, atama, çözüm ve talep sahibi onayıyla yönetir.", "icon": "bi-headset", "sort_order": 77, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4815,6 +4816,66 @@ class LessonLearnedFile(db.Model):
     uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     lesson_record = db.relationship("LessonLearned", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class HelpDeskTicket(db.Model):
+    __tablename__ = "help_desk_tickets"
+    __table_args__ = (db.UniqueConstraint("company_id", "ticket_no", name="uq_help_desk_tickets_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    ticket_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(100), nullable=False, default="Diğer", server_default="Diğer", index=True)
+    department = db.Column(db.String(160), nullable=False, index=True)
+    priority = db.Column(db.String(20), nullable=False, default="Orta", server_default="Orta", index=True)
+    status = db.Column(db.String(30), nullable=False, default="Yeni", server_default="Yeni", index=True)
+    requester_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    assignee_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    sla_due_at = db.Column(db.DateTime, nullable=False, index=True)
+    resolution = db.Column(db.Text, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    reopened_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    requester = db.relationship("User", foreign_keys=[requester_user_id])
+    assignee = db.relationship("User", foreign_keys=[assignee_user_id])
+    comments = db.relationship("HelpDeskComment", back_populates="ticket", cascade="all, delete-orphan", order_by="HelpDeskComment.created_at")
+    files = db.relationship("HelpDeskFile", back_populates="ticket", cascade="all, delete-orphan", order_by="HelpDeskFile.created_at")
+
+
+class HelpDeskComment(db.Model):
+    __tablename__ = "help_desk_comments"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey("help_desk_tickets.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    ticket = db.relationship("HelpDeskTicket", back_populates="comments")
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
+class HelpDeskFile(db.Model):
+    __tablename__ = "help_desk_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey("help_desk_tickets.id"), nullable=False, index=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey("help_desk_comments.id"), nullable=True, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    ticket = db.relationship("HelpDeskTicket", back_populates="files")
+    comment = db.relationship("HelpDeskComment", foreign_keys=[comment_id])
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
