@@ -187,7 +187,9 @@ from .models import (
     SuggestionScore,
     SuggestionScoreParameter,
     SupplierEvaluation,
+    SupplierQualityAudit,
     SupplierRecord,
+    SupplierSurvey,
     TrainingParticipant,
     TrainingRecord,
     User,
@@ -2842,6 +2844,12 @@ MODULE_ENDPOINTS = {
     "main.create_supplier": "supplier_management",
     "main.edit_supplier": "supplier_management",
     "main.evaluate_supplier": "supplier_management",
+    "main.create_supplier_quality_audit": "supplier_management",
+    "main.edit_supplier_quality_audit": "supplier_management",
+    "main.delete_supplier_quality_audit": "supplier_management",
+    "main.create_supplier_survey": "supplier_management",
+    "main.edit_supplier_survey": "supplier_management",
+    "main.delete_supplier_survey": "supplier_management",
     "main.deactivate_supplier": "supplier_management",
     "main.report_center": "report_center",
     "main.download_report_center_excel": "report_center",
@@ -13060,6 +13068,7 @@ SUPPLIER_EVALUATION_CRITERIA = (
     ("documentation_score", "Sertifika / Doküman Uygunluğu", 10, "bi-file-earmark-check"),
     ("nonconformity_score", "Şikayet / Uygunsuzluk Etkisi", 10, "bi-shield-exclamation"),
 )
+SUPPLIER_AUDIT_STATUSES = ("Planlandı", "Devam Ediyor", "Tamamlandı", "İptal")
 
 
 def can_view_suppliers():
@@ -13270,6 +13279,84 @@ def supplier_recent_evaluations(suppliers):
     }
 
 
+def supplier_quality_histories(suppliers):
+    return {
+        supplier.id: {
+            "audits": sorted(
+                supplier.quality_audits,
+                key=lambda item: (item.audit_date or date.min, item.id),
+                reverse=True,
+            )[:5],
+            "surveys": sorted(
+                supplier.surveys,
+                key=lambda item: (item.survey_date or date.min, item.id),
+                reverse=True,
+            )[:5],
+        }
+        for supplier in suppliers
+    }
+
+
+def parse_score_field(field_name, *, required=True):
+    raw_value = request.form.get(field_name, "").strip()
+    if not raw_value and not required:
+        return None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError("invalid_score") from None
+    if value < 1 or value > 10:
+        raise ValueError("invalid_score")
+    return value
+
+
+def parse_supplier_audit_form():
+    status = request.form.get("status", "Planlandı").strip()
+    values = {
+        "audit_date": parse_optional_date("audit_date") or date.today(),
+        "next_audit_date": parse_optional_date("next_audit_date"),
+        "scope": request.form.get("scope", "").strip(),
+        "status": status,
+        "score": parse_score_field("score", required=status == "Tamamlandı"),
+        "findings": request.form.get("findings", "").strip() or None,
+        "corrective_action": request.form.get("corrective_action", "").strip() or None,
+    }
+    if not values["scope"]:
+        raise ValueError("audit_scope_required")
+    if status not in SUPPLIER_AUDIT_STATUSES:
+        raise ValueError("invalid_status")
+    return values
+
+
+def parse_supplier_survey_form():
+    scores = [parse_score_field(name) for name in (
+        "quality_score", "delivery_score", "communication_score"
+    )]
+    respondent_name = request.form.get("respondent_name", "").strip()
+    if not respondent_name:
+        raise ValueError("respondent_required")
+    return {
+        "survey_date": parse_optional_date("survey_date") or date.today(),
+        "respondent_name": respondent_name,
+        "quality_score": scores[0],
+        "delivery_score": scores[1],
+        "communication_score": scores[2],
+        "total_score": int(round(sum(scores) * 10 / len(scores))),
+        "comments": request.form.get("comments", "").strip() or None,
+    }
+
+
+def supplier_quality_form_context(supplier, record=None):
+    return {
+        "supplier": supplier,
+        "record": record,
+        "form_data": request.form if request.method == "POST" else {},
+        "score_options": range(1, 11),
+        "audit_statuses": SUPPLIER_AUDIT_STATUSES,
+        "today_value": date.today().isoformat(),
+    }
+
+
 def supplier_dashboard_context():
     filters = supplier_filters()
     suppliers = filtered_suppliers(filters)
@@ -13300,6 +13387,7 @@ def supplier_dashboard_context():
         "statuses": SUPPLIER_STATUSES,
         "departments": company_department_choices(),
         "recent_evaluations": supplier_recent_evaluations(suppliers),
+        "quality_histories": supplier_quality_histories(suppliers),
         "can_manage_suppliers": can_manage_suppliers(),
         "can_evaluate_suppliers": can_evaluate_suppliers(),
         "can_delete_suppliers": can_delete_suppliers(),
@@ -13345,6 +13433,8 @@ def supplier_form_error_message(error_key):
         "invalid_department": "Geçerli bir departman seçin.",
         "invalid_status": "Geçerli bir tedarikçi durumu seçin.",
         "invalid_score": "Değerlendirme puanları 1 ile 10 arasında olmalıdır.",
+        "audit_scope_required": "Denetim kapsamı zorunludur.",
+        "respondent_required": "Anketi yanıtlayan kişi zorunludur.",
     }.get(error_key, "Tedarikçi kaydı kaydedilemedi.")
 
 
@@ -16630,6 +16720,44 @@ def assigned_supplier_tasks(scope):
                 detail_url=detail_url,
                 created_at=supplier.created_at,
                 sort_id=supplier.id,
+            )
+        )
+
+    audit_query = scoped_query(SupplierQualityAudit.query, SupplierQualityAudit).filter(
+        SupplierQualityAudit.status.notin_(["Tamamlandı", "İptal"]),
+        SupplierQualityAudit.next_audit_date.is_not(None),
+    )
+    if scope == "created":
+        audit_query = audit_query.filter_by(auditor_user_id=user_id)
+    else:
+        audit_query = audit_query.filter(
+            SupplierQualityAudit.auditor_user_id == user_id,
+            SupplierQualityAudit.next_audit_date <= today + timedelta(days=30),
+        )
+    for audit in audit_query.all():
+        supplier = audit.supplier
+        delayed = audit.next_audit_date < today
+        rows.append(
+            assigned_task_row(
+                module_key="supplier-audit",
+                module_label="Tedarikçi Denetimi",
+                module_icon="clipboard2-pulse",
+                module_tone="supplier",
+                title=supplier.name,
+                description=audit.scope,
+                reference_no=supplier.supplier_no,
+                department=supplier.department,
+                due_date=audit.next_audit_date,
+                status="Denetim Gecikti" if delayed else audit.status,
+                status_key="delayed" if delayed else "pending",
+                priority="Yüksek" if delayed else "Orta",
+                detail_url=(
+                    url_for("main.edit_supplier_quality_audit", supplier_id=supplier.id, audit_id=audit.id)
+                    if can_manage_suppliers() else url_for("main.supplier_dashboard")
+                ),
+                created_at=audit.created_at,
+                sort_id=audit.id,
+                date_label="Denetim",
             )
         )
     return rows
@@ -21876,6 +22004,150 @@ def evaluate_supplier(supplier_id):
         "suppliers/evaluation_form.html",
         **supplier_evaluation_context(supplier),
     )
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/kalite-denetimi/yeni", methods=["GET", "POST"])
+@login_required
+def create_supplier_quality_audit(supplier_id):
+    if not can_evaluate_suppliers():
+        abort(403)
+    supplier = supplier_query().filter_by(id=supplier_id).first_or_404()
+    ensure_same_company(supplier)
+    if request.method == "POST":
+        try:
+            audit = SupplierQualityAudit(
+                company_id=supplier.company_id,
+                supplier_id=supplier.id,
+                auditor_user_id=g.current_user.id,
+                **parse_supplier_audit_form(),
+            )
+            db.session.add(audit)
+            db.session.commit()
+            flash("Tedarikçi kalite denetimi kaydedildi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+    return render_template(
+        "suppliers/quality_audit_form.html",
+        page_title="Yeni Kalite Denetimi",
+        form_action=url_for("main.create_supplier_quality_audit", supplier_id=supplier.id),
+        **supplier_quality_form_context(supplier),
+    )
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/kalite-denetimi/<int:audit_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_supplier_quality_audit(supplier_id, audit_id):
+    if not can_manage_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    audit = scoped_query(SupplierQualityAudit.query, SupplierQualityAudit).filter_by(
+        id=audit_id, supplier_id=supplier.id
+    ).first_or_404()
+    if request.method == "POST":
+        try:
+            for key, value in parse_supplier_audit_form().items():
+                setattr(audit, key, value)
+            db.session.commit()
+            flash("Tedarikçi kalite denetimi güncellendi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+    return render_template(
+        "suppliers/quality_audit_form.html",
+        page_title="Kalite Denetimini Düzenle",
+        form_action=url_for("main.edit_supplier_quality_audit", supplier_id=supplier.id, audit_id=audit.id),
+        **supplier_quality_form_context(supplier, audit),
+    )
+
+
+@bp.post("/tedarikci-degerlendirme/<int:supplier_id>/kalite-denetimi/<int:audit_id>/sil")
+@login_required
+def delete_supplier_quality_audit(supplier_id, audit_id):
+    if not can_delete_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    audit = scoped_query(SupplierQualityAudit.query, SupplierQualityAudit).filter_by(
+        id=audit_id, supplier_id=supplier.id
+    ).first_or_404()
+    db.session.delete(audit)
+    db.session.commit()
+    flash("Tedarikçi kalite denetimi silindi.", "success")
+    return redirect(url_for("main.supplier_dashboard"))
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/anket/yeni", methods=["GET", "POST"])
+@login_required
+def create_supplier_survey(supplier_id):
+    if not can_evaluate_suppliers():
+        abort(403)
+    supplier = supplier_query().filter_by(id=supplier_id).first_or_404()
+    ensure_same_company(supplier)
+    if request.method == "POST":
+        try:
+            survey = SupplierSurvey(
+                company_id=supplier.company_id,
+                supplier_id=supplier.id,
+                recorded_by_user_id=g.current_user.id,
+                **parse_supplier_survey_form(),
+            )
+            db.session.add(survey)
+            db.session.commit()
+            flash("Tedarikçi anketi kaydedildi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+    return render_template(
+        "suppliers/survey_form.html",
+        page_title="Yeni Tedarikçi Anketi",
+        form_action=url_for("main.create_supplier_survey", supplier_id=supplier.id),
+        **supplier_quality_form_context(supplier),
+    )
+
+
+@bp.route("/tedarikci-degerlendirme/<int:supplier_id>/anket/<int:survey_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_supplier_survey(supplier_id, survey_id):
+    if not can_manage_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    survey = scoped_query(SupplierSurvey.query, SupplierSurvey).filter_by(
+        id=survey_id, supplier_id=supplier.id
+    ).first_or_404()
+    if request.method == "POST":
+        try:
+            for key, value in parse_supplier_survey_form().items():
+                setattr(survey, key, value)
+            db.session.commit()
+            flash("Tedarikçi anketi güncellendi.", "success")
+            return redirect(url_for("main.supplier_dashboard"))
+        except ValueError as error:
+            db.session.rollback()
+            flash(supplier_form_error_message(str(error)), "danger")
+    return render_template(
+        "suppliers/survey_form.html",
+        page_title="Tedarikçi Anketini Düzenle",
+        form_action=url_for("main.edit_supplier_survey", supplier_id=supplier.id, survey_id=survey.id),
+        **supplier_quality_form_context(supplier, survey),
+    )
+
+
+@bp.post("/tedarikci-degerlendirme/<int:supplier_id>/anket/<int:survey_id>/sil")
+@login_required
+def delete_supplier_survey(supplier_id, survey_id):
+    if not can_delete_suppliers():
+        abort(403)
+    supplier = supplier_query(include_inactive=True).filter_by(id=supplier_id).first_or_404()
+    survey = scoped_query(SupplierSurvey.query, SupplierSurvey).filter_by(
+        id=survey_id, supplier_id=supplier.id
+    ).first_or_404()
+    db.session.delete(survey)
+    db.session.commit()
+    flash("Tedarikçi anketi silindi.", "success")
+    return redirect(url_for("main.supplier_dashboard"))
 
 
 @bp.post("/tedarikci-degerlendirme/<int:supplier_id>/pasife-al")

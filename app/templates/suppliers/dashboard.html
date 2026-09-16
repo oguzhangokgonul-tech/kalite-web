@@ -147,6 +147,12 @@
                       <i class="bi bi-clipboard2-check"></i>
                       <span>Değerlendir</span>
                     </a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_supplier_quality_audit', supplier_id=supplier.id) }}">
+                      <i class="bi bi-clipboard2-pulse"></i><span>Denetim</span>
+                    </a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.create_supplier_survey', supplier_id=supplier.id) }}">
+                      <i class="bi bi-ui-checks-grid"></i><span>Anket</span>
+                    </a>
                   {% endif %}
                   {% if can_manage_suppliers %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_supplier', supplier_id=supplier.id) }}">
@@ -190,6 +196,37 @@
                           <span class="text-secondary">Henüz değerlendirme kaydı yok.</span>
                         </div>
                       {% endfor %}
+                    </div>
+                    {% set history = quality_histories.get(supplier.id, {}) %}
+                    <div class="row g-3 mt-1">
+                      <div class="col-lg-6">
+                        <h3 class="h6 mb-2">Kalite Denetimleri</h3>
+                        {% for audit in history.get('audits', []) %}
+                          <article class="border rounded-3 bg-white p-3 mb-2">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                              <div><strong>{{ format_date(audit.audit_date) }}</strong><small class="d-block text-secondary">{{ audit.scope }}</small></div>
+                              <span class="badge text-bg-light border">{{ audit.score ~ '/10' if audit.score is not none else audit.status }}</span>
+                            </div>
+                            {% if audit.findings %}<p class="small mb-1 mt-2">{{ audit.findings }}</p>{% endif %}
+                            {% if can_manage_suppliers %}<a class="btn btn-sm btn-outline-primary mt-2" href="{{ url_for('main.edit_supplier_quality_audit', supplier_id=supplier.id, audit_id=audit.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+                            {% if can_delete_suppliers %}<form class="d-inline" method="post" action="{{ url_for('main.delete_supplier_quality_audit', supplier_id=supplier.id, audit_id=audit.id) }}" onsubmit="return confirm('Kalite denetimi silinsin mi?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger mt-2" type="submit"><i class="bi bi-trash"></i><span>Sil</span></button></form>{% endif %}
+                          </article>
+                        {% else %}<p class="small text-secondary">Henüz kalite denetimi yok.</p>{% endfor %}
+                      </div>
+                      <div class="col-lg-6">
+                        <h3 class="h6 mb-2">Anket Sonuçları</h3>
+                        {% for survey in history.get('surveys', []) %}
+                          <article class="border rounded-3 bg-white p-3 mb-2">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                              <div><strong>{{ survey.respondent_name }}</strong><small class="d-block text-secondary">{{ format_date(survey.survey_date) }}</small></div>
+                              {{ ui.status_badge(survey.total_score|string, tone=supplier_score_tone(survey.total_score), icon="bi-speedometer2") }}
+                            </div>
+                            {% if survey.comments %}<p class="small mb-1 mt-2">{{ survey.comments }}</p>{% endif %}
+                            {% if can_manage_suppliers %}<a class="btn btn-sm btn-outline-primary mt-2" href="{{ url_for('main.edit_supplier_survey', supplier_id=supplier.id, survey_id=survey.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+                            {% if can_delete_suppliers %}<form class="d-inline" method="post" action="{{ url_for('main.delete_supplier_survey', supplier_id=supplier.id, survey_id=survey.id) }}" onsubmit="return confirm('Anket sonucu silinsin mi?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger mt-2" type="submit"><i class="bi bi-trash"></i><span>Sil</span></button></form>{% endif %}
+                          </article>
+                        {% else %}<p class="small text-secondary">Henüz anket sonucu yok.</p>{% endfor %}
+                      </div>
                     </div>
                   </div>
                 </div>

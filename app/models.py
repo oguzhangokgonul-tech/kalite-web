@@ -2108,6 +2108,16 @@ class SupplierRecord(db.Model):
         back_populates="supplier",
         cascade="all, delete-orphan",
     )
+    quality_audits = db.relationship(
+        "SupplierQualityAudit",
+        back_populates="supplier",
+        cascade="all, delete-orphan",
+    )
+    surveys = db.relationship(
+        "SupplierSurvey",
+        back_populates="supplier",
+        cascade="all, delete-orphan",
+    )
 
     @property
     def is_passive(self):
@@ -2154,6 +2164,48 @@ class SupplierEvaluation(db.Model):
 
     supplier = db.relationship("SupplierRecord", back_populates="evaluations")
     evaluated_by = db.relationship("User", foreign_keys=[evaluated_by_user_id])
+
+
+class SupplierQualityAudit(db.Model):
+    __tablename__ = "supplier_quality_audits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier_records.id"), nullable=False, index=True)
+    audit_date = db.Column(db.Date, nullable=False, default=date.today)
+    next_audit_date = db.Column(db.Date, nullable=True, index=True)
+    auditor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    scope = db.Column(db.String(240), nullable=False)
+    status = db.Column(db.String(40), nullable=False, default="Planlandı", index=True)
+    score = db.Column(db.Integer, nullable=True)
+    findings = db.Column(db.Text, nullable=True)
+    corrective_action = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    supplier = db.relationship("SupplierRecord", back_populates="quality_audits")
+    auditor = db.relationship("User", foreign_keys=[auditor_user_id])
+
+
+class SupplierSurvey(db.Model):
+    __tablename__ = "supplier_surveys"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    supplier_id = db.Column(db.Integer, db.ForeignKey("supplier_records.id"), nullable=False, index=True)
+    survey_date = db.Column(db.Date, nullable=False, default=date.today)
+    respondent_name = db.Column(db.String(160), nullable=False)
+    quality_score = db.Column(db.Integer, nullable=False)
+    delivery_score = db.Column(db.Integer, nullable=False)
+    communication_score = db.Column(db.Integer, nullable=False)
+    total_score = db.Column(db.Integer, nullable=False)
+    comments = db.Column(db.Text, nullable=True)
+    recorded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    supplier = db.relationship("SupplierRecord", back_populates="surveys")
+    recorded_by = db.relationship("User", foreign_keys=[recorded_by_user_id])
 
 
 class ChangeRequest(db.Model):

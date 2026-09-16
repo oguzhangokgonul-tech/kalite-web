@@ -1,0 +1,57 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, supplier.supplier_no ~ " · " ~ supplier.name, icon="bi-clipboard2-pulse") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.supplier_dashboard') }}">
+      <i class="bi bi-arrow-left"></i><span>Geri Dön</span>
+    </a>
+  {% endcall %}
+
+  <form class="app-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="app-form-grid">
+      <div>
+        <label class="form-label" for="audit_date">Denetim Tarihi</label>
+        <input class="form-control" id="audit_date" name="audit_date" type="date" required value="{{ form_data.get('audit_date', record.audit_date.isoformat() if record and record.audit_date else today_value) }}">
+      </div>
+      <div>
+        <label class="form-label" for="status">Durum</label>
+        {% set selected_status = form_data.get('status', record.status if record else 'Planlandı') %}
+        <select class="form-select" id="status" name="status" required>
+          {% for status in audit_statuses %}<option value="{{ status }}" {% if selected_status == status %}selected{% endif %}>{{ status }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="app-form-span-2">
+        <label class="form-label" for="scope">Denetim Kapsamı</label>
+        <input class="form-control" id="scope" name="scope" maxlength="240" required value="{{ form_data.get('scope', record.scope if record else '') }}" placeholder="Proses, ürün grubu veya kalite sistemi kapsamı">
+      </div>
+      <div>
+        <label class="form-label" for="score">Denetim Puanı</label>
+        {% set selected_score = form_data.get('score', record.score if record and record.score is not none else '') %}
+        <select class="form-select" id="score" name="score">
+          <option value="">Henüz puanlanmadı</option>
+          {% for score in score_options %}<option value="{{ score }}" {% if selected_score|string == score|string %}selected{% endif %}>{{ score }} / 10</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="next_audit_date">Sonraki Denetim</label>
+        <input class="form-control" id="next_audit_date" name="next_audit_date" type="date" value="{{ form_data.get('next_audit_date', record.next_audit_date.isoformat() if record and record.next_audit_date else '') }}">
+      </div>
+      <div class="app-form-span-2">
+        <label class="form-label" for="findings">Bulgular</label>
+        <textarea class="form-control" id="findings" name="findings" rows="4">{{ form_data.get('findings', record.findings if record else '') }}</textarea>
+      </div>
+      <div class="app-form-span-2">
+        <label class="form-label" for="corrective_action">Takip / Düzeltici Faaliyet</label>
+        <textarea class="form-control" id="corrective_action" name="corrective_action" rows="4">{{ form_data.get('corrective_action', record.corrective_action if record else '') }}</textarea>
+      </div>
+    </div>
+    <div class="app-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.supplier_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i><span>Denetimi Kaydet</span></button>
+    </div>
+  </form>
+{% endblock %}

@@ -5,7 +5,9 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import AppSetting, AuditLog, Company, SupplierEvaluation, SupplierRecord, User, UserPermission
+from app.models import (AppSetting, AuditLog, Company, SupplierEvaluation,
+                        SupplierQualityAudit, SupplierRecord, SupplierSurvey,
+                        User, UserPermission)
 from app.seed import ensure_runtime_schema
 
 
@@ -235,3 +237,84 @@ def test_runtime_schema_marks_sales_readiness_supplier_done(app):
     roadmap_setting = db.session.get(AppSetting, "sales_readiness:month3_supplier")
     assert roadmap_setting is not None
     assert roadmap_setting.value == "1"
+    advanced_setting = db.session.get(
+        AppSetting, "sales_readiness:competitor_advanced_supplier_quality"
+    )
+    assert advanced_setting is not None
+    assert advanced_setting.value == "1"
+
+
+def test_supplier_quality_audit_and_survey_crud_are_company_scoped(app, client):
+    company_a = Company(code="201", name="Kalite A", slug="kalite-a")
+    company_b = Company(code="202", name="Kalite B", slug="kalite-b")
+    db.session.add_all([company_a, company_b])
+    db.session.commit()
+    manager = create_user(
+        "quality-manager", "suppliers.view", "suppliers.evaluate",
+        "suppliers.manage", "suppliers.delete", company=company_a,
+    )
+    supplier_a = SupplierRecord(
+        company_id=company_a.id, supplier_no="TED-2026-0001",
+        name="A Tedarikçisi", status="Onaylı", is_active=True,
+    )
+    supplier_b = SupplierRecord(
+        company_id=company_b.id, supplier_no="TED-2026-0001",
+        name="B Tedarikçisi", status="Onaylı", is_active=True,
+    )
+    db.session.add_all([supplier_a, supplier_b])
+    db.session.commit()
+    login(client, manager)
+
+    response = client.post(
+        f"/tedarikci-degerlendirme/{supplier_a.id}/kalite-denetimi/yeni",
+        data={
+            "audit_date": date.today().isoformat(), "status": "Tamamlandı",
+            "scope": "Üretim ve son kontrol", "score": "8",
+            "findings": "İzlenebilirlik geliştirilmeli.",
+            "corrective_action": "Lot etiketi standardı güncellenecek.",
+            "next_audit_date": (date.today() + timedelta(days=180)).isoformat(),
+        }, follow_redirects=True,
+    )
+    assert response.status_code == 200
+    audit = SupplierQualityAudit.query.one()
+    assert audit.company_id == company_a.id
+    assert audit.score == 8
+    assert "Üretim ve son kontrol" in response.get_data(as_text=True)
+
+    response = client.post(
+        f"/tedarikci-degerlendirme/{supplier_a.id}/anket/yeni",
+        data={
+            "survey_date": date.today().isoformat(), "respondent_name": "Satın Alma",
+            "quality_score": "9", "delivery_score": "8",
+            "communication_score": "7", "comments": "İletişim süresi iyileştirilmeli.",
+        }, follow_redirects=True,
+    )
+    assert response.status_code == 200
+    survey = SupplierSurvey.query.one()
+    assert survey.company_id == company_a.id
+    assert survey.total_score == 80
+    assert "Satın Alma" in response.get_data(as_text=True)
+
+    response = client.post(
+        f"/tedarikci-degerlendirme/{supplier_a.id}/kalite-denetimi/{audit.id}/duzenle",
+        data={"audit_date": date.today().isoformat(), "status": "Tamamlandı",
+              "scope": "Güncel kapsam", "score": "9"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert db.session.get(SupplierQualityAudit, audit.id).scope == "Güncel kapsam"
+
+    assert client.get(
+        f"/tedarikci-degerlendirme/{supplier_b.id}/kalite-denetimi/yeni"
+    ).status_code == 404
+    assert client.get(
+        f"/tedarikci-degerlendirme/{supplier_a.id}/kalite-denetimi/{audit.id + 999}/duzenle"
+    ).status_code == 404
+
+    assert client.post(
+        f"/tedarikci-degerlendirme/{supplier_a.id}/anket/{survey.id}/sil",
+        follow_redirects=True,
+    ).status_code == 200
+    assert db.session.get(SupplierSurvey, survey.id) is None
+    assert AuditLog.query.filter_by(entity_type="SupplierQualityAudit").count() >= 2
+    assert AuditLog.query.filter_by(entity_type="SupplierSurvey").count() >= 2

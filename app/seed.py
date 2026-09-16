@@ -3278,6 +3278,8 @@ def ensure_runtime_schema():
         ComplianceRevision,
         ComplianceEvaluation,
         ComplianceFile,
+        SupplierQualityAudit,
+        SupplierSurvey,
     )
 
     for model in (
@@ -3298,6 +3300,8 @@ def ensure_runtime_schema():
         ComplianceRevision,
         ComplianceEvaluation,
         ComplianceFile,
+        SupplierQualityAudit,
+        SupplierSurvey,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3357,6 +3361,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_stakeholder_management",
             "sales_readiness:competitor_compliance_obligations",
             "sales_readiness:competitor_customer_request_portal",
+            "sales_readiness:competitor_advanced_supplier_quality",
         ):
             db.session.execute(
                 text(

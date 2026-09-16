@@ -24,6 +24,7 @@ node tests/ui/responsive.mjs
 node tests/ui/interactions.mjs
 node tests/ui/workflows.mjs
 node tests/ui/touch.mjs
+node tests/ui/supplier_quality.mjs
 ```
 
 Playwright proje dışında kuruluysa `PLAYWRIGHT_MODULE_PATH` değişkenini kurulu
@@ -45,6 +46,8 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
 - `touch.mjs`: 320 px telefon, yatay kısa ekran ve 1366 px dokunmatik tablet;
   uzun menü, çıkış, ekran döndürme, organizasyon haritasında dokunarak kaydırma,
   ikinci parmak ve iptal edilen sürüklemenin geri alınması.
+- `supplier_quality.mjs`: mobil ve tablette tedarikçi kalite denetimi ile anket
+  formlarının taşmadan açılması; mobilde kayıtların kaydedilip geçmişte görünmesi.
 
 Ekran görüntüleri ve JSON sonuçları `.tmp-ui-audit/responsive/` altında oluşur.
 Bu çıktılar geçicidir. Form testleri kayıtları değiştirir; temiz başlangıç için

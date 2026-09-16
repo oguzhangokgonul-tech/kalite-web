@@ -36,7 +36,7 @@
   {% set incident_management_active = request.endpoint in ['main.incident_dashboard', 'main.create_incident', 'main.incident_detail', 'main.edit_incident', 'main.start_incident_review', 'main.record_incident_decision', 'main.complete_incident_action', 'main.close_incident_effectiveness', 'main.archive_incident', 'main.download_incident_file'] %}
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
-  {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.deactivate_supplier'] %}
+  {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.create_supplier_quality_audit', 'main.edit_supplier_quality_audit', 'main.delete_supplier_quality_audit', 'main.create_supplier_survey', 'main.edit_supplier_survey', 'main.delete_supplier_survey', 'main.deactivate_supplier'] %}
   {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [

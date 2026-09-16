@@ -1,0 +1,44 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(page_title, supplier.supplier_no ~ " · " ~ supplier.name, icon="bi-ui-checks-grid") %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.supplier_dashboard') }}">
+      <i class="bi bi-arrow-left"></i><span>Geri Dön</span>
+    </a>
+  {% endcall %}
+
+  <form class="app-form-card" method="post" action="{{ form_action }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="app-form-grid">
+      <div>
+        <label class="form-label" for="survey_date">Anket Tarihi</label>
+        <input class="form-control" id="survey_date" name="survey_date" type="date" required value="{{ form_data.get('survey_date', record.survey_date.isoformat() if record and record.survey_date else today_value) }}">
+      </div>
+      <div>
+        <label class="form-label" for="respondent_name">Yanıtlayan Kişi</label>
+        <input class="form-control" id="respondent_name" name="respondent_name" maxlength="160" required value="{{ form_data.get('respondent_name', record.respondent_name if record else '') }}">
+      </div>
+      {% for field, label in [('quality_score', 'Kalite'), ('delivery_score', 'Teslimat'), ('communication_score', 'İletişim')] %}
+        <div>
+          <label class="form-label" for="{{ field }}">{{ label }} Puanı</label>
+          {% set selected_score = form_data.get(field, record|attr(field) if record else '') %}
+          <select class="form-select" id="{{ field }}" name="{{ field }}" required>
+            <option value="">Puan seçin</option>
+            {% for score in score_options %}<option value="{{ score }}" {% if selected_score|string == score|string %}selected{% endif %}>{{ score }} / 10</option>{% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+      <div class="app-form-span-2">
+        <label class="form-label" for="comments">Anket Yorumu</label>
+        <textarea class="form-control" id="comments" name="comments" rows="4">{{ form_data.get('comments', record.comments if record else '') }}</textarea>
+      </div>
+    </div>
+    <div class="app-form-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.supplier_dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i><span>Anketi Kaydet</span></button>
+    </div>
+  </form>
+{% endblock %}
