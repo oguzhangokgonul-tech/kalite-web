@@ -339,6 +339,14 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 72,
         "parent_key": None,
     },
+    {
+        "key": "kaizen_management",
+        "name": "Kaizen / Sürekli İyileştirme",
+        "description": "İyileştirme projelerini mevcut durumdan doğrulama ve standartlaştırmaya kadar izler.",
+        "icon": "bi-arrow-up-right-circle",
+        "sort_order": 73,
+        "parent_key": None,
+    },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4440,6 +4448,119 @@ class EquipmentAssetFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     asset = db.relationship("EquipmentAsset", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class KaizenProject(db.Model):
+    __tablename__ = "kaizen_projects"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "project_no", name="uq_kaizen_projects_company_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False, index=True)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    stage = db.Column(db.String(40), nullable=False, default="Fikir", index=True)
+    status = db.Column(db.String(40), nullable=False, default="Açık", index=True)
+    priority = db.Column(db.String(20), nullable=False, default="Orta")
+    start_date = db.Column(db.Date, nullable=False, default=date.today)
+    target_date = db.Column(db.Date, nullable=True, index=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    problem_statement = db.Column(db.Text, nullable=False)
+    current_state = db.Column(db.Text, nullable=True)
+    target_state = db.Column(db.Text, nullable=True)
+    root_cause = db.Column(db.Text, nullable=True)
+    solution = db.Column(db.Text, nullable=True)
+    verification_method = db.Column(db.Text, nullable=True)
+    standardization_plan = db.Column(db.Text, nullable=True)
+    metric_name = db.Column(db.String(160), nullable=True)
+    baseline_value = db.Column(db.Float, nullable=True)
+    target_value = db.Column(db.Float, nullable=True)
+    actual_value = db.Column(db.Float, nullable=True)
+    estimated_cost = db.Column(db.Float, nullable=True)
+    realized_cost = db.Column(db.Float, nullable=True)
+    estimated_benefit = db.Column(db.Float, nullable=True)
+    realized_benefit = db.Column(db.Float, nullable=True)
+    suggestion_id = db.Column(db.Integer, db.ForeignKey("suggestions.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    quality_objective_id = db.Column(
+        db.Integer, db.ForeignKey("quality_objectives.id"), nullable=True, index=True
+    )
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    owner = db.relationship("User", foreign_keys=[owner_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    suggestion = db.relationship("Suggestion", foreign_keys=[suggestion_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    quality_objective = db.relationship("QualityObjective", foreign_keys=[quality_objective_id])
+    team_members = db.relationship(
+        "KaizenTeamMember", back_populates="project", cascade="all, delete-orphan"
+    )
+    updates = db.relationship(
+        "KaizenProjectUpdate", back_populates="project",
+        cascade="all, delete-orphan", order_by="KaizenProjectUpdate.created_at.desc()"
+    )
+    files = db.relationship(
+        "KaizenProjectFile", back_populates="project", cascade="all, delete-orphan"
+    )
+
+
+class KaizenTeamMember(db.Model):
+    __tablename__ = "kaizen_team_members"
+    __table_args__ = (
+        db.UniqueConstraint("project_id", "user_id", name="uq_kaizen_team_project_user"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("kaizen_projects.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    role_name = db.Column(db.String(80), nullable=False, default="Ekip Üyesi")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    project = db.relationship("KaizenProject", back_populates="team_members")
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
+class KaizenProjectUpdate(db.Model):
+    __tablename__ = "kaizen_project_updates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("kaizen_projects.id"), nullable=False, index=True)
+    stage = db.Column(db.String(40), nullable=False)
+    status = db.Column(db.String(40), nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    actual_value = db.Column(db.Float, nullable=True)
+    realized_cost = db.Column(db.Float, nullable=True)
+    realized_benefit = db.Column(db.Float, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    project = db.relationship("KaizenProject", back_populates="updates")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+
+class KaizenProjectFile(db.Model):
+    __tablename__ = "kaizen_project_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("kaizen_projects.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    project = db.relationship("KaizenProject", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

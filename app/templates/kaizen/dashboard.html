@@ -1,0 +1,26 @@
+{% extends "app_shell.html" %}{% import "components/ui.html" as ui %}
+{% block title %}Kaizen / Sürekli İyileştirme{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Kaizen / Sürekli İyileştirme", "İyileştirme fikirlerini ölçülebilir projelere dönüştürün, kazanımları doğrulayın ve standartlaştırın.", icon="bi-arrow-up-right-circle") %}
+{% if can_create %}<a class="btn btn-primary" href="{{ url_for('kaizen.create') }}"><i class="bi bi-plus-lg"></i><span>Yeni Kaizen</span></a>{% endif %}
+{% endcall %}
+<section class="document-list-card p-3 mb-3"><form class="row g-2 align-items-end" method="get">
+<div class="col-12 col-lg-5"><label class="form-label" for="q">Arama</label><input class="form-control" id="q" name="q" value="{{ search }}" placeholder="Proje no, başlık veya departman"></div>
+<div class="col-6 col-lg-2"><label class="form-label" for="stage">Aşama</label><select class="form-select" id="stage" name="stage"><option value="">Tümü</option>{% for item in stages %}<option {% if selected_stage == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+<div class="col-6 col-lg-2"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for item in statuses %}<option {% if selected_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+<div class="col-6 col-lg-1"><label class="form-label" for="archived">Kayıt</label><select class="form-select" id="archived" name="archived"><option value="active" {% if not archived %}selected{% endif %}>Aktif</option><option value="archived" {% if archived %}selected{% endif %}>Arşiv</option></select></div>
+<div class="col-6 col-lg-2"><button class="btn btn-outline-primary w-100" type="submit"><i class="bi bi-funnel"></i><span>Filtrele</span></button></div>
+</form></section>
+<section class="document-list-card table-responsive"><table class="table dashboard-table align-middle mb-0"><thead><tr><th>Proje</th><th>Sorumlu / Ekip</th><th>Aşama</th><th>Hedef Tarih</th><th>Ölçüm</th><th>Kazanım</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead><tbody>
+{% for project in projects %}<tr>
+<td data-label="Proje"><strong>{{ project.project_no }}</strong><small class="d-block text-primary fw-semibold">{{ project.title }}</small><small class="d-block text-secondary">{{ project.department or '-' }}</small></td>
+<td data-label="Sorumlu / Ekip">{{ project.owner.full_name }}<small class="d-block text-secondary">{{ project.team_members|length }} ekip üyesi</small></td>
+<td data-label="Aşama"><span class="badge text-bg-light border">{{ project.stage }}</span></td>
+<td data-label="Hedef Tarih">{{ project.target_date.strftime('%d.%m.%Y') if project.target_date else '-' }}{% if project.target_date and project.target_date < today and project.status not in ['Tamamlandı','İptal'] %}<small class="d-block text-danger fw-semibold">Termin geçti</small>{% endif %}</td>
+<td data-label="Ölçüm">{{ project.metric_name or '-' }}{% if project.metric_name %}<small class="d-block text-secondary">{{ project.baseline_value if project.baseline_value is not none else '-' }} → {{ project.actual_value if project.actual_value is not none else project.target_value if project.target_value is not none else '-' }}</small>{% endif %}</td>
+<td data-label="Kazanım">{% if project.realized_benefit is not none %}{{ '%.2f'|format(project.realized_benefit) }}{% elif project.estimated_benefit is not none %}<span class="text-secondary">Tahmin: {{ '%.2f'|format(project.estimated_benefit) }}</span>{% else %}-{% endif %}</td>
+<td data-label="Durum">{{ ui.status_badge("Arşiv" if project.archived_at else project.status) }}</td>
+<td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('kaizen.detail', project_id=project.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a>{% if can_manage and not project.archived_at %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('kaizen.edit', project_id=project.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}</div></td>
+</tr>{% else %}<tr><td colspan="8" class="dashboard-empty-row"><strong>Kaizen projesi bulunamadı.</strong><span>Filtreleri değiştirin veya yeni bir iyileştirme projesi oluşturun.</span></td></tr>{% endfor %}
+</tbody></table></section>
+{% endblock %}

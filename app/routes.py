@@ -2716,6 +2716,13 @@ MODULE_ENDPOINTS = {
     "equipment.add_lifecycle_event": "equipment_lifecycle",
     "equipment.archive": "equipment_lifecycle",
     "equipment.download_file": "equipment_lifecycle",
+    "kaizen.dashboard": "kaizen_management",
+    "kaizen.create": "kaizen_management",
+    "kaizen.edit": "kaizen_management",
+    "kaizen.detail": "kaizen_management",
+    "kaizen.add_update": "kaizen_management",
+    "kaizen.archive": "kaizen_management",
+    "kaizen.download_file": "kaizen_management",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17036,6 +17043,7 @@ def assigned_all_tasks(scope):
     from .compliance import assigned_task_rows as assigned_compliance_task_rows
     from .ebys import assigned_task_rows as assigned_ebys_task_rows
     from .equipment import assigned_task_rows as assigned_equipment_task_rows
+    from .kaizen import assigned_task_rows as assigned_kaizen_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17064,6 +17072,7 @@ def assigned_all_tasks(scope):
         + assigned_compliance_task_rows(scope, assigned_task_row)
         + assigned_ebys_task_rows(scope, assigned_task_row)
         + assigned_equipment_task_rows(scope, assigned_task_row)
+        + assigned_kaizen_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17096,6 +17105,7 @@ ASSIGNED_TAB_MODULES = {
         "compliance",
         "ebys",
         "equipment",
+        "kaizen",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17120,6 +17130,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("compliance", "Mevzuat"),
     ("ebys", "Resmî Yazışma"),
     ("equipment", "Ekipman"),
+    ("kaizen", "Kaizen"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

@@ -636,6 +636,13 @@ PERMISSION_CATALOG = (
         "group": "Ekipman Yaşam Döngüsü",
         "description": "Yetkili ekipmanın teknik dosyasını indirir.",
     },
+    {"key": "kaizen.view", "label": "Atandığı Kaizen projelerini görüntüleme", "group": "Kaizen", "description": "Sorumlusu veya ekip üyesi olduğu iyileştirme projelerini görüntüler."},
+    {"key": "kaizen.view_all", "label": "Tüm Kaizen projelerini görüntüleme", "group": "Kaizen", "description": "Şirketin sürekli iyileştirme proje sicilini görüntüler."},
+    {"key": "kaizen.create", "label": "Kaizen projesi oluşturma", "group": "Kaizen", "description": "Yeni ölçülebilir iyileştirme projesi oluşturur."},
+    {"key": "kaizen.manage", "label": "Kaizen proje yönetimi", "group": "Kaizen", "description": "Proje kartını, sorumlu ve ekip üyelerini yönetir."},
+    {"key": "kaizen.update", "label": "Kaizen ilerlemesi kaydetme", "group": "Kaizen", "description": "Proje aşaması, sonucu ve gerçekleşen kazanımları kaydeder."},
+    {"key": "kaizen.archive", "label": "Kaizen projesi arşivleme", "group": "Kaizen", "description": "Tamamlanan veya iptal edilen projeyi denetim iziyle arşivler."},
+    {"key": "kaizen.file_download", "label": "Kaizen kanıt dosyası indirme", "group": "Kaizen", "description": "Erişim yetkisi olan projenin kanıt dosyasını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -3376,6 +3383,10 @@ def ensure_runtime_schema():
         EquipmentAsset,
         EquipmentLifecycleEvent,
         EquipmentAssetFile,
+        KaizenProject,
+        KaizenTeamMember,
+        KaizenProjectUpdate,
+        KaizenProjectFile,
     )
 
     for model in (
@@ -3404,6 +3415,10 @@ def ensure_runtime_schema():
         EquipmentAsset,
         EquipmentLifecycleEvent,
         EquipmentAssetFile,
+        KaizenProject,
+        KaizenTeamMember,
+        KaizenProjectUpdate,
+        KaizenProjectFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3466,6 +3481,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_advanced_supplier_quality",
             "sales_readiness:competitor_ebys",
             "sales_readiness:competitor_equipment_lifecycle",
+            "sales_readiness:competitor_kaizen_projects",
         ):
             db.session.execute(
                 text(
