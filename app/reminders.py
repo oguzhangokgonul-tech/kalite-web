@@ -111,8 +111,15 @@ def _send_record_reminders(
     due_date=None,
     notification_type="warning",
     run_date=None,
+    email_message=None,
+    email_details=None,
 ):
     run_date = run_date or date.today()
+    details = list(email_details or ())
+    if due_date:
+        due_label = (f"{(run_date - due_date).days} gün gecikti"
+                     if due_date < run_date else _due_state(due_date, run_date)[1])
+        details.append(("Termin durumu", due_label))
     created = []
     emails_sent = 0
     for user in unique_users(users):
@@ -130,12 +137,13 @@ def _send_record_reminders(
         created.append(notification)
         if send_generic_notification_email(
             [user],
-            message,
+            email_message or message,
             title=title,
             target_url=target_url,
             due_date=due_date,
             source_label=kind,
             company_id=company_id,
+            details=details,
         ):
             mark_notifications_email_sent([notification])
             emails_sent += 1
@@ -178,6 +186,8 @@ def _action_reminders(company_id, run_date, days_before):
             due_date=action.termin_date,
             notification_type=severity,
             run_date=run_date,
+            email_details=[("Kayıt", action.number_label), ("Konu", action.title),
+                           ("Sorumlu", action.responsible_owner), ("Birim", action.department)],
         )
         stats["notifications"] += created
         stats["emails"] += emails
@@ -219,6 +229,7 @@ def _sub_action_reminders(company_id, run_date, days_before):
             due_date=sub_action.due_date,
             notification_type=severity,
             run_date=run_date,
+            email_details=[("Kayıt", action_label), ("Alt aksiyon", sub_action.title)],
         )
         stats["notifications"] += created
         stats["emails"] += emails
@@ -254,6 +265,8 @@ def _dof_reminders(company_id, run_date, days_before):
             due_date=dof.due_date,
             notification_type=severity,
             run_date=run_date,
+            email_details=[("Kayıt", dof.dof_no), ("Konu", dof.title), ("Birim", dof.department),
+                           ("Sorumlu", dof.responsible.full_name if dof.responsible else None)],
         )
         stats["notifications"] += created
         stats["emails"] += emails
@@ -301,6 +314,12 @@ def _internal_audit_reminders(company_id, run_date, days_before):
         if _is_completed_text(audit.status):
             continue
         severity, label = _due_state(audit.planned_date, run_date)
+        if audit.planned_date < run_date:
+            email_message = "Planlanan iç denetim tarihi geçti. Denetim durumunu kontrol edip gerekli güncellemeyi yapın."
+        elif audit.planned_date == run_date:
+            email_message = "İç denetim bugün planlandı. Denetimi tamamlayıp sonucunu kaydedin."
+        else:
+            email_message = "İç denetim tarihi yaklaşıyor. Denetim hazırlıklarınızı tamamlayın."
         users = _merge_users(
             company_id,
             [audit.auditor_id, audit.audited_user_id],
@@ -317,6 +336,12 @@ def _internal_audit_reminders(company_id, run_date, days_before):
             due_date=audit.planned_date,
             notification_type=severity,
             run_date=run_date,
+            email_message=email_message,
+            email_details=[("Kayıt", audit.audit_no), ("Konu", audit.title),
+                           ("Birim", audit.evaluated_department),
+                           ("Denetçi", audit.auditor.full_name if audit.auditor else None),
+                           ("Denetlenen", audit.audited_user.full_name if audit.audited_user else None),
+                           ("Denetim durumu", audit.status)],
         )
         stats["notifications"] += created
         stats["emails"] += emails

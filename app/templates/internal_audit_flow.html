@@ -273,6 +273,17 @@
       const counter = document.querySelector("[data-audit-counter]");
       const radios = document.querySelectorAll("[data-audit-result-radio]");
       const nonconformityButton = document.querySelector(".audit-nonconformity-button");
+      const answerForm = document.getElementById("auditQuestionForm");
+      const completeForm = document.getElementById("completeAuditForm");
+      const snapshot = () => answerForm ? JSON.stringify([...new FormData(answerForm)].map(([key, value]) =>
+        [key, value instanceof File ? (value.name ? [value.name, value.size, value.lastModified] : null) : value])) : "";
+      const initialAnswer = snapshot();
+      completeForm?.addEventListener("submit", (event) => {
+        if (snapshot() === initialAnswer) return;
+        event.preventDefault();
+        alert("Kaydedilmemiş cevap değişiklikleri var. Önce Taslak Kaydet ile cevabınızı kaydedin.");
+        answerForm?.querySelector("textarea, input:not([type='hidden'])")?.focus();
+      });
 
       function updateCounter() {
         if (textarea && counter) {

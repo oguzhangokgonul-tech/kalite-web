@@ -165,6 +165,17 @@ def test_company_primary_domain_prefers_custom_domain(app, companies):
     assert company_url == "https://kalite.erprefabrik.com.tr/documents"
 
 
+def test_invalid_company_domains_fall_back_without_changing_request_host_matching(app, companies):
+    company = companies[0]
+    company.custom_domain = "none"
+    assert company_primary_domain(company) == "erprefabrik.volkaportal.com"
+    company.primary_domain = "http://none"
+    assert company_primary_domain(company) == "erprefabrik.volkaportal.com"
+    from app.routes import normalize_company_domain
+    assert normalize_company_domain("None") == ""
+    assert normalize_company_domain("https://kalite.erprefabrik.com.tr/") == "kalite.erprefabrik.com.tr"
+
+
 def test_oguzhan_user_is_scoped_to_current_company(app, companies):
     erprefabrik, deneme, _passive = companies
     oguzhan = User(

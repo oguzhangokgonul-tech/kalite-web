@@ -1,12 +1,13 @@
 import smtplib
 from concurrent.futures import ThreadPoolExecutor
 from email.message import EmailMessage
+from urllib.parse import urlsplit
 
-from flask import current_app, url_for
+from flask import current_app
 
 from .extensions import db
 from .models import Company
-from .tenant import tenant_base_url, tenant_url_for_company
+from .tenant import normalize_link_domain, tenant_base_url, tenant_url_for_company
 
 
 _mail_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="mail")
@@ -37,7 +38,23 @@ def _mail_enabled(settings):
 
 
 def _public_base_url():
-    return (current_app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
+    value = str(current_app.config.get("PUBLIC_BASE_URL") or "").rstrip("/")
+    if not _valid_absolute_url(value):
+        return ""
+    parsed = urlsplit(value)
+    return value if not parsed.query and not parsed.fragment else ""
+
+
+def _valid_absolute_url(value):
+    if not value or "\\" in value or any(char.isspace() or ord(char) < 32 for char in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+        return bool(parsed.scheme in {"http", "https"} and not parsed.username
+                    and not parsed.password and normalize_link_domain(parsed.hostname))
+    except ValueError:
+        return False
 
 
 def _record_company_id(record):
@@ -52,6 +69,9 @@ def _record_company_id(record):
 
 def _resolve_company(company=None, company_id=None):
     if company is not None:
+        if company_id and company.id != company_id:
+            current_app.logger.warning("Mail firma bilgileri celisiyor: company_id=%s", company_id)
+            return None
         return company
     if not company_id:
         return None
@@ -66,32 +86,46 @@ def _absolute_target_url(path, *, company=None, company_id=None):
     if not path:
         return ""
     value = str(path).strip()
-    if not value or value.startswith("//") or "\r" in value or "\n" in value:
+    if not value or value.startswith("//") or "\\" in value or any(char.isspace() or ord(char) < 32 for char in value):
         return ""
-    if value.startswith(("http://", "https://")):
-        return value
-    if not value.startswith("/"):
+    try:
+        parsed = urlsplit(value)
+        parsed.port
+    except ValueError:
+        return ""
+    if parsed.scheme:
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
+            return ""
+        relative_path = parsed._replace(scheme="", netloc="").geturl() or "/"
+        if not relative_path.startswith("/"):
+            relative_path = "/" + relative_path
+    elif value.startswith("/"):
+        relative_path = value
+    else:
         return ""
 
     resolved_company = _resolve_company(company=company, company_id=company_id)
     if resolved_company is not None:
-        company_url = tenant_url_for_company(resolved_company, value)
-        if company_url != value:
+        company_url = tenant_url_for_company(resolved_company, relative_path)
+        if _valid_absolute_url(company_url):
             return company_url
+        current_app.logger.warning("Mail icin firma alan adi bulunamadi: company_id=%s", resolved_company.id)
+        return ""
+    if company_id:
+        current_app.logger.warning("Mail linki icin firma bulunamadi: company_id=%s", company_id)
+        return ""
+    if parsed.scheme:
+        return value if _valid_absolute_url(value) else ""
 
     public_base_url = _public_base_url()
     if public_base_url:
-        return f"{public_base_url}{value}"
+        return f"{public_base_url}{relative_path}"
 
-    base_url = tenant_base_url(value)
-    if base_url != value:
+    base_url = tenant_base_url(relative_path)
+    if _valid_absolute_url(base_url):
         return base_url
-
-    try:
-        app_base_url = url_for("main.dashboard", _external=True).rstrip("/")
-        return f"{app_base_url}{value}"
-    except RuntimeError:
-        return value
+    current_app.logger.warning("Mail icin guvenilir genel alan adi bulunamadi.")
+    return ""
 
 
 def _action_url(action):
@@ -123,20 +157,7 @@ def _document_revision_request_url(revision_request):
 
 
 def _generic_target_url(target_url, *, company=None, company_id=None):
-    if not target_url:
-        return ""
-    value = str(target_url).strip()
-    if value.startswith("//") or "\r" in value or "\n" in value:
-        return ""
-    if value.startswith("/"):
-        return _absolute_target_url(
-            value,
-            company=company,
-            company_id=company_id,
-        )
-    if value.startswith(("http://", "https://")):
-        return value
-    return ""
+    return _absolute_target_url(target_url, company=company, company_id=company_id)
 
 
 def _format_date(value):
@@ -144,7 +165,24 @@ def _format_date(value):
 
 
 def _site_name():
-    return current_app.config.get("SITE_NAME", "VolkaPortal")
+    return current_app.config.get("SITE_NAME") or "VolkaPortal"
+
+
+NOTIFICATION_SOURCE_LABELS = {
+    "action": "Aksiyon", "sub-action": "Alt Aksiyon", "dof": "İF / DÖF",
+    "document-revision": "Doküman Revizyonu", "internal-audit": "İç Denetim",
+    "maintenance": "Bakım", "risk": "Risk", "training": "Eğitim",
+    "complaint": "Şikayet", "management-review": "Yönetimin Gözden Geçirmesi",
+    "supplier": "Tedarikçi Değerlendirme", "calibration": "Kalibrasyon",
+    "quality-objective": "Kalite Hedefi", "stakeholder-review": "İlgili Taraflar",
+    "stakeholder-requirement-due": "İlgili Taraf Beklentileri",
+    "compliance-review": "Mevzuat İncelemesi", "compliance-verification": "Mevzuat Doğrulaması",
+}
+
+
+def _record_email_heading(record, module_label):
+    company = _resolve_company(company_id=_record_company_id(record))
+    return [f"{company.name} | {module_label}", ""] if company else []
 
 
 def build_action_email(action, message):
@@ -160,7 +198,7 @@ def build_action_email(action, message):
     else:
         status = "Açık"
 
-    lines = [
+    lines = _record_email_heading(action, "Aksiyon") + [
         message,
         "",
         f"Aksiyon No: {action.number_label}",
@@ -184,7 +222,7 @@ def build_dof_email(dof, message):
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {dof.dof_no}"
 
-    lines = [
+    lines = _record_email_heading(dof, "İF / DÖF") + [
         message,
         "",
         f"İF No: {dof.dof_no}",
@@ -194,7 +232,7 @@ def build_dof_email(dof, message):
         f"Açılış Tarihi: {_format_date(dof.opening_date)}",
         f"Termin: {_format_date(dof.due_date)}",
         f"Öncelik: {dof.priority or '-'}",
-        f"Kaynak: {dof.source or '-'}",
+        f"Kaynak: {NOTIFICATION_SOURCE_LABELS.get(dof.source, dof.source or '-')}",
         f"Durum: {dof.status or '-'}",
     ]
 
@@ -210,7 +248,7 @@ def build_vehicle_reminder_email(vehicle, reminder_title, due_date, day_label, d
     vehicle_url = _vehicle_url(vehicle)
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
     subject = f"{subject_prefix} {vehicle.plate} {reminder_title}"
-    lines = [
+    lines = _record_email_heading(vehicle, "Araç Yönetimi") + [
         f"{vehicle.plate} plakalı araç için {reminder_title} süresine son {days_before} gün kalmıştır, lütfen bakımları tamamlayınız.",
         "",
         f"Plaka: {vehicle.plate}",
@@ -233,7 +271,7 @@ def build_document_revision_request_email(revision_request, message):
     if document:
         subject = f"{subject}: {document.document_code}"
 
-    lines = [
+    lines = _record_email_heading(revision_request, "Doküman Revizyonu") + [
         message,
         "",
         f"Doküman Kodu: {document.document_code if document else '-'}",
@@ -257,22 +295,30 @@ def build_generic_notification_email(
     source_label=None,
     company_id=None,
     company=None,
+    details=None,
 ):
+    resolved_company = _resolve_company(company=company, company_id=company_id)
     detail_url = _generic_target_url(
         target_url,
-        company=company,
+        company=company if company is not None else resolved_company,
         company_id=company_id,
     )
     subject_prefix = current_app.config.get("MAIL_SUBJECT_PREFIX", f"[{_site_name()}]")
-    subject = f"{subject_prefix} {title or 'Bildirim'}"
+    company_name = resolved_company.name if resolved_company else ""
+    subject = f"{subject_prefix} {company_name + ' | ' if company_name else ''}{title or 'Bildirim'}"
 
-    lines = [message]
+    module_label = NOTIFICATION_SOURCE_LABELS.get(source_label, source_label)
+    lines = [f"{company_name} | {module_label or title or 'Bildirim'}", "", message] if company_name else [message]
     if source_label:
-        lines.extend(["", f"Kaynak: {source_label}"])
+        if not company_name:
+            lines.extend(["", f"Modül: {module_label}"])
+    if details:
+        lines.append("")
+        lines.extend(f"{label}: {value}" for label, value in details if value not in (None, ""))
     if due_date:
         lines.append(f"Termin: {_format_date(due_date)}")
     if detail_url:
-        lines.extend(["", f"Detay: {detail_url}"])
+        lines.extend(["", f"Detayları aç: {detail_url}"])
     return subject, "\n".join(lines)
 
 
@@ -430,6 +476,7 @@ def send_generic_notification_email(
     source_label=None,
     company_id=None,
     company=None,
+    details=None,
 ):
     recipients = sorted({user.email for user in users if user.email})
     if not recipients:
@@ -447,6 +494,7 @@ def send_generic_notification_email(
         source_label=source_label,
         company_id=company_id,
         company=company,
+        details=details,
     )
     _mail_executor.submit(
         _send_mail_safely,

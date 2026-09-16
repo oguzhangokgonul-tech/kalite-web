@@ -5,6 +5,7 @@ from flask_wtf.csrf import CSRFError
 from pathlib import Path
 from dotenv import load_dotenv
 import click
+import mimetypes
 from urllib.parse import urlsplit
 
 load_dotenv()
@@ -21,6 +22,8 @@ from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
 def create_app(config_class=Config):
+    # Windows registry mappings can mark .js as text/plain; nosniff blocks it.
+    mimetypes.add_type("text/javascript", ".js")
     app = Flask(__name__)
     app.config.from_object(config_class)
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)

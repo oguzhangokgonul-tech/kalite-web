@@ -236,6 +236,7 @@
                             <span class="{% if record.strength_28_day is not none %}is-complete{% endif %}"><i class="bi bi-check"></i><small>28 Gün</small></span>
                           </div>
                         </div>
+                        {% if can_create_quality_test %}
                         <div class="concrete-measurement-action-card">
                           <div>
                             <strong>İşlem</strong>
@@ -254,6 +255,7 @@
                           </div>
                           <small><i class="bi bi-shield-check"></i> Veriler güvenle saklanır.</small>
                         </div>
+                        {% endif %}
                       </div>
                     </div>
                   </div>

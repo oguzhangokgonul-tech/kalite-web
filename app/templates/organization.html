@@ -16,7 +16,7 @@
       <div class="org-toolbar-actions">
         <div class="org-zoom-control">
           <button class="btn btn-sm btn-outline-secondary" type="button" data-zoom-minus>-</button>
-          <input class="form-range org-zoom-range" type="range" min="45" max="150" value="85" data-zoom-range aria-label="Yakınlaştırma">
+          <input class="form-range org-zoom-range" type="range" min="10" max="150" value="85" data-zoom-range aria-label="Yakınlaştırma">
           <span class="org-zoom-value" data-zoom-value>85%</span>
           <button class="btn btn-sm btn-outline-secondary" type="button" data-zoom-plus>+</button>
         </div>
@@ -512,13 +512,14 @@
       }
 
       function startNodeDrag(event, node) {
-        if (event.button !== 0) return;
+        if (event.button !== 0 || !event.isPrimary || draggingNode || panning) return;
         event.stopPropagation();
         const element = event.currentTarget;
         element.setPointerCapture(event.pointerId);
         draggingNode = {
           node,
           element,
+          pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
           originX: node.x,
@@ -541,8 +542,9 @@
       }
 
       function startPan(event) {
-        if (event.button !== 0 || event.target.closest(".org-node")) return;
+        if (event.button !== 0 || !event.isPrimary || draggingNode || panning || event.target.closest(".org-node")) return;
         panning = {
+          pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
           originX: panX,
@@ -557,6 +559,7 @@
 
       window.addEventListener("pointermove", (event) => {
         if (draggingNode) {
+          if (event.pointerId !== draggingNode.pointerId) return;
           const dx = (event.clientX - draggingNode.startX) / zoom;
           const dy = (event.clientY - draggingNode.startY) / zoom;
           draggingNode.moved = draggingNode.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2;
@@ -574,19 +577,34 @@
           return;
         }
 
-        if (!panning) return;
+        if (!panning || event.pointerId !== panning.pointerId) return;
         panX = panning.originX + event.clientX - panning.startX;
         panY = panning.originY + event.clientY - panning.startY;
         applyTransform();
       });
 
-      window.addEventListener("pointerup", () => {
-        finishNodeDrag();
-        stopPan();
+      window.addEventListener("pointerup", (event) => {
+        if (draggingNode?.pointerId === event.pointerId) finishNodeDrag();
+        if (panning?.pointerId === event.pointerId) stopPan();
       });
-      window.addEventListener("pointercancel", () => {
-        finishNodeDrag();
-        stopPan();
+      window.addEventListener("pointercancel", (event) => {
+        if (draggingNode?.pointerId === event.pointerId) {
+          const { node, element, originX, originY } = draggingNode;
+          draggingNode = null;
+          node.x = originX;
+          node.y = originY;
+          element.style.left = `${originX}px`;
+          element.style.top = `${originY}px`;
+          hideSnapGuides();
+          updateCanvasSize();
+          drawLines();
+        }
+        if (panning?.pointerId === event.pointerId) {
+          panX = panning.originX;
+          panY = panning.originY;
+          stopPan();
+          applyTransform();
+        }
       });
       map.addEventListener("pointerdown", startPan);
 
@@ -594,7 +612,7 @@
         const rect = map.getBoundingClientRect();
         const centerX = (rect.width / 2 - panX) / zoom;
         const centerY = (rect.height / 2 - panY) / zoom;
-        zoom = Math.max(0.45, Math.min(nextZoom, 1.5));
+        zoom = Math.max(0.1, Math.min(nextZoom, 1.5));
         panX = rect.width / 2 - centerX * zoom;
         panY = rect.height / 2 - centerY * zoom;
         applyTransform();
@@ -606,7 +624,7 @@
         const mapY = clientY - rect.top;
         const canvasX = (mapX - panX) / zoom;
         const canvasY = (mapY - panY) / zoom;
-        zoom = Math.max(0.45, Math.min(nextZoom, 1.5));
+        zoom = Math.max(0.1, Math.min(nextZoom, 1.5));
         panX = mapX - canvasX * zoom;
         panY = mapY - canvasY * zoom;
         applyTransform();
@@ -630,7 +648,7 @@
         const box = bounds();
         const padding = 80;
         const nextZoom = Math.max(
-          0.45,
+          0.1,
           Math.min(
             1.2,
             Math.min(

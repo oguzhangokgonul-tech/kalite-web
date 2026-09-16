@@ -6,7 +6,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.mail import build_action_email, build_generic_notification_email
-from app.models import Action, AppSetting, Company, Notification, User
+from app.models import Action, AppSetting, Company, InternalAudit, Notification, User
 from app.reminders import run_due_reminders_once_for_company
 from app.seed import ensure_runtime_schema
 
@@ -146,6 +146,7 @@ def test_action_email_detail_link_uses_company_subdomain(app):
 
     assert f"https://erprefabrik.volkaportal.com/actions/{action.id}" in body
     assert f"https://volkaportal.com/actions/{action.id}" not in body
+    assert body.startswith("Er Prefabrik | Aksiyon\n")
 
 
 def test_generic_notification_email_detail_link_uses_company_subdomain(app):
@@ -211,3 +212,136 @@ def test_runtime_schema_marks_sales_readiness_notification_upgrade_done(app):
     setting = db.session.get(AppSetting, "sales_readiness:notification_upgrade")
     assert setting is not None
     assert setting.value == "1"
+
+
+@pytest.mark.parametrize("invalid_domain", [None, "none", "None", "null", "undefined", "http://none", "bad host"])
+def test_invalid_custom_domain_does_not_override_company_primary_domain(app, invalid_domain):
+    company = create_company("501")
+    company.primary_domain = "erprefabrik.volkaportal.com"
+    company.custom_domain = invalid_domain
+    db.session.commit()
+    _subject, body = build_generic_notification_email(
+        "Hatırlatma", target_url="/ic-denetim", company_id=company.id)
+    assert "Detayları aç: https://erprefabrik.volkaportal.com/ic-denetim" in body
+
+
+@pytest.mark.parametrize("target", ["http://none/ic-denetim?tab=plan#record",
+                                    "https://other.volkaportal.com/ic-denetim?tab=plan#record"])
+def test_absolute_notification_link_is_rebased_to_record_company(app, target):
+    company = create_company("502")
+    company.primary_domain = "erprefabrik.volkaportal.com"
+    db.session.commit()
+    with app.test_request_context(base_url="https://other.volkaportal.com"):
+        _subject, body = build_generic_notification_email("Hatırlatma", target_url=target, company_id=company.id)
+    assert "https://erprefabrik.volkaportal.com/ic-denetim?tab=plan#record" in body
+    assert "http://none" not in body
+    assert "https://other.volkaportal.com" not in body
+
+
+def test_email_without_trusted_domain_omits_link_instead_of_using_request_or_none_host(app):
+    app.config.update(TENANT_BASE_DOMAIN="None", PUBLIC_BASE_URL="http://none", SERVER_NAME="None")
+    with app.test_request_context(base_url="https://untrusted.example.test"):
+        _subject, body = build_generic_notification_email("Hatırlatma", target_url="/ic-denetim")
+    assert "Detayları aç:" not in body
+    assert "http://none" not in body
+    assert "untrusted.example.test" not in body
+
+
+def test_company_email_without_company_domain_or_missing_company_omits_link(app):
+    company = create_company("503")
+    company.slug = ""
+    company.primary_domain = "none"
+    company.custom_domain = "None"
+    db.session.commit()
+    for company_id in (company.id, 999999):
+        _subject, body = build_generic_notification_email("Hatırlatma", target_url="/ic-denetim", company_id=company_id)
+        assert "Detayları aç:" not in body
+        assert "https://volkaportal.com" not in body
+
+
+@pytest.mark.parametrize("target", ["//evil.example.test/path", "javascript:alert(1)",
+                                    "https://user:pass@example.test/path", "/\\evil.example.test",
+                                    "/ic-denetim\nInjected", "http://example.test:bad/path"])
+def test_invalid_notification_targets_are_not_mailed(app, target):
+    company = create_company("504")
+    _subject, body = build_generic_notification_email("Hatırlatma", target_url=target, company_id=company.id)
+    assert "Detayları aç:" not in body
+
+
+def test_internal_audit_email_is_concise_detailed_and_company_scoped(app, monkeypatch):
+    company = create_company("505", "Er Prefabrik")
+    other = create_company("506", "Diğer Firma")
+    company.primary_domain = "erprefabrik.volkaportal.com"
+    company.custom_domain = "none"
+    auditor = create_user("denetci", company=company, email="auditor@example.test")
+    audited = create_user("personel", company=company, email="staff@example.test")
+    outsider = create_user("diger-personel", company=other, email="other@example.test")
+    audit = InternalAudit(company_id=company.id, audit_no="ICD-2026-0041", title="2026 2/2 Proje",
+                          planned_date=date(2026, 7, 1), evaluated_department="Proje",
+                          auditor_id=auditor.id, audited_user_id=audited.id)
+    other_audit = InternalAudit(company_id=other.id, audit_no="ICD-2026-0041", title="Diğer denetim",
+                                planned_date=date(2026, 7, 1), auditor_id=outsider.id)
+    db.session.add_all([audit, other_audit])
+    db.session.commit()
+    queued = []
+    monkeypatch.setattr("app.mail._mail_executor.submit",
+                        lambda function, settings, recipients, subject, body, logger:
+                        queued.append((recipients, subject, body)))
+    stats = run_due_reminders_once_for_company(company.id, force=True, run_date=date(2026, 9, 15))
+    assert stats["emails"] == 2
+    assert len(queued) == 2
+    assert {email for recipients, _subject, _body in queued for email in recipients} == {
+        auditor.email, audited.email}
+    for _recipients, subject, body in queued:
+        assert subject.startswith("[VolkaPortal] Er Prefabrik | ")
+        assert body.startswith("Er Prefabrik | İç Denetim\n")
+        assert "Planlanan iç denetim tarihi geçti." in body
+        assert "Kayıt: ICD-2026-0041" in body
+        assert "Konu: 2026 2/2 Proje" in body
+        assert "Birim: Proje" in body
+        assert "Denetçi: Denetci" in body
+        assert "Denetlenen: Personel" in body
+        assert "Termin: 01.07.2026" in body
+        assert "Termin durumu: 76 gün gecikti" in body
+        assert "Detayları aç: https://erprefabrik.volkaportal.com/ic-denetim" in body
+        assert "internal-audit" not in body
+        assert "plan tarihi durumu" not in body
+        assert "Diğer denetim" not in body
+    assert {notification.target_url for notification in Notification.query.all()} == {"/ic-denetim"}
+    run_due_reminders_once_for_company(company.id, force=True, run_date=date(2026, 9, 15))
+    assert len(queued) == 2
+
+
+def test_conflicting_company_context_does_not_link_to_either_company(app):
+    company = create_company("507")
+    other = create_company("508")
+    _subject, body = build_generic_notification_email("Hatırlatma", target_url="/ic-denetim",
+                                                     company=company, company_id=other.id)
+    assert "Detayları aç:" not in body
+
+
+@pytest.mark.parametrize("offset, expected", [(0, "İç denetim bugün planlandı."),
+                                              (3, "İç denetim tarihi yaklaşıyor.")])
+def test_internal_audit_today_and_upcoming_mail_handles_missing_people(app, monkeypatch, offset, expected):
+    company = create_company("509")
+    user = create_user("auditor", company=company, email="auditor@example.test")
+    run_date = date(2026, 9, 15)
+    audit = InternalAudit(company_id=company.id, audit_no="ICD-2026-0001", title="Plan",
+                          auditor_id=user.id, planned_date=run_date + timedelta(days=offset))
+    db.session.add(audit)
+    db.session.commit()
+    queued = []
+    monkeypatch.setattr("app.mail._mail_executor.submit",
+                        lambda function, settings, recipients, subject, body, logger: queued.append(body))
+    run_due_reminders_once_for_company(company.id, force=True, run_date=run_date)
+    assert len(queued) == 1
+    assert expected in queued[0]
+    assert "Denetlenen:" not in queued[0]
+    assert "Birim:" not in queued[0]
+    assert "None" not in queued[0]
+
+
+def test_legacy_global_notification_uses_only_valid_configured_base(app):
+    app.config.update(PUBLIC_BASE_URL="https://volkaportal.com", TENANT_BASE_DOMAIN="None")
+    _subject, body = build_generic_notification_email("Global bildirim", target_url="/ic-denetim")
+    assert "Detayları aç: https://volkaportal.com/ic-denetim" in body

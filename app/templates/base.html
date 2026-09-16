@@ -29,6 +29,7 @@
       </style>
     {% endif %}
     {% block head_extra %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css', v=config.ASSET_VERSION) }}">
   </head>
   <body class="{% block body_class %}{% endblock %}">
     {% block navbar %}
@@ -249,6 +250,7 @@
         })();
       </script>
     {% endif %}
+    <script defer src="{{ url_for('static', filename='js/responsive.js', v=config.ASSET_VERSION) }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

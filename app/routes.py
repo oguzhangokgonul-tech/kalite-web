@@ -201,6 +201,7 @@ from .tenant import (
     current_company_id,
     ensure_same_company,
     host_looks_local,
+    normalize_link_domain,
     scoped_query,
     tenant_base_url,
     tenant_company_from_host,
@@ -14172,12 +14173,7 @@ def normalize_company_slug(value):
 
 
 def normalize_company_domain(value):
-    value = (value or "").strip().lower()
-    for prefix in ("https://", "http://"):
-        if value.startswith(prefix):
-            value = value[len(prefix):]
-    value = value.split("/")[0].strip(".")
-    return value[:255]
+    return normalize_link_domain(value)
 
 
 def tenant_base_domain():

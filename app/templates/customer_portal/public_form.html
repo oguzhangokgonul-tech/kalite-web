@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Müşteri Talep ve Geri Bildirim Portalı{% endblock %}
 {% block navbar %}{% endblock %}
-{% block body_class %}bg-light{% endblock %}
+{% block body_class %}bg-light customer-portal-body{% endblock %}
 {% block main_class %}container py-4 py-lg-5{% endblock %}
 {% block content %}
 <div class="mx-auto" style="max-width: 920px;">
@@ -24,7 +24,7 @@
         <div class="col-md-4"><label class="form-label" for="customer_name">Firma / Müşteri Adı *</label><input class="form-control" id="customer_name" name="customer_name" maxlength="180" required value="{{ request.form.get('customer_name', '') }}"></div>
         <div class="col-md-4"><label class="form-label" for="contact_name">Ad Soyad *</label><input class="form-control" id="contact_name" name="contact_name" maxlength="160" required value="{{ request.form.get('contact_name', '') }}"></div>
         <div class="col-md-6"><label class="form-label" for="contact_email">E-posta *</label><input class="form-control" id="contact_email" name="contact_email" type="email" maxlength="255" required value="{{ request.form.get('contact_email', '') }}"></div>
-        <div class="col-md-6"><label class="form-label" for="contact_phone">Telefon *</label><input class="form-control" id="contact_phone" name="contact_phone" maxlength="80" required value="{{ request.form.get('contact_phone', '') }}"></div>
+        <div class="col-md-6"><label class="form-label" for="contact_phone">Telefon *</label><input class="form-control" id="contact_phone" name="contact_phone" type="tel" autocomplete="tel" maxlength="80" required value="{{ request.form.get('contact_phone', '') }}"></div>
         <div class="col-md-6"><label class="form-label" for="customer_reference">Müşteri Referansı *</label><input class="form-control" id="customer_reference" name="customer_reference" maxlength="120" required value="{{ request.form.get('customer_reference', '') }}"></div>
         <div class="col-md-6"><label class="form-label" for="product_reference">Ürün / Sipariş / Parti No *</label><input class="form-control" id="product_reference" name="product_reference" maxlength="180" required value="{{ request.form.get('product_reference', '') }}"></div>
         <div class="col-12"><label class="form-label" for="subject">Konu *</label><input class="form-control" id="subject" name="subject" maxlength="180" required value="{{ request.form.get('subject', '') }}"></div>

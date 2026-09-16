@@ -17,6 +17,6 @@
       {% else %}<input class="form-control" id="field_{{ field.id }}" name="field_{{ field.id }}" maxlength="5000" value="{{ value or '' }}">{% endif %}</div>
     {% endfor %}
     </div>
-    <div class="d-flex justify-content-end gap-2 mt-4"><button class="btn btn-outline-secondary" name="action" value="draft" type="submit"><i class="bi bi-save"></i><span>Taslak Kaydet</span></button><button class="btn btn-success" name="action" value="complete" type="submit"><i class="bi bi-check-circle"></i><span>Tamamla ve Gönder</span></button></div>
+    <div class="app-form-actions d-flex flex-wrap justify-content-end gap-2 mt-4"><button class="btn btn-outline-secondary" name="action" value="draft" type="submit"><i class="bi bi-save"></i><span>Taslak Kaydet</span></button><button class="btn btn-success" name="action" value="complete" type="submit"><i class="bi bi-check-circle"></i><span>Tamamla ve Gönder</span></button></div>
   </form>
 {% endblock %}

@@ -46,8 +46,8 @@
     ('elek-analizi-deneyi', 'Elek Analizi Deneyi', 'bi-grid-3x3-gap'),
     ('demir-cekme-deneyi', 'Demir Çekme Deneyi', 'bi-bezier2')
   ] %}
-  <aside class="dashboard-sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
-    <div class="offcanvas-header d-lg-none">
+  <aside class="dashboard-sidebar offcanvas-xl offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
+    <div class="offcanvas-header d-xl-none">
       <h2 class="h6 mb-0" id="dashboardSidebarLabel">Menü</h2>
       <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
     </div>
@@ -361,7 +361,7 @@
         </div>
         <form class="dashboard-logout-form" method="post" action="{{ url_for('main.logout') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="dashboard-logout" type="submit">
+          <button class="dashboard-logout" type="submit" aria-label="Çıkış">
           <i class="bi bi-box-arrow-left"></i>
           <span>Çıkış</span>
           </button>
@@ -370,7 +370,7 @@
     </div>
   </aside>
 
-  <button class="dashboard-mobile-menu-button btn btn-icon d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
+  <button class="dashboard-mobile-menu-button btn btn-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
     <i class="bi bi-list"></i>
   </button>
 

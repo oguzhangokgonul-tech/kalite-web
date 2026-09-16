@@ -1,3 +1,6 @@
+import re
+from urllib.parse import urlsplit
+
 from flask import abort, current_app, g, session
 from sqlalchemy import or_
 
@@ -27,19 +30,42 @@ def host_is_tenant_base(host):
     return normalize_request_host(host) == base_domain
 
 
+def normalize_link_domain(value):
+    value = str(value or "").strip()
+    if not value or any(char.isspace() or ord(char) < 32 for char in value):
+        return ""
+    try:
+        parsed = urlsplit(value if "://" in value else "//" + value)
+        if parsed.scheme not in {"", "http", "https"} or parsed.username or parsed.password:
+            return ""
+        if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+            return ""
+        parsed.port  # Validate malformed/out-of-range ports before accepting the host.
+        host = normalize_request_host((parsed.hostname or "").rstrip(".")).encode("idna").decode("ascii")
+    except (ValueError, UnicodeError):
+        return ""
+    if host in {"none", "null", "undefined"} or len(host) > 253:
+        return ""
+    if "." not in host:
+        return "localhost" if host == "localhost" and current_app.config.get("APP_ENV") != "production" else ""
+    labels = host.split(".")
+    if not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels):
+        return ""
+    return host
+
+
 def company_primary_domain(company):
     if not company:
         return ""
 
-    if company.custom_domain:
-        return normalize_request_host(company.custom_domain)
+    for value in (company.custom_domain, company.primary_domain):
+        domain = normalize_link_domain(value)
+        if domain:
+            return domain
 
-    if company.primary_domain:
-        return normalize_request_host(company.primary_domain)
-
-    base_domain = tenant_base_domain()
+    base_domain = normalize_link_domain(tenant_base_domain())
     if company.slug and base_domain:
-        return f"{company.slug}.{base_domain}"
+        return normalize_link_domain(f"{company.slug}.{base_domain}")
 
     return ""
 
@@ -52,19 +78,23 @@ def tenant_url_for_company(company, path="/"):
     if not path.startswith("/"):
         path = f"/{path}"
 
-    scheme = current_app.config.get("PREFERRED_URL_SCHEME", "https")
+    scheme = current_app.config.get("PREFERRED_URL_SCHEME") or "https"
+    if scheme not in {"http", "https"}:
+        scheme = "https"
     return f"{scheme}://{domain}{path}"
 
 
 def tenant_base_url(path="/"):
-    base_domain = tenant_base_domain()
+    base_domain = normalize_link_domain(tenant_base_domain())
     if not base_domain:
         return path
 
     if not path.startswith("/"):
         path = f"/{path}"
 
-    scheme = current_app.config.get("PREFERRED_URL_SCHEME", "https")
+    scheme = current_app.config.get("PREFERRED_URL_SCHEME") or "https"
+    if scheme not in {"http", "https"}:
+        scheme = "https"
     return f"{scheme}://{base_domain}{path}"
 
 
