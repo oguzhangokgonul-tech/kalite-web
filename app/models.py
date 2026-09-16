@@ -347,6 +347,14 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 73,
         "parent_key": None,
     },
+    {
+        "key": "five_s_audit",
+        "name": "5S Saha Denetimi",
+        "description": "Saha düzenini beş 5S adımında puanlar, bulguları ve iyileştirmeleri izler.",
+        "icon": "bi-grid-3x3-gap",
+        "sort_order": 74,
+        "parent_key": None,
+    },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4561,6 +4569,90 @@ class KaizenProjectFile(db.Model):
     uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     project = db.relationship("KaizenProject", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class FiveSAudit(db.Model):
+    __tablename__ = "five_s_audits"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "audit_no", name="uq_five_s_audits_company_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    audit_no = db.Column(db.String(40), nullable=False, index=True)
+    title = db.Column(db.String(220), nullable=False)
+    area = db.Column(db.String(180), nullable=False, index=True)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    auditor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    planned_date = db.Column(db.Date, nullable=False, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="planned", index=True)
+    score_percent = db.Column(db.Float, nullable=True)
+    summary = db.Column(db.Text, nullable=True)
+    review_note = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    auditor = db.relationship("User", foreign_keys=[auditor_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    items = db.relationship("FiveSAuditItem", back_populates="audit", cascade="all, delete-orphan", order_by="FiveSAuditItem.sort_order.asc()")
+    files = db.relationship("FiveSAuditFile", back_populates="audit", cascade="all, delete-orphan")
+
+    @property
+    def open_finding_count(self):
+        return sum(1 for item in self.items if item.score is not None and item.score < 3 and not item.is_resolved)
+
+
+class FiveSAuditItem(db.Model):
+    __tablename__ = "five_s_audit_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    audit_id = db.Column(db.Integer, db.ForeignKey("five_s_audits.id"), nullable=False, index=True)
+    category = db.Column(db.String(40), nullable=False, index=True)
+    criterion = db.Column(db.String(300), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    score = db.Column(db.Integer, nullable=True)
+    observation = db.Column(db.Text, nullable=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    is_resolved = db.Column(db.Boolean, nullable=False, default=False)
+    resolution_note = db.Column(db.Text, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    audit = db.relationship("FiveSAudit", back_populates="items")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+
+
+class FiveSAuditFile(db.Model):
+    __tablename__ = "five_s_audit_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    audit_id = db.Column(db.Integer, db.ForeignKey("five_s_audits.id"), nullable=False, index=True)
+    item_id = db.Column(db.Integer, db.ForeignKey("five_s_audit_items.id"), nullable=True, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    audit = db.relationship("FiveSAudit", back_populates="files")
+    item = db.relationship("FiveSAuditItem", foreign_keys=[item_id])
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

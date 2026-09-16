@@ -643,6 +643,15 @@ PERMISSION_CATALOG = (
     {"key": "kaizen.update", "label": "Kaizen ilerlemesi kaydetme", "group": "Kaizen", "description": "Proje aşaması, sonucu ve gerçekleşen kazanımları kaydeder."},
     {"key": "kaizen.archive", "label": "Kaizen projesi arşivleme", "group": "Kaizen", "description": "Tamamlanan veya iptal edilen projeyi denetim iziyle arşivler."},
     {"key": "kaizen.file_download", "label": "Kaizen kanıt dosyası indirme", "group": "Kaizen", "description": "Erişim yetkisi olan projenin kanıt dosyasını indirir."},
+    {"key": "five_s.view", "label": "Atandığı 5S kayıtlarını görüntüleme", "group": "5S Denetimi", "description": "Denetçi, inceleyen veya bulgu sorumlusu olduğu 5S kayıtlarını görüntüler."},
+    {"key": "five_s.view_all", "label": "Tüm 5S kayıtlarını görüntüleme", "group": "5S Denetimi", "description": "Şirketin 5S denetim sicilini görüntüler."},
+    {"key": "five_s.create", "label": "5S denetimi planlama", "group": "5S Denetimi", "description": "Yeni saha ve alan denetimi planlar."},
+    {"key": "five_s.manage", "label": "5S denetim yönetimi", "group": "5S Denetimi", "description": "Şirketin 5S denetim sürecini yönetir."},
+    {"key": "five_s.perform", "label": "5S denetimi uygulama", "group": "5S Denetimi", "description": "Atanan kriterleri puanlar ve bulgu kaydeder."},
+    {"key": "five_s.review", "label": "5S denetimi inceleme", "group": "5S Denetimi", "description": "Atanan denetimi onaylar veya düzeltmeye gönderir."},
+    {"key": "five_s.resolve", "label": "5S bulgusu kapatma", "group": "5S Denetimi", "description": "Atanan bulguyu açıklama ve kanıtla kapatır."},
+    {"key": "five_s.archive", "label": "5S denetimi arşivleme", "group": "5S Denetimi", "description": "Tamamlanan ve bulguları kapatılan denetimi arşivler."},
+    {"key": "five_s.file_download", "label": "5S kanıt dosyası indirme", "group": "5S Denetimi", "description": "Yetkili 5S kaydının kanıt dosyasını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -3387,6 +3396,9 @@ def ensure_runtime_schema():
         KaizenTeamMember,
         KaizenProjectUpdate,
         KaizenProjectFile,
+        FiveSAudit,
+        FiveSAuditItem,
+        FiveSAuditFile,
     )
 
     for model in (
@@ -3419,6 +3431,9 @@ def ensure_runtime_schema():
         KaizenTeamMember,
         KaizenProjectUpdate,
         KaizenProjectFile,
+        FiveSAudit,
+        FiveSAuditItem,
+        FiveSAuditFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3482,6 +3497,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_ebys",
             "sales_readiness:competitor_equipment_lifecycle",
             "sales_readiness:competitor_kaizen_projects",
+            "sales_readiness:competitor_five_s_audit",
         ):
             db.session.execute(
                 text(

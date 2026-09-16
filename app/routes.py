@@ -2723,6 +2723,14 @@ MODULE_ENDPOINTS = {
     "kaizen.add_update": "kaizen_management",
     "kaizen.archive": "kaizen_management",
     "kaizen.download_file": "kaizen_management",
+    "five_s.dashboard": "five_s_audit",
+    "five_s.create": "five_s_audit",
+    "five_s.detail": "five_s_audit",
+    "five_s.perform": "five_s_audit",
+    "five_s.review": "five_s_audit",
+    "five_s.resolve_item": "five_s_audit",
+    "five_s.archive": "five_s_audit",
+    "five_s.download_file": "five_s_audit",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17044,6 +17052,7 @@ def assigned_all_tasks(scope):
     from .ebys import assigned_task_rows as assigned_ebys_task_rows
     from .equipment import assigned_task_rows as assigned_equipment_task_rows
     from .kaizen import assigned_task_rows as assigned_kaizen_task_rows
+    from .five_s import assigned_task_rows as assigned_five_s_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17073,6 +17082,7 @@ def assigned_all_tasks(scope):
         + assigned_ebys_task_rows(scope, assigned_task_row)
         + assigned_equipment_task_rows(scope, assigned_task_row)
         + assigned_kaizen_task_rows(scope, assigned_task_row)
+        + assigned_five_s_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17106,6 +17116,7 @@ ASSIGNED_TAB_MODULES = {
         "ebys",
         "equipment",
         "kaizen",
+        "five_s",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17131,6 +17142,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("ebys", "Resmî Yazışma"),
     ("equipment", "Ekipman"),
     ("kaizen", "Kaizen"),
+    ("five_s", "5S Denetimi"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

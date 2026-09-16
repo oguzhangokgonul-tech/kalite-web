@@ -21,6 +21,7 @@ from .customer_portal import bp as customer_portal_bp
 from .ebys import bp as ebys_bp
 from .equipment import bp as equipment_bp
 from .kaizen import bp as kaizen_bp
+from .five_s import bp as five_s_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -48,6 +49,7 @@ def create_app(config_class=Config):
     app.register_blueprint(ebys_bp)
     app.register_blueprint(equipment_bp)
     app.register_blueprint(kaizen_bp)
+    app.register_blueprint(five_s_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):
