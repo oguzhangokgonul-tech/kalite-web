@@ -2700,6 +2700,15 @@ MODULE_ENDPOINTS = {
     "compliance.archive": "compliance_management",
     "compliance.download_file": "compliance_management",
     "compliance.export_excel": "compliance_management",
+    "ebys.dashboard": "ebys",
+    "ebys.create": "ebys",
+    "ebys.edit": "ebys",
+    "ebys.detail": "ebys",
+    "ebys.accept_distribution": "ebys",
+    "ebys.complete_distribution": "ebys",
+    "ebys.archive": "ebys",
+    "ebys.download_file": "ebys",
+    "ebys.export_excel": "ebys",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17018,6 +17027,7 @@ def assigned_all_tasks(scope):
     from .inspections import assigned_task_rows as assigned_inspection_task_rows
     from .stakeholders import assigned_task_rows as assigned_stakeholder_task_rows
     from .compliance import assigned_task_rows as assigned_compliance_task_rows
+    from .ebys import assigned_task_rows as assigned_ebys_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17044,6 +17054,7 @@ def assigned_all_tasks(scope):
         + assigned_inspection_task_rows(scope, assigned_task_row)
         + assigned_stakeholder_task_rows(scope, assigned_task_row)
         + assigned_compliance_task_rows(scope, assigned_task_row)
+        + assigned_ebys_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17074,6 +17085,7 @@ ASSIGNED_TAB_MODULES = {
         "inspection",
         "stakeholder",
         "compliance",
+        "ebys",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17096,6 +17108,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("inspection", "Saha Kontrol"),
     ("stakeholder", "İlgili Taraf"),
     ("compliance", "Mevzuat"),
+    ("ebys", "Resmî Yazışma"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

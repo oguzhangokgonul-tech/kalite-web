@@ -1,0 +1,38 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ "Yazışmayı Düzenle" if record else "Yeni Resmî Yazışma" }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Yazışmayı Düzenle" if record else "Yeni Resmî Yazışma", (record.registration_no if record else "Kayıt numarası kaydedildiğinde otomatik atanır."), icon="bi-envelope-plus") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('ebys.detail', record_id=record.id) if record else url_for('ebys.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>
+{% endcall %}
+{% set current_direction = values.get('direction', '') if values else record.direction if record else 'incoming' %}
+{% set current_document_date = values.get('document_date', '') if values else record.document_date.isoformat() if record else today %}
+{% set current_external_no = values.get('external_reference_no', '') if values else record.external_reference_no or '' if record else '' %}
+{% set current_subject = values.get('subject', '') if values else record.subject if record else '' %}
+{% set current_sender = values.get('sender', '') if values else record.sender if record else '' %}
+{% set current_recipient = values.get('recipient', '') if values else record.recipient if record else '' %}
+{% set current_department = values.get('department', '') if values else record.department or '' if record else '' %}
+{% set current_security = values.get('security_level', '') if values else record.security_level if record else 'Normal' %}
+{% set current_due_date = values.get('due_date', '') if values else record.due_date.isoformat() if record and record.due_date else '' %}
+{% set current_status = values.get('status', '') if values else record.status if record else 'Kayıtlı' %}
+{% set current_notes = values.get('notes', '') if values else record.notes or '' if record else '' %}
+<form class="document-list-card p-4" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-md-4"><label class="form-label" for="direction">Yazışma Türü</label><select class="form-select" id="direction" name="direction" required>{% for key, label in directions.items() %}<option value="{{ key }}" {% if current_direction == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="document_date">Evrak Tarihi</label><input class="form-control" id="document_date" name="document_date" type="date" required value="{{ current_document_date }}"></div>
+    <div class="col-md-4"><label class="form-label" for="external_reference_no">Harici Evrak No</label><input class="form-control" id="external_reference_no" name="external_reference_no" maxlength="120" value="{{ current_external_no }}"></div>
+    <div class="col-12"><label class="form-label" for="subject">Konu</label><input class="form-control" id="subject" name="subject" maxlength="255" required value="{{ current_subject }}"></div>
+    <div class="col-md-6"><label class="form-label" for="sender">Gönderen</label><input class="form-control" id="sender" name="sender" maxlength="255" required value="{{ current_sender }}"></div>
+    <div class="col-md-6"><label class="form-label" for="recipient">Alıcı</label><input class="form-control" id="recipient" name="recipient" maxlength="255" required value="{{ current_recipient }}"></div>
+    <div class="col-md-4"><label class="form-label" for="department">İlgili Departman</label><input class="form-control" id="department" name="department" maxlength="160" value="{{ current_department }}"></div>
+    <div class="col-md-4"><label class="form-label" for="security_level">Gizlilik</label><select class="form-select" id="security_level" name="security_level">{% for item in security_levels %}<option {% if current_security == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-md-4"><label class="form-label" for="due_date">Termin</label><input class="form-control" id="due_date" name="due_date" type="date" value="{{ current_due_date }}"></div>
+    <div class="col-md-4"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status">{% for item in statuses %}<option {% if current_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-md-8"><label class="form-label" for="attachment">Ana Dosya / Ek</label><input class="form-control" id="attachment" name="attachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png"><small class="text-secondary">PDF, Word, Excel, CSV, metin veya görsel.</small></div>
+    <div class="col-12"><label class="form-label" for="assigned_user_ids">Dağıtılacak Kişiler</label><select class="form-select" id="assigned_user_ids" name="assigned_user_ids" multiple size="5">{% for user in users %}<option value="{{ user.id }}" {% if user.id in selected_users or user.id|string in selected_users %}selected{% endif %}>{{ user.full_name }}{% if user.title %} · {{ user.title }}{% endif %}</option>{% endfor %}</select><small class="text-secondary">Birden fazla kişi seçebilirsiniz.</small></div>
+    <div class="col-12"><label class="form-label" for="notes">Açıklama / İç Not</label><textarea class="form-control" id="notes" name="notes" rows="4">{{ current_notes }}</textarea></div>
+  </div>
+  <div class="d-flex flex-wrap justify-content-end gap-2 border-top pt-3 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('ebys.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle"></i><span>Kaydet</span></button></div>
+</form>
+{% endblock %}

@@ -323,6 +323,14 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 70,
         "parent_key": None,
     },
+    {
+        "key": "ebys",
+        "name": "Resmî Yazışma ve Arşiv",
+        "description": "Gelen ve giden resmî yazıları, eklerini, dağıtımlarını ve arşiv durumlarını izler.",
+        "icon": "bi-envelope-paper",
+        "sort_order": 71,
+        "parent_key": None,
+    },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4245,6 +4253,93 @@ class ComplianceFile(db.Model):
     revision = db.relationship("ComplianceRevision", back_populates="files")
     evaluation = db.relationship("ComplianceEvaluation", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class OfficialCorrespondence(db.Model):
+    __tablename__ = "official_correspondences"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id", "registration_no", name="uq_official_correspondence_company_no"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    registration_no = db.Column(db.String(40), nullable=False, index=True)
+    direction = db.Column(db.String(20), nullable=False, index=True)
+    document_date = db.Column(db.Date, nullable=False, default=date.today, index=True)
+    external_reference_no = db.Column(db.String(120), nullable=True)
+    subject = db.Column(db.String(255), nullable=False, index=True)
+    sender = db.Column(db.String(255), nullable=False)
+    recipient = db.Column(db.String(255), nullable=False)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    security_level = db.Column(db.String(30), nullable=False, default="Normal")
+    status = db.Column(db.String(30), nullable=False, default="Kayıtlı", index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    archived_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    archived_by = db.relationship("User", foreign_keys=[archived_by_user_id])
+    files = db.relationship(
+        "OfficialCorrespondenceFile",
+        back_populates="correspondence",
+        cascade="all, delete-orphan",
+    )
+    distributions = db.relationship(
+        "OfficialCorrespondenceDistribution",
+        back_populates="correspondence",
+        cascade="all, delete-orphan",
+    )
+
+
+class OfficialCorrespondenceFile(db.Model):
+    __tablename__ = "official_correspondence_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    correspondence_id = db.Column(
+        db.Integer, db.ForeignKey("official_correspondences.id"), nullable=False, index=True
+    )
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    correspondence = db.relationship("OfficialCorrespondence", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class OfficialCorrespondenceDistribution(db.Model):
+    __tablename__ = "official_correspondence_distributions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "correspondence_id", "user_id", name="uq_official_distribution_record_user"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    correspondence_id = db.Column(
+        db.Integer, db.ForeignKey("official_correspondences.id"), nullable=False, index=True
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Bekliyor", index=True)
+    assigned_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    read_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+
+    correspondence = db.relationship("OfficialCorrespondence", back_populates="distributions")
+    user = db.relationship("User", foreign_keys=[user_id])
 
 
 class Notification(db.Model):

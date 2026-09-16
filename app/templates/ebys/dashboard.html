@@ -1,0 +1,39 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Resmî Yazışma ve Arşiv{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Resmî Yazışma ve Arşiv", "Gelen ve giden yazıları, dağıtımları ve terminleri şirket sicilinde izleyin.", icon="bi-envelope-paper") %}
+  {% if g.current_user.has_permission('ebys.export') or g.current_user.has_permission('ebys.manage') %}<a class="btn btn-outline-primary" href="{{ url_for('ebys.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Rapor İndir</span></a>{% endif %}
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('ebys.create') }}"><i class="bi bi-plus-lg"></i><span>Yeni Yazışma</span></a>{% endif %}
+{% endcall %}
+
+<section class="document-list-card p-3 mb-3">
+  <form class="row g-2 align-items-end" method="get">
+    <div class="col-12 col-lg-5"><label class="form-label" for="q">Arama</label><input class="form-control" id="q" name="q" value="{{ search }}" placeholder="Kayıt no, konu, gönderen veya alıcı"></div>
+    <div class="col-6 col-lg-2"><label class="form-label" for="direction">Tür</label><select class="form-select" id="direction" name="direction"><option value="">Tümü</option>{% for key, label in directions.items() %}<option value="{{ key }}" {% if selected_direction == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-lg-2"><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for item in statuses %}<option {% if selected_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-lg-2"><label class="form-label" for="archived">Kayıtlar</label><select class="form-select" id="archived" name="archived"><option value="active" {% if not archived %}selected{% endif %}>Aktif</option><option value="archived" {% if archived %}selected{% endif %}>Arşiv</option></select></div>
+    <div class="col-6 col-lg-1"><button class="btn btn-outline-primary w-100" type="submit" title="Filtrele"><i class="bi bi-funnel"></i></button></div>
+  </form>
+</section>
+
+<section class="document-list-card table-responsive">
+  <table class="table dashboard-table align-middle mb-0">
+    <thead><tr><th>Kayıt No</th><th>Tür</th><th>Konu</th><th>Muhatap</th><th>Evrak Tarihi</th><th>Termin</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead>
+    <tbody>
+    {% for record in records %}
+      <tr>
+        <td data-label="Kayıt No"><strong>{{ record.registration_no }}</strong>{% if record.security_level != 'Normal' %}<small class="d-block text-danger"><i class="bi bi-lock"></i> {{ record.security_level }}</small>{% endif %}</td>
+        <td data-label="Tür"><span class="badge text-bg-light border">{{ directions.get(record.direction, record.direction) }}</span></td>
+        <td data-label="Konu"><strong>{{ record.subject }}</strong><small class="d-block text-secondary">{{ record.department or '-' }}</small></td>
+        <td data-label="Muhatap">{{ record.sender if record.direction == 'incoming' else record.recipient }}</td>
+        <td data-label="Evrak Tarihi">{{ record.document_date.strftime('%d.%m.%Y') }}</td>
+        <td data-label="Termin">{% if record.due_date %}{{ record.due_date.strftime('%d.%m.%Y') }}{% if not record.archived_at and record.status != 'Sonuçlandırıldı' and record.due_date < today %}<small class="d-block text-danger fw-semibold">Süresi geçti</small>{% endif %}{% else %}-{% endif %}</td>
+        <td data-label="Durum">{{ ui.status_badge("Arşiv" if record.archived_at else record.status, icon="bi-archive" if record.archived_at else "bi-clock-history") }}</td>
+        <td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('ebys.detail', record_id=record.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a>{% if can_manage and not record.archived_at %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ebys.edit', record_id=record.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}</div></td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="dashboard-empty-row"><strong>Kriterlere uygun resmî yazışma bulunamadı.</strong></td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

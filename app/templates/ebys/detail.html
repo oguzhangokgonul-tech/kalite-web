@@ -1,0 +1,43 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ record.registration_no }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header(record.registration_no, directions.get(record.direction, record.direction) ~ " · " ~ record.subject, icon="bi-envelope-paper") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('ebys.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Listeye Dön</span></a>
+  {% if can_manage and not record.archived_at %}<a class="btn btn-primary" href="{{ url_for('ebys.edit', record_id=record.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+{% endcall %}
+{% if record.archived_at %}<div class="alert alert-secondary"><i class="bi bi-archive"></i> Bu kayıt arşivdedir ve salt okunur gösterilir.</div>{% endif %}
+<div class="row g-3">
+  <div class="col-xl-8">
+    <section class="document-list-card p-4 h-100">
+      <div class="row g-3">
+        <div class="col-sm-6"><small class="text-secondary d-block">Gönderen</small><strong>{{ record.sender }}</strong></div>
+        <div class="col-sm-6"><small class="text-secondary d-block">Alıcı</small><strong>{{ record.recipient }}</strong></div>
+        <div class="col-sm-4"><small class="text-secondary d-block">Evrak Tarihi</small><strong>{{ record.document_date.strftime('%d.%m.%Y') }}</strong></div>
+        <div class="col-sm-4"><small class="text-secondary d-block">Termin</small><strong>{{ record.due_date.strftime('%d.%m.%Y') if record.due_date else '-' }}</strong></div>
+        <div class="col-sm-4"><small class="text-secondary d-block">Gizlilik</small><strong>{{ record.security_level }}</strong></div>
+        <div class="col-sm-6"><small class="text-secondary d-block">Departman</small><strong>{{ record.department or '-' }}</strong></div>
+        <div class="col-sm-6"><small class="text-secondary d-block">Harici Evrak No</small><strong>{{ record.external_reference_no or '-' }}</strong></div>
+        <div class="col-12"><small class="text-secondary d-block">Açıklama / İç Not</small><p class="mb-0">{{ record.notes or '-' }}</p></div>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-4">
+    <section class="document-list-card p-4 h-100">
+      <h2 class="h5 mb-3">Durum ve İşlem</h2>
+      <div class="mb-3">{{ ui.status_badge("Arşiv" if record.archived_at else record.status, icon="bi-archive" if record.archived_at else "bi-clock-history") }}</div>
+      {% if own_distribution and not record.archived_at %}
+        {% if own_distribution.status == 'Bekliyor' %}<form method="post" action="{{ url_for('ebys.accept_distribution', record_id=record.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-primary w-100 mb-2" type="submit"><i class="bi bi-envelope-open"></i><span>Teslim Al</span></button></form>{% endif %}
+        {% if own_distribution.status != 'Tamamlandı' %}<form method="post" action="{{ url_for('ebys.complete_distribution', record_id=record.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success w-100 mb-2" type="submit"><i class="bi bi-check2-circle"></i><span>Görevi Tamamla</span></button></form>{% endif %}
+      {% endif %}
+      {% if can_archive and not record.archived_at and record.status == 'Sonuçlandırıldı' %}<form method="post" action="{{ url_for('ebys.archive', record_id=record.id) }}" onsubmit="return confirm('Bu resmî yazı arşivlensin mi?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary w-100" type="submit"><i class="bi bi-archive"></i><span>Arşivle</span></button></form>{% endif %}
+    </section>
+  </div>
+  <div class="col-xl-6">
+    <section class="document-list-card p-4 h-100"><h2 class="h5 mb-3">Dosyalar</h2><div class="vstack gap-2">{% for file in record.files %}<div class="border rounded p-3 d-flex justify-content-between align-items-center gap-2"><div><strong>{{ file.original_name }}</strong><small class="d-block text-secondary">{{ (file.file_size / 1024)|round(1) }} KB · SHA-256: {{ file.sha256_hash[:12] }}…</small></div>{% if can_download %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('ebys.download_file', file_id=file.id) }}" title="İndir"><i class="bi bi-download"></i></a>{% endif %}</div>{% else %}<p class="text-secondary mb-0">Dosya eklenmemiş.</p>{% endfor %}</div></section>
+  </div>
+  <div class="col-xl-6">
+    <section class="document-list-card p-4 h-100"><h2 class="h5 mb-3">Dağıtım ve Zimmet</h2><div class="vstack gap-2">{% for item in record.distributions %}<div class="border rounded p-3 d-flex justify-content-between align-items-center gap-2"><div><strong>{{ item.user.full_name }}</strong><small class="d-block text-secondary">{{ item.user.title or 'Kullanıcı' }}</small></div>{{ ui.status_badge(item.status) }}</div>{% else %}<p class="text-secondary mb-0">Henüz kullanıcı dağıtımı yapılmadı.</p>{% endfor %}</div></section>
+  </div>
+</div>
+{% endblock %}

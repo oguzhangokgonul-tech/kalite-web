@@ -18,6 +18,7 @@ from .inspections import bp as inspections_bp
 from .stakeholders import bp as stakeholders_bp
 from .compliance import bp as compliance_bp
 from .customer_portal import bp as customer_portal_bp
+from .ebys import bp as ebys_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -42,6 +43,7 @@ def create_app(config_class=Config):
     app.register_blueprint(stakeholders_bp)
     app.register_blueprint(compliance_bp)
     app.register_blueprint(customer_portal_bp)
+    app.register_blueprint(ebys_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):

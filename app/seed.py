@@ -517,6 +517,54 @@ PERMISSION_CATALOG = (
         "description": "Doküman kayıtlarını silebilir.",
     },
     {
+        "key": "ebys.view",
+        "label": "Resmî yazışmaları görüntüleme",
+        "group": "EBYS",
+        "description": "Oluşturduğu veya kendisine dağıtılan resmî yazıları görüntüler.",
+    },
+    {
+        "key": "ebys.view_all",
+        "label": "Tüm resmî yazışmaları görüntüleme",
+        "group": "EBYS",
+        "description": "Şirket kapsamındaki resmî yazışma sicilini görüntüler.",
+    },
+    {
+        "key": "ebys.create",
+        "label": "Resmî yazışma kaydı oluşturma",
+        "group": "EBYS",
+        "description": "Gelen ve giden yazı kaydı oluşturur.",
+    },
+    {
+        "key": "ebys.manage",
+        "label": "Resmî yazışma yönetimi",
+        "group": "EBYS",
+        "description": "Yazışmaları düzenler, kullanıcılara dağıtır ve süreç durumunu yönetir.",
+    },
+    {
+        "key": "ebys.archive",
+        "label": "Resmî yazışma arşivleme",
+        "group": "EBYS",
+        "description": "Sonuçlandırılmış yazıları denetim izi korunarak arşivler.",
+    },
+    {
+        "key": "ebys.file_download",
+        "label": "Resmî yazışma dosyası indirme",
+        "group": "EBYS",
+        "description": "Erişim yetkisi bulunan yazışmaların dosyalarını indirir.",
+    },
+    {
+        "key": "ebys.export",
+        "label": "Resmî yazışma sicil raporu",
+        "group": "EBYS",
+        "description": "Yetkili olunan resmî yazışma sicilini Excel olarak indirir.",
+    },
+    {
+        "key": "ebys.confidential",
+        "label": "Gizli resmî yazışmaları görüntüleme",
+        "group": "EBYS",
+        "description": "Kayıt erişimiyle birlikte gizli yazışmaları görüntülemeye izin verir.",
+    },
+    {
         "key": "maintenance.inventory_manage",
         "label": "Bakım envanteri yönetimi",
         "group": "Bakım",
@@ -3280,6 +3328,9 @@ def ensure_runtime_schema():
         ComplianceFile,
         SupplierQualityAudit,
         SupplierSurvey,
+        OfficialCorrespondence,
+        OfficialCorrespondenceFile,
+        OfficialCorrespondenceDistribution,
     )
 
     for model in (
@@ -3302,6 +3353,9 @@ def ensure_runtime_schema():
         ComplianceFile,
         SupplierQualityAudit,
         SupplierSurvey,
+        OfficialCorrespondence,
+        OfficialCorrespondenceFile,
+        OfficialCorrespondenceDistribution,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3362,6 +3416,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_compliance_obligations",
             "sales_readiness:competitor_customer_request_portal",
             "sales_readiness:competitor_advanced_supplier_quality",
+            "sales_readiness:competitor_ebys",
         ):
             db.session.execute(
                 text(

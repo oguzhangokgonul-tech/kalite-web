@@ -49,6 +49,8 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
 - `supplier_quality.mjs`: mobil ve tablette tedarikçi kalite denetimi ile anket
   formlarının taşmadan açılması; mobilde kayıtların kaydedilip geçmişte görünmesi.
 
+- `ebys.mjs`: resmî yazışma oluşturma ve detay ekranının mobil/tablet akışı.
+
 Ekran görüntüleri ve JSON sonuçları `.tmp-ui-audit/responsive/` altında oluşur.
 Bu çıktılar geçicidir. Form testleri kayıtları değiştirir; temiz başlangıç için
 önizleme sunucusunu yeniden başlatın. Aynı kaydın tamamlanan işlemleri sonraki
