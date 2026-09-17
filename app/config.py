@@ -127,7 +127,7 @@ class Config:
         os.environ.get("MAIL_REPLY_TO", ""),
     )
     NOTIFICATION_AUTO_REMINDERS_ENABLED = os.environ.get(
-        "NOTIFICATION_AUTO_REMINDERS_ENABLED", "true"
+        "NOTIFICATION_AUTO_REMINDERS_ENABLED", "false"
     ).lower() in {
         "1",
         "true",
@@ -139,4 +139,16 @@ class Config:
     )
     NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE = int(
         os.environ.get("NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE", "30")
+    )
+    NOTIFICATION_REMINDER_TIMEZONE = os.environ.get(
+        "NOTIFICATION_REMINDER_TIMEZONE", "Europe/Istanbul"
+    )
+    NOTIFICATION_REMINDER_HOUR = int(
+        os.environ.get("NOTIFICATION_REMINDER_HOUR", "8")
+    )
+    NOTIFICATION_REMINDER_MINUTE = int(
+        os.environ.get("NOTIFICATION_REMINDER_MINUTE", "30")
+    )
+    NOTIFICATION_REMINDER_WINDOW_MINUTES = int(
+        os.environ.get("NOTIFICATION_REMINDER_WINDOW_MINUTES", "10")
     )

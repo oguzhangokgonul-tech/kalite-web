@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -7,7 +7,11 @@ from app import create_app
 from app.extensions import db
 from app.mail import build_action_email, build_generic_notification_email
 from app.models import Action, AppSetting, Company, InternalAudit, Notification, User
-from app.reminders import run_due_reminders_once_for_company
+from app.reminders import (
+    maybe_run_due_reminders_for_request,
+    reminder_delivery_window_open,
+    run_due_reminders_once_for_company,
+)
 from app.seed import ensure_runtime_schema
 
 
@@ -166,6 +170,29 @@ def test_generic_notification_email_detail_link_uses_company_subdomain(app):
     assert "https://volkaportal.com/kalibrasyon" not in body
 
 
+def test_company_primary_domain_wins_when_global_link_settings_are_none(app):
+    app.config.update(
+        PUBLIC_BASE_URL="https://none",
+        TENANT_BASE_DOMAIN="None",
+        SERVER_NAME="None",
+        PREFERRED_URL_SCHEME="https",
+    )
+    company = create_company("403", "Sağıroğlu Çelik")
+    company.slug = "sagiroglu-celik"
+    company.primary_domain = "sagiroglucelik.volkaportal.com"
+    db.session.commit()
+
+    _subject, body = build_generic_notification_email(
+        "IF/DÖF termin hatırlatması",
+        title="IF/DÖF",
+        target_url="/dofs/10",
+        company_id=company.id,
+    )
+
+    assert "https://sagiroglucelik.volkaportal.com/dofs/10" in body
+    assert "https://none" not in body
+
+
 def test_notification_open_redirects_generic_target_and_marks_read(app, client):
     user = create_user("viewer")
     notification = Notification(
@@ -188,8 +215,9 @@ def test_notification_open_redirects_generic_target_and_marks_read(app, client):
     assert notification.is_read is True
 
 
-def test_auto_due_reminders_run_once_on_notification_page(app, client):
+def test_auto_due_reminders_run_once_on_notification_page(app, client, monkeypatch):
     app.config["NOTIFICATION_AUTO_REMINDERS_ENABLED"] = True
+    monkeypatch.setattr("app.reminders.reminder_delivery_window_open", lambda now=None: True)
     company = create_company("301", "Otomatik Firma")
     user = create_user("otomatik", company=company, email="otomatik@example.test")
     create_action(company, user)
@@ -201,6 +229,28 @@ def test_auto_due_reminders_run_once_on_notification_page(app, client):
     assert first_response.status_code == 200
     assert second_response.status_code == 200
     assert Notification.query.filter_by(user_id=user.id, company_id=company.id).count() == 1
+
+
+def test_request_triggered_reminders_only_run_in_0830_istanbul_window(app):
+    app.config.update(
+        NOTIFICATION_AUTO_REMINDERS_ENABLED=True,
+        NOTIFICATION_REMINDER_TIMEZONE="Europe/Istanbul",
+        NOTIFICATION_REMINDER_HOUR=8,
+        NOTIFICATION_REMINDER_MINUTE=30,
+        NOTIFICATION_REMINDER_WINDOW_MINUTES=10,
+    )
+    company = create_company("302", "Zamanlama Firma")
+    user = create_user("zamanlama", company=company, email="zamanlama@example.test")
+    create_action(company, user)
+
+    assert reminder_delivery_window_open(datetime(2026, 9, 17, 5, 29, tzinfo=UTC)) is False
+    assert reminder_delivery_window_open(datetime(2026, 9, 17, 5, 30, tzinfo=UTC)) is True
+    assert reminder_delivery_window_open(datetime(2026, 9, 17, 5, 39, tzinfo=UTC)) is True
+    assert reminder_delivery_window_open(datetime(2026, 9, 17, 5, 40, tzinfo=UTC)) is False
+    assert maybe_run_due_reminders_for_request(
+        company.id, user, now=datetime(2026, 9, 17, 5, 29, tzinfo=UTC)
+    ) is None
+    assert Notification.query.count() == 0
 
 
 def test_runtime_schema_marks_sales_readiness_notification_upgrade_done(app):

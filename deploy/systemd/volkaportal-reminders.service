@@ -1,0 +1,17 @@
+[Unit]
+Description=VolkaPortal daily reminder emails
+After=network-online.target aksiyon-takip.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=aksiyon
+Group=aksiyon
+WorkingDirectory=/var/www/aksiyon-takip
+Environment=DATA_DIR=/var/data/aksiyon-takip
+Environment=APP_ENV=production
+Environment=AUTO_BOOTSTRAP_DATABASE=false
+ExecStart=/var/www/aksiyon-takip/venv-py312/bin/python -m flask --app app:create_app send-reminders
+
+[Install]
+WantedBy=multi-user.target

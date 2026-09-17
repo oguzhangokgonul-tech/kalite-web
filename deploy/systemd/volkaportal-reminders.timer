@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VolkaPortal reminders at 08:30 Europe/Istanbul
+
+[Timer]
+OnCalendar=*-*-* 08:30:00 Europe/Istanbul
+AccuracySec=1min
+Persistent=false
+Unit=volkaportal-reminders.service
+
+[Install]
+WantedBy=timers.target

@@ -1,6 +1,7 @@
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta, timezone
 import json
 import unicodedata
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import current_app
 
@@ -77,6 +78,36 @@ def _company_query(model, company_id):
     if company_id is None:
         return query.filter(model.company_id.is_(None))
     return query.filter(model.company_id == company_id)
+
+
+def reminder_delivery_window_open(now=None):
+    """Allow request-triggered reminders only near the configured local send time."""
+    timezone_name = current_app.config.get(
+        "NOTIFICATION_REMINDER_TIMEZONE", "Europe/Istanbul"
+    )
+    try:
+        local_timezone = ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        if timezone_name == "Europe/Istanbul":
+            local_timezone = timezone(timedelta(hours=3), name="Europe/Istanbul")
+        else:
+            current_app.logger.error(
+                "Hatirlatma saat dilimi gecersiz: %s", timezone_name
+            )
+            return False
+    current = now or datetime.now(UTC)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=UTC)
+    local_now = current.astimezone(local_timezone)
+    scheduled_minute = (
+        int(current_app.config.get("NOTIFICATION_REMINDER_HOUR", 8)) * 60
+        + int(current_app.config.get("NOTIFICATION_REMINDER_MINUTE", 30))
+    )
+    current_minute = local_now.hour * 60 + local_now.minute
+    window = max(
+        1, int(current_app.config.get("NOTIFICATION_REMINDER_WINDOW_MINUTES", 10))
+    )
+    return scheduled_minute <= current_minute < scheduled_minute + window
 
 
 def _date_in_window(target_date, run_date, days_before):
@@ -906,8 +937,10 @@ def run_due_reminders_for_all_companies(force=False, run_date=None):
     return totals
 
 
-def maybe_run_due_reminders_for_request(company_id=None, user=None):
-    if not current_app.config.get("NOTIFICATION_AUTO_REMINDERS_ENABLED", True):
+def maybe_run_due_reminders_for_request(company_id=None, user=None, now=None):
+    if not current_app.config.get("NOTIFICATION_AUTO_REMINDERS_ENABLED", False):
+        return None
+    if not reminder_delivery_window_open(now=now):
         return None
     if company_id is None and user is not None and getattr(user, "has_role", lambda _role: False)("super_admin"):
         return None
