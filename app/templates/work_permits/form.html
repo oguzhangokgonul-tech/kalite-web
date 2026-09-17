@@ -1,0 +1,30 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'İş İznini Düzenle' if permit else 'Yeni İş İzni' }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header('İş İznini Düzenle' if permit else 'Yeni İş İzni', 'İş kapsamını, riskleri ve güvenlik sorumlularını tanımlayın.', icon='bi-shield-check') %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('work_permits.detail', permit_id=permit.id) if permit else url_for('work_permits.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>
+{% endcall %}
+{% set source = values if values else {} %}
+<form class="document-list-card p-3 p-lg-4" method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-12 col-lg-4"><label class="form-label">İzin Türü</label><select class="form-select" name="permit_type" required><option value="">Seçin</option>{% for item in permit_types %}{% set selected = source.get('permit_type', permit.permit_type if permit else '') %}<option {% if selected == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-lg-8"><label class="form-label">Çalışma Başlığı</label><input class="form-control" name="title" required value="{{ source.get('title', permit.title if permit else '') }}"></div>
+    <div class="col-12 col-md-6"><label class="form-label">Çalışma Konumu</label><input class="form-control" name="location" required value="{{ source.get('location', permit.location if permit else '') }}"></div>
+    <div class="col-12 col-md-3"><label class="form-label">Departman</label><input class="form-control" name="department" value="{{ source.get('department', permit.department if permit else '') }}"></div>
+    <div class="col-12 col-md-3"><label class="form-label">Yüklenici / Ekip</label><input class="form-control" name="contractor" value="{{ source.get('contractor', permit.contractor if permit else '') }}"></div>
+    <div class="col-12 col-md-6"><label class="form-label">Başlangıç</label><input class="form-control" type="datetime-local" name="requested_start_at" required value="{{ source.get('requested_start_at', permit.requested_start_at.strftime('%Y-%m-%dT%H:%M') if permit else '') }}"></div>
+    <div class="col-12 col-md-6"><label class="form-label">Bitiş</label><input class="form-control" type="datetime-local" name="requested_end_at" required value="{{ source.get('requested_end_at', permit.requested_end_at.strftime('%Y-%m-%dT%H:%M') if permit else '') }}"></div>
+    <div class="col-12 col-md-6"><label class="form-label">Saha Sorumlusu</label><select class="form-select" name="responsible_user_id" required><option value="">Seçin</option>{% for user in users %}{% set selected = source.get('responsible_user_id', permit.responsible_user_id|string if permit else '')|string %}<option value="{{ user.id }}" {% if selected == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-md-6"><label class="form-label">Onaylayıcı</label><select class="form-select" name="approver_user_id" required><option value="">Seçin</option>{% for user in users %}{% set selected = source.get('approver_user_id', permit.approver_user_id|string if permit else '')|string %}<option value="{{ user.id }}" {% if selected == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select><div class="form-text">Talep sahibi kendi iznini onaylayamaz.</div></div>
+    <div class="col-12"><label class="form-label">İşin Açıklaması</label><textarea class="form-control" name="description" rows="3" required>{{ source.get('description', permit.description if permit else '') }}</textarea></div>
+    <div class="col-12 col-lg-6"><label class="form-label">Tehlikeler</label><textarea class="form-control" name="hazards" rows="4" required>{{ source.get('hazards', permit.hazards if permit else '') }}</textarea></div>
+    <div class="col-12 col-lg-6"><label class="form-label">Alınacak Önlemler</label><textarea class="form-control" name="precautions" rows="4" required>{{ source.get('precautions', permit.precautions if permit else '') }}</textarea></div>
+    <div class="col-12 col-lg-6"><label class="form-label">Kişisel Koruyucu Donanımlar</label><textarea class="form-control" name="ppe_requirements" rows="3" required>{{ source.get('ppe_requirements', permit.ppe_requirements if permit else '') }}</textarea></div>
+    <div class="col-12 col-lg-6"><label class="form-label">Acil Durum Planı</label><textarea class="form-control" name="emergency_plan" rows="3">{{ source.get('emergency_plan', permit.emergency_plan if permit else '') }}</textarea></div>
+    <div class="col-12 col-md-6"><label class="form-label">Kanıt / Ek</label><input class="form-control" type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"></div>
+  </div>
+  <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 border-top pt-3 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('work_permits.detail', permit_id=permit.id) if permit else url_for('work_permits.dashboard') }}">Vazgeç</a><button class="btn btn-primary"><i class="bi bi-check2"></i><span>{{ 'Değişiklikleri Kaydet' if permit else 'Taslağı Oluştur' }}</span></button></div>
+</form>
+{% endblock %}

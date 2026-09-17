@@ -1,0 +1,60 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ permit.permit_no }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header(permit.permit_no, permit.title, icon="bi-shield-check") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('work_permits.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Listeye Dön</span></a>
+  {% if can_update %}<a class="btn btn-outline-primary" href="{{ url_for('work_permits.edit', permit_id=permit.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+{% endcall %}
+
+{% if display_status == 'Süresi Geçti' %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Bu aktif iş izninin geçerlilik süresi doldu. Çalışmayı durdurun ve kaydı kapatın.</div>{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <section class="document-list-card p-3 p-lg-4 mb-3">
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><div><span class="badge text-bg-light border">{{ permit.permit_type }}</span>{% if permit.department %}<span class="badge text-bg-light border">{{ permit.department }}</span>{% endif %}</div>{{ ui.status_badge(display_status) }}</div>
+      <div class="row g-3">
+        <div class="col-12 col-md-6"><h2 class="h6">İşin Açıklaması</h2><p class="mb-0" style="white-space:pre-wrap">{{ permit.description }}</p></div>
+        <div class="col-12 col-md-6"><h2 class="h6">Konum ve Ekip</h2><p class="mb-0"><strong>{{ permit.location }}</strong>{% if permit.contractor %}<br>{{ permit.contractor }}{% endif %}</p></div>
+        <div class="col-12 col-md-6"><h2 class="h6">Tehlikeler</h2><p class="mb-0" style="white-space:pre-wrap">{{ permit.hazards }}</p></div>
+        <div class="col-12 col-md-6"><h2 class="h6">Alınacak Önlemler</h2><p class="mb-0" style="white-space:pre-wrap">{{ permit.precautions }}</p></div>
+        <div class="col-12 col-md-6"><h2 class="h6">Kişisel Koruyucu Donanımlar</h2><p class="mb-0" style="white-space:pre-wrap">{{ permit.ppe_requirements }}</p></div>
+        <div class="col-12 col-md-6"><h2 class="h6">Acil Durum Planı</h2><p class="mb-0" style="white-space:pre-wrap">{{ permit.emergency_plan or 'Belirtilmedi' }}</p></div>
+      </div>
+      {% if permit.review_note %}<div class="alert alert-warning mt-3 mb-0"><strong>Değerlendirme Notu</strong><div>{{ permit.review_note }}</div></div>{% endif %}
+      {% if permit.closure_note %}<div class="alert alert-success mt-3 mb-0"><strong>Kapanış Notu</strong><div>{{ permit.closure_note }}</div></div>{% endif %}
+    </section>
+
+    <section class="document-list-card p-3 p-lg-4 mb-3">
+      <div class="d-flex justify-content-between align-items-center gap-3 mb-3"><div><h2 class="h5 mb-1">Saha Güvenlik Kontrolleri</h2><p class="text-secondary mb-0">Zorunlu maddeler saha sorumlusu tarafından doğrulanır.</p></div><span class="badge {{ 'text-bg-success' if all_confirmed else 'text-bg-warning' }}">{{ 'Tamamlandı' if all_confirmed else 'Bekliyor' }}</span></div>
+      <form method="post" action="{{ url_for('work_permits.confirm_controls', permit_id=permit.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="vstack gap-2">
+          {% for control in permit.controls %}
+          <div class="border rounded p-3">
+            <div class="form-check"><input class="form-check-input" type="checkbox" name="control_id" value="{{ control.id }}" id="control-{{ control.id }}" {% if control.is_confirmed %}checked{% endif %} {% if not can_confirm %}disabled{% endif %}><label class="form-check-label fw-semibold" for="control-{{ control.id }}">{{ control.title }}</label></div>
+            {% if can_confirm %}<input class="form-control form-control-sm mt-2" name="note_{{ control.id }}" value="{{ control.note or '' }}" placeholder="Kontrol notu (opsiyonel)">{% elif control.is_confirmed %}<small class="d-block text-success mt-1"><i class="bi bi-check-circle"></i> {{ control.confirmed_by.full_name }} · {{ control.confirmed_at.strftime('%d.%m.%Y %H:%M') }}</small>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% if can_confirm %}<button class="btn btn-primary mt-3"><i class="bi bi-check2-square"></i><span>Kontrolleri Kaydet</span></button>{% endif %}
+      </form>
+    </section>
+
+    {% if can_submit %}<form class="document-list-card p-3 mb-3" method="post" action="{{ url_for('work_permits.submit', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary"><i class="bi bi-send"></i><span>Onaya Gönder</span></button></form>{% endif %}
+
+    {% if can_review %}<form class="document-list-card p-3 p-lg-4 mb-3" method="post" action="{{ url_for('work_permits.review', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">İSG Değerlendirmesi</h2><label class="form-label">Karar Notu</label><textarea class="form-control mb-3" name="note" rows="3"></textarea><div class="d-flex flex-wrap gap-2"><button class="btn btn-success" name="decision" value="approve"><i class="bi bi-check2-circle"></i><span>Onayla</span></button><button class="btn btn-outline-warning" name="decision" value="revision"><i class="bi bi-arrow-counterclockwise"></i><span>Revizyona Gönder</span></button><button class="btn btn-outline-danger" name="decision" value="reject"><i class="bi bi-x-circle"></i><span>Reddet</span></button></div></form>{% endif %}
+
+    {% if can_activate %}<form class="document-list-card p-3 mb-3" method="post" action="{{ url_for('work_permits.activate', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success"><i class="bi bi-play-circle"></i><span>İzni Etkinleştir</span></button></form>{% endif %}
+
+    {% if can_close %}<form class="document-list-card p-3 p-lg-4 mb-3" method="post" enctype="multipart/form-data" action="{{ url_for('work_permits.close', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2 class="h5">İşi Kapat</h2><label class="form-label">Kapanış Açıklaması</label><textarea class="form-control mb-2" name="closure_note" rows="3" required></textarea><label class="form-label">Kapanış Kanıtı</label><input class="form-control mb-3" type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"><button class="btn btn-success"><i class="bi bi-check2-circle"></i><span>İşi Tamamla ve Kapat</span></button></form>{% endif %}
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <section class="document-list-card p-3 mb-3"><h2 class="h5">İzin Özeti</h2><dl class="row mb-0"><dt class="col-5">Talep Sahibi</dt><dd class="col-7">{{ permit.requester.full_name }}</dd><dt class="col-5">Saha Sorumlusu</dt><dd class="col-7">{{ permit.responsible.full_name }}</dd><dt class="col-5">Onaylayıcı</dt><dd class="col-7">{{ permit.approver.full_name }}</dd><dt class="col-5">Başlangıç</dt><dd class="col-7">{{ permit.requested_start_at.strftime('%d.%m.%Y %H:%M') }}</dd><dt class="col-5">Bitiş</dt><dd class="col-7">{{ permit.requested_end_at.strftime('%d.%m.%Y %H:%M') }}</dd></dl></section>
+    <section class="document-list-card p-3 mb-3"><h2 class="h5">Dosyalar</h2>{% for file in permit.files %}<div class="d-flex justify-content-between align-items-center border rounded p-2 mb-2"><span class="text-truncate">{{ file.original_name }}</span>{% if can_download %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('work_permits.download_file', file_id=file.id) }}" aria-label="Dosyayı indir"><i class="bi bi-download"></i></a>{% endif %}</div>{% else %}<span class="text-secondary">Dosya eklenmedi.</span>{% endfor %}</section>
+    {% if can_cancel %}<form class="document-list-card p-3 mb-3" method="post" action="{{ url_for('work_permits.cancel', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="form-label">İptal Gerekçesi</label><textarea class="form-control mb-2" name="note" rows="2" required></textarea><button class="btn btn-outline-danger w-100"><i class="bi bi-x-circle"></i><span>İzni İptal Et</span></button></form>{% endif %}
+    {% if can_archive %}<form method="post" action="{{ url_for('work_permits.archive', permit_id=permit.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline-secondary w-100"><i class="bi bi-archive"></i><span>Arşivle</span></button></form>{% endif %}
+  </div>
+</div>
+{% endblock %}

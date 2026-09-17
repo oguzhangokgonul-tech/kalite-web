@@ -25,6 +25,7 @@ from .five_s import bp as five_s_bp
 from .problem_solving import bp as problem_solving_bp
 from .lessons_learned import bp as lessons_learned_bp
 from .help_desk import bp as help_desk_bp
+from .work_permits import bp as work_permits_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -56,6 +57,7 @@ def create_app(config_class=Config):
     app.register_blueprint(problem_solving_bp)
     app.register_blueprint(lessons_learned_bp)
     app.register_blueprint(help_desk_bp)
+    app.register_blueprint(work_permits_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):

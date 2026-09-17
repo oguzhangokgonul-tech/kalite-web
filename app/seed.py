@@ -677,6 +677,17 @@ PERMISSION_CATALOG = (
     {"key": "helpdesk.manage", "label": "İç talep süreç yönetimi", "group": "İç Talep / Help Desk", "description": "Tüm talep, atama ve çözüm akışını yönetir."},
     {"key": "helpdesk.archive", "label": "İç talep arşivleme", "group": "İç Talep / Help Desk", "description": "Kapatılan talepleri denetim izi korunarak arşivler."},
     {"key": "helpdesk.file_download", "label": "İç talep dosyası indirme", "group": "İç Talep / Help Desk", "description": "Yetkili olduğu talebin dosyalarını indirir."},
+    {"key": "work_permits.view", "label": "Atandığı iş izinlerini görüntüleme", "group": "İş İzinleri", "description": "Talep sahibi, saha sorumlusu veya onaylayıcısı olduğu izinleri görüntüler."},
+    {"key": "work_permits.view_all", "label": "Tüm iş izinlerini görüntüleme", "group": "İş İzinleri", "description": "Şirketin tüm iş izni sicilini görüntüler."},
+    {"key": "work_permits.create", "label": "İş izni oluşturma", "group": "İş İzinleri", "description": "Riskli çalışmalar için yeni iş izni taslağı oluşturur."},
+    {"key": "work_permits.update", "label": "İş izni taslağını güncelleme", "group": "İş İzinleri", "description": "Kendi taslak veya revizyondaki izin kaydını günceller."},
+    {"key": "work_permits.confirm", "label": "Saha kontrollerini doğrulama", "group": "İş İzinleri", "description": "Sorumlu olduğu iş izninin güvenlik kontrollerini doğrular."},
+    {"key": "work_permits.approve", "label": "İş izni onaylama", "group": "İş İzinleri", "description": "Atandığı iş iznini onaylar, reddeder veya revizyona gönderir."},
+    {"key": "work_permits.activate", "label": "İş iznini etkinleştirme", "group": "İş İzinleri", "description": "Onaylanan izni geçerlilik süresi içinde etkinleştirir."},
+    {"key": "work_permits.close", "label": "İş iznini kapatma", "group": "İş İzinleri", "description": "Tamamlanan çalışmayı kapanış kanıtıyla kapatır."},
+    {"key": "work_permits.manage", "label": "İş izinleri süreç yönetimi", "group": "İş İzinleri", "description": "Şirketin iş izni sürecini yönetir."},
+    {"key": "work_permits.archive", "label": "İş izni arşivleme", "group": "İş İzinleri", "description": "Sonuçlanan iş izinlerini denetim izi korunarak arşivler."},
+    {"key": "work_permits.file_download", "label": "İş izni kanıtı indirme", "group": "İş İzinleri", "description": "Erişim yetkisi olan iş izni dosyalarını indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -1185,6 +1196,36 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in STAKEHOLDER_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+WORK_PERMIT_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "work_permits.view", "work_permits.view_all", "work_permits.create",
+        "work_permits.update", "work_permits.confirm", "work_permits.approve",
+        "work_permits.activate", "work_permits.close", "work_permits.manage",
+        "work_permits.archive", "work_permits.file_download",
+    ),
+    "management": (
+        "work_permits.view", "work_permits.view_all", "work_permits.approve",
+        "work_permits.file_download",
+    ),
+    "department_manager": (
+        "work_permits.view", "work_permits.create", "work_permits.update",
+        "work_permits.confirm", "work_permits.activate", "work_permits.close",
+        "work_permits.file_download",
+    ),
+    "department_staff": (
+        "work_permits.view", "work_permits.create", "work_permits.update",
+        "work_permits.confirm", "work_permits.activate", "work_permits.close",
+        "work_permits.file_download",
+    ),
+    "viewer": ("work_permits.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in WORK_PERMIT_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3433,6 +3474,9 @@ def ensure_runtime_schema():
         HelpDeskTicket,
         HelpDeskComment,
         HelpDeskFile,
+        WorkPermit,
+        WorkPermitControl,
+        WorkPermitFile,
     )
 
     for model in (
@@ -3477,6 +3521,9 @@ def ensure_runtime_schema():
         HelpDeskTicket,
         HelpDeskComment,
         HelpDeskFile,
+        WorkPermit,
+        WorkPermitControl,
+        WorkPermitFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3544,6 +3591,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_a3_problem_solving",
             "sales_readiness:competitor_lessons_learned",
             "sales_readiness:competitor_help_desk",
+            "sales_readiness:competitor_work_permits",
         ):
             db.session.execute(
                 text(

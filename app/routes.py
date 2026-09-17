@@ -2757,6 +2757,18 @@ MODULE_ENDPOINTS = {
     "help_desk.comment": "help_desk",
     "help_desk.archive": "help_desk",
     "help_desk.download_file": "help_desk",
+    "work_permits.dashboard": "work_permits",
+    "work_permits.create": "work_permits",
+    "work_permits.edit": "work_permits",
+    "work_permits.detail": "work_permits",
+    "work_permits.confirm_controls": "work_permits",
+    "work_permits.submit": "work_permits",
+    "work_permits.review": "work_permits",
+    "work_permits.activate": "work_permits",
+    "work_permits.close": "work_permits",
+    "work_permits.cancel": "work_permits",
+    "work_permits.archive": "work_permits",
+    "work_permits.download_file": "work_permits",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17082,6 +17094,7 @@ def assigned_all_tasks(scope):
     from .problem_solving import assigned_task_rows as assigned_problem_solving_task_rows
     from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
+    from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17115,6 +17128,7 @@ def assigned_all_tasks(scope):
         + assigned_problem_solving_task_rows(scope, assigned_task_row)
         + assigned_lessons_task_rows(scope, assigned_task_row)
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
+        + assigned_work_permit_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17152,6 +17166,7 @@ ASSIGNED_TAB_MODULES = {
         "problem_solving",
         "lessons",
         "helpdesk",
+        "work_permit",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17181,6 +17196,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("problem_solving", "A3 / 8D"),
     ("lessons", "Alınan Dersler"),
     ("helpdesk", "İç Talep"),
+    ("work_permit", "İş İzni"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

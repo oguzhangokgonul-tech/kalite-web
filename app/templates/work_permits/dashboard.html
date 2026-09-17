@@ -1,0 +1,39 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}İş İzinleri{% endblock %}
+{% block app_content %}
+{% call ui.page_header("İş İzinleri", "Riskli çalışmaları saha kontrolü, onay, geçerlilik ve kapanış adımlarıyla yönetin.", icon="bi-shield-check") %}
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('work_permits.create') }}"><i class="bi bi-plus-lg"></i><span>Yeni İş İzni</span></a>{% endif %}
+{% endcall %}
+
+<section class="document-list-card p-3 mb-3">
+  <form class="row g-2 align-items-end" method="get">
+    <div class="col-12 col-lg-5"><label class="form-label">Arama</label><input class="form-control" name="q" value="{{ search }}" placeholder="İzin no, başlık, konum veya yüklenici"></div>
+    <div class="col-6 col-lg-3"><label class="form-label">İzin Türü</label><select class="form-select" name="type"><option value="">Tümü</option>{% for item in permit_types %}<option {% if selected_type == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-6 col-lg-2"><label class="form-label">Durum</label><select class="form-select" name="status"><option value="">Aktif kayıtlar</option><option {% if selected_status == 'Süresi Geçti' %}selected{% endif %}>Süresi Geçti</option>{% for item in statuses %}<option {% if selected_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+    <div class="col-12 col-lg-2"><button class="btn btn-outline-primary w-100"><i class="bi bi-funnel"></i><span>Filtrele</span></button></div>
+  </form>
+</section>
+
+<section class="document-list-card table-responsive">
+  <table class="table dashboard-table align-middle mb-0">
+    <thead><tr><th>İzin No</th><th>Çalışma</th><th>Konum</th><th>Sorumlu</th><th>Geçerlilik</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead>
+    <tbody>
+    {% for row in permits %}
+      {% set shown_status = effective_status(row) %}
+      <tr>
+        <td data-label="İzin No"><strong>{{ row.permit_no }}</strong><small class="d-block text-secondary">{{ row.permit_type }}</small></td>
+        <td data-label="Çalışma"><strong class="text-primary">{{ row.title }}</strong><small class="d-block text-secondary">{{ row.department or 'Departman belirtilmedi' }}</small></td>
+        <td data-label="Konum">{{ row.location }}</td>
+        <td data-label="Sorumlu">{{ row.responsible.full_name }}</td>
+        <td data-label="Geçerlilik"><span>{{ row.requested_start_at.strftime('%d.%m.%Y %H:%M') }}</span><small class="d-block text-secondary">{{ row.requested_end_at.strftime('%d.%m.%Y %H:%M') }}</small></td>
+        <td data-label="Durum">{{ ui.status_badge(shown_status) }}</td>
+        <td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('work_permits.detail', permit_id=row.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></div></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="dashboard-empty-row"><strong>İş izni bulunamadı.</strong></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -358,6 +358,7 @@ COMPANY_MODULE_CATALOG = (
     {"key": "problem_solving", "name": "A3 / 8D Problem Çözme", "description": "Karmaşık problemleri ekip, kök neden, çözüm ve etkinlik kapılarıyla yönetir.", "icon": "bi-diagram-2", "sort_order": 75, "parent_key": None},
     {"key": "lessons_learned", "name": "Alınan Dersler", "description": "Doğrulanmış öğrenimleri aranabilir kurumsal bilgiye dönüştürür.", "icon": "bi-journal-check", "sort_order": 76, "parent_key": None},
     {"key": "help_desk", "name": "İç Talep / Help Desk", "description": "Şirket içi destek taleplerini SLA, atama, çözüm ve talep sahibi onayıyla yönetir.", "icon": "bi-headset", "sort_order": 77, "parent_key": None},
+    {"key": "work_permits", "name": "İş İzinleri", "description": "Riskli işleri kontrol, onay, geçerlilik ve kapanış kapılarıyla güvenli biçimde yönetir.", "icon": "bi-shield-check", "sort_order": 78, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4876,6 +4877,84 @@ class HelpDeskFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     ticket = db.relationship("HelpDeskTicket", back_populates="files")
     comment = db.relationship("HelpDeskComment", foreign_keys=[comment_id])
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class WorkPermit(db.Model):
+    __tablename__ = "work_permits"
+    __table_args__ = (db.UniqueConstraint("company_id", "permit_no", name="uq_work_permits_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    permit_no = db.Column(db.String(40), nullable=False, index=True)
+    permit_type = db.Column(db.String(80), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    location = db.Column(db.String(200), nullable=False, index=True)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    contractor = db.Column(db.String(200), nullable=True)
+    description = db.Column(db.Text, nullable=False)
+    hazards = db.Column(db.Text, nullable=False)
+    precautions = db.Column(db.Text, nullable=False)
+    ppe_requirements = db.Column(db.Text, nullable=False)
+    emergency_plan = db.Column(db.Text, nullable=True)
+    requester_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    requested_start_at = db.Column(db.DateTime, nullable=False, index=True)
+    requested_end_at = db.Column(db.DateTime, nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Taslak", server_default="Taslak", index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    closure_note = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    requester = db.relationship("User", foreign_keys=[requester_user_id])
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    approver = db.relationship("User", foreign_keys=[approver_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+    controls = db.relationship("WorkPermitControl", back_populates="permit", cascade="all, delete-orphan", order_by="WorkPermitControl.sort_order")
+    files = db.relationship("WorkPermitFile", back_populates="permit", cascade="all, delete-orphan", order_by="WorkPermitFile.created_at")
+
+
+class WorkPermitControl(db.Model):
+    __tablename__ = "work_permit_controls"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    permit_id = db.Column(db.Integer, db.ForeignKey("work_permits.id"), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    is_required = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
+    is_confirmed = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    note = db.Column(db.Text, nullable=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    confirmed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    confirmed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    permit = db.relationship("WorkPermit", back_populates="controls")
+    confirmed_by = db.relationship("User", foreign_keys=[confirmed_by_user_id])
+
+
+class WorkPermitFile(db.Model):
+    __tablename__ = "work_permit_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    permit_id = db.Column(db.Integer, db.ForeignKey("work_permits.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    permit = db.relationship("WorkPermit", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
