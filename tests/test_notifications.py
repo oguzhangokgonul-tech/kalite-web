@@ -175,7 +175,7 @@ def test_company_primary_domain_wins_when_global_link_settings_are_none(app):
         PUBLIC_BASE_URL="https://none",
         TENANT_BASE_DOMAIN="None",
         SERVER_NAME="None",
-        PREFERRED_URL_SCHEME="https",
+        PREFERRED_URL_SCHEME="http",
     )
     company = create_company("403", "Sağıroğlu Çelik")
     company.slug = "sagiroglu-celik"

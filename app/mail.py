@@ -107,6 +107,10 @@ def _absolute_target_url(path, *, company=None, company_id=None):
     resolved_company = _resolve_company(company=company, company_id=company_id)
     if resolved_company is not None:
         company_url = tenant_url_for_company(resolved_company, relative_path)
+        company_parts = urlsplit(company_url)
+        company_host = normalize_link_domain(company_parts.hostname)
+        if company_host and company_host != "localhost":
+            company_url = company_parts._replace(scheme="https").geturl()
         if _valid_absolute_url(company_url):
             return company_url
         current_app.logger.warning("Mail icin firma alan adi bulunamadi: company_id=%s", resolved_company.id)
