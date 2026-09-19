@@ -688,6 +688,17 @@ PERMISSION_CATALOG = (
     {"key": "work_permits.manage", "label": "İş izinleri süreç yönetimi", "group": "İş İzinleri", "description": "Şirketin iş izni sürecini yönetir."},
     {"key": "work_permits.archive", "label": "İş izni arşivleme", "group": "İş İzinleri", "description": "Sonuçlanan iş izinlerini denetim izi korunarak arşivler."},
     {"key": "work_permits.file_download", "label": "İş izni kanıtı indirme", "group": "İş İzinleri", "description": "Erişim yetkisi olan iş izni dosyalarını indirir."},
+    {"key": "hazardous_substances.view", "label": "Tehlikeli madde envanterini görüntüleme", "group": "Tehlikeli Madde", "description": "Şirket kimyasal envanteri ve güncel SDS belgelerini görüntüler."},
+    {"key": "hazardous_substances.view_all", "label": "Tüm tehlikeli madde kayıtlarını görüntüleme", "group": "Tehlikeli Madde", "description": "Taslak ve arşiv dahil tüm kimyasal kayıtlarını görüntüler."},
+    {"key": "hazardous_substances.create", "label": "Tehlikeli madde oluşturma", "group": "Tehlikeli Madde", "description": "Yeni kimyasal envanter kartı ve SDS kaydı oluşturur."},
+    {"key": "hazardous_substances.update", "label": "Tehlikeli madde güncelleme", "group": "Tehlikeli Madde", "description": "Kimyasal kartı ve SDS sürümünü günceller."},
+    {"key": "hazardous_substances.approve", "label": "Tehlikeli madde doğrulama", "group": "Tehlikeli Madde", "description": "Kimyasal sınıflandırmasını ve SDS bilgisini doğrular."},
+    {"key": "hazardous_substances.stock", "label": "Kimyasal stok hareketi", "group": "Tehlikeli Madde", "description": "Giriş, tüketim, iade, sayım ve transfer hareketi kaydeder."},
+    {"key": "hazardous_substances.quarantine", "label": "Kimyasalı karantinaya alma", "group": "Tehlikeli Madde", "description": "Güvenli kullanım şüphesi bulunan kimyasalı karantinaya alır."},
+    {"key": "hazardous_substances.dispose", "label": "Kimyasal bertarafı", "group": "Tehlikeli Madde", "description": "Kalan stoğu kayıtlı açıklamayla bertaraf eder."},
+    {"key": "hazardous_substances.manage", "label": "Tehlikeli madde süreç yönetimi", "group": "Tehlikeli Madde", "description": "Şirket kimyasal envanterinin tüm iş akışını yönetir."},
+    {"key": "hazardous_substances.archive", "label": "Tehlikeli madde arşivleme", "group": "Tehlikeli Madde", "description": "Sonuçlanan kimyasal kartlarını geçmişi korunarak arşivler."},
+    {"key": "hazardous_substances.file_download", "label": "SDS ve kimyasal dosyası indirme", "group": "Tehlikeli Madde", "description": "Yetkili olduğu kimyasalın SDS ve eklerini indirir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -1226,6 +1237,35 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in WORK_PERMIT_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+HAZARDOUS_SUBSTANCE_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "hazardous_substances.view", "hazardous_substances.view_all", "hazardous_substances.create",
+        "hazardous_substances.update", "hazardous_substances.approve", "hazardous_substances.stock",
+        "hazardous_substances.quarantine", "hazardous_substances.dispose", "hazardous_substances.manage",
+        "hazardous_substances.archive", "hazardous_substances.file_download",
+    ),
+    "management": (
+        "hazardous_substances.view", "hazardous_substances.view_all",
+        "hazardous_substances.approve", "hazardous_substances.file_download",
+    ),
+    "department_manager": (
+        "hazardous_substances.view", "hazardous_substances.create", "hazardous_substances.update",
+        "hazardous_substances.stock", "hazardous_substances.quarantine",
+        "hazardous_substances.file_download",
+    ),
+    "department_staff": (
+        "hazardous_substances.view", "hazardous_substances.stock",
+        "hazardous_substances.file_download",
+    ),
+    "viewer": ("hazardous_substances.view", "hazardous_substances.file_download"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in HAZARDOUS_SUBSTANCE_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3477,6 +3517,9 @@ def ensure_runtime_schema():
         WorkPermit,
         WorkPermitControl,
         WorkPermitFile,
+        HazardousSubstance,
+        HazardousSubstanceTransaction,
+        HazardousSubstanceFile,
     )
 
     for model in (
@@ -3524,6 +3567,9 @@ def ensure_runtime_schema():
         WorkPermit,
         WorkPermitControl,
         WorkPermitFile,
+        HazardousSubstance,
+        HazardousSubstanceTransaction,
+        HazardousSubstanceFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3592,6 +3638,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_lessons_learned",
             "sales_readiness:competitor_help_desk",
             "sales_readiness:competitor_work_permits",
+            "sales_readiness:competitor_hazardous_substances",
         ):
             db.session.execute(
                 text(

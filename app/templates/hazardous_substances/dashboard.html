@@ -1,0 +1,36 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Tehlikeli Madde Yönetimi{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Tehlikeli Madde Yönetimi", "Kimyasal envanteri, güncel SDS/GBF belgelerini, stok ve depolama risklerini yönetin.", icon="bi-radioactive") %}
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('hazardous_substances.create') }}"><i class="bi bi-plus-lg"></i><span>Yeni Madde</span></a>{% endif %}
+{% endcall %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Toplam Envanter</small><div class="fs-4 fw-semibold">{{ summary.total }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Aktif Madde</small><div class="fs-4 fw-semibold text-success">{{ summary.active }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Tarih / Stok Uyarısı</small><div class="fs-4 fw-semibold text-danger">{{ summary.warning }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Karantina</small><div class="fs-4 fw-semibold text-warning">{{ summary.quarantine }}</div></div></div>
+</div>
+
+<section class="document-list-card p-3 mb-3"><form class="row g-2 align-items-end" method="get">
+  <div class="col-12 col-lg-5"><label class="form-label">Arama</label><input class="form-control" name="q" value="{{ search }}" placeholder="Envanter no, madde adı, CAS veya konum"></div>
+  <div class="col-6 col-lg-3"><label class="form-label">Depolama Grubu</label><select class="form-select" name="storage_group"><option value="">Tümü</option>{% for item in storage_groups %}<option {% if selected_group == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-lg-2"><label class="form-label">Durum</label><select class="form-select" name="status"><option value="">Aktif kayıtlar</option>{% for item in statuses %}<option {% if selected_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-lg-2"><button class="btn btn-outline-primary w-100"><i class="bi bi-funnel"></i><span>Filtrele</span></button></div>
+</form></section>
+
+<section class="document-list-card table-responsive"><table class="table dashboard-table align-middle mb-0">
+  <thead><tr><th>Kayıt</th><th>Madde</th><th>Tehlike</th><th>Depolama</th><th>Stok</th><th>SDS Kontrol</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead>
+  <tbody>{% for row in substances %}{% set shown = warning_state(row, today) %}<tr>
+    <td data-label="Kayıt"><strong>{{ row.inventory_no }}</strong><small class="d-block text-secondary">{{ row.cas_no or 'CAS yok' }}</small></td>
+    <td data-label="Madde"><strong class="text-primary">{{ row.name }}</strong><small class="d-block text-secondary">{{ row.manufacturer or row.supplier or '-' }}</small></td>
+    <td data-label="Tehlike"><span class="badge {{ 'text-bg-danger' if row.signal_word == 'Tehlike' else 'text-bg-warning' }}">{{ row.signal_word }}</span><small class="d-block text-secondary mt-1">{{ row.pictogram_codes }}</small></td>
+    <td data-label="Depolama">{{ row.storage_location }}<small class="d-block text-secondary">{{ row.storage_group }}</small></td>
+    <td data-label="Stok"><strong>{{ '%.2f'|format(row.quantity) }} {{ row.unit }}</strong>{% if row.minimum_stock is not none and row.quantity <= row.minimum_stock %}<small class="d-block text-danger">Minimum seviyede</small>{% endif %}</td>
+    <td data-label="SDS Kontrol">{{ row.sds_review_due_date.strftime('%d.%m.%Y') }}</td>
+    <td data-label="Durum">{{ ui.status_badge(shown, tone='danger' if shown in ['Son Kullanım Geçti','SDS Güncelleme Gecikti'] else ('warning' if shown == 'Kritik Stok' else None)) }}</td>
+    <td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('hazardous_substances.detail', substance_id=row.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></div></td>
+  </tr>{% else %}<tr><td colspan="8" class="dashboard-empty-row"><strong>Tehlikeli madde kaydı bulunamadı.</strong></td></tr>{% endfor %}</tbody>
+</table></section>
+{% endblock %}

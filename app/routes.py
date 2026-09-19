@@ -2769,6 +2769,17 @@ MODULE_ENDPOINTS = {
     "work_permits.cancel": "work_permits",
     "work_permits.archive": "work_permits",
     "work_permits.download_file": "work_permits",
+    "hazardous_substances.dashboard": "hazardous_substances",
+    "hazardous_substances.create": "hazardous_substances",
+    "hazardous_substances.edit": "hazardous_substances",
+    "hazardous_substances.detail": "hazardous_substances",
+    "hazardous_substances.submit": "hazardous_substances",
+    "hazardous_substances.review": "hazardous_substances",
+    "hazardous_substances.stock_movement": "hazardous_substances",
+    "hazardous_substances.quarantine": "hazardous_substances",
+    "hazardous_substances.dispose": "hazardous_substances",
+    "hazardous_substances.archive": "hazardous_substances",
+    "hazardous_substances.download_file": "hazardous_substances",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17095,6 +17106,7 @@ def assigned_all_tasks(scope):
     from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
+    from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17129,6 +17141,7 @@ def assigned_all_tasks(scope):
         + assigned_lessons_task_rows(scope, assigned_task_row)
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
+        + assigned_hazardous_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17167,6 +17180,7 @@ ASSIGNED_TAB_MODULES = {
         "lessons",
         "helpdesk",
         "work_permit",
+        "hazardous_substance",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17197,6 +17211,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("lessons", "Alınan Dersler"),
     ("helpdesk", "İç Talep"),
     ("work_permit", "İş İzni"),
+    ("hazardous_substance", "Tehlikeli Madde"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

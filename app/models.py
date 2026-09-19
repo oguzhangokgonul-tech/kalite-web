@@ -359,6 +359,7 @@ COMPANY_MODULE_CATALOG = (
     {"key": "lessons_learned", "name": "Alınan Dersler", "description": "Doğrulanmış öğrenimleri aranabilir kurumsal bilgiye dönüştürür.", "icon": "bi-journal-check", "sort_order": 76, "parent_key": None},
     {"key": "help_desk", "name": "İç Talep / Help Desk", "description": "Şirket içi destek taleplerini SLA, atama, çözüm ve talep sahibi onayıyla yönetir.", "icon": "bi-headset", "sort_order": 77, "parent_key": None},
     {"key": "work_permits", "name": "İş İzinleri", "description": "Riskli işleri kontrol, onay, geçerlilik ve kapanış kapılarıyla güvenli biçimde yönetir.", "icon": "bi-shield-check", "sort_order": 78, "parent_key": None},
+    {"key": "hazardous_substances", "name": "Tehlikeli Madde Yönetimi", "description": "Kimyasal envanteri, GBF/SDS belgelerini, GHS tehlikelerini, stok ve depolama risklerini izler.", "icon": "bi-radioactive", "sort_order": 79, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -4955,6 +4956,105 @@ class WorkPermitFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     permit = db.relationship("WorkPermit", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class HazardousSubstance(db.Model):
+    __tablename__ = "hazardous_substances"
+    __table_args__ = (db.UniqueConstraint("company_id", "inventory_no", name="uq_hazardous_substances_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    inventory_no = db.Column(db.String(40), nullable=False, index=True)
+    name = db.Column(db.String(240), nullable=False, index=True)
+    product_code = db.Column(db.String(100), nullable=True)
+    manufacturer = db.Column(db.String(200), nullable=True)
+    supplier = db.Column(db.String(200), nullable=True)
+    cas_no = db.Column(db.String(80), nullable=True, index=True)
+    ec_no = db.Column(db.String(80), nullable=True)
+    un_no = db.Column(db.String(40), nullable=True)
+    physical_state = db.Column(db.String(40), nullable=False)
+    signal_word = db.Column(db.String(20), nullable=False)
+    hazard_classes = db.Column(db.Text, nullable=False)
+    pictogram_codes = db.Column(db.String(120), nullable=False)
+    department = db.Column(db.String(160), nullable=True, index=True)
+    usage_area = db.Column(db.String(200), nullable=False)
+    storage_location = db.Column(db.String(200), nullable=False, index=True)
+    storage_group = db.Column(db.String(100), nullable=False, index=True)
+    incompatible_materials = db.Column(db.Text, nullable=True)
+    precautions = db.Column(db.Text, nullable=False)
+    ppe_requirements = db.Column(db.Text, nullable=False)
+    first_aid = db.Column(db.Text, nullable=False)
+    spill_response = db.Column(db.Text, nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=0, server_default="0")
+    unit = db.Column(db.String(20), nullable=False)
+    minimum_stock = db.Column(db.Float, nullable=True)
+    maximum_stock = db.Column(db.Float, nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True, index=True)
+    sds_revision_date = db.Column(db.Date, nullable=False)
+    sds_review_due_date = db.Column(db.Date, nullable=False, index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="Taslak", server_default="Taslak", index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    quarantined_at = db.Column(db.DateTime, nullable=True)
+    disposed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    transactions = db.relationship("HazardousSubstanceTransaction", back_populates="substance", cascade="all, delete-orphan", order_by="HazardousSubstanceTransaction.created_at.desc()")
+    files = db.relationship("HazardousSubstanceFile", back_populates="substance", cascade="all, delete-orphan", order_by="HazardousSubstanceFile.created_at.desc()")
+
+
+class HazardousSubstanceTransaction(db.Model):
+    __tablename__ = "hazardous_substance_transactions"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    substance_id = db.Column(db.Integer, db.ForeignKey("hazardous_substances.id"), nullable=False, index=True)
+    movement_type = db.Column(db.String(30), nullable=False, index=True)
+    quantity = db.Column(db.Float, nullable=False)
+    balance_after = db.Column(db.Float, nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    substance = db.relationship("HazardousSubstance", back_populates="transactions")
+    performed_by = db.relationship("User", foreign_keys=[performed_by_user_id])
+
+
+class HazardousSubstanceFile(db.Model):
+    __tablename__ = "hazardous_substance_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    substance_id = db.Column(db.Integer, db.ForeignKey("hazardous_substances.id"), nullable=False, index=True)
+    file_type = db.Column(db.String(30), nullable=False, default="Diğer", server_default="Diğer", index=True)
+    revision_no = db.Column(db.String(80), nullable=True)
+    document_date = db.Column(db.Date, nullable=True)
+    language = db.Column(db.String(40), nullable=True)
+    is_current = db.Column(db.Boolean, nullable=False, default=False, server_default="0", index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    substance = db.relationship("HazardousSubstance", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 

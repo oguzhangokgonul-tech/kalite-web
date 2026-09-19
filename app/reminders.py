@@ -31,6 +31,7 @@ from .models import (
     ComplianceRevision,
     TrainingParticipant,
     TrainingRecord,
+    HazardousSubstance,
 )
 from .notifications import (
     add_user_notification,
@@ -59,6 +60,10 @@ QUALITY_OBJECTIVE_REMINDER_PERMISSIONS = (
 STAKEHOLDER_REMINDER_PERMISSIONS = ("stakeholder.manage", "stakeholder.review")
 COMPLIANCE_REMINDER_PERMISSIONS = ("compliance.manage", "compliance.verify")
 COMPLIANCE_VERIFY_PERMISSION = ("compliance.verify",)
+HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS = (
+    "hazardous_substances.manage",
+    "hazardous_substances.approve",
+)
 
 
 def _status_text(value):
@@ -831,6 +836,65 @@ def _compliance_reminders(company_id, run_date):
     return stats
 
 
+def _hazardous_substance_reminders(company_id, run_date, days_before=30):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    rows = (
+        _company_query(HazardousSubstance, company_id)
+        .filter(HazardousSubstance.status == "Aktif")
+        .all()
+    )
+    for row in rows:
+        users = _merge_users(
+            company_id,
+            [row.responsible_user_id, row.reviewer_user_id],
+            HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS,
+        )
+        due_items = (
+            ("hazardous-sds", "SDS/GBF gözden geçirme", row.sds_review_due_date),
+            ("hazardous-expiry", "son kullanma", row.expiry_date),
+        )
+        for kind, label, target_date in due_items:
+            if not target_date or target_date > limit_date:
+                continue
+            severity, due_label = _due_state(target_date, run_date)
+            created, emails = _send_record_reminders(
+                users,
+                company_id=company_id,
+                kind=kind,
+                record_id=row.id,
+                title=f"Tehlikeli madde hatırlatması {row.inventory_no}",
+                message=f"{row.inventory_no} {row.name} için {label} durumu: {due_label}.",
+                target_url=f"/tehlikeli-maddeler/{row.id}",
+                due_date=target_date,
+                notification_type=severity,
+                run_date=run_date,
+                email_details=[
+                    ("Kayıt", row.inventory_no), ("Madde", row.name),
+                    ("CAS No", row.cas_no), ("Depolama konumu", row.storage_location),
+                    ("Sorumlu", row.responsible.full_name if row.responsible else None),
+                ],
+            )
+            stats["notifications"] += created
+            stats["emails"] += emails
+        if row.minimum_stock is not None and row.quantity <= row.minimum_stock:
+            created, emails = _send_record_reminders(
+                users,
+                company_id=company_id,
+                kind="hazardous-low-stock",
+                record_id=row.id,
+                title=f"Kritik kimyasal stok {row.inventory_no}",
+                message=f"{row.inventory_no} {row.name} stoğu minimum seviyeye ulaştı: {row.quantity:g} {row.unit}.",
+                target_url=f"/tehlikeli-maddeler/{row.id}",
+                notification_type="warning",
+                run_date=run_date,
+                email_details=[("Kayıt", row.inventory_no), ("Madde", row.name), ("Mevcut stok", f"{row.quantity:g} {row.unit}"), ("Minimum stok", f"{row.minimum_stock:g} {row.unit}")],
+            )
+            stats["notifications"] += created
+            stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -854,6 +918,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _quality_objective_reminders(company_id, run_date, days_before),
         lambda: _stakeholder_reminders(company_id, run_date, 30),
         lambda: _compliance_reminders(company_id, run_date),
+        lambda: _hazardous_substance_reminders(company_id, run_date, 30),
     )
     for build_stats in builders:
         item_stats = build_stats()
