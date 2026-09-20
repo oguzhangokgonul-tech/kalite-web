@@ -699,6 +699,18 @@ PERMISSION_CATALOG = (
     {"key": "hazardous_substances.manage", "label": "Tehlikeli madde süreç yönetimi", "group": "Tehlikeli Madde", "description": "Şirket kimyasal envanterinin tüm iş akışını yönetir."},
     {"key": "hazardous_substances.archive", "label": "Tehlikeli madde arşivleme", "group": "Tehlikeli Madde", "description": "Sonuçlanan kimyasal kartlarını geçmişi korunarak arşivler."},
     {"key": "hazardous_substances.file_download", "label": "SDS ve kimyasal dosyası indirme", "group": "Tehlikeli Madde", "description": "Yetkili olduğu kimyasalın SDS ve eklerini indirir."},
+    {"key": "environmental.view", "label": "Çevre ve atık kayıtlarını görüntüleme", "group": "Çevre ve Atık", "description": "Onaylı çevresel boyutları ve atık teslim zincirini görüntüler."},
+    {"key": "environmental.view_all", "label": "Tüm çevre ve atık kayıtlarını görüntüleme", "group": "Çevre ve Atık", "description": "Taslak ve arşiv dahil şirket çevre sicilini görüntüler."},
+    {"key": "environmental.create", "label": "Çevresel kayıt oluşturma", "group": "Çevre ve Atık", "description": "Çevresel boyut ve atık oluşum kaydı açar."},
+    {"key": "environmental.update", "label": "Çevresel boyut güncelleme", "group": "Çevre ve Atık", "description": "Taslak veya revizyondaki çevresel boyut kaydını günceller."},
+    {"key": "environmental.assess", "label": "Çevresel etki değerlendirme", "group": "Çevre ve Atık", "description": "Yeni ve değiştirilemez etki puanlama sürümü oluşturur."},
+    {"key": "environmental.approve", "label": "Çevresel kayıt ve atık kabulü onaylama", "group": "Çevre ve Atık", "description": "Bağımsız çevresel boyut incelemesi ve tesis kabulü yapar."},
+    {"key": "environmental.waste_manage", "label": "Atık akışı ve depo yönetimi", "group": "Çevre ve Atık", "description": "Atık türü, geçici depo ve parti hareketlerini yönetir."},
+    {"key": "environmental.shipment", "label": "Atık sevk ve teslim yönetimi", "group": "Çevre ve Atık", "description": "Lisanslı taşıyıcı ve tesis teslim zincirini kaydeder."},
+    {"key": "environmental.archive", "label": "Çevre ve atık kayıtlarını arşivleme", "group": "Çevre ve Atık", "description": "Sonuçlanan kayıtları geçmişi korunarak arşivler."},
+    {"key": "environmental.export", "label": "Çevre ve atık raporu indirme", "group": "Çevre ve Atık", "description": "Şirket çevre ve atık sicilini Excel olarak indirir."},
+    {"key": "environmental.file_download", "label": "Çevre ve atık kanıtı indirme", "group": "Çevre ve Atık", "description": "Yetkili olduğu kayıtların kontrollü kanıt dosyalarını indirir."},
+    {"key": "environmental.manage", "label": "Çevre ve atık süreç yönetimi", "group": "Çevre ve Atık", "description": "Şirket çevre yönetimi iş akışının tamamını yönetir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -1266,6 +1278,33 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in HAZARDOUS_SUBSTANCE_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+ENVIRONMENTAL_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "environmental.view", "environmental.view_all", "environmental.create", "environmental.update",
+        "environmental.assess", "environmental.approve", "environmental.waste_manage",
+        "environmental.shipment", "environmental.archive", "environmental.export",
+        "environmental.file_download", "environmental.manage",
+    ),
+    "management": (
+        "environmental.view", "environmental.view_all", "environmental.approve",
+        "environmental.export", "environmental.file_download",
+    ),
+    "department_manager": (
+        "environmental.view", "environmental.create", "environmental.update", "environmental.assess",
+        "environmental.waste_manage", "environmental.shipment", "environmental.file_download",
+    ),
+    "department_staff": (
+        "environmental.view", "environmental.create", "environmental.file_download",
+    ),
+    "viewer": ("environmental.view", "environmental.file_download"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in ENVIRONMENTAL_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3520,6 +3559,13 @@ def ensure_runtime_schema():
         HazardousSubstance,
         HazardousSubstanceTransaction,
         HazardousSubstanceFile,
+        EnvironmentalAspect,
+        EnvironmentalAspectAssessment,
+        EnvironmentalAspectFile,
+        WasteStream,
+        WasteBatch,
+        WasteMovement,
+        WasteMovementFile,
     )
 
     for model in (
@@ -3570,6 +3616,13 @@ def ensure_runtime_schema():
         HazardousSubstance,
         HazardousSubstanceTransaction,
         HazardousSubstanceFile,
+        EnvironmentalAspect,
+        EnvironmentalAspectAssessment,
+        EnvironmentalAspectFile,
+        WasteStream,
+        WasteBatch,
+        WasteMovement,
+        WasteMovementFile,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3639,6 +3692,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_help_desk",
             "sales_readiness:competitor_work_permits",
             "sales_readiness:competitor_hazardous_substances",
+            "sales_readiness:competitor_environmental_aspects",
         ):
             db.session.execute(
                 text(

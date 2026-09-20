@@ -32,6 +32,8 @@ from .models import (
     TrainingParticipant,
     TrainingRecord,
     HazardousSubstance,
+    EnvironmentalAspect,
+    WasteBatch,
 )
 from .notifications import (
     add_user_notification,
@@ -64,6 +66,7 @@ HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS = (
     "hazardous_substances.manage",
     "hazardous_substances.approve",
 )
+ENVIRONMENTAL_REMINDER_PERMISSIONS = ("environmental.manage", "environmental.approve")
 
 
 def _status_text(value):
@@ -895,6 +898,48 @@ def _hazardous_substance_reminders(company_id, run_date, days_before=30):
     return stats
 
 
+def _environmental_reminders(company_id, run_date, days_before=30):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    aspects = (
+        _company_query(EnvironmentalAspect, company_id)
+        .filter(EnvironmentalAspect.status == "Aktif")
+        .filter(EnvironmentalAspect.review_due_date <= limit_date)
+        .all()
+    )
+    for row in aspects:
+        severity, label = _due_state(row.review_due_date, run_date)
+        users = _merge_users(company_id, [row.responsible_user_id, row.reviewer_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind="environmental-aspect", record_id=row.id,
+            title=f"Çevresel boyut hatırlatması {row.aspect_no}",
+            message=f"{row.aspect_no} {row.aspect} için gözden geçirme durumu: {label}.",
+            target_url=f"/cevre-yonetimi/boyut/{row.id}", due_date=row.review_due_date,
+            notification_type=severity, run_date=run_date,
+            email_details=[("Kayıt", row.aspect_no), ("Çevresel boyut", row.aspect), ("Etki", row.impact), ("Departman", row.department.name if row.department else None)],
+        )
+        stats["notifications"] += created; stats["emails"] += emails
+    batches = (
+        _company_query(WasteBatch, company_id)
+        .filter(WasteBatch.status.notin_(("Tamamlandı", "İptal", "Arşiv")))
+        .filter(WasteBatch.storage_due_date <= limit_date)
+        .all()
+    )
+    for row in batches:
+        severity, label = _due_state(row.storage_due_date, run_date)
+        users = _merge_users(company_id, [row.responsible_user_id, row.reviewer_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind="environmental-waste", record_id=row.id,
+            title=f"Atık depolama hatırlatması {row.batch_no}",
+            message=f"{row.batch_no} {row.stream.name} için azami depolama durumu: {label}.",
+            target_url=f"/cevre-yonetimi/atik/{row.id}", due_date=row.storage_due_date,
+            notification_type=severity, run_date=run_date,
+            email_details=[("Parti", row.batch_no), ("Atık kodu", row.stream.waste_code), ("Atık", row.stream.name), ("Kalan miktar", f"{row.remaining_quantity} {row.stream.unit}"), ("Geçici depo", row.storage_location)],
+        )
+        stats["notifications"] += created; stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -919,6 +964,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _stakeholder_reminders(company_id, run_date, 30),
         lambda: _compliance_reminders(company_id, run_date),
         lambda: _hazardous_substance_reminders(company_id, run_date, 30),
+        lambda: _environmental_reminders(company_id, run_date, 30),
     )
     for build_stats in builders:
         item_stats = build_stats()

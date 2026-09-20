@@ -1,0 +1,42 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Çevre ve Atık Yönetimi{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Çevre ve Atık Yönetimi", "Çevresel boyutları, önemli etkileri ve atık teslim zincirini tek yerde izleyin.", icon="bi-recycle") %}
+  {% if can_manage %}<a class="btn btn-outline-secondary" href="{{ url_for('environmental.parameters') }}"><i class="bi bi-sliders"></i><span>Parametreler</span></a>{% endif %}
+  {% if can_export %}<a class="btn btn-outline-primary" href="{{ url_for('environmental.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Raporu</span></a>{% endif %}
+  {% if can_view_archive %}<a class="btn btn-outline-secondary" href="{{ url_for('environmental.dashboard', archive=0 if show_archive else 1, q=search) }}"><i class="bi bi-archive"></i><span>{{ 'Güncel Kayıtlar' if show_archive else 'Arşiv Dahil' }}</span></a>{% endif %}
+  {% if can_manage_waste %}<a class="btn btn-outline-primary" href="{{ url_for('environmental.create_stream') }}"><i class="bi bi-trash3"></i><span>Atık Akışı Tanımla</span></a>{% endif %}
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('environmental.create_aspect') }}"><i class="bi bi-plus-lg"></i><span>Yeni Çevresel Boyut</span></a>{% endif %}
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Önemli Boyut</small><div class="fs-4 fw-semibold text-warning">{{ summary.significant }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Geciken İnceleme</small><div class="fs-4 fw-semibold text-danger">{{ summary.overdue_reviews }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Depodaki Parti</small><div class="fs-4 fw-semibold text-primary">{{ summary.stored_waste }}</div></div></div>
+  <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100"><small class="text-secondary">Süresi Geçen Atık</small><div class="fs-4 fw-semibold text-danger">{{ summary.overdue_waste }}</div></div></div>
+</div>
+
+<form class="document-list-card p-3 mb-3" method="get"><div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input class="form-control" name="q" value="{{ search }}" placeholder="Kayıt no, çevresel boyut, etki veya atık ara"><button class="btn btn-outline-primary">Ara</button></div></form>
+
+<section class="document-list-card mb-4"><div class="p-3 border-bottom d-flex justify-content-between align-items-center"><div><h2 class="h5 mb-1">Çevresel Boyut ve Etki Matrisi</h2><p class="text-secondary mb-0">Puanlama sürümleri değiştirilemez; önemli boyutlar ayrıca işaretlenir.</p></div><span class="badge text-bg-light border">{{ aspects|length }} kayıt</span></div>
+  <div class="table-responsive"><table class="table dashboard-table align-middle mb-0" data-tablet-records><thead><tr><th>Kayıt No</th><th>Faaliyet / Boyut</th><th>Etki</th><th>Departman</th><th>Puan</th><th>Gözden Geçirme</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
+  {% for row in aspects %}{% set score = row.current_assessment.residual_score if row.current_assessment else 0 %}<tr>
+    <td data-label="Kayıt No"><strong>{{ row.aspect_no }}</strong></td><td data-label="Faaliyet / Boyut"><strong>{{ row.aspect }}</strong><small class="d-block text-secondary">{{ row.activity }}</small></td><td data-label="Etki">{{ row.impact }}</td><td data-label="Departman">{{ row.department.name }}</td>
+    <td data-label="Puan"><span class="badge {{ 'text-bg-danger' if row.current_assessment and row.current_assessment.is_significant else 'text-bg-light border' }}">{{ score }}</span></td><td data-label="Gözden Geçirme" class="{{ 'text-danger fw-semibold' if row.status == 'Aktif' and row.review_due_date < today }}">{{ row.review_due_date.strftime('%d.%m.%Y') }}</td><td data-label="Durum">{{ ui.status_badge(row.status) }}</td><td data-label="İşlemler"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('environmental.aspect_detail', aspect_id=row.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></td>
+  </tr>{% else %}<tr><td colspan="8" class="text-center text-secondary py-4">Çevresel boyut kaydı bulunmuyor.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="document-list-card mb-4"><div class="p-3 border-bottom d-flex justify-content-between align-items-center"><div><h2 class="h5 mb-1">Atık Akışları</h2><p class="text-secondary mb-0">Tanımlı atık kodları, depolama alanları ve açık parti miktarları.</p></div><span class="badge text-bg-light border">{{ streams|length }} kayıt</span></div>
+  <div class="table-responsive"><table class="table dashboard-table align-middle mb-0" data-tablet-records><thead><tr><th>Atık Kodu</th><th>Atık Adı</th><th>Departman</th><th>Depolama Alanı</th><th>Açık Parti</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
+  {% for row in streams %}<tr><td data-label="Atık Kodu"><strong>{{ row.waste_code }}</strong></td><td data-label="Atık Adı">{{ row.name }}{% if row.is_hazardous %}<small class="d-block text-danger">Tehlikeli atık</small>{% endif %}</td><td data-label="Departman">{{ row.department.name }}</td><td data-label="Depolama Alanı">{{ row.storage_location }}</td><td data-label="Açık Parti">{{ stream_open_counts[row.id] }}</td><td data-label="Durum">{{ ui.status_badge(row.status) }}</td><td data-label="İşlemler"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('environmental.stream_detail', stream_id=row.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></td></tr>{% else %}<tr><td colspan="7" class="text-center text-secondary py-4">Atık akışı tanımlanmamış.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="document-list-card"><div class="p-3 border-bottom d-flex justify-content-between align-items-center"><div><h2 class="h5 mb-1">Atık Partileri</h2><p class="text-secondary mb-0">Oluşumdan lisanslı tesiste kabule kadar değiştirilemez hareket zinciri.</p></div><span class="badge text-bg-light border">{{ batches|length }} kayıt</span></div>
+  <div class="table-responsive"><table class="table dashboard-table align-middle mb-0" data-tablet-records><thead><tr><th>Parti No</th><th>Atık Kodu / Adı</th><th>Miktar</th><th>Departman</th><th>Azami Depolama</th><th>Durum</th><th>İşlemler</th></tr></thead><tbody>
+  {% for row in batches %}<tr><td data-label="Parti No"><strong>{{ row.batch_no }}</strong></td><td data-label="Atık Kodu / Adı"><strong>{{ row.stream.waste_code }}</strong><small class="d-block text-secondary">{{ row.stream.name }}</small></td><td data-label="Miktar">{{ row.remaining_quantity }} / {{ row.initial_quantity }} {{ row.stream.unit }}</td><td data-label="Departman">{{ row.stream.department.name }}</td><td data-label="Azami Depolama" class="{{ 'text-danger fw-semibold' if row.status not in ['Tamamlandı','İptal','Arşiv'] and row.storage_due_date < today }}">{{ row.storage_due_date.strftime('%d.%m.%Y') }}</td><td data-label="Durum">{{ ui.status_badge(row.status, tone='danger' if row.status == 'Mutabakat Bekliyor' else None) }}</td><td data-label="İşlemler"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('environmental.batch_detail', batch_id=row.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></td></tr>{% else %}<tr><td colspan="7" class="text-center text-secondary py-4">Atık partisi bulunmuyor.</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endblock %}

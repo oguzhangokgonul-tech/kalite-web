@@ -1,0 +1,16 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Çevre Parametreleri{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Çevre Parametreleri", "Şirketin çevresel etki puanlama metodunu merkezi olarak yönetin.", icon="bi-sliders") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('environmental.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Listeye Dön</span></a>
+{% endcall %}
+<form class="document-list-card p-3 p-lg-4" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-12 col-md-6"><label class="form-label">Matris Sürümü</label><input class="form-control" name="matrix_version" maxlength="30" value="{{ matrix_version }}" required><div class="form-text">Yeni değerlendirme sürümlerine otomatik işlenir.</div></div>
+    <div class="col-12 col-md-6"><label class="form-label">Önemlilik Eşiği</label><input class="form-control" type="number" min="1" max="625" name="significance_threshold" value="{{ significance_threshold }}" required><div class="form-text">Kalan risk puanı bu değere eşit veya yüksekse çevresel boyut önemli kabul edilir.</div></div>
+  </div>
+  <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 border-top pt-3 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('environmental.dashboard') }}">Vazgeç</a><button class="btn btn-primary"><i class="bi bi-check2"></i><span>Parametreleri Kaydet</span></button></div>
+</form>
+{% endblock %}

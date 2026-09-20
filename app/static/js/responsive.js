@@ -3,6 +3,7 @@
   const content = document.getElementById('dashboardMainContent');
   if (!content) return;
   const phone = window.matchMedia('(max-width: 767.98px)');
+  const tablet = window.matchMedia('(max-width: 991.98px)');
   const tables = new Map();
   const generatedLabels = new WeakMap();
   let preference = null;
@@ -116,7 +117,8 @@
   }
 
   function updateView(state) {
-    const mode = preference || (phone.matches ? 'records' : 'table');
+    const tabletRecords = tablet.matches && !!state.wrapper.querySelector('table[data-tablet-records]');
+    const mode = preference || (phone.matches || tabletRecords ? 'records' : 'table');
     state.wrapper.classList.toggle('vp-records-active', mode === 'records');
     state.buttons.forEach(({ mode: value, button }) => {
       button.setAttribute('aria-pressed', String(value === mode));
@@ -135,6 +137,7 @@
   prepare(content);
   content.dataset.responsiveReady = 'true';
   phone.addEventListener('change', () => tables.forEach(updateView));
+  tablet.addEventListener('change', () => tables.forEach(updateView));
   // Reuse original cells and controls so module listeners and form values survive.
   const pending = new Set();
   let scheduled = false;

@@ -2780,6 +2780,29 @@ MODULE_ENDPOINTS = {
     "hazardous_substances.dispose": "hazardous_substances",
     "hazardous_substances.archive": "hazardous_substances",
     "hazardous_substances.download_file": "hazardous_substances",
+    "environmental.dashboard": "environmental_management",
+    "environmental.parameters": "environmental_management",
+    "environmental.create_aspect": "environmental_management",
+    "environmental.edit_aspect": "environmental_management",
+    "environmental.aspect_detail": "environmental_management",
+    "environmental.submit_aspect": "environmental_management",
+    "environmental.reassess_aspect": "environmental_management",
+    "environmental.review_aspect": "environmental_management",
+    "environmental.archive_aspect": "environmental_management",
+    "environmental.create_stream": "environmental_management",
+    "environmental.stream_detail": "environmental_management",
+    "environmental.create_batch": "environmental_management",
+    "environmental.batch_detail": "environmental_management",
+    "environmental.transfer_batch": "environmental_management",
+    "environmental.prepare_shipment": "environmental_management",
+    "environmental.ship_batch": "environmental_management",
+    "environmental.accept_batch": "environmental_management",
+    "environmental.reconcile_batch": "environmental_management",
+    "environmental.cancel_batch": "environmental_management",
+    "environmental.archive_batch": "environmental_management",
+    "environmental.archive_stream": "environmental_management",
+    "environmental.download_file": "environmental_management",
+    "environmental.export_excel": "environmental_management",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -17107,6 +17130,7 @@ def assigned_all_tasks(scope):
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
+    from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17142,6 +17166,7 @@ def assigned_all_tasks(scope):
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
+        + assigned_environmental_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17181,6 +17206,7 @@ ASSIGNED_TAB_MODULES = {
         "helpdesk",
         "work_permit",
         "hazardous_substance",
+        "environmental",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17212,6 +17238,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("helpdesk", "İç Talep"),
     ("work_permit", "İş İzni"),
     ("hazardous_substance", "Tehlikeli Madde"),
+    ("environmental", "Çevre ve Atık"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),

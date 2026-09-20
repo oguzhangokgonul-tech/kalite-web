@@ -360,6 +360,7 @@ COMPANY_MODULE_CATALOG = (
     {"key": "help_desk", "name": "İç Talep / Help Desk", "description": "Şirket içi destek taleplerini SLA, atama, çözüm ve talep sahibi onayıyla yönetir.", "icon": "bi-headset", "sort_order": 77, "parent_key": None},
     {"key": "work_permits", "name": "İş İzinleri", "description": "Riskli işleri kontrol, onay, geçerlilik ve kapanış kapılarıyla güvenli biçimde yönetir.", "icon": "bi-shield-check", "sort_order": 78, "parent_key": None},
     {"key": "hazardous_substances", "name": "Tehlikeli Madde Yönetimi", "description": "Kimyasal envanteri, GBF/SDS belgelerini, GHS tehlikelerini, stok ve depolama risklerini izler.", "icon": "bi-radioactive", "sort_order": 79, "parent_key": None},
+    {"key": "environmental_management", "name": "Çevre ve Atık Yönetimi", "description": "Çevresel boyut-etki analizlerini, atık envanterini ve lisanslı teslim zincirini izler.", "icon": "bi-recycle", "sort_order": 80, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -5055,6 +5056,229 @@ class HazardousSubstanceFile(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     substance = db.relationship("HazardousSubstance", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class EnvironmentalAspect(db.Model):
+    __tablename__ = "environmental_aspects"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "aspect_no", name="uq_environmental_aspects_company_no"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    aspect_no = db.Column(db.String(40), nullable=False, index=True)
+    department_id = db.Column(db.Integer, db.ForeignKey("company_departments.id"), nullable=False, index=True)
+    process = db.Column(db.String(180), nullable=False)
+    activity = db.Column(db.String(240), nullable=False)
+    aspect = db.Column(db.String(240), nullable=False, index=True)
+    impact = db.Column(db.String(240), nullable=False)
+    lifecycle_stage = db.Column(db.String(60), nullable=False)
+    operating_condition = db.Column(db.String(30), nullable=False)
+    influence_type = db.Column(db.String(30), nullable=False)
+    existing_controls = db.Column(db.Text, nullable=False)
+    emergency_response = db.Column(db.Text, nullable=True)
+    matrix_version = db.Column(db.String(30), nullable=False, default="V1", server_default="V1")
+    significance_threshold = db.Column(db.Integer, nullable=False, default=40, server_default="40")
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    review_due_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Taslak", server_default="Taslak", index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    risk_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    compliance_obligation_id = db.Column(db.Integer, db.ForeignKey("compliance_obligations.id"), nullable=True, index=True)
+    quality_objective_id = db.Column(db.Integer, db.ForeignKey("quality_objectives.id"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    department = db.relationship("CompanyDepartment")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+    risk = db.relationship("RiskRecord", foreign_keys=[risk_id])
+    action = db.relationship("Action", foreign_keys=[action_id])
+    compliance_obligation = db.relationship("ComplianceObligation", foreign_keys=[compliance_obligation_id])
+    quality_objective = db.relationship("QualityObjective", foreign_keys=[quality_objective_id])
+    assessments = db.relationship("EnvironmentalAspectAssessment", back_populates="aspect_record", cascade="all, delete-orphan", order_by="EnvironmentalAspectAssessment.version_no.desc()")
+    files = db.relationship("EnvironmentalAspectFile", back_populates="aspect_record", cascade="all, delete-orphan", order_by="EnvironmentalAspectFile.created_at.desc()")
+    waste_streams = db.relationship("WasteStream", back_populates="aspect_record")
+
+    @property
+    def current_assessment(self):
+        return self.assessments[0] if self.assessments else None
+
+
+class EnvironmentalAspectAssessment(db.Model):
+    __tablename__ = "environmental_aspect_assessments"
+    __table_args__ = (
+        db.UniqueConstraint("aspect_id", "version_no", name="uq_environmental_assessment_version"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    aspect_id = db.Column(db.Integer, db.ForeignKey("environmental_aspects.id"), nullable=False, index=True)
+    version_no = db.Column(db.Integer, nullable=False)
+    matrix_version = db.Column(db.String(30), nullable=False)
+    significance_threshold = db.Column(db.Integer, nullable=False)
+    lifecycle_stage = db.Column(db.String(60), nullable=False)
+    operating_condition = db.Column(db.String(30), nullable=False)
+    influence_type = db.Column(db.String(30), nullable=False)
+    controls_snapshot = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.Integer, nullable=False)
+    frequency = db.Column(db.Integer, nullable=False)
+    legal_score = db.Column(db.Integer, nullable=False)
+    stakeholder_score = db.Column(db.Integer, nullable=False)
+    control_effectiveness = db.Column(db.Integer, nullable=False)
+    inherent_score = db.Column(db.Integer, nullable=False)
+    residual_score = db.Column(db.Integer, nullable=False)
+    is_significant = db.Column(db.Boolean, nullable=False, default=False, server_default="0", index=True)
+    rationale = db.Column(db.Text, nullable=False)
+    assessed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    review_status = db.Column(db.String(30), nullable=False, default="Bekliyor", server_default="Bekliyor")
+    reviewed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    review_note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    aspect_record = db.relationship("EnvironmentalAspect", back_populates="assessments")
+    assessed_by = db.relationship("User", foreign_keys=[assessed_by_user_id])
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_user_id])
+
+
+class EnvironmentalAspectFile(db.Model):
+    __tablename__ = "environmental_aspect_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    aspect_id = db.Column(db.Integer, db.ForeignKey("environmental_aspects.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    aspect_record = db.relationship("EnvironmentalAspect", back_populates="files")
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class WasteStream(db.Model):
+    __tablename__ = "waste_streams"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "waste_code", name="uq_waste_streams_company_code"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    waste_code = db.Column(db.String(40), nullable=False, index=True)
+    name = db.Column(db.String(240), nullable=False)
+    is_hazardous = db.Column(db.Boolean, nullable=False, default=False, server_default="0", index=True)
+    department_id = db.Column(db.Integer, db.ForeignKey("company_departments.id"), nullable=False, index=True)
+    source_process = db.Column(db.String(180), nullable=False)
+    storage_location = db.Column(db.String(200), nullable=False)
+    unit = db.Column(db.String(20), nullable=False)
+    maximum_capacity = db.Column(db.Numeric(14, 3), nullable=True)
+    maximum_storage_days = db.Column(db.Integer, nullable=False)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    aspect_id = db.Column(db.Integer, db.ForeignKey("environmental_aspects.id"), nullable=True, index=True)
+    compliance_obligation_id = db.Column(db.Integer, db.ForeignKey("compliance_obligations.id"), nullable=True, index=True)
+    status = db.Column(db.String(20), nullable=False, default="Aktif", server_default="Aktif", index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    department = db.relationship("CompanyDepartment")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    aspect_record = db.relationship("EnvironmentalAspect", back_populates="waste_streams")
+    compliance_obligation = db.relationship("ComplianceObligation", foreign_keys=[compliance_obligation_id])
+    batches = db.relationship("WasteBatch", back_populates="stream", cascade="all, delete-orphan", order_by="WasteBatch.generated_date.desc()")
+
+
+class WasteBatch(db.Model):
+    __tablename__ = "waste_batches"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "batch_no", name="uq_waste_batches_company_no"),
+        db.UniqueConstraint("company_id", "motat_reference", name="uq_waste_batches_company_motat"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    batch_no = db.Column(db.String(40), nullable=False, index=True)
+    stream_id = db.Column(db.Integer, db.ForeignKey("waste_streams.id"), nullable=False, index=True)
+    generated_date = db.Column(db.Date, nullable=False, index=True)
+    storage_due_date = db.Column(db.Date, nullable=False, index=True)
+    initial_quantity = db.Column(db.Numeric(14, 3), nullable=False)
+    remaining_quantity = db.Column(db.Numeric(14, 3), nullable=False)
+    container_count = db.Column(db.Integer, nullable=True)
+    storage_location = db.Column(db.String(200), nullable=False)
+    status = db.Column(db.String(40), nullable=False, default="Geçici Depoda", server_default="Geçici Depoda", index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    carrier_name = db.Column(db.String(240), nullable=True)
+    carrier_license_no = db.Column(db.String(120), nullable=True)
+    receiving_facility = db.Column(db.String(240), nullable=True)
+    facility_license_no = db.Column(db.String(120), nullable=True)
+    motat_reference = db.Column(db.String(120), nullable=True, index=True)
+    abs_declaration_no = db.Column(db.String(120), nullable=True)
+    shipped_quantity = db.Column(db.Numeric(14, 3), nullable=True)
+    accepted_quantity = db.Column(db.Numeric(14, 3), nullable=True)
+    review_note = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    stream = db.relationship("WasteStream", back_populates="batches")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    movements = db.relationship("WasteMovement", back_populates="batch", cascade="all, delete-orphan", order_by="WasteMovement.created_at.desc()")
+
+
+class WasteMovement(db.Model):
+    __tablename__ = "waste_movements"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("waste_batches.id"), nullable=False, index=True)
+    movement_type = db.Column(db.String(40), nullable=False, index=True)
+    quantity = db.Column(db.Numeric(14, 3), nullable=False, default=0, server_default="0")
+    balance_after = db.Column(db.Numeric(14, 3), nullable=False)
+    measured_quantity = db.Column(db.Numeric(14, 3), nullable=True)
+    location = db.Column(db.String(200), nullable=True)
+    note = db.Column(db.Text, nullable=False)
+    performed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    batch = db.relationship("WasteBatch", back_populates="movements")
+    performed_by = db.relationship("User", foreign_keys=[performed_by_user_id])
+    files = db.relationship("WasteMovementFile", back_populates="movement", cascade="all, delete-orphan", order_by="WasteMovementFile.created_at.desc()")
+
+
+class WasteMovementFile(db.Model):
+    __tablename__ = "waste_movement_files"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    movement_id = db.Column(db.Integer, db.ForeignKey("waste_movements.id"), nullable=False, index=True)
+    document_type = db.Column(db.String(50), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(160), nullable=True)
+    file_size = db.Column(db.Integer, nullable=False, default=0)
+    sha256_hash = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    movement = db.relationship("WasteMovement", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
