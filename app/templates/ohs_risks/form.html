@@ -1,0 +1,144 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% set is_edit = assessment is defined and assessment %}
+{% set source = form_data if form_data else {} %}
+{% block title %}{{ "İSG Riskini Düzenle" if is_edit else "Yeni İSG Risk Değerlendirmesi" }}{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .ohs-form-section + .ohs-form-section {
+      border-top: 1px solid var(--bs-border-color);
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+    }
+    .ohs-form-section-title {
+      display: flex;
+      align-items: flex-start;
+      gap: .75rem;
+      margin-bottom: 1rem;
+    }
+    .ohs-form-section-title .stat-icon {
+      flex: 0 0 auto;
+    }
+    .ohs-form-actions .btn {
+      min-width: 9rem;
+    }
+    @media (max-width: 575.98px) {
+      .ohs-form-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("İSG Riskini Düzenle" if is_edit else "Yeni İSG Risk Değerlendirmesi", "Faaliyeti, tehlikeyi, ilk risk puanını ve uygulanacak kontrol tedbirlerini tanımlayın.", icon="bi-shield-exclamation") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('ohs_risk.assessment_detail', assessment_id=assessment.id) if is_edit else url_for('ohs_risk.dashboard') }}">
+      <i class="bi bi-arrow-left"></i><span>Geri Dön</span>
+    </a>
+  {% endcall %}
+
+  <form class="document-list-card p-3 p-lg-4" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <section class="ohs-form-section">
+      <div class="ohs-form-section-title">
+        <span class="stat-icon"><i class="bi bi-building"></i></span>
+        <div><h2 class="h5 mb-1">Faaliyet ve Çalışma Alanı</h2><p class="text-secondary mb-0">Riskin görüldüğü süreç, bölüm ve fiziksel alan.</p></div>
+      </div>
+      <div class="row g-3">
+        {% if is_edit %}
+          <div class="col-12 col-md-3"><label class="form-label" for="assessment_no">Risk No</label><input class="form-control" id="assessment_no" value="{{ assessment.assessment_no }}" disabled></div>
+        {% endif %}
+        <div class="col-12 col-md-{{ '4' if is_edit else '5' }}">
+          <label class="form-label" for="department_id">Departman</label>
+          {% set selected_department = source.get('department_id', assessment.department_id|string if is_edit else '')|string %}
+          <select class="form-select" id="department_id" name="department_id" required>
+            <option value="">Departman seçin</option>
+            {% for department in departments %}<option value="{{ department.id }}" {% if selected_department == department.id|string %}selected{% endif %}>{{ department.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-{{ '5' if is_edit else '7' }}"><label class="form-label" for="activity">Faaliyet / İş Adımı</label><input class="form-control" id="activity" name="activity" value="{{ source.get('activity', assessment.activity if is_edit else '') }}" maxlength="180" required></div>
+        <div class="col-12 col-md-6"><label class="form-label" for="location">Çalışma Alanı / Konum</label><input class="form-control" id="location" name="location" value="{{ source.get('location', assessment.location if is_edit else '') }}" maxlength="180" required></div>
+        <div class="col-12 col-md-6"><label class="form-label" for="exposed_people">Maruz Kalan Kişiler</label><input class="form-control" id="exposed_people" name="exposed_people" value="{{ source.get('exposed_people', assessment.exposed_people if is_edit else '') }}" placeholder="Çalışanlar, ziyaretçiler, yükleniciler..." maxlength="240" required></div>
+      </div>
+    </section>
+
+    <section class="ohs-form-section">
+      <div class="ohs-form-section-title">
+        <span class="stat-icon text-danger"><i class="bi bi-exclamation-triangle"></i></span>
+        <div><h2 class="h5 mb-1">Tehlike ve İlk Risk</h2><p class="text-secondary mb-0">Mevcut kontroller dikkate alınarak başlangıç riskini puanlayın.</p></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-12 col-lg-6"><label class="form-label" for="hazard">Tehlike</label><textarea class="form-control" id="hazard" name="hazard" rows="3" maxlength="500" required>{{ source.get('hazard', assessment.hazard if is_edit else '') }}</textarea></div>
+        <div class="col-12 col-lg-6"><label class="form-label" for="risk_description">Risk / Olası Sonuç</label><textarea class="form-control" id="risk_description" name="risk_description" rows="3" maxlength="1000" required>{{ source.get('risk_description', assessment.risk_description if is_edit else '') }}</textarea></div>
+        <div class="col-12"><label class="form-label" for="existing_controls">Mevcut Kontroller</label><textarea class="form-control" id="existing_controls" name="existing_controls" rows="3" maxlength="2000" required>{{ source.get('existing_controls', assessment.existing_controls if is_edit else '') }}</textarea></div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="initial_likelihood">Olasılık (1-5)</label>
+          {% set selected_likelihood = source.get('initial_likelihood', assessment.initial_likelihood|string if is_edit else '')|string %}
+          <select class="form-select" id="initial_likelihood" name="initial_likelihood" required>
+            <option value="">Puan seçin</option>
+            {% for score in score_options %}<option value="{{ score }}" {% if selected_likelihood == score|string %}selected{% endif %}>{{ score }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="initial_severity">Şiddet (1-5)</label>
+          {% set selected_severity = source.get('initial_severity', assessment.initial_severity|string if is_edit else '')|string %}
+          <select class="form-select" id="initial_severity" name="initial_severity" required>
+            <option value="">Puan seçin</option>
+            {% for score in score_options %}<option value="{{ score }}" {% if selected_severity == score|string %}selected{% endif %}>{{ score }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="ohs-form-section">
+      <div class="ohs-form-section-title">
+        <span class="stat-icon text-success"><i class="bi bi-shield-check"></i></span>
+        <div><h2 class="h5 mb-1">Kontrol Planı</h2><p class="text-secondary mb-0">Riski kaynağında azaltacak tedbiri, sorumluyu ve bağımsız değerlendiriciyi belirleyin.</p></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-12 col-md-5">
+          <label class="form-label" for="control_hierarchy">Kontrol Hiyerarşisi</label>
+          {% set selected_hierarchy = source.get('control_hierarchy', assessment.control_hierarchy if is_edit else '') %}
+          <select class="form-select" id="control_hierarchy" name="control_hierarchy" required>
+            <option value="">Kontrol türü seçin</option>
+            {% for choice in hierarchy_choices %}
+              {% if choice is sequence and choice is not string %}
+                <option value="{{ choice[0] }}" {% if selected_hierarchy == choice[0] %}selected{% endif %}>{{ choice[1] }}</option>
+              {% else %}
+                <option value="{{ choice }}" {% if selected_hierarchy == choice %}selected{% endif %}>{{ choice }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-7"><label class="form-label" for="planned_controls">Planlanan Kontroller</label><textarea class="form-control" id="planned_controls" name="planned_controls" rows="3" maxlength="2000" required>{{ source.get('planned_controls', assessment.planned_controls if is_edit else '') }}</textarea></div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="responsible_user_id">Kontrol Sorumlusu</label>
+          {% set selected_responsible = source.get('responsible_user_id', assessment.responsible_user_id|string if is_edit else '')|string %}
+          <select class="form-select" id="responsible_user_id" name="responsible_user_id" required>
+            <option value="">Sorumlu seçin</option>
+            {% for user in users %}<option value="{{ user.id }}" {% if selected_responsible == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-6">
+          <label class="form-label" for="reviewer_user_id">Bağımsız Değerlendirici</label>
+          {% set selected_reviewer = source.get('reviewer_user_id', assessment.reviewer_user_id|string if is_edit else '')|string %}
+          <select class="form-select" id="reviewer_user_id" name="reviewer_user_id" required>
+            <option value="">Değerlendirici seçin</option>
+            {% for reviewer in reviewers %}<option value="{{ reviewer.id }}" {% if selected_reviewer == reviewer.id|string %}selected{% endif %}>{{ reviewer.full_name }}</option>{% endfor %}
+          </select>
+          <div class="form-text">Kaydı oluşturan ve değerlendiren kişi farklı olmalıdır.</div>
+        </div>
+        <div class="col-12 col-md-6"><label class="form-label" for="review_date">Gözden Geçirme Tarihi</label><input class="form-control" id="review_date" name="review_date" type="date" value="{{ source.get('review_date', assessment.review_date.strftime('%Y-%m-%d') if is_edit and assessment.review_date else '') }}" required></div>
+        <div class="col-12 col-md-6"><label class="form-label" for="due_date">Kontrol Termin Tarihi</label><input class="form-control" id="due_date" name="due_date" type="date" value="{{ source.get('due_date', assessment.due_date.strftime('%Y-%m-%d') if is_edit and assessment.due_date else '') }}" required></div>
+      </div>
+    </section>
+
+    <div class="ohs-form-actions d-flex flex-column flex-sm-row justify-content-end gap-2 border-top pt-3 mt-4">
+      <a class="btn btn-outline-secondary" href="{{ url_for('ohs_risk.assessment_detail', assessment_id=assessment.id) if is_edit else url_for('ohs_risk.dashboard') }}">Vazgeç</a>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check2"></i><span>{{ "Değişiklikleri Kaydet" if is_edit else "Taslağı Oluştur" }}</span></button>
+    </div>
+  </form>
+{% endblock %}

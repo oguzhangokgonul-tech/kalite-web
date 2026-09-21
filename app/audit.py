@@ -77,6 +77,8 @@ TRACKED_MODEL_NAMES = {
     "QualityObjectiveMeasurement",
     "QualityTestRecord",
     "RiskRecord",
+    "OhsRiskAssessment",
+    "OhsRiskEvaluation",
     "Role",
     "RolePermission",
     "Suggestion",

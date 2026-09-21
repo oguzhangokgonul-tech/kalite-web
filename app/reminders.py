@@ -38,6 +38,7 @@ from .models import (
     EnergyReading,
     EnergySavingProject,
     EnergyTarget,
+    OhsRiskAssessment,
 )
 from .notifications import (
     add_user_notification,
@@ -72,6 +73,7 @@ HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS = (
 )
 ENVIRONMENTAL_REMINDER_PERMISSIONS = ("environmental.manage", "environmental.approve")
 ENERGY_REMINDER_PERMISSIONS = ("energy.manage", "energy.approve")
+OHS_RISK_REMINDER_PERMISSIONS = ("risk.ohs_manage", "risk.ohs_approve", "risk.manage")
 
 
 def _status_text(value):
@@ -436,7 +438,15 @@ def _risk_reminders(company_id, run_date, days_before):
         .filter(RiskRecord.due_date <= limit_date)
         .all()
     )
+    ohs_mirror_ids = {
+        row.risk_record_id
+        for row in _company_query(OhsRiskAssessment, company_id)
+        .with_entities(OhsRiskAssessment.risk_record_id)
+        .all()
+    }
     for risk in risks:
+        if risk.id in ohs_mirror_ids:
+            continue
         if _is_completed_text(risk.status):
             continue
         severity, label = _due_state(risk.due_date, run_date)
@@ -456,6 +466,47 @@ def _risk_reminders(company_id, run_date, days_before):
             due_date=risk.due_date,
             notification_type=severity,
             run_date=run_date,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
+def _ohs_risk_reminders(company_id, run_date, days_before):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    rows = (
+        _company_query(OhsRiskAssessment, company_id)
+        .filter(OhsRiskAssessment.status.notin_(("Tamamlandı", "Arşiv")))
+        .filter(OhsRiskAssessment.due_date <= limit_date)
+        .all()
+    )
+    for row in rows:
+        severity, label = _due_state(row.due_date, run_date)
+        waiting_reviewer = row.status in {"Onay Bekliyor", "Kapanış Onayı"}
+        user_ids = [row.reviewer_user_id] if waiting_reviewer else [row.responsible_user_id]
+        users = _merge_users(
+            company_id,
+            user_ids,
+            OHS_RISK_REMINDER_PERMISSIONS if severity == "danger" else (),
+        )
+        created, emails = _send_record_reminders(
+            users,
+            company_id=company_id,
+            kind="ohs-risk",
+            record_id=row.id,
+            title=f"İSG risk hatırlatması {row.assessment_no}",
+            message=f"{row.assessment_no} {row.activity} için kontrol termini: {label}.",
+            target_url=f"/risk-yonetimi/isg/{row.id}",
+            due_date=row.due_date,
+            notification_type=severity,
+            run_date=run_date,
+            email_details=[
+                ("Departman", row.department.name),
+                ("Tehlike", row.hazard),
+                ("Risk seviyesi", row.residual_level or row.initial_level),
+                ("Durum", row.status),
+            ],
         )
         stats["notifications"] += created
         stats["emails"] += emails
@@ -1021,6 +1072,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _internal_audit_reminders(company_id, run_date, days_before),
         lambda: _maintenance_reminders(company_id, run_date, days_before),
         lambda: _risk_reminders(company_id, run_date, days_before),
+        lambda: _ohs_risk_reminders(company_id, run_date, days_before),
         lambda: _training_reminders(company_id, run_date, days_before),
         lambda: _complaint_reminders(company_id, run_date, days_before),
         lambda: _management_review_reminders(company_id, run_date, days_before),

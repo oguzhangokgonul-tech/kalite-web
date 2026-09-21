@@ -1,0 +1,187 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}İSG Risk Matrisi{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .ohs-metric {
+      min-height: 112px;
+    }
+    .ohs-metric .stat-icon {
+      flex: 0 0 auto;
+    }
+    .ohs-risk-score {
+      min-width: 3.25rem;
+      justify-content: center;
+    }
+    .ohs-record-title {
+      min-width: 13rem;
+      max-width: 24rem;
+    }
+    .ohs-record-title a,
+    .ohs-record-title small {
+      overflow-wrap: anywhere;
+    }
+    .ohs-dashboard-actions {
+      flex-wrap: wrap;
+    }
+    @media (max-width: 767.98px) {
+      .ohs-metric {
+        min-height: 96px;
+      }
+      .ohs-dashboard-actions .btn {
+        flex: 1 1 10rem;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("İSG Risk Matrisi", "Tehlikeleri, başlangıç risklerini, kontrol tedbirlerini ve artık riskleri izleyin.", icon="bi-shield-exclamation") %}
+    {% if can_export %}
+      <a class="btn btn-outline-primary" href="{{ url_for('ohs_risk.export_excel') }}">
+        <i class="bi bi-file-earmark-excel"></i>
+        <span>Excel Raporu</span>
+      </a>
+    {% endif %}
+    {% if can_create %}
+      <a class="btn btn-primary" href="{{ url_for('ohs_risk.create_assessment') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Risk Değerlendirmesi</span>
+      </a>
+    {% endif %}
+  {% endcall %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+      <div class="document-list-card ohs-metric p-3 h-100 d-flex align-items-center gap-3">
+        <span class="stat-icon"><i class="bi bi-clipboard2-pulse"></i></span>
+        <div><small class="text-secondary d-block">Toplam Değerlendirme</small><strong class="fs-4">{{ total_count }}</strong></div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="document-list-card ohs-metric p-3 h-100 d-flex align-items-center gap-3">
+        <span class="stat-icon text-danger"><i class="bi bi-exclamation-octagon"></i></span>
+        <div><small class="text-secondary d-block">Kritik Risk</small><strong class="fs-4 text-danger">{{ critical_count }}</strong></div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="document-list-card ohs-metric p-3 h-100 d-flex align-items-center gap-3">
+        <span class="stat-icon text-warning"><i class="bi bi-hourglass-split"></i></span>
+        <div><small class="text-secondary d-block">Onay Bekleyen</small><strong class="fs-4 text-warning">{{ pending_count }}</strong></div>
+      </div>
+    </div>
+    <div class="col-6 col-xl-3">
+      <div class="document-list-card ohs-metric p-3 h-100 d-flex align-items-center gap-3">
+        <span class="stat-icon text-danger"><i class="bi bi-calendar-x"></i></span>
+        <div><small class="text-secondary d-block">Geciken Kontrol</small><strong class="fs-4 text-danger">{{ overdue_count }}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <form class="document-list-card p-3 mb-3" method="get">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-xl-4">
+        <label class="form-label" for="ohs-search">Arama</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input class="form-control" id="ohs-search" name="search" value="{{ filters.get('search', '') }}" placeholder="Risk no, faaliyet, tehlike veya konum ara">
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-3">
+        <label class="form-label" for="ohs-department">Departman</label>
+        <select class="form-select" id="ohs-department" name="department_id">
+          <option value="">Tüm departmanlar</option>
+          {% for department in departments %}
+            <option value="{{ department.id }}" {% if filters.get('department_id', '')|string == department.id|string %}selected{% endif %}>{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-3">
+        <label class="form-label" for="ohs-status">Durum</label>
+        <select class="form-select" id="ohs-status" name="status">
+          <option value="">Aktif kayıtlar</option>
+          {% for status in statuses %}
+            <option value="{{ status }}" {% if filters.get('status', '') == status %}selected{% endif %}>{{ status }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-xl-2">
+        <div class="d-flex gap-2 ohs-dashboard-actions">
+          <button class="btn btn-primary flex-grow-1" type="submit"><i class="bi bi-funnel"></i><span>Filtrele</span></button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('ohs_risk.dashboard') }}" aria-label="Filtreleri temizle" title="Filtreleri temizle"><i class="bi bi-arrow-clockwise"></i></a>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="table-responsive">
+      <table class="table dashboard-table align-middle mb-0" data-tablet-records>
+        <thead>
+          <tr>
+            <th>Risk No</th>
+            <th>Faaliyet / Tehlike</th>
+            <th>Departman</th>
+            <th>İlk Risk</th>
+            <th>Kontrol Hiyerarşisi</th>
+            <th>Artık Risk</th>
+            <th>Sorumlu / Termin</th>
+            <th>Durum</th>
+            <th class="text-end">İşlemler</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for assessment in assessments %}
+            <tr>
+              <td data-label="Risk No"><strong>{{ assessment.assessment_no }}</strong></td>
+              <td data-label="Faaliyet / Tehlike" class="ohs-record-title">
+                <a class="fw-semibold text-decoration-none" href="{{ url_for('ohs_risk.assessment_detail', assessment_id=assessment.id) }}">{{ assessment.hazard }}</a>
+                <small class="d-block text-secondary">{{ assessment.activity }}{% if assessment.location %} · {{ assessment.location }}{% endif %}</small>
+              </td>
+              <td data-label="Departman">{{ assessment.department.name }}</td>
+              <td data-label="İlk Risk">
+                {{ ui.status_badge(assessment.initial_score|string, tone=score_tone(assessment.initial_score), icon="bi-grid-3x3-gap", class_name="ohs-risk-score", title=assessment.initial_level) }}
+                <small class="d-block text-secondary mt-1">{{ assessment.initial_level }}</small>
+              </td>
+              <td data-label="Kontrol Hiyerarşisi">{{ assessment.control_hierarchy or "-" }}</td>
+              <td data-label="Artık Risk">
+                {% if assessment.residual_score is not none %}
+                  {{ ui.status_badge(assessment.residual_score|string, tone=score_tone(assessment.residual_score), icon="bi-shield-check", class_name="ohs-risk-score", title=assessment.residual_level) }}
+                  <small class="d-block text-secondary mt-1">{{ assessment.residual_level }}</small>
+                {% else %}
+                  <span class="text-secondary">Henüz hesaplanmadı</span>
+                {% endif %}
+              </td>
+              <td data-label="Sorumlu / Termin">
+                <span>{{ assessment.responsible.full_name if assessment.responsible else "-" }}</span>
+                <small class="d-block text-secondary">{{ assessment.due_date.strftime('%d.%m.%Y') if assessment.due_date else "Termin yok" }}</small>
+              </td>
+              <td data-label="Durum">{{ ui.status_badge(assessment.status) }}</td>
+              <td data-label="İşlemler">
+                <div class="dashboard-row-actions justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ohs_risk.assessment_detail', assessment_id=assessment.id) }}">
+                    <i class="bi bi-eye"></i><span>Görüntüle</span>
+                  </a>
+                  {% if can_manage and assessment.status in ["Taslak", "Revizyon Bekliyor"] %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ohs_risk.edit_assessment', assessment_id=assessment.id) }}">
+                      <i class="bi bi-pencil"></i><span>Düzenle</span>
+                    </a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9" class="dashboard-empty-row">
+                <strong>Risk değerlendirmesi bulunamadı.</strong>
+                <span>Filtreleri temizleyin veya yeni bir İSG risk değerlendirmesi oluşturun.</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

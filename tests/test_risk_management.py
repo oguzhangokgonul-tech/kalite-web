@@ -151,7 +151,10 @@ def test_risk_create_edit_delete_flow(app, client):
     response = client.post(f"/risk-yonetimi/{risk.id}/sil", follow_redirects=True)
 
     assert response.status_code == 200
-    assert RiskRecord.query.count() == 0
+    db.session.refresh(risk)
+    assert RiskRecord.query.count() == 1
+    assert risk.status == "Arşiv"
+    assert risk.archived_at is not None
     assert AuditLog.query.filter_by(entity_type="RiskRecord").count() >= 3
 
 

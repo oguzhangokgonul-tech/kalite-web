@@ -1369,6 +1369,7 @@ class RiskRecord(db.Model):
     action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True)
     dof_id = db.Column(db.Integer, db.ForeignKey("dofs.id"), nullable=True)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -1393,6 +1394,119 @@ class RiskRecord(db.Model):
         if self.rpn >= 8:
             return "Orta"
         return "Düşük"
+
+
+class OhsRiskAssessment(db.Model):
+    __tablename__ = "ohs_risk_assessments"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "assessment_no", name="uq_ohs_risk_assessments_company_no"),
+        db.UniqueConstraint("risk_record_id", name="uq_ohs_risk_assessments_risk_record"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    assessment_no = db.Column(db.String(40), nullable=False, index=True)
+    department_id = db.Column(db.Integer, db.ForeignKey("company_departments.id"), nullable=False, index=True)
+    activity = db.Column(db.String(240), nullable=False)
+    location = db.Column(db.String(240), nullable=False)
+    hazard = db.Column(db.Text, nullable=False)
+    risk_description = db.Column(db.Text, nullable=False)
+    exposed_people = db.Column(db.Text, nullable=False)
+    existing_controls = db.Column(db.Text, nullable=False)
+    initial_likelihood = db.Column(db.Integer, nullable=False)
+    initial_severity = db.Column(db.Integer, nullable=False)
+    control_hierarchy = db.Column(db.String(40), nullable=False)
+    planned_controls = db.Column(db.Text, nullable=False)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    risk_record_id = db.Column(db.Integer, db.ForeignKey("risk_records.id"), nullable=False, index=True)
+    due_date = db.Column(db.Date, nullable=False, index=True)
+    review_date = db.Column(db.Date, nullable=True, index=True)
+    status = db.Column(db.String(40), nullable=False, default="Taslak", index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    residual_likelihood = db.Column(db.Integer, nullable=True)
+    residual_severity = db.Column(db.Integer, nullable=True)
+    completion_note = db.Column(db.Text, nullable=True)
+    evidence_name = db.Column(db.String(255), nullable=True)
+    evidence_path = db.Column(db.String(500), nullable=True)
+    evidence_hash = db.Column(db.String(64), nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    residual_submitted_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    department = db.relationship("CompanyDepartment")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    risk_record = db.relationship("RiskRecord", foreign_keys=[risk_record_id])
+    evaluations = db.relationship(
+        "OhsRiskEvaluation",
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+        order_by="OhsRiskEvaluation.version_no",
+    )
+
+    @staticmethod
+    def score_level(score):
+        if score >= 17:
+            return "Çok Yüksek"
+        if score >= 10:
+            return "Yüksek"
+        if score >= 5:
+            return "Orta"
+        return "Düşük"
+
+    @property
+    def initial_score(self):
+        return (self.initial_likelihood or 0) * (self.initial_severity or 0)
+
+    @property
+    def initial_level(self):
+        return self.score_level(self.initial_score)
+
+    @property
+    def residual_score(self):
+        if self.residual_likelihood is None or self.residual_severity is None:
+            return None
+        return self.residual_likelihood * self.residual_severity
+
+    @property
+    def residual_level(self):
+        return self.score_level(self.residual_score) if self.residual_score is not None else None
+
+
+class OhsRiskEvaluation(db.Model):
+    __tablename__ = "ohs_risk_evaluations"
+    __table_args__ = (
+        db.UniqueConstraint("assessment_id", "version_no", name="uq_ohs_risk_evaluations_version"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    assessment_id = db.Column(db.Integer, db.ForeignKey("ohs_risk_assessments.id"), nullable=False, index=True)
+    version_no = db.Column(db.Integer, nullable=False)
+    phase = db.Column(db.String(30), nullable=False)
+    likelihood = db.Column(db.Integer, nullable=False)
+    severity = db.Column(db.Integer, nullable=False)
+    score = db.Column(db.Integer, nullable=False)
+    level = db.Column(db.String(30), nullable=False)
+    existing_controls = db.Column(db.Text, nullable=True)
+    planned_controls = db.Column(db.Text, nullable=True)
+    control_hierarchy = db.Column(db.String(40), nullable=True)
+    decision = db.Column(db.String(20), nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    evidence_name = db.Column(db.String(255), nullable=True)
+    evidence_path = db.Column(db.String(500), nullable=True)
+    evidence_hash = db.Column(db.String(64), nullable=True)
+    evaluator_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    assessment = db.relationship("OhsRiskAssessment", back_populates="evaluations")
+    evaluator = db.relationship("User", foreign_keys=[evaluator_user_id])
 
 
 class FmeaRecord(db.Model):

@@ -6,6 +6,12 @@
 {% block app_content %}
   {% set show_actions = can_manage_risks or can_delete_risks or can_create_actions %}
   {% call ui.page_header("Risk Yönetimi", "ISO 9001 risklerini RPN puanı, termin ve aksiyon bağlantılarıyla takip edin.", icon="bi-exclamation-diamond") %}
+    {% if g.current_user.has_permission('risk.ohs_view') or g.current_user.has_permission('risk.ohs_create') or g.current_user.has_permission('risk.ohs_manage') or g.current_user.has_permission('risk.manage') %}
+      <a class="btn btn-outline-primary btn-lg" href="{{ url_for('ohs_risk.dashboard') }}">
+        <i class="bi bi-shield-exclamation"></i>
+        <span>İSG Risk Matrisi</span>
+      </a>
+    {% endif %}
     {% if can_manage_risks %}
       <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_risk') }}">
         <i class="bi bi-plus-lg"></i>
@@ -169,11 +175,11 @@
                       </a>
                     {% endif %}
                     {% if can_delete_risks %}
-                      <form action="{{ url_for('main.delete_risk', risk_id=risk.id) }}" method="post" onsubmit="return confirm('Risk kaydını silmek istediğinize emin misiniz?');">
+                      <form action="{{ url_for('main.delete_risk', risk_id=risk.id) }}" method="post" onsubmit="return confirm('Risk kaydını arşivlemek istediğinize emin misiniz?');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">
-                          <i class="bi bi-trash"></i>
-                          <span>Sil</span>
+                          <i class="bi bi-archive"></i>
+                          <span>Arşivle</span>
                         </button>
                       </form>
                     {% endif %}

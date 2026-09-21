@@ -132,6 +132,16 @@ PERMISSION_CATALOG = (
         "group": "Risk Yönetimi",
         "description": "Risk kayıtlarını silebilir.",
     },
+    {"key": "risk.ohs_view", "label": "İSG risklerini görüntüleme", "group": "Risk Yönetimi", "description": "Yetkili olduğu İSG risk matrisi kayıtlarını görüntüler."},
+    {"key": "risk.ohs_create", "label": "İSG risk kaydı oluşturma", "group": "Risk Yönetimi", "description": "Tehlike ve başlangıç risk değerlendirmesi oluşturur."},
+    {"key": "risk.ohs_manage", "label": "İSG risk süreci yönetimi", "group": "Risk Yönetimi", "description": "Şirket genelindeki İSG risk değerlendirmelerini yönetir."},
+    {"key": "risk.ohs_approve", "label": "İSG risk değerlendirme onayı", "group": "Risk Yönetimi", "description": "Başlangıç ve artık risk değerlendirmelerini bağımsız olarak onaylar."},
+    {"key": "risk.ohs_archive", "label": "İSG risk arşivleme", "group": "Risk Yönetimi", "description": "Tamamlanan İSG risk kayıtlarını arşivler."},
+    {"key": "risk.ohs_export", "label": "İSG risk raporu indirme", "group": "Risk Yönetimi", "description": "Yetkili olduğu İSG risk matrisini Excel olarak indirir."},
+    {"key": "risk.view_all", "label": "Tüm riskleri görüntüleme", "group": "Risk Yönetimi", "description": "Şirket genelindeki risk kayıtlarını görüntüler."},
+    {"key": "risk.approve", "label": "Risk değerlendirme onayı", "group": "Risk Yönetimi", "description": "Atandığı risk değerlendirmelerinde bağımsız karar verir."},
+    {"key": "risk.archive", "label": "Risk arşivleme", "group": "Risk Yönetimi", "description": "Tamamlanan riskleri denetim izi korunarak arşivler."},
+    {"key": "risk.export", "label": "Risk raporu indirme", "group": "Risk Yönetimi", "description": "Risk kayıtlarını rapor olarak indirir."},
     {
         "key": "fmea.view",
         "label": "FMEA görüntüleme",
@@ -1139,6 +1149,27 @@ ROLE_DEFINITIONS = (
         ],
     },
 )
+
+OHS_RISK_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "risk.ohs_view", "risk.ohs_create", "risk.ohs_manage", "risk.ohs_approve",
+        "risk.ohs_archive", "risk.ohs_export", "risk.view_all", "risk.approve",
+        "risk.archive", "risk.export",
+    ),
+    "management": (
+        "risk.ohs_view", "risk.ohs_approve", "risk.ohs_export", "risk.view_all",
+        "risk.approve", "risk.export",
+    ),
+    "department_manager": ("risk.ohs_view", "risk.ohs_create", "risk.ohs_export"),
+    "department_staff": ("risk.ohs_view", "risk.ohs_create"),
+    "viewer": ("risk.ohs_view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in OHS_RISK_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
 
 DYNAMIC_FORM_ROLE_PERMISSIONS = {
     "management_representative": (
@@ -3727,6 +3758,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_environmental_aspects",
             "sales_readiness:competitor_energy_management",
             "sales_readiness:module_energy_consumption_tracking",
+            "sales_readiness:competitor_ohs_risk_matrix",
         ):
             db.session.execute(
                 text(

@@ -177,6 +177,7 @@ from .models import (
     QUALITY_TEST_MODULE_BY_SLUG,
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
+    OhsRiskAssessment,
     RiskRecord,
     Role,
     RolePermission,
@@ -2901,6 +2902,17 @@ MODULE_ENDPOINTS = {
     "main.create_risk": "risk_management",
     "main.edit_risk": "risk_management",
     "main.delete_risk": "risk_management",
+    "ohs_risk.dashboard": "risk_management",
+    "ohs_risk.create_assessment": "risk_management",
+    "ohs_risk.edit_assessment": "risk_management",
+    "ohs_risk.assessment_detail": "risk_management",
+    "ohs_risk.submit_initial": "risk_management",
+    "ohs_risk.review_initial": "risk_management",
+    "ohs_risk.submit_residual": "risk_management",
+    "ohs_risk.review_residual": "risk_management",
+    "ohs_risk.archive_assessment": "risk_management",
+    "ohs_risk.download_evaluation_evidence": "risk_management",
+    "ohs_risk.export_excel": "risk_management",
     "main.fmea_dashboard": "fmea_management",
     "main.create_fmea": "fmea_management",
     "main.fmea_detail": "fmea_management",
@@ -7858,6 +7870,14 @@ def report_risks_data():
     }
 
 
+def report_ohs_risks_data():
+    from .ohs_risk_management import report_data
+
+    data = report_data()
+    data["column_widths"] = (16, 20, 30, 24, 36, 12, 16, 12, 16, 24, 18, 24, 16, 18)
+    return data
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8578,6 +8598,17 @@ REPORT_CENTER_REPORTS = (
         "tone": "danger",
         "module_key": "risk_management",
         "builder": report_risks_data,
+    },
+    {
+        "key": "ohs_risks",
+        "title": "İSG Risk Matrisi Raporu",
+        "description": "Tehlike, başlangıç riski, kontrol hiyerarşisi, aksiyon ve artık risk özeti.",
+        "icon": "bi-shield-exclamation",
+        "tone": "danger",
+        "module_key": "risk_management",
+        "required_permission": "risk.ohs_view",
+        "required_export_permission": "risk.ohs_export",
+        "builder": report_ohs_risks_data,
     },
     {
         "key": "fmea",
@@ -10529,11 +10560,13 @@ def action_effectiveness_detail_url(action):
     )
 
 
-RISK_STATUSES = ("Açık", "İzlemede", "Aksiyon Açıldı", "Kapandı")
+RISK_STATUSES = ("Açık", "İzlemede", "Aksiyon Açıldı", "Kapandı", "Arşiv")
 
 
 def can_view_risks():
-    return current_user_can("risk.view") or can_manage_risks()
+    return company_module_enabled("risk_management") and (
+        current_user_can("risk.view") or can_manage_risks()
+    )
 
 
 def can_manage_risks():
@@ -10561,8 +10594,28 @@ def risk_filters():
     }
 
 
-def risk_query():
-    return scoped_query(RiskRecord.query, RiskRecord)
+def risk_query(include_archived=False):
+    query = scoped_query(RiskRecord.query, RiskRecord)
+    if not include_archived:
+        query = query.filter(RiskRecord.archived_at.is_(None))
+    if current_user_can("risk.view_all") or can_manage_risks():
+        return query
+    if g.current_user.has_role("department_manager") or g.current_user.has_role("department_staff"):
+        from .dynamic_forms import user_matches_department
+
+        departments = [
+            item.name
+            for item in CompanyDepartment.query.filter_by(
+                company_id=current_company_id(), is_active=True
+            ).all()
+            if user_matches_department(g.current_user, item.name)
+        ]
+        return query.filter(or_(
+            RiskRecord.department.in_(departments),
+            RiskRecord.owner_user_id == g.current_user.id,
+            RiskRecord.created_by_user_id == g.current_user.id,
+        ))
+    return query
 
 
 def parse_optional_risk(field_name="risk_id", *, require_manage=True, allow_existing_action=False):
@@ -10570,8 +10623,6 @@ def parse_optional_risk(field_name="risk_id", *, require_manage=True, allow_exis
     if not value:
         return None
     if not company_module_enabled("risk_management"):
-        raise ValueError("invalid_risk")
-    if require_manage and not can_manage_risks():
         raise ValueError("invalid_risk")
     if not require_manage and not can_view_risks():
         raise ValueError("invalid_risk")
@@ -10582,6 +10633,12 @@ def parse_optional_risk(field_name="risk_id", *, require_manage=True, allow_exis
     risk = risk_query().filter_by(id=risk_id).first()
     if risk is None:
         raise ValueError("invalid_risk")
+    if require_manage and not can_manage_risks():
+        from .ohs_risk_management import can_create as can_create_ohs_risk, visible_query as visible_ohs_risks
+
+        linked_ohs = visible_ohs_risks().filter_by(risk_record_id=risk.id).first()
+        if linked_ohs is None or not can_create_ohs_risk():
+            raise ValueError("invalid_risk")
     if risk.action_id and not allow_existing_action:
         raise ValueError("risk_already_linked")
     return risk
@@ -17229,6 +17286,7 @@ def assigned_all_tasks(scope):
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
     from .energy_management import assigned_task_rows as assigned_energy_task_rows
+    from .ohs_risk_management import assigned_task_rows as assigned_ohs_risk_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17266,6 +17324,7 @@ def assigned_all_tasks(scope):
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
         + assigned_energy_task_rows(scope, assigned_task_row)
+        + assigned_ohs_risk_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17307,6 +17366,7 @@ ASSIGNED_TAB_MODULES = {
         "hazardous_substance",
         "environmental",
         "energy",
+        "ohs_risk",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17340,6 +17400,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("hazardous_substance", "Tehlikeli Madde"),
     ("environmental", "Çevre ve Atık"),
     ("energy", "Enerji"),
+    ("ohs_risk", "İSG Risk Matrisi"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
@@ -18105,6 +18166,8 @@ def archive_pilot_program(program_id):
 @bp.route("/risk-yonetimi")
 @login_required
 def risk_dashboard():
+    if not company_module_enabled("risk_management"):
+        abort(404)
     if not can_view_risks():
         abort(403)
     return render_template("risks/dashboard.html", **risk_dashboard_context())
@@ -18113,9 +18176,10 @@ def risk_dashboard():
 @bp.route("/risk-yonetimi/yeni", methods=["GET", "POST"])
 @login_required
 def create_risk():
+    if not company_module_enabled("risk_management"):
+        abort(404)
     if not can_manage_risks():
         abort(403)
-
     if request.method == "POST":
         try:
             values = parse_risk_form()
@@ -18140,6 +18204,8 @@ def create_risk():
 @bp.route("/risk-yonetimi/<int:risk_id>/duzenle", methods=["GET", "POST"])
 @login_required
 def edit_risk(risk_id):
+    if not company_module_enabled("risk_management"):
+        abort(404)
     if not can_manage_risks():
         abort(403)
     risk = risk_query().filter_by(id=risk_id).first_or_404()
@@ -18164,13 +18230,18 @@ def edit_risk(risk_id):
 @bp.post("/risk-yonetimi/<int:risk_id>/sil")
 @login_required
 def delete_risk(risk_id):
+    if not company_module_enabled("risk_management"):
+        abort(404)
     if not can_delete_risks():
         abort(403)
     risk = risk_query().filter_by(id=risk_id).first_or_404()
     ensure_same_company(risk)
-    db.session.delete(risk)
+    if scoped_query(OhsRiskAssessment.query, OhsRiskAssessment).filter_by(risk_record_id=risk.id).first():
+        abort(409, "İSG risk kayıtları kendi detay ekranından arşivlenmelidir.")
+    risk.status = "Arşiv"
+    risk.archived_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.session.commit()
-    flash("Risk kaydı silindi.", "success")
+    flash("Risk kaydı denetim izi korunarak arşivlendi.", "success")
     return redirect(url_for("main.risk_dashboard"))
 
 

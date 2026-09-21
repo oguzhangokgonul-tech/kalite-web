@@ -1,0 +1,256 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ assessment.assessment_no }}{% endblock %}
+
+{% block head_extra %}
+  <style>
+    .ohs-detail-copy,
+    .ohs-summary dd,
+    .ohs-history-item {
+      overflow-wrap: anywhere;
+    }
+    .ohs-score-panel {
+      border: 1px solid var(--bs-border-color);
+      border-radius: .5rem;
+      padding: 1rem;
+      height: 100%;
+    }
+    .ohs-score-value {
+      align-items: center;
+      display: flex;
+      gap: .75rem;
+      margin-top: .75rem;
+    }
+    .ohs-score-value strong {
+      font-size: 1.75rem;
+      line-height: 1;
+    }
+    .ohs-matrix-wrap {
+      overflow-x: auto;
+      padding-bottom: .25rem;
+    }
+    .ohs-matrix {
+      border-collapse: separate;
+      border-spacing: .25rem;
+      min-width: 390px;
+      table-layout: fixed;
+      width: 100%;
+    }
+    .ohs-matrix th {
+      color: var(--bs-secondary-color);
+      font-size: .75rem;
+      font-weight: 600;
+      text-align: center;
+    }
+    .ohs-matrix-cell {
+      border: 1px solid rgba(15, 23, 42, .08);
+      border-radius: .375rem;
+      height: 3.25rem;
+      position: relative;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .ohs-matrix-cell.risk-success { background: #dcfce7; color: #166534; }
+    .ohs-matrix-cell.risk-warning { background: #fef3c7; color: #92400e; }
+    .ohs-matrix-cell.risk-danger { background: #fee2e2; color: #991b1b; }
+    .ohs-matrix-cell.risk-muted { background: #f1f5f9; color: #475569; }
+    .ohs-matrix-markers {
+      display: flex;
+      gap: .2rem;
+      justify-content: center;
+      margin-top: .15rem;
+    }
+    .ohs-matrix-marker {
+      align-items: center;
+      background: #fff;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      display: inline-flex;
+      font-size: .65rem;
+      font-weight: 700;
+      height: 1.2rem;
+      justify-content: center;
+      width: 1.2rem;
+    }
+    .ohs-history-item {
+      border-left: 3px solid var(--vp-blue, #0d6efd);
+      padding-left: 1rem;
+    }
+    .ohs-detail-actions .btn,
+    .ohs-detail-actions form {
+      min-width: 0;
+    }
+    @media (max-width: 575.98px) {
+      .ohs-detail-actions .btn,
+      .ohs-detail-actions form,
+      .ohs-detail-actions form .btn {
+        width: 100%;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(assessment.assessment_no, assessment.hazard, icon="bi-shield-exclamation") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('ohs_risk.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Listeye Dön</span></a>
+    {% if can_edit %}<a class="btn btn-outline-primary" href="{{ url_for('ohs_risk.edit_assessment', assessment_id=assessment.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+  {% endcall %}
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-8">
+      <section class="document-list-card p-3 p-lg-4 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+          <div><span class="badge text-bg-light border">{{ assessment.department.name }}</span>{% if assessment.location %}<span class="badge text-bg-light border">{{ assessment.location }}</span>{% endif %}</div>
+          {{ ui.status_badge(assessment.status) }}
+        </div>
+        <div class="row g-4 ohs-detail-copy">
+          <div class="col-12 col-md-6"><h2 class="h6">Faaliyet / İş Adımı</h2><p class="mb-0">{{ assessment.activity }}</p></div>
+          <div class="col-12 col-md-6"><h2 class="h6">Maruz Kalanlar</h2><p class="mb-0">{{ assessment.exposed_people }}</p></div>
+          <div class="col-12 col-md-6"><h2 class="h6">Tehlike</h2><p class="mb-0" style="white-space: pre-wrap">{{ assessment.hazard }}</p></div>
+          <div class="col-12 col-md-6"><h2 class="h6">Risk / Olası Sonuç</h2><p class="mb-0" style="white-space: pre-wrap">{{ assessment.risk_description }}</p></div>
+          <div class="col-12"><h2 class="h6">Mevcut Kontroller</h2><p class="mb-0" style="white-space: pre-wrap">{{ assessment.existing_controls }}</p></div>
+        </div>
+      </section>
+
+      <section class="document-list-card p-3 p-lg-4 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div><h2 class="h5 mb-1">5×5 Risk Matrisi</h2><p class="text-secondary mb-0">İ: ilk risk, A: artık risk değerlendirmesini gösterir.</p></div>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge(assessment.initial_score|string, tone=score_tone(assessment.initial_score), icon="bi-grid-3x3-gap", title="İlk risk: " ~ assessment.initial_level) }}
+            {% if assessment.residual_score is not none %}{{ ui.status_badge(assessment.residual_score|string, tone=score_tone(assessment.residual_score), icon="bi-shield-check", title="Artık risk: " ~ assessment.residual_level) }}{% endif %}
+          </div>
+        </div>
+        <div class="ohs-matrix-wrap">
+          <table class="ohs-matrix" aria-label="Beşe beş risk matrisi">
+            <thead><tr><th scope="col">Şiddet ↓ / Olasılık →</th>{% for likelihood in range(1, 6) %}<th scope="col">{{ likelihood }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for severity in range(5, 0, -1) %}
+                <tr>
+                  <th scope="row">{{ severity }}</th>
+                  {% for likelihood in range(1, 6) %}
+                    {% set score = severity * likelihood %}
+                    <td class="ohs-matrix-cell risk-{{ score_tone(score) }}" title="Olasılık {{ likelihood }}, şiddet {{ severity }}, puan {{ score }}">
+                      <strong>{{ score }}</strong>
+                      {% if (assessment.initial_likelihood == likelihood and assessment.initial_severity == severity) or (assessment.residual_likelihood == likelihood and assessment.residual_severity == severity) %}
+                        <span class="ohs-matrix-markers">
+                          {% if assessment.initial_likelihood == likelihood and assessment.initial_severity == severity %}<span class="ohs-matrix-marker" title="İlk risk">İ</span>{% endif %}
+                          {% if assessment.residual_likelihood == likelihood and assessment.residual_severity == severity %}<span class="ohs-matrix-marker" title="Artık risk">A</span>{% endif %}
+                        </span>
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="document-list-card p-3 p-lg-4 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div><h2 class="h5 mb-1">Kontrol Tedbirleri</h2><p class="text-secondary mb-0">Planlanan önlemler, hiyerarşi ve bağlı aksiyon.</p></div>
+          <span class="badge text-bg-light border">{{ assessment.control_hierarchy }}</span>
+        </div>
+        <p class="ohs-detail-copy" style="white-space: pre-wrap">{{ assessment.planned_controls }}</p>
+        {% if assessment.risk_record and assessment.risk_record.action %}
+          <div class="alert alert-primary mb-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span><i class="bi bi-lightning-charge me-2"></i><strong>Bağlı aksiyon:</strong> {{ assessment.risk_record.action.number_label }}</span>
+            <span>{{ ui.status_badge(assessment.risk_record.action.status) }}</span>
+          </div>
+        {% elif can_create_action %}
+          <a class="btn btn-outline-primary" href="{{ url_for('main.create_action', risk_id=assessment.risk_record_id) }}"><i class="bi bi-plus-circle"></i><span>Kontrol Aksiyonu Oluştur</span></a>
+        {% else %}
+          <span class="text-secondary">Bu risk için henüz aksiyon bağlanmadı.</span>
+        {% endif %}
+      </section>
+
+      {% if can_submit %}
+        <form class="document-list-card p-3 p-lg-4 mb-3" method="post" action="{{ url_for('ohs_risk.submit_initial', assessment_id=assessment.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-3"><div><h2 class="h5 mb-1">İlk Risk Değerlendirmesi</h2><p class="text-secondary mb-0">Kayıt, bağımsız değerlendiricinin onayına gönderilecektir.</p></div><button class="btn btn-primary" type="submit"><i class="bi bi-send"></i><span>Onaya Gönder</span></button></div>
+        </form>
+      {% endif %}
+
+      {% if can_review_initial %}
+        <form class="document-list-card p-3 p-lg-4 mb-3" method="post" action="{{ url_for('ohs_risk.review_initial', assessment_id=assessment.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <h2 class="h5">İlk Risk Onayı</h2>
+          <label class="form-label" for="initial-review-note">Karar Notu</label>
+          <textarea class="form-control mb-3" id="initial-review-note" name="note" rows="3" maxlength="1000" required></textarea>
+          <div class="d-flex flex-column flex-sm-row gap-2"><button class="btn btn-success" name="decision" value="approve" type="submit"><i class="bi bi-check2-circle"></i><span>Onayla</span></button><button class="btn btn-outline-danger" name="decision" value="reject" type="submit"><i class="bi bi-x-circle"></i><span>Reddet</span></button></div>
+        </form>
+      {% endif %}
+
+      {% if can_submit_residual %}
+        <form class="document-list-card p-3 p-lg-4 mb-3" method="post" enctype="multipart/form-data" action="{{ url_for('ohs_risk.submit_residual', assessment_id=assessment.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <h2 class="h5 mb-1">Artık Risk Değerlendirmesi</h2><p class="text-secondary">Kontroller uygulandıktan sonra kalan riski puanlayın ve kapanış kanıtını ekleyin.</p>
+          <div class="row g-3">
+            <div class="col-12 col-md-6"><label class="form-label" for="residual_likelihood">Olasılık (1-5)</label><select class="form-select" id="residual_likelihood" name="residual_likelihood" required><option value="">Puan seçin</option>{% for score in range(1, 6) %}<option value="{{ score }}">{{ score }}</option>{% endfor %}</select></div>
+            <div class="col-12 col-md-6"><label class="form-label" for="residual_severity">Şiddet (1-5)</label><select class="form-select" id="residual_severity" name="residual_severity" required><option value="">Puan seçin</option>{% for score in range(1, 6) %}<option value="{{ score }}">{{ score }}</option>{% endfor %}</select></div>
+            <div class="col-12"><label class="form-label" for="completion_note">Kontrol ve Kapanış Açıklaması</label><textarea class="form-control" id="completion_note" name="completion_note" rows="4" maxlength="2000" required>{{ assessment.completion_note or '' }}</textarea></div>
+            <div class="col-12"><label class="form-label" for="evidence">Kapanış Kanıtı</label><input class="form-control" id="evidence" type="file" name="evidence" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" required><div class="form-text">PDF, Word, Excel veya görsel dosyası ekleyebilirsiniz.</div></div>
+          </div>
+          <div class="text-end mt-3"><button class="btn btn-primary" type="submit"><i class="bi bi-send-check"></i><span>Artık Riski Onaya Gönder</span></button></div>
+        </form>
+      {% endif %}
+
+      {% if can_review_residual %}
+        <form class="document-list-card p-3 p-lg-4 mb-3" method="post" action="{{ url_for('ohs_risk.review_residual', assessment_id=assessment.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <h2 class="h5">Artık Risk Onayı</h2>
+          <label class="form-label" for="residual-review-note">Karar Notu</label>
+          <textarea class="form-control mb-3" id="residual-review-note" name="note" rows="3" maxlength="1000" required></textarea>
+          <div class="d-flex flex-column flex-sm-row gap-2"><button class="btn btn-success" name="decision" value="approve" type="submit"><i class="bi bi-check2-circle"></i><span>Onayla ve Kapat</span></button><button class="btn btn-outline-danger" name="decision" value="reject" type="submit"><i class="bi bi-x-circle"></i><span>Reddet</span></button></div>
+        </form>
+      {% endif %}
+
+      <section class="document-list-card p-3 p-lg-4">
+        <h2 class="h5 mb-3">Değerlendirme ve Sürüm Geçmişi</h2>
+        <div class="vstack gap-3">
+          {% for evaluation in assessment.evaluations %}
+            <article class="ohs-history-item">
+              <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div><strong>Sürüm {{ evaluation.version_no|default(loop.revindex) }} · {{ evaluation.phase }}</strong><small class="d-block text-secondary">{{ evaluation.created_at.strftime('%d.%m.%Y %H:%M') if evaluation.created_at else '-' }}{% if evaluation.evaluator %} · {{ evaluation.evaluator.full_name }}{% endif %}</small></div>
+                {% if evaluation.decision %}{{ ui.status_badge(evaluation.decision) }}{% endif %}
+              </div>
+              {% if evaluation.score is not none %}<div class="mt-2"><strong>{{ evaluation.score }}</strong> puan · {{ evaluation.level }} <span class="text-secondary">({{ evaluation.likelihood }} × {{ evaluation.severity }})</span></div>{% endif %}
+              {% if evaluation.note %}<p class="mb-2 mt-2" style="white-space: pre-wrap">{{ evaluation.note }}</p>{% endif %}
+              {% if evaluation.evidence_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('ohs_risk.download_evaluation_evidence', evaluation_id=evaluation.id) }}"><i class="bi bi-download"></i><span>{{ evaluation.evidence_name }}</span></a>{% endif %}
+            </article>
+          {% else %}
+            {{ ui.empty_state("Değerlendirme geçmişi henüz oluşmadı.", "Onay ve yeniden değerlendirme adımları burada sürümlenecek.", icon="bi-clock-history") }}
+          {% endfor %}
+        </div>
+      </section>
+    </div>
+
+    <aside class="col-12 col-xl-4">
+      <section class="document-list-card p-3 mb-3">
+        <h2 class="h5 mb-3">Risk Özeti</h2>
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-sm-6 col-xl-12"><div class="ohs-score-panel"><small class="text-secondary">İlk Risk</small><div class="ohs-score-value"><strong>{{ assessment.initial_score }}</strong><span>{{ assessment.initial_level }}<small class="d-block text-secondary">{{ assessment.initial_likelihood }} × {{ assessment.initial_severity }}</small></span></div></div></div>
+          <div class="col-12 col-sm-6 col-xl-12"><div class="ohs-score-panel"><small class="text-secondary">Artık Risk</small>{% if assessment.residual_score is not none %}<div class="ohs-score-value"><strong>{{ assessment.residual_score }}</strong><span>{{ assessment.residual_level }}<small class="d-block text-secondary">{{ assessment.residual_likelihood }} × {{ assessment.residual_severity }}</small></span></div>{% else %}<p class="text-secondary mb-0 mt-2">Kontroller tamamlandıktan sonra hesaplanacak.</p>{% endif %}</div></div>
+        </div>
+        <dl class="row mb-0 ohs-summary">
+          <dt class="col-5">Sorumlu</dt><dd class="col-7">{{ assessment.responsible.full_name if assessment.responsible else '-' }}</dd>
+          <dt class="col-5">Değerlendirici</dt><dd class="col-7">{{ assessment.reviewer.full_name if assessment.reviewer else '-' }}</dd>
+          <dt class="col-5">Termin</dt><dd class="col-7">{{ assessment.due_date.strftime('%d.%m.%Y') if assessment.due_date else '-' }}</dd>
+          <dt class="col-5">Gözden Geçirme</dt><dd class="col-7">{{ assessment.review_date.strftime('%d.%m.%Y') if assessment.review_date else '-' }}</dd>
+        </dl>
+      </section>
+
+      {% if assessment.completion_note or assessment.evidence_name %}
+        <section class="document-list-card p-3 mb-3"><h2 class="h5">Kapanış Bilgisi</h2>{% if assessment.completion_note %}<p style="white-space: pre-wrap">{{ assessment.completion_note }}</p>{% endif %}{% if assessment.evidence_name %}<span class="d-flex align-items-center gap-2 text-secondary"><i class="bi bi-paperclip"></i><span class="text-break">{{ assessment.evidence_name }}</span></span>{% endif %}</section>
+      {% endif %}
+
+      {% if can_archive %}
+        <form class="document-list-card p-3 ohs-detail-actions" method="post" action="{{ url_for('ohs_risk.archive_assessment', assessment_id=assessment.id) }}" onsubmit="return confirm('Bu risk değerlendirmesini arşivlemek istediğinize emin misiniz?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-outline-secondary w-100" type="submit"><i class="bi bi-archive"></i><span>Değerlendirmeyi Arşivle</span></button>
+        </form>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}
