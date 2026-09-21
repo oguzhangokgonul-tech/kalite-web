@@ -39,6 +39,7 @@ from .models import (
     EnergySavingProject,
     EnergyTarget,
     OhsRiskAssessment,
+    WorkflowInstanceStep,
 )
 from .notifications import (
     add_user_notification,
@@ -1057,6 +1058,41 @@ def _energy_reminders(company_id, run_date, days_before=30):
     return stats
 
 
+def _workflow_reminders(company_id, run_date, days_before):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    steps = _company_query(WorkflowInstanceStep, company_id).filter(
+        WorkflowInstanceStep.status == "active",
+        WorkflowInstanceStep.due_date.isnot(None),
+        WorkflowInstanceStep.due_date <= limit_date,
+    ).all()
+    for step in steps:
+        user_ids = [recipient.user_id for recipient in step.recipients if recipient.status == "pending"]
+        if not user_ids:
+            continue
+        severity, label = _due_state(step.due_date, run_date)
+        created, emails = _send_record_reminders(
+            users_by_ids(user_ids, company_id=company_id),
+            company_id=company_id,
+            kind="workflow",
+            record_id=step.id,
+            title=f"İş akışı hatırlatması {step.instance.instance_no}",
+            message=f"{step.instance.instance_no} {step.name_snapshot} adımı için termin durumu: {label}.",
+            target_url=f"/is-akislari/kayit/{step.instance_id}",
+            due_date=step.due_date,
+            notification_type=severity,
+            run_date=run_date,
+            email_details=[
+                ("Süreç", step.instance.workflow_name_snapshot),
+                ("Kayıt", step.instance.instance_no),
+                ("Adım", step.name_snapshot),
+            ],
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -1084,6 +1120,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _hazardous_substance_reminders(company_id, run_date, 30),
         lambda: _environmental_reminders(company_id, run_date, 30),
         lambda: _energy_reminders(company_id, run_date, 30),
+        lambda: _workflow_reminders(company_id, run_date, days_before),
     )
     for build_stats in builders:
         item_stats = build_stats()

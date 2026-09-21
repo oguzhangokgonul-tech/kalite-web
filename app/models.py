@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 
+from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
@@ -362,6 +363,14 @@ COMPANY_MODULE_CATALOG = (
     {"key": "hazardous_substances", "name": "Tehlikeli Madde Yönetimi", "description": "Kimyasal envanteri, GBF/SDS belgelerini, GHS tehlikelerini, stok ve depolama risklerini izler.", "icon": "bi-radioactive", "sort_order": 79, "parent_key": None},
     {"key": "environmental_management", "name": "Çevre ve Atık Yönetimi", "description": "Çevresel boyut-etki analizlerini, atık envanterini ve lisanslı teslim zincirini izler.", "icon": "bi-recycle", "sort_order": 80, "parent_key": None},
     {"key": "energy_management", "name": "Enerji Yönetimi", "description": "Enerji sayaçlarını, tüketim okumalarını, azaltım hedeflerini ve tasarruf projelerini izler.", "icon": "bi-lightning-charge", "sort_order": 81, "parent_key": None},
+    {
+        "key": "workflow_designer",
+        "name": "İş Akışı Tasarımcısı",
+        "description": "Sürümlenebilir onay, görev ve bilgilendirme akışları tasarlar ve işletir.",
+        "icon": "bi-bezier2",
+        "sort_order": 82,
+        "parent_key": None,
+    },
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -5564,6 +5573,587 @@ class EnergySavingVerification(db.Model):
 
     project = db.relationship("EnergySavingProject", back_populates="verifications")
     verified_by = db.relationship("User", foreign_keys=[verified_by_user_id])
+
+
+WORKFLOW_TEMPLATE_STATUSES = ("draft", "published", "archived")
+WORKFLOW_VERSION_STATUSES = ("draft", "published", "archived")
+WORKFLOW_STEP_TYPES = ("approval", "task", "notification")
+WORKFLOW_ASSIGNMENT_TYPES = ("user", "role", "department_manager")
+WORKFLOW_APPROVAL_POLICIES = ("any", "all")
+WORKFLOW_REJECTION_ACTIONS = ("return", "reject")
+WORKFLOW_INSTANCE_STATUSES = (
+    "draft",
+    "in_progress",
+    "revision_requested",
+    "completed",
+    "rejected",
+    "cancelled",
+    "archived",
+)
+WORKFLOW_INSTANCE_STEP_STATUSES = (
+    "pending",
+    "active",
+    "completed",
+    "returned",
+    "rejected",
+    "skipped",
+    "cancelled",
+)
+WORKFLOW_RECIPIENT_STATUSES = ("pending", "acted", "cancelled")
+WORKFLOW_RECIPIENT_DECISIONS = (
+    "approve",
+    "complete",
+    "acknowledge",
+    "reject",
+    "return",
+)
+
+
+class WorkflowTemplate(db.Model):
+    __tablename__ = "workflow_templates"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "code",
+            name="uq_workflow_templates_company_code",
+        ),
+        db.CheckConstraint(
+            "status IN ('draft','published','archived')",
+            name="ck_workflow_templates_status",
+        ),
+        db.CheckConstraint(
+            "current_version_number >= 1",
+            name="ck_workflow_templates_current_version_positive",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    code = db.Column(db.String(40), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    current_version_number = db.Column(db.Integer, nullable=False, default=1)
+    published_version_number = db.Column(db.Integer, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship("Company")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    versions = db.relationship(
+        "WorkflowVersion",
+        back_populates="template",
+        cascade="all, delete-orphan",
+        foreign_keys="WorkflowVersion.template_id",
+        order_by="WorkflowVersion.version_number.desc()",
+    )
+
+    @property
+    def current_version(self):
+        return next(
+            (
+                version
+                for version in self.versions
+                if version.version_number == self.current_version_number
+            ),
+            self.versions[0] if self.versions else None,
+        )
+
+    @property
+    def published_version(self):
+        return next(
+            (
+                version
+                for version in self.versions
+                if version.version_number == self.published_version_number
+            ),
+            None,
+        )
+
+
+class WorkflowVersion(db.Model):
+    __tablename__ = "workflow_versions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "template_id",
+            "version_number",
+            name="uq_workflow_versions_template_version",
+        ),
+        db.CheckConstraint(
+            "version_number >= 1",
+            name="ck_workflow_versions_version_positive",
+        ),
+        db.CheckConstraint(
+            "status IN ('draft','published','archived')",
+            name="ck_workflow_versions_status",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    template_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_templates.id"),
+        nullable=False,
+        index=True,
+    )
+    source_version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_versions.id"),
+        nullable=True,
+        index=True,
+    )
+    version_number = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    name_snapshot = db.Column(db.String(180), nullable=False)
+    description_snapshot = db.Column(db.Text, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    published_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    company = db.relationship("Company")
+    template = db.relationship(
+        "WorkflowTemplate",
+        back_populates="versions",
+        foreign_keys=[template_id],
+    )
+    source_version = db.relationship(
+        "WorkflowVersion",
+        remote_side=[id],
+        foreign_keys=[source_version_id],
+    )
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    published_by = db.relationship("User", foreign_keys=[published_by_user_id])
+    steps = db.relationship(
+        "WorkflowStep",
+        back_populates="version",
+        cascade="all, delete-orphan",
+        order_by="WorkflowStep.sort_order.asc(), WorkflowStep.id.asc()",
+    )
+    instances = db.relationship("WorkflowInstance", back_populates="version")
+
+    @property
+    def is_immutable(self):
+        return self.status == "published"
+
+
+class WorkflowStep(db.Model):
+    __tablename__ = "workflow_steps"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "version_id",
+            "step_key",
+            name="uq_workflow_steps_version_key",
+        ),
+        db.UniqueConstraint(
+            "version_id",
+            "sort_order",
+            name="uq_workflow_steps_version_order",
+        ),
+        db.CheckConstraint(
+            "step_type IN ('approval','task','notification')",
+            name="ck_workflow_steps_type",
+        ),
+        db.CheckConstraint(
+            "assignment_type IN ('user','role','department_manager')",
+            name="ck_workflow_steps_assignment_type",
+        ),
+        db.CheckConstraint(
+            "approval_policy IN ('any','all')",
+            name="ck_workflow_steps_approval_policy",
+        ),
+        db.CheckConstraint(
+            "rejection_action IN ('return','reject')",
+            name="ck_workflow_steps_rejection_action",
+        ),
+        db.CheckConstraint(
+            "sort_order >= 1",
+            name="ck_workflow_steps_order_positive",
+        ),
+        db.CheckConstraint(
+            "due_days >= 0",
+            name="ck_workflow_steps_due_days_nonnegative",
+        ),
+        db.CheckConstraint(
+            "(assignment_type = 'user' AND assigned_user_id IS NOT NULL AND assigned_role_id IS NULL) OR "
+            "(assignment_type = 'role' AND assigned_user_id IS NULL AND assigned_role_id IS NOT NULL) OR "
+            "(assignment_type = 'department_manager' AND assigned_user_id IS NULL AND assigned_role_id IS NULL)",
+            name="ck_workflow_steps_assignment_target",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    step_key = db.Column(db.String(80), nullable=False)
+    name = db.Column(db.String(180), nullable=False)
+    instructions = db.Column(db.Text, nullable=True)
+    step_type = db.Column(db.String(20), nullable=False)
+    assignment_type = db.Column(db.String(30), nullable=False)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    assigned_role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False)
+    approval_policy = db.Column(db.String(10), nullable=False, default="any")
+    rejection_action = db.Column(db.String(10), nullable=False, default="return")
+    due_days = db.Column(db.Integer, nullable=False, default=0)
+    requires_comment = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    company = db.relationship("Company")
+    version = db.relationship("WorkflowVersion", back_populates="steps")
+    assigned_user = db.relationship("User", foreign_keys=[assigned_user_id])
+    assigned_role = db.relationship("Role", foreign_keys=[assigned_role_id])
+
+    @property
+    def assignment_mode(self):
+        return self.assignment_type
+
+    @property
+    def assigned_role_key(self):
+        return self.assigned_role.key if self.assigned_role else None
+
+    @property
+    def rejection_mode(self):
+        return self.rejection_action
+
+
+class WorkflowInstance(db.Model):
+    __tablename__ = "workflow_instances"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "instance_no",
+            name="uq_workflow_instances_company_no",
+        ),
+        db.CheckConstraint(
+            "status IN ('draft','in_progress','revision_requested','completed','rejected','cancelled','archived')",
+            name="ck_workflow_instances_status",
+        ),
+        db.CheckConstraint(
+            "current_step_order IS NULL OR current_step_order >= 1",
+            name="ck_workflow_instances_current_step_order",
+        ),
+        db.Index(
+            "ix_workflow_instances_company_status",
+            "company_id",
+            "status",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    instance_no = db.Column(db.String(40), nullable=False)
+    version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_versions.id"),
+        nullable=False,
+        index=True,
+    )
+    department_id = db.Column(
+        db.Integer,
+        db.ForeignKey("company_departments.id"),
+        nullable=True,
+        index=True,
+    )
+    requester_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    workflow_code_snapshot = db.Column(db.String(40), nullable=False)
+    workflow_name_snapshot = db.Column(db.String(180), nullable=False)
+    version_number_snapshot = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="draft", index=True)
+    current_step_order = db.Column(db.Integer, nullable=True)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    rejected_at = db.Column(db.DateTime, nullable=True)
+    cancelled_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    company = db.relationship("Company")
+    version = db.relationship("WorkflowVersion", back_populates="instances")
+    department = db.relationship("CompanyDepartment")
+    requester = db.relationship("User", foreign_keys=[requester_user_id])
+    instance_steps = db.relationship(
+        "WorkflowInstanceStep",
+        back_populates="instance",
+        cascade="all, delete-orphan",
+        order_by=(
+            "WorkflowInstanceStep.sort_order.asc(), "
+            "WorkflowInstanceStep.round_number.asc(), "
+            "WorkflowInstanceStep.id.asc()"
+        ),
+    )
+    events = db.relationship(
+        "WorkflowEvent",
+        back_populates="instance",
+        order_by="WorkflowEvent.created_at.asc(), WorkflowEvent.id.asc()",
+    )
+
+    @property
+    def created_by(self):
+        return self.requester
+
+    @property
+    def created_by_user_id(self):
+        return self.requester_user_id
+
+    @property
+    def steps(self):
+        return self.instance_steps
+
+    @property
+    def active_step(self):
+        return next((step for step in self.instance_steps if step.status == "active"), None)
+
+    @property
+    def status_label(self):
+        return {
+            "draft": "Taslak",
+            "in_progress": "Devam Ediyor",
+            "revision_requested": "Revizyon Bekliyor",
+            "completed": "Tamamlandı",
+            "rejected": "Reddedildi",
+            "cancelled": "İptal",
+            "archived": "Arşiv",
+        }.get(self.status, self.status)
+
+
+class WorkflowInstanceStep(db.Model):
+    __tablename__ = "workflow_instance_steps"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "instance_id",
+            "source_step_id",
+            "round_number",
+            name="uq_workflow_instance_steps_source_round",
+        ),
+        db.CheckConstraint(
+            "step_type_snapshot IN ('approval','task','notification')",
+            name="ck_workflow_instance_steps_type",
+        ),
+        db.CheckConstraint(
+            "assignment_type_snapshot IN ('user','role','department_manager')",
+            name="ck_workflow_instance_steps_assignment_type",
+        ),
+        db.CheckConstraint(
+            "approval_policy_snapshot IN ('any','all')",
+            name="ck_workflow_instance_steps_approval_policy",
+        ),
+        db.CheckConstraint(
+            "rejection_action_snapshot IN ('return','reject')",
+            name="ck_workflow_instance_steps_rejection_action",
+        ),
+        db.CheckConstraint(
+            "status IN ('pending','active','completed','returned','rejected','skipped','cancelled')",
+            name="ck_workflow_instance_steps_status",
+        ),
+        db.CheckConstraint(
+            "sort_order >= 1 AND round_number >= 1 AND due_days_snapshot >= 0",
+            name="ck_workflow_instance_steps_positive_values",
+        ),
+        db.CheckConstraint(
+            "(assignment_type_snapshot = 'user' AND assigned_user_id_snapshot IS NOT NULL AND assigned_role_id_snapshot IS NULL) OR "
+            "(assignment_type_snapshot = 'role' AND assigned_user_id_snapshot IS NULL AND assigned_role_id_snapshot IS NOT NULL) OR "
+            "(assignment_type_snapshot = 'department_manager' AND assigned_user_id_snapshot IS NULL AND assigned_role_id_snapshot IS NULL)",
+            name="ck_workflow_instance_steps_assignment_target",
+        ),
+        db.Index(
+            "ix_workflow_instance_steps_company_status_due",
+            "company_id",
+            "status",
+            "due_date",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    instance_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_instances.id"),
+        nullable=False,
+        index=True,
+    )
+    source_step_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_steps.id"),
+        nullable=False,
+        index=True,
+    )
+    step_key_snapshot = db.Column(db.String(80), nullable=False)
+    name_snapshot = db.Column(db.String(180), nullable=False)
+    instructions_snapshot = db.Column(db.Text, nullable=True)
+    step_type_snapshot = db.Column(db.String(20), nullable=False)
+    assignment_type_snapshot = db.Column(db.String(30), nullable=False)
+    assigned_user_id_snapshot = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    assigned_role_id_snapshot = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=True)
+    assignment_label_snapshot = db.Column(db.String(180), nullable=True)
+    sort_order = db.Column(db.Integer, nullable=False)
+    round_number = db.Column(db.Integer, nullable=False, default=1)
+    approval_policy_snapshot = db.Column(db.String(10), nullable=False)
+    rejection_action_snapshot = db.Column(db.String(10), nullable=False)
+    due_days_snapshot = db.Column(db.Integer, nullable=False, default=0)
+    requires_comment_snapshot = db.Column(db.Boolean, nullable=False, default=False)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    activated_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completion_note = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    company = db.relationship("Company")
+    instance = db.relationship("WorkflowInstance", back_populates="instance_steps")
+    source_step = db.relationship("WorkflowStep")
+    assigned_user_snapshot = db.relationship("User", foreign_keys=[assigned_user_id_snapshot])
+    assigned_role_snapshot = db.relationship("Role", foreign_keys=[assigned_role_id_snapshot])
+    recipients = db.relationship(
+        "WorkflowStepRecipient",
+        back_populates="instance_step",
+        cascade="all, delete-orphan",
+        order_by="WorkflowStepRecipient.id.asc()",
+    )
+    events = db.relationship("WorkflowEvent", back_populates="instance_step")
+
+    @property
+    def step_type(self):
+        return self.step_type_snapshot
+
+    @property
+    def status_label(self):
+        return {
+            "pending": "Bekliyor",
+            "active": "İşlemde",
+            "completed": "Tamamlandı",
+            "returned": "Revizyon Bekliyor",
+            "rejected": "Reddedildi",
+            "skipped": "Atlandı",
+            "cancelled": "İptal",
+        }.get(self.status, self.status)
+
+
+class WorkflowStepRecipient(db.Model):
+    __tablename__ = "workflow_step_recipients"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "instance_step_id",
+            "user_id",
+            name="uq_workflow_step_recipients_step_user",
+        ),
+        db.CheckConstraint(
+            "status IN ('pending','acted','cancelled')",
+            name="ck_workflow_step_recipients_status",
+        ),
+        db.CheckConstraint(
+            "decision IS NULL OR decision IN ('approve','complete','acknowledge','reject','return')",
+            name="ck_workflow_step_recipients_decision",
+        ),
+        db.CheckConstraint(
+            "(status = 'pending' AND decision IS NULL AND decided_at IS NULL) OR "
+            "(status = 'acted' AND decision IS NOT NULL AND decided_at IS NOT NULL) OR "
+            "(status = 'cancelled' AND decision IS NULL)",
+            name="ck_workflow_step_recipients_decision_state",
+        ),
+        db.Index(
+            "ix_workflow_step_recipients_company_user_status",
+            "company_id",
+            "user_id",
+            "status",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    instance_step_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_instance_steps.id"),
+        nullable=False,
+        index=True,
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    recipient_name_snapshot = db.Column(db.String(180), nullable=False)
+    recipient_email_snapshot = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    decision = db.Column(db.String(20), nullable=True)
+    decision_note = db.Column(db.Text, nullable=True)
+    assigned_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    decided_at = db.Column(db.DateTime, nullable=True)
+
+    company = db.relationship("Company")
+    instance_step = db.relationship("WorkflowInstanceStep", back_populates="recipients")
+    user = db.relationship("User")
+
+    @property
+    def status_label(self):
+        if self.status == "pending":
+            return "İşlem Bekliyor"
+        return {
+            "approve": "Onayladı",
+            "complete": "Tamamladı",
+            "acknowledge": "Bilgilendirildi",
+            "reject": "Reddetti",
+            "return": "Revizyon İstedi",
+        }.get(self.decision, "İptal")
+
+
+class WorkflowEvent(db.Model):
+    __tablename__ = "workflow_events"
+    __table_args__ = (
+        db.Index(
+            "ix_workflow_events_company_instance_created",
+            "company_id",
+            "instance_id",
+            "created_at",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    instance_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_instances.id"),
+        nullable=False,
+        index=True,
+    )
+    instance_step_id = db.Column(
+        db.Integer,
+        db.ForeignKey("workflow_instance_steps.id"),
+        nullable=True,
+        index=True,
+    )
+    actor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    event_data_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+
+    company = db.relationship("Company")
+    instance = db.relationship("WorkflowInstance", back_populates="events")
+    instance_step = db.relationship("WorkflowInstanceStep", back_populates="events")
+    actor = db.relationship("User", foreign_keys=[actor_user_id])
+
+
+@event.listens_for(WorkflowEvent, "before_update")
+@event.listens_for(WorkflowEvent, "before_delete")
+def _prevent_workflow_event_mutation(_mapper, _connection, _target):
+    raise ValueError("Workflow event history is immutable.")
 
 
 class Notification(db.Model):

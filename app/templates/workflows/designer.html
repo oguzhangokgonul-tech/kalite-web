@@ -1,0 +1,21 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}İş Akışı Tasarımcısı{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="{{ url_for('static', filename='css/workflow-designer.css') }}">{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("İş Akışı Tasarımcısı", "Adımları sürükleyerek veya oklarla sıralayın.", icon="bi-bezier2") %}<a class="btn btn-outline-secondary" href="{{ url_for('workflows.dashboard') }}"><i class="bi bi-arrow-left"></i><span>İş Akışları</span></a>{% endcall %}
+  <form method="post" class="document-list-card p-3 p-lg-4" id="workflowDesigner"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-3 mb-4"><div class="col-lg-8"><label class="form-label" for="name">Akış Adı</label><input class="form-control" id="name" name="name" maxlength="180" required value="{{ version.name_snapshot }}"></div><div class="col-lg-4"><label class="form-label">Sürüm</label><input class="form-control" value="v{{ version.version_number }} / Taslak" disabled></div><div class="col-12"><label class="form-label" for="description">Açıklama</label><textarea class="form-control" id="description" name="description" rows="2">{{ version.description_snapshot or '' }}</textarea></div></div>
+    <div class="workflow-flow" aria-label="İş akışı adımları">
+      <div class="workflow-terminal"><i class="bi bi-play-circle"></i><span>Başlangıç</span></div>
+      <div id="workflowSteps" class="workflow-step-list">
+        {% for step in version.steps %}{% include "workflows/_step.html" %}{% endfor %}
+      </div>
+      <div class="workflow-terminal is-end"><i class="bi bi-check-circle"></i><span>Bitiş</span></div>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between gap-2 mt-4"><button class="btn btn-outline-primary" type="button" id="addWorkflowStep"><i class="bi bi-plus-lg"></i><span>Adım Ekle</span></button><div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('workflows.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-save"></i><span>Taslağı Kaydet</span></button></div></div>
+  </form>
+  {% if version.steps and g.current_user.has_permission('workflow.publish') %}<form method="post" action="{{ url_for('workflows.publish_version', version_id=version.id) }}" class="d-flex justify-content-end mt-3"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-success" type="submit"><i class="bi bi-broadcast"></i><span>Kaydedilmiş Sürümü Yayınla</span></button></form>{% endif %}
+  <template id="workflowStepTemplate">{% with step=empty_step %}{% include "workflows/_step.html" %}{% endwith %}</template>
+{% endblock %}
+{% block scripts %}{{ super() }}<script src="{{ url_for('static', filename='js/workflow-designer.js') }}" defer></script>{% endblock %}

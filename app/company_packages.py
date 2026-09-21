@@ -25,6 +25,7 @@ ISO_CORE_MODULE_KEYS = {
     "process_management",
     "quality_objectives",
     "dynamic_forms",
+    "workflow_designer",
     "inspection_management",
     "stakeholder_management",
     "compliance_management",

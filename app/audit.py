@@ -136,6 +136,12 @@ TRACKED_MODEL_NAMES = {
     "Vehicle",
     "VehicleFuelEntry",
     "VehicleOperation",
+    "WorkflowTemplate",
+    "WorkflowVersion",
+    "WorkflowStep",
+    "WorkflowInstance",
+    "WorkflowInstanceStep",
+    "WorkflowStepRecipient",
 }
 
 SENSITIVE_FIELD_NAMES = {

@@ -28,6 +28,7 @@
   {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
   {% set quality_objectives_active = request.endpoint in ['main.quality_objective_dashboard', 'main.create_quality_objective', 'main.quality_objective_detail', 'main.edit_quality_objective', 'main.add_quality_objective_measurement', 'main.edit_quality_objective_measurement', 'main.delete_quality_objective_measurement', 'main.activate_quality_objective', 'main.complete_quality_objective', 'main.archive_quality_objective'] %}
   {% set dynamic_forms_active = request.endpoint and request.endpoint.startswith('dynamic_forms.') %}
+  {% set workflows_active = request.endpoint and request.endpoint.startswith('workflows.') %}
   {% set inspections_active = request.endpoint and request.endpoint.startswith('inspections.') %}
   {% set stakeholders_active = request.endpoint and request.endpoint.startswith('stakeholders.') %}
   {% set compliance_active = request.endpoint and request.endpoint.startswith('compliance.') %}
@@ -294,6 +295,12 @@
         <a class="dashboard-nav-item {% if dynamic_forms_active %}active{% endif %}" href="{{ url_for('dynamic_forms.dashboard') }}">
           <i class="bi bi-ui-checks-grid"></i>
           <span>Dinamik Formlar</span>
+        </a>
+        {% endif %}
+        {% if g.company_module_enabled('workflow_designer') and (g.current_user.has_permission('workflow.view') or g.current_user.has_permission('workflow.start') or g.current_user.has_permission('workflow.act') or g.current_user.has_permission('workflow.design')) %}
+        <a class="dashboard-nav-item {% if workflows_active %}active{% endif %}" href="{{ url_for('workflows.dashboard') }}">
+          <i class="bi bi-bezier2"></i>
+          <span>İş Akışları</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('inspection_management') and (g.current_user.has_permission('inspection.view') or g.current_user.has_permission('inspection.manage') or g.current_user.has_permission('inspection.perform') or g.current_user.has_permission('inspection.review')) %}

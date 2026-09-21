@@ -1,0 +1,4 @@
+{% extends "app_shell.html" %}{% import "components/ui.html" as ui %}{% block title %}Yeni İş Akışı{% endblock %}{% block app_content %}
+{% call ui.page_header("Yeni İş Akışı", "Taslağı oluşturduktan sonra adımları tasarlayabilirsiniz.", icon="bi-bezier2") %}<a class="btn btn-outline-secondary" href="{{ url_for('workflows.dashboard') }}"><i class="bi bi-arrow-left"></i><span>İş Akışları</span></a>{% endcall %}
+<form method="post" class="document-list-card p-3 p-lg-4"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label class="form-label" for="name">Akış Adı</label><input class="form-control" id="name" name="name" maxlength="180" required autofocus><div class="d-flex justify-content-end gap-2 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('workflows.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-arrow-right"></i><span>Tasarlamaya Başla</span></button></div></form>
+{% endblock %}

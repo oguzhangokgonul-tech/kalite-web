@@ -756,6 +756,54 @@ PERMISSION_CATALOG = (
         "description": "Form şablonlarını, atamaları ve izinli sonuçları görüntüler.",
     },
     {
+        "key": "workflow.view",
+        "label": "İş akışlarını görüntüleme",
+        "group": "İş Akışları",
+        "description": "Yetkili olduğu iş akışı şablonlarını ve kayıtlarını görüntüler.",
+    },
+    {
+        "key": "workflow.start",
+        "label": "İş akışı başlatma",
+        "group": "İş Akışları",
+        "description": "Yayınlanmış şablonlardan yeni süreç kaydı başlatır.",
+    },
+    {
+        "key": "workflow.act",
+        "label": "İş akışı görevi tamamlama",
+        "group": "İş Akışları",
+        "description": "Kendisine atanmış görev ve onay adımlarında işlem yapar.",
+    },
+    {
+        "key": "workflow.design",
+        "label": "İş akışı tasarlama",
+        "group": "İş Akışları",
+        "description": "Şirket iş akışı taslaklarını ve adımlarını düzenler.",
+    },
+    {
+        "key": "workflow.publish",
+        "label": "İş akışı yayınlama",
+        "group": "İş Akışları",
+        "description": "Doğrulanan iş akışı sürümlerini yayınlar.",
+    },
+    {
+        "key": "workflow.manage_all",
+        "label": "Tüm iş akışlarını yönetme",
+        "group": "İş Akışları",
+        "description": "Şirketteki tüm süreç kayıtlarını ve görevlerini yönetir.",
+    },
+    {
+        "key": "workflow.archive",
+        "label": "İş akışı arşivleme",
+        "group": "İş Akışları",
+        "description": "Tamamlanmış veya reddedilmiş süreçleri arşivler.",
+    },
+    {
+        "key": "workflow.export",
+        "label": "İş akışı raporu alma",
+        "group": "İş Akışları",
+        "description": "Süreç kayıtlarını Excel olarak dışa aktarır.",
+    },
+    {
         "key": "dynamic_forms.manage",
         "label": "Dinamik form tasarımı",
         "group": "Dinamik Formlar",
@@ -1192,6 +1240,26 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in DYNAMIC_FORM_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+WORKFLOW_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "workflow.view", "workflow.start", "workflow.act", "workflow.design",
+        "workflow.publish", "workflow.manage_all", "workflow.archive",
+        "workflow.export",
+    ),
+    "management": (
+        "workflow.view", "workflow.start", "workflow.act", "workflow.export",
+    ),
+    "department_manager": ("workflow.view", "workflow.start", "workflow.act"),
+    "department_staff": ("workflow.view", "workflow.start", "workflow.act"),
+    "viewer": ("workflow.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in WORKFLOW_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3759,6 +3827,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_energy_management",
             "sales_readiness:module_energy_consumption_tracking",
             "sales_readiness:competitor_ohs_risk_matrix",
+            "sales_readiness:competitor_workflow_designer",
         ):
             db.session.execute(
                 text(

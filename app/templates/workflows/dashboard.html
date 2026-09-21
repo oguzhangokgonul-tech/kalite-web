@@ -1,0 +1,47 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}İş Akışları{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("İş Akışları", "Onay ve görev süreçlerini kod yazmadan tasarlayın, yayınlayın ve izleyin.", icon="bi-bezier2") %}
+    {% if can_export %}<a class="btn btn-outline-primary" href="{{ url_for('workflows.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Raporu</span></a>{% endif %}
+    {% if can_design %}<a class="btn btn-primary" href="{{ url_for('workflows.create_template') }}"><i class="bi bi-plus-lg"></i><span>Yeni Akış</span></a>{% endif %}
+  {% endcall %}
+
+  <div class="row g-3 mb-4">
+    {% for label, value, icon, tone in metrics %}
+      <div class="col-6 col-xl-3"><div class="document-list-card p-3 h-100 d-flex align-items-center gap-3"><span class="stat-icon text-{{ tone }}"><i class="bi {{ icon }}"></i></span><div><small class="text-secondary d-block">{{ label }}</small><strong class="fs-4">{{ value }}</strong></div></div></div>
+    {% endfor %}
+  </div>
+
+  <section class="document-list-card mb-4 overflow-hidden">
+    <div class="d-flex justify-content-between align-items-center gap-3 p-3 border-bottom"><div><h3 class="h5 mb-1">Akış Şablonları</h3><small class="text-secondary">Yayınlanan sürümler değişmez; düzenleme yeni bir sürüm oluşturur.</small></div></div>
+    <div class="table-responsive"><table class="table dashboard-table align-middle mb-0" data-tablet-records><thead><tr><th>Kod</th><th>Akış</th><th>Sürüm</th><th>Adım</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead><tbody>
+      {% for template in templates %}{% set published = template.published_version %}{% set version = template.current_version if can_design else published %}<tr>
+        <td data-label="Kod"><strong>{{ template.code }}</strong></td>
+        <td data-label="Akış"><strong>{{ template.name }}</strong>{% if template.description %}<small class="d-block text-secondary">{{ template.description }}</small>{% endif %}</td>
+        <td data-label="Sürüm">v{{ version.version_number if version else template.current_version_number }}</td>
+        <td data-label="Adım">{{ version.steps|length if version else 0 }}</td>
+        <td data-label="Durum">{{ ui.status_badge("Taslak" if version and version.status == "draft" else ("Yayında" if published else "Taslak")) }}</td>
+        <td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end">
+          {% if can_start and published %}<a class="btn btn-sm btn-primary" href="{{ url_for('workflows.launch_instance', template_id=template.id) }}"><i class="bi bi-play-fill"></i><span>Başlat</span></a>{% endif %}
+          {% if can_design and version and version.status == 'draft' %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('workflows.edit_version', version_id=version.id) }}"><i class="bi bi-pencil"></i><span>Tasarla</span></a>{% endif %}
+          {% if can_design and published and (not version or version.status != 'draft') %}<form method="post" action="{{ url_for('workflows.create_new_version', template_id=template.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-copy"></i><span>Yeni Sürüm</span></button></form>{% endif %}
+        </div></td>
+      </tr>{% else %}<tr><td colspan="6" class="dashboard-empty-row"><strong>Henüz iş akışı yok.</strong><span>İlk onay veya görev akışınızı oluşturun.</span></td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+
+  <section class="document-list-card overflow-hidden">
+    <div class="p-3 border-bottom"><h3 class="h5 mb-1">Süreç Kayıtları</h3><small class="text-secondary">Başlatılan süreçlerin güncel adım ve termin durumu.</small></div>
+    <div class="table-responsive"><table class="table dashboard-table align-middle mb-0" data-tablet-records><thead><tr><th>Kayıt No</th><th>Başlık</th><th>Akış / Adım</th><th>Talep Sahibi</th><th>Termin</th><th>Durum</th><th class="text-end">İşlemler</th></tr></thead><tbody>
+      {% for item in instances %}<tr>
+        <td data-label="Kayıt No"><strong>{{ item.instance_no }}</strong></td><td data-label="Başlık">{{ item.title }}</td>
+        <td data-label="Akış / Adım">{{ item.version.name_snapshot }}<small class="d-block text-secondary">{{ item.active_step.name_snapshot if item.active_step else "Akış tamamlandı" }}</small></td>
+        <td data-label="Talep Sahibi">{{ item.created_by.full_name }}</td>
+        <td data-label="Termin">{{ item.active_step.due_date.strftime('%d.%m.%Y') if item.active_step and item.active_step.due_date else "-" }}</td>
+        <td data-label="Durum">{{ ui.status_badge(item.status_label) }}</td>
+        <td data-label="İşlemler"><div class="dashboard-row-actions justify-content-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('workflows.instance_detail', instance_id=item.id) }}"><i class="bi bi-eye"></i><span>Görüntüle</span></a></div></td>
+      </tr>{% else %}<tr><td colspan="7" class="dashboard-empty-row"><strong>Başlatılmış süreç bulunmuyor.</strong><span>Yayınlanan bir şablondan süreç başlatabilirsiniz.</span></td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+{% endblock %}

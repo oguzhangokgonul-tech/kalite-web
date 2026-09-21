@@ -30,6 +30,7 @@ from .hazardous_substances import bp as hazardous_substances_bp
 from .environmental_management import bp as environmental_bp
 from .energy_management import bp as energy_bp
 from .ohs_risk_management import bp as ohs_risk_bp
+from .workflow_designer import bp as workflow_designer_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -66,6 +67,7 @@ def create_app(config_class=Config):
     app.register_blueprint(environmental_bp)
     app.register_blueprint(energy_bp)
     app.register_blueprint(ohs_risk_bp)
+    app.register_blueprint(workflow_designer_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):

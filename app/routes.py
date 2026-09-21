@@ -2653,6 +2653,17 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "workflows.dashboard": "workflow_designer",
+    "workflows.create_template": "workflow_designer",
+    "workflows.edit_version": "workflow_designer",
+    "workflows.publish_version": "workflow_designer",
+    "workflows.create_new_version": "workflow_designer",
+    "workflows.launch_instance": "workflow_designer",
+    "workflows.instance_detail": "workflow_designer",
+    "workflows.decide_step": "workflow_designer",
+    "workflows.resubmit_instance": "workflow_designer",
+    "workflows.archive_instance": "workflow_designer",
+    "workflows.export_excel": "workflow_designer",
     "dynamic_forms.dashboard": "dynamic_forms",
     "dynamic_forms.create_template": "dynamic_forms",
     "dynamic_forms.edit_version": "dynamic_forms",
@@ -3105,6 +3116,7 @@ def selected_company_module_keys_from_form():
                 "stakeholder_management",
                 "compliance_management",
                 "customer_feedback_portal",
+                "workflow_designer",
             }
         )
     for item in COMPANY_MODULE_CATALOG:
@@ -7878,6 +7890,14 @@ def report_ohs_risks_data():
     return data
 
 
+def report_workflows_data():
+    from .workflow_designer import report_data
+
+    data = report_data()
+    data["column_widths"] = (18, 30, 10, 36, 22, 24, 26, 20)
+    return data
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8609,6 +8629,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "risk.ohs_view",
         "required_export_permission": "risk.ohs_export",
         "builder": report_ohs_risks_data,
+    },
+    {
+        "key": "workflows",
+        "title": "İş Akışları Raporu",
+        "description": "Yayınlanan akışlar, aktif adımlar, sorumlular ve termin durumu.",
+        "icon": "bi-bezier2",
+        "tone": "blue",
+        "module_key": "workflow_designer",
+        "required_permission": "workflow.view",
+        "required_export_permission": "workflow.export",
+        "builder": report_workflows_data,
     },
     {
         "key": "fmea",
@@ -17287,6 +17318,7 @@ def assigned_all_tasks(scope):
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
     from .energy_management import assigned_task_rows as assigned_energy_task_rows
     from .ohs_risk_management import assigned_task_rows as assigned_ohs_risk_task_rows
+    from .workflow_designer import assigned_task_rows as assigned_workflow_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17325,6 +17357,7 @@ def assigned_all_tasks(scope):
         + assigned_environmental_task_rows(scope, assigned_task_row)
         + assigned_energy_task_rows(scope, assigned_task_row)
         + assigned_ohs_risk_task_rows(scope, assigned_task_row)
+        + assigned_workflow_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17367,6 +17400,7 @@ ASSIGNED_TAB_MODULES = {
         "environmental",
         "energy",
         "ohs_risk",
+        "workflow",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17401,6 +17435,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("environmental", "Çevre ve Atık"),
     ("energy", "Enerji"),
     ("ohs_risk", "İSG Risk Matrisi"),
+    ("workflow", "İş Akışı"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
