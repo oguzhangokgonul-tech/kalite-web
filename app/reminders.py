@@ -34,6 +34,10 @@ from .models import (
     HazardousSubstance,
     EnvironmentalAspect,
     WasteBatch,
+    EnergyMeter,
+    EnergyReading,
+    EnergySavingProject,
+    EnergyTarget,
 )
 from .notifications import (
     add_user_notification,
@@ -67,6 +71,7 @@ HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS = (
     "hazardous_substances.approve",
 )
 ENVIRONMENTAL_REMINDER_PERMISSIONS = ("environmental.manage", "environmental.approve")
+ENERGY_REMINDER_PERMISSIONS = ("energy.manage", "energy.approve")
 
 
 def _status_text(value):
@@ -940,6 +945,67 @@ def _environmental_reminders(company_id, run_date, days_before=30):
     return stats
 
 
+def _energy_reminders(company_id, run_date, days_before=30):
+    stats = {"notifications": 0, "emails": 0}
+    period = run_date.replace(day=1)
+    meters = _company_query(EnergyMeter, company_id).filter(EnergyMeter.status == "Aktif").all()
+    for meter in meters:
+        due_date = date(run_date.year, run_date.month, min(meter.reading_due_day, 28))
+        valid_reading = _company_query(EnergyReading, company_id).filter(
+            EnergyReading.meter_id == meter.id,
+            EnergyReading.period == period,
+            EnergyReading.is_current.is_(True),
+            EnergyReading.status.in_(("Onay Bekliyor", "Onaylandı")),
+        ).first()
+        if due_date > run_date or valid_reading:
+            continue
+        users = _merge_users(company_id, [meter.responsible_user_id], ENERGY_REMINDER_PERMISSIONS if due_date < run_date else ())
+        severity, label = _due_state(due_date, run_date)
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind="energy-reading", record_id=meter.id,
+            title=f"Enerji okuma hatırlatması {meter.meter_code}",
+            message=f"{meter.meter_code} {meter.name} için {period:%m.%Y} sayaç okuması: {label}.",
+            target_url=f"/enerji-yonetimi/sayac/{meter.id}/okuma/yeni", due_date=due_date,
+            notification_type=severity, run_date=run_date,
+            email_details=[("Sayaç", meter.meter_code), ("Enerji türü", meter.energy_type), ("Konum", meter.location), ("Birim", meter.unit)],
+        )
+        stats["notifications"] += created; stats["emails"] += emails
+    limit_date = run_date + timedelta(days=days_before)
+    projects = _company_query(EnergySavingProject, company_id).filter(
+        EnergySavingProject.status.in_(("Planlandı", "Devam Ediyor", "Doğrulama Bekliyor")),
+        EnergySavingProject.due_date <= limit_date,
+    ).all()
+    for project in projects:
+        severity, label = _due_state(project.due_date, run_date)
+        users = _merge_users(company_id, [project.responsible_user_id, project.approver_user_id], ENERGY_REMINDER_PERMISSIONS if severity == "danger" else ())
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind="energy-project", record_id=project.id,
+            title=f"Enerji tasarruf projesi {project.project_no}",
+            message=f"{project.project_no} {project.title} için hedef tarih durumu: {label}.",
+            target_url=f"/enerji-yonetimi/tasarruf/{project.id}", due_date=project.due_date,
+            notification_type=severity, run_date=run_date,
+            email_details=[("Proje", project.project_no), ("Planlanan tasarruf", str(project.planned_saving)), ("Durum", project.status)],
+        )
+        stats["notifications"] += created; stats["emails"] += emails
+    targets = _company_query(EnergyTarget, company_id).filter(
+        EnergyTarget.status.in_(("Aktif", "Tamamlama Onayı")),
+        EnergyTarget.target_date <= limit_date,
+    ).all()
+    for target in targets:
+        severity, label = _due_state(target.target_date, run_date)
+        users = _merge_users(company_id, [target.responsible_user_id, target.approver_user_id], ENERGY_REMINDER_PERMISSIONS if severity == "danger" else ())
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind="energy-target", record_id=target.id,
+            title=f"Enerji azaltım hedefi {target.target_no}",
+            message=f"{target.target_no} {target.title} için hedef tarih durumu: {label}.",
+            target_url=f"/enerji-yonetimi/hedef/{target.id}", due_date=target.target_date,
+            notification_type=severity, run_date=run_date,
+            email_details=[("Hedef", target.target_no), ("Azaltım oranı", f"%{target.reduction_percent}"), ("Durum", target.status)],
+        )
+        stats["notifications"] += created; stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -965,6 +1031,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _compliance_reminders(company_id, run_date),
         lambda: _hazardous_substance_reminders(company_id, run_date, 30),
         lambda: _environmental_reminders(company_id, run_date, 30),
+        lambda: _energy_reminders(company_id, run_date, 30),
     )
     for build_stats in builders:
         item_stats = build_stats()

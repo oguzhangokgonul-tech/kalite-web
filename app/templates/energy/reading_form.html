@@ -1,0 +1,22 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Yeni Tüketim Okuması{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Yeni Tüketim Okuması", "Dönem endeksini, üretim miktarını ve maliyet bilgisini kaydedin.", icon="bi-clipboard-data") %}<a class="btn btn-outline-secondary" href="{{ url_for('energy.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>{% endcall %}
+{% set v = values %}
+<form class="document-list-card p-3 p-lg-4" method="post" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3">
+    <div class="col-12 col-md-6"><label class="form-label">Enerji Sayacı</label><input class="form-control" value="{{ meter.meter_code }} - {{ meter.name }} ({{ meter.unit }})" readonly></div>
+    <div class="col-12 col-md-6"><label class="form-label">Dönem Tarihi</label><input class="form-control" type="date" name="period" required value="{{ v.get('period', '') }}"><div class="form-text">Seçilen tarihin ayı tüketim dönemi olarak kaydedilir.</div></div>
+    <div class="col-6 col-md-3"><label class="form-label">İlk Endeks</label><input class="form-control" type="number" name="previous_value" min="0" step="0.001" required value="{{ v.get('previous_value','') }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label">Son Endeks / Tüketim</label><input class="form-control" type="number" name="current_value" min="0" step="0.001" required value="{{ v.get('current_value','') }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label">Üretim Miktarı</label><input class="form-control" type="number" name="production_quantity" min="0" step="0.001" value="{{ v.get('production_quantity','') }}"></div>
+    <div class="col-6 col-md-3"><label class="form-label">Üretim Birimi</label><input class="form-control" name="production_unit" maxlength="30" placeholder="ton, adet, m³" value="{{ v.get('production_unit','') }}"></div>
+    <div class="col-12 col-md-4"><label class="form-label">Birim Maliyet ({{ currency }})</label><input class="form-control" type="number" name="unit_cost" min="0" step="0.0001" value="{{ v.get('unit_cost','') }}"></div>
+    <div class="col-12 col-md-8"><label class="form-label">Kanıt Dosyası</label><input class="form-control" type="file" name="evidence_file" accept=".pdf,.jpg,.jpeg,.png,.xls,.xlsx"><div class="form-text">Fatura, sayaç fotoğrafı veya ölçüm belgesi ekleyebilirsiniz.</div></div>
+    <div class="col-12"><label class="form-label">Açıklama</label><textarea class="form-control" name="note" rows="3">{{ v.get('note','') }}</textarea></div>
+  </div>
+  <div class="alert alert-light border mt-4 mb-0"><i class="bi bi-info-circle me-1"></i> Tüketim, sayaç çarpanı ve emisyon değeri kayıt anındaki parametrelerle hesaplanır; onaylandıktan sonra değiştirilemez.</div>
+  <div class="d-flex flex-column flex-sm-row justify-content-end gap-2 border-top pt-3 mt-4"><a class="btn btn-outline-secondary" href="{{ url_for('energy.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-send"></i><span>Kaydet ve Onaya Gönder</span></button></div>
+</form>
+{% endblock %}

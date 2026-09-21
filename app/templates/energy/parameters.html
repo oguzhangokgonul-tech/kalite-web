@@ -1,0 +1,20 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Enerji Parametreleri{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Enerji Parametreleri", "Maliyet raporlarında kullanılacak şirket para birimini yönetin.", icon="bi-sliders") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('energy.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Geri Dön</span></a>
+{% endcall %}
+<form class="document-list-card p-3 p-lg-4" method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="row g-3 align-items-end">
+    <div class="col-12 col-md-6">
+      <label class="form-label" for="currency">Para Birimi</label>
+      <select class="form-select" id="currency" name="currency" required>
+        {% for item in currencies %}<option value="{{ item }}" {% if item == currency %}selected{% endif %}>{{ item }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-6"><button class="btn btn-primary"><i class="bi bi-check2"></i><span>Kaydet</span></button></div>
+  </div>
+</form>
+{% endblock %}

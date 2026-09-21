@@ -711,6 +711,16 @@ PERMISSION_CATALOG = (
     {"key": "environmental.export", "label": "Çevre ve atık raporu indirme", "group": "Çevre ve Atık", "description": "Şirket çevre ve atık sicilini Excel olarak indirir."},
     {"key": "environmental.file_download", "label": "Çevre ve atık kanıtı indirme", "group": "Çevre ve Atık", "description": "Yetkili olduğu kayıtların kontrollü kanıt dosyalarını indirir."},
     {"key": "environmental.manage", "label": "Çevre ve atık süreç yönetimi", "group": "Çevre ve Atık", "description": "Şirket çevre yönetimi iş akışının tamamını yönetir."},
+    {"key": "energy.view", "label": "Enerji kayıtlarını görüntüleme", "group": "Enerji Yönetimi", "description": "Yetkili olduğu enerji sayaçlarını ve onaylı tüketim kayıtlarını görüntüler."},
+    {"key": "energy.view_all", "label": "Tüm enerji kayıtlarını görüntüleme", "group": "Enerji Yönetimi", "description": "Şirket genelindeki enerji kayıtlarını ve arşivi görüntüler."},
+    {"key": "energy.create", "label": "Enerji tüketim kaydı oluşturma", "group": "Enerji Yönetimi", "description": "Yetkili olduğu sayaçlara dönemsel tüketim kaydı girer."},
+    {"key": "energy.meter_manage", "label": "Enerji sayacı yönetimi", "group": "Enerji Yönetimi", "description": "Enerji sayaçlarını ve ölçüm noktalarını tanımlar."},
+    {"key": "energy.project_manage", "label": "Enerji hedefi ve tasarruf projesi yönetimi", "group": "Enerji Yönetimi", "description": "Enerji azaltım hedeflerini ve tasarruf projelerini yönetir."},
+    {"key": "energy.approve", "label": "Enerji kaydı ve tasarruf doğrulama", "group": "Enerji Yönetimi", "description": "Tüketim kayıtlarını, hedefleri ve tasarruf sonuçlarını bağımsız olarak onaylar."},
+    {"key": "energy.archive", "label": "Enerji kayıtlarını arşivleme", "group": "Enerji Yönetimi", "description": "Tamamlanan enerji kayıtlarını geçmişi korunarak arşivler."},
+    {"key": "energy.export", "label": "Enerji raporu indirme", "group": "Enerji Yönetimi", "description": "Enerji tüketim ve tasarruf raporlarını Excel olarak indirir."},
+    {"key": "energy.file_download", "label": "Enerji kanıtı indirme", "group": "Enerji Yönetimi", "description": "Yetkili olduğu enerji kanıt dosyalarını indirir."},
+    {"key": "energy.manage", "label": "Enerji süreç yönetimi", "group": "Enerji Yönetimi", "description": "Şirket enerji yönetimi iş akışının tamamını yönetir."},
     {
         "key": "quality.create",
         "label": "Kalite deneyi açabilme",
@@ -1305,6 +1315,28 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in ENVIRONMENTAL_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+ENERGY_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "energy.view", "energy.view_all", "energy.create", "energy.meter_manage",
+        "energy.project_manage", "energy.approve", "energy.archive", "energy.export",
+        "energy.file_download", "energy.manage",
+    ),
+    "management": (
+        "energy.view", "energy.view_all", "energy.approve", "energy.export", "energy.file_download",
+    ),
+    "department_manager": (
+        "energy.view", "energy.create", "energy.meter_manage", "energy.project_manage", "energy.file_download",
+    ),
+    "department_staff": ("energy.view", "energy.create", "energy.file_download"),
+    "viewer": ("energy.view", "energy.file_download"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in ENERGY_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3693,6 +3725,8 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_work_permits",
             "sales_readiness:competitor_hazardous_substances",
             "sales_readiness:competitor_environmental_aspects",
+            "sales_readiness:competitor_energy_management",
+            "sales_readiness:module_energy_consumption_tracking",
         ):
             db.session.execute(
                 text(

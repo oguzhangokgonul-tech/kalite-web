@@ -361,6 +361,7 @@ COMPANY_MODULE_CATALOG = (
     {"key": "work_permits", "name": "İş İzinleri", "description": "Riskli işleri kontrol, onay, geçerlilik ve kapanış kapılarıyla güvenli biçimde yönetir.", "icon": "bi-shield-check", "sort_order": 78, "parent_key": None},
     {"key": "hazardous_substances", "name": "Tehlikeli Madde Yönetimi", "description": "Kimyasal envanteri, GBF/SDS belgelerini, GHS tehlikelerini, stok ve depolama risklerini izler.", "icon": "bi-radioactive", "sort_order": 79, "parent_key": None},
     {"key": "environmental_management", "name": "Çevre ve Atık Yönetimi", "description": "Çevresel boyut-etki analizlerini, atık envanterini ve lisanslı teslim zincirini izler.", "icon": "bi-recycle", "sort_order": 80, "parent_key": None},
+    {"key": "energy_management", "name": "Enerji Yönetimi", "description": "Enerji sayaçlarını, tüketim okumalarını, azaltım hedeflerini ve tasarruf projelerini izler.", "icon": "bi-lightning-charge", "sort_order": 81, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (
@@ -5280,6 +5281,175 @@ class WasteMovementFile(db.Model):
 
     movement = db.relationship("WasteMovement", back_populates="files")
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+
+
+class EnergyMeter(db.Model):
+    __tablename__ = "energy_meters"
+    __table_args__ = (db.UniqueConstraint("company_id", "meter_code", name="uq_energy_meters_company_code"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    meter_code = db.Column(db.String(50), nullable=False, index=True)
+    name = db.Column(db.String(240), nullable=False)
+    energy_type = db.Column(db.String(40), nullable=False, index=True)
+    unit = db.Column(db.String(20), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey("company_departments.id"), nullable=False, index=True)
+    location = db.Column(db.String(240), nullable=False)
+    serial_no = db.Column(db.String(120), nullable=True)
+    multiplier = db.Column(db.Numeric(14, 4), nullable=False, default=1, server_default="1")
+    emission_factor = db.Column(db.Numeric(14, 6), nullable=False, default=0, server_default="0")
+    reading_due_day = db.Column(db.Integer, nullable=False, default=5, server_default="5")
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="Aktif", server_default="Aktif", index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    department = db.relationship("CompanyDepartment")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    reviewer = db.relationship("User", foreign_keys=[reviewer_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    readings = db.relationship("EnergyReading", back_populates="meter", cascade="all, delete-orphan", order_by="EnergyReading.period.desc()")
+
+
+class EnergyReading(db.Model):
+    __tablename__ = "energy_readings"
+    __table_args__ = (db.UniqueConstraint("meter_id", "period", "version_no", name="uq_energy_readings_meter_period_version"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    meter_id = db.Column(db.Integer, db.ForeignKey("energy_meters.id"), nullable=False, index=True)
+    period = db.Column(db.Date(), nullable=False, index=True)
+    version_no = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    supersedes_id = db.Column(db.Integer, db.ForeignKey("energy_readings.id"), nullable=True, index=True)
+    is_current = db.Column(db.Boolean, nullable=False, default=True, server_default="1", index=True)
+    reading_method = db.Column(db.String(30), nullable=False, default="Sayaç", server_default="Sayaç")
+    previous_value = db.Column(db.Numeric(16, 3), nullable=False)
+    current_value = db.Column(db.Numeric(16, 3), nullable=False)
+    multiplier_snapshot = db.Column(db.Numeric(14, 4), nullable=False, default=1, server_default="1")
+    emission_factor_snapshot = db.Column(db.Numeric(14, 6), nullable=False, default=0, server_default="0")
+    consumption = db.Column(db.Numeric(16, 3), nullable=False)
+    production_quantity = db.Column(db.Numeric(16, 3), nullable=True)
+    production_unit = db.Column(db.String(30), nullable=True)
+    normalized_consumption = db.Column(db.Numeric(16, 6), nullable=True)
+    unit_cost = db.Column(db.Numeric(14, 4), nullable=True)
+    total_cost = db.Column(db.Numeric(16, 2), nullable=True)
+    emission_kg = db.Column(db.Numeric(16, 3), nullable=False, default=0, server_default="0")
+    note = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(30), nullable=False, default="Onay Bekliyor", server_default="Onay Bekliyor", index=True)
+    entered_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    reviewed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    reviewed_at = db.Column(db.DateTime, nullable=True)
+    review_note = db.Column(db.Text, nullable=True)
+    evidence_name = db.Column(db.String(255), nullable=True)
+    evidence_path = db.Column(db.String(500), nullable=True)
+    evidence_hash = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    meter = db.relationship("EnergyMeter", back_populates="readings")
+    entered_by = db.relationship("User", foreign_keys=[entered_by_user_id])
+    reviewed_by = db.relationship("User", foreign_keys=[reviewed_by_user_id])
+    supersedes = db.relationship("EnergyReading", remote_side=[id], foreign_keys=[supersedes_id])
+
+
+class EnergyTarget(db.Model):
+    __tablename__ = "energy_targets"
+    __table_args__ = (db.UniqueConstraint("company_id", "target_no", name="uq_energy_targets_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    target_no = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    meter_id = db.Column(db.Integer, db.ForeignKey("energy_meters.id"), nullable=True, index=True)
+    baseline_year = db.Column(db.Integer, nullable=False)
+    baseline_consumption = db.Column(db.Numeric(16, 3), nullable=False)
+    reduction_percent = db.Column(db.Numeric(6, 2), nullable=False)
+    target_date = db.Column(db.Date(), nullable=False, index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    quality_objective_id = db.Column(db.Integer, db.ForeignKey("quality_objectives.id"), nullable=True, index=True)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Taslak", server_default="Taslak", index=True)
+    review_note = db.Column(db.Text, nullable=True)
+    approved_at = db.Column(db.DateTime, nullable=True)
+    actual_consumption = db.Column(db.Numeric(16, 3), nullable=True)
+    completion_note = db.Column(db.Text, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    completed_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    meter = db.relationship("EnergyMeter")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    approver = db.relationship("User", foreign_keys=[approver_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    completed_by = db.relationship("User", foreign_keys=[completed_by_user_id])
+    quality_objective = db.relationship("QualityObjective")
+    action = db.relationship("Action")
+
+
+class EnergySavingProject(db.Model):
+    __tablename__ = "energy_saving_projects"
+    __table_args__ = (db.UniqueConstraint("company_id", "project_no", name="uq_energy_saving_projects_company_no"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_no = db.Column(db.String(50), nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    meter_id = db.Column(db.Integer, db.ForeignKey("energy_meters.id"), nullable=True, index=True)
+    planned_saving = db.Column(db.Numeric(16, 3), nullable=False)
+    actual_saving = db.Column(db.Numeric(16, 3), nullable=True)
+    investment_cost = db.Column(db.Numeric(16, 2), nullable=True)
+    start_date = db.Column(db.Date(), nullable=False)
+    due_date = db.Column(db.Date(), nullable=False, index=True)
+    responsible_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    approver_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    action_id = db.Column(db.Integer, db.ForeignKey("actions.id"), nullable=True, index=True)
+    status = db.Column(db.String(30), nullable=False, default="Planlandı", server_default="Planlandı", index=True)
+    completion_note = db.Column(db.Text, nullable=True)
+    evidence_name = db.Column(db.String(255), nullable=True)
+    evidence_path = db.Column(db.String(500), nullable=True)
+    evidence_hash = db.Column(db.String(64), nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    archived_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
+
+    meter = db.relationship("EnergyMeter")
+    responsible = db.relationship("User", foreign_keys=[responsible_user_id])
+    approver = db.relationship("User", foreign_keys=[approver_user_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    action = db.relationship("Action")
+    verifications = db.relationship("EnergySavingVerification", back_populates="project", cascade="all, delete-orphan", order_by="EnergySavingVerification.version_no.desc()")
+
+
+class EnergySavingVerification(db.Model):
+    __tablename__ = "energy_saving_verifications"
+    __table_args__ = (db.UniqueConstraint("project_id", "version_no", name="uq_energy_saving_verification_version"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("energy_saving_projects.id"), nullable=False, index=True)
+    version_no = db.Column(db.Integer, nullable=False)
+    actual_saving = db.Column(db.Numeric(16, 3), nullable=False)
+    financial_saving = db.Column(db.Numeric(16, 2), nullable=True)
+    decision = db.Column(db.String(20), nullable=False)
+    verification_note = db.Column(db.Text, nullable=False)
+    evidence_name = db.Column(db.String(255), nullable=False)
+    evidence_path = db.Column(db.String(500), nullable=False)
+    evidence_hash = db.Column(db.String(64), nullable=False)
+    verified_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    project = db.relationship("EnergySavingProject", back_populates="verifications")
+    verified_by = db.relationship("User", foreign_keys=[verified_by_user_id])
 
 
 class Notification(db.Model):

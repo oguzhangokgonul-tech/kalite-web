@@ -2803,6 +2803,32 @@ MODULE_ENDPOINTS = {
     "environmental.archive_stream": "environmental_management",
     "environmental.download_file": "environmental_management",
     "environmental.export_excel": "environmental_management",
+    "energy.dashboard": "energy_management",
+    "energy.parameters": "energy_management",
+    "energy.create_meter": "energy_management",
+    "energy.edit_meter": "energy_management",
+    "energy.meter_detail": "energy_management",
+    "energy.archive_meter": "energy_management",
+    "energy.create_reading": "energy_management",
+    "energy.reading_detail": "energy_management",
+    "energy.review_reading": "energy_management",
+    "energy.create_target": "energy_management",
+    "energy.edit_target": "energy_management",
+    "energy.target_detail": "energy_management",
+    "energy.submit_target": "energy_management",
+    "energy.complete_target": "energy_management",
+    "energy.review_target": "energy_management",
+    "energy.archive_target": "energy_management",
+    "energy.create_project": "energy_management",
+    "energy.edit_project": "energy_management",
+    "energy.project_detail": "energy_management",
+    "energy.start_project": "energy_management",
+    "energy.complete_project": "energy_management",
+    "energy.cancel_project": "energy_management",
+    "energy.verify_project": "energy_management",
+    "energy.archive_project": "energy_management",
+    "energy.download_evidence": "energy_management",
+    "energy.export_excel": "energy_management",
     "main.iso_executive_summary": "iso_executive_summary",
     "main.management_due_dashboard": "management_due_dashboard",
     "main.organization": "organization",
@@ -8385,7 +8411,78 @@ def report_personnel_contacts_data():
     }
 
 
+def report_energy_consumption_data():
+    from .models import EnergyMeter, EnergyReading, EnergySavingProject, EnergyTarget
+
+    readings = (
+        scoped_query(EnergyReading.query, EnergyReading)
+        .join(EnergyMeter)
+        .order_by(EnergyReading.period.desc(), EnergyMeter.meter_code.asc())
+        .all()
+    )
+    rows = [
+        (
+            "Tüketim",
+            reading.meter.meter_code,
+            reading.meter.name,
+            reading.meter.energy_type,
+            reading.meter.department.name if reading.meter.department else "-",
+            reading.period.strftime("%m.%Y"),
+            str(reading.consumption),
+            reading.meter.unit,
+            str(reading.normalized_consumption or ""),
+            str(reading.total_cost or ""),
+            str(reading.emission_kg),
+            reading.status,
+        )
+        for reading in readings
+    ]
+    rows.extend(
+        (
+            "Hedef", target.target_no, target.title,
+            target.meter.energy_type if target.meter else "Şirket Geneli",
+            target.meter.department.name if target.meter and target.meter.department else "Tüm Şirket",
+            target.target_date.strftime("%d.%m.%Y"), str(target.baseline_consumption),
+            target.meter.unit if target.meter else "", f"%{target.reduction_percent}",
+            "", str(target.actual_consumption or ""), target.status,
+        )
+        for target in scoped_query(EnergyTarget.query, EnergyTarget).order_by(EnergyTarget.target_no).all()
+    )
+    rows.extend(
+        (
+            "Tasarruf Projesi", project.project_no, project.title,
+            project.meter.energy_type if project.meter else "Şirket Geneli",
+            project.meter.department.name if project.meter and project.meter.department else "Tüm Şirket",
+            project.due_date.strftime("%d.%m.%Y"), str(project.planned_saving),
+            project.meter.unit if project.meter else "", str(project.actual_saving or ""),
+            str(project.investment_cost or ""), "", project.status,
+        )
+        for project in scoped_query(EnergySavingProject.query, EnergySavingProject).order_by(EnergySavingProject.project_no).all()
+    )
+    return {
+        "headers": (
+            "Kayıt Türü", "Kayıt No", "Ad", "Enerji Türü", "Departman", "Dönem / Termin",
+            "Tüketim / Plan", "Birim", "Yoğunluk / Gerçekleşen", "Maliyet / Yatırım",
+            "Emisyon / Sonuç", "Durum",
+        ),
+        "rows": rows,
+        "sheet_name": "Enerji Tüketimi",
+        "column_widths": (18, 16, 30, 18, 24, 16, 18, 12, 22, 20, 22, 18),
+    }
+
+
 REPORT_CENTER_REPORTS = (
+    {
+        "key": "energy_consumption",
+        "title": "Enerji Tüketim ve Tasarruf Raporu",
+        "description": "Sayaç bazında tüketim, yoğunluk, maliyet ve karbon emisyonu özeti.",
+        "icon": "bi-lightning-charge",
+        "tone": "warning",
+        "module_key": "energy_management",
+        "required_permission": "energy.view",
+        "required_export_permission": "energy.export",
+        "builder": report_energy_consumption_data,
+    },
     {
         "key": "management_due_summary",
         "title": "Yönetici Termin Raporu",
@@ -17131,6 +17228,7 @@ def assigned_all_tasks(scope):
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
+    from .energy_management import assigned_task_rows as assigned_energy_task_rows
 
     return (
         assigned_action_tasks(scope)
@@ -17167,6 +17265,7 @@ def assigned_all_tasks(scope):
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
+        + assigned_energy_task_rows(scope, assigned_task_row)
     )
 
 
@@ -17207,6 +17306,7 @@ ASSIGNED_TAB_MODULES = {
         "work_permit",
         "hazardous_substance",
         "environmental",
+        "energy",
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
@@ -17239,6 +17339,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("work_permit", "İş İzni"),
     ("hazardous_substance", "Tehlikeli Madde"),
     ("environmental", "Çevre ve Atık"),
+    ("energy", "Enerji"),
     ("change_management", "De\u011fi\u015fiklik"),
     ("document_revision", "Doküman Revizyonu"),
     ("suggestion", "Öneri"),
