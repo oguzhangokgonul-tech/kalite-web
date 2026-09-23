@@ -828,6 +828,12 @@ PERMISSION_CATALOG = (
         "description": "Form sonuçlarını Excel olarak dışa aktarır.",
     },
     {
+        "key": "dynamic_forms.results_view",
+        "label": "Dinamik form sonuçlarını görüntüleme",
+        "group": "Dinamik Formlar",
+        "description": "Yetkili olduğu form yanıtlarını ve tamamlanma özetini görüntüler.",
+    },
+    {
         "key": "inspection.view",
         "label": "Saha kontrollerini görüntüleme",
         "group": "Saha Kontrol ve Muayene",
@@ -1226,13 +1232,20 @@ DYNAMIC_FORM_ROLE_PERMISSIONS = {
         "dynamic_forms.assign",
         "dynamic_forms.respond",
         "dynamic_forms.export",
+        "dynamic_forms.results_view",
     ),
     "management": (
         "dynamic_forms.view",
         "dynamic_forms.respond",
         "dynamic_forms.export",
+        "dynamic_forms.results_view",
     ),
-    "department_manager": ("dynamic_forms.view", "dynamic_forms.respond"),
+    "department_manager": (
+        "dynamic_forms.view",
+        "dynamic_forms.respond",
+        "dynamic_forms.results_view",
+        "dynamic_forms.export",
+    ),
     "department_staff": ("dynamic_forms.respond",),
     "viewer": ("dynamic_forms.view",),
 }
@@ -3828,6 +3841,7 @@ def ensure_runtime_schema():
             "sales_readiness:module_energy_consumption_tracking",
             "sales_readiness:competitor_ohs_risk_matrix",
             "sales_readiness:competitor_workflow_designer",
+            "sales_readiness:competitor_form_designer",
         ):
             db.session.execute(
                 text(

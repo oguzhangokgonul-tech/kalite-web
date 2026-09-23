@@ -1,0 +1,34 @@
+{% macro field_row(field, field_types) %}
+{% set row = field or {} %}
+<article class="dynamic-field-row" draggable="true" data-field-key="{{ row.field_key or '' }}" data-type="{{ row.field_type or 'short_text' }}">
+  <input type="hidden" name="field_key" value="{{ row.field_key or '' }}">
+  <header class="dynamic-field-toolbar">
+    <button class="btn btn-sm btn-outline-secondary dynamic-drag-handle" type="button" title="Sürükleyerek sırala" aria-label="Sürükleyerek sırala"><i class="bi bi-grip-vertical"></i></button>
+    <span class="dynamic-field-order">1</span>
+    <strong class="dynamic-field-summary">{{ row.label or 'Yeni alan' }}</strong>
+    <div class="btn-group ms-auto"><button class="btn btn-sm btn-outline-secondary move-up" type="button" title="Yukarı taşı" aria-label="Yukarı taşı"><i class="bi bi-arrow-up"></i></button><button class="btn btn-sm btn-outline-secondary move-down" type="button" title="Aşağı taşı" aria-label="Aşağı taşı"><i class="bi bi-arrow-down"></i></button><button class="btn btn-sm btn-outline-danger remove-field" type="button" title="Alanı kaldır" aria-label="Alanı kaldır"><i class="bi bi-trash"></i></button></div>
+  </header>
+  <div class="row g-3 mt-0">
+    <div class="col-lg-5"><label class="form-label">Alan Başlığı</label><input class="form-control field-label" name="field_label" required maxlength="180" value="{{ row.label or '' }}"></div>
+    <div class="col-sm-6 col-lg-3"><label class="form-label">Alan Tipi</label><select class="form-select field-type" name="field_type">{% for value, label in field_types %}<option value="{{ value }}" {% if row.field_type == value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="col-sm-3 col-lg-2"><label class="form-label">Genişlik</label><select class="form-select" name="field_layout_width"><option value="12" {% if row.layout_width|string != '6' %}selected{% endif %}>Tam</option><option value="6" {% if row.layout_width|string == '6' %}selected{% endif %}>Yarım</option></select></div>
+    <div class="col-sm-3 col-lg-2 d-flex align-items-end"><div class="form-check mb-2"><input class="form-check-input required-box" type="checkbox" {% if row.is_required %}checked{% endif %}><label class="form-check-label">Zorunlu</label></div></div>
+    <div class="col-lg-6"><label class="form-label">Yardım Metni</label><input class="form-control" name="field_help_text" maxlength="1000" value="{{ row.help_text or '' }}" placeholder="Kullanıcının göreceği kısa açıklama"></div>
+    <div class="col-lg-6"><label class="form-label">Yer Tutucu</label><input class="form-control" name="field_placeholder" maxlength="255" value="{{ row.placeholder or '' }}" placeholder="Örnek değer"></div>
+    <div class="col-12 field-options-wrap {% if row.field_type not in ['single_choice','multiple_choice'] %}d-none{% endif %}"><label class="form-label">Seçenekler <small class="text-secondary">(satır başına bir)</small></label><textarea class="form-control" name="field_options" rows="3">{{ row.options_text or '' }}</textarea></div>
+  </div>
+  <details class="dynamic-field-settings mt-3">
+    <summary>Doğrulama ve görünürlük ayarları</summary>
+    <div class="row g-3 pt-3">
+      <div class="col-sm-6 col-lg-3 validation-text"><label class="form-label">En Az Karakter</label><input class="form-control" type="number" min="0" max="5000" name="field_min_length" value="{{ row.min_length or '' }}"></div>
+      <div class="col-sm-6 col-lg-3 validation-text"><label class="form-label">En Fazla Karakter</label><input class="form-control" type="number" min="0" max="5000" name="field_max_length" value="{{ row.max_length or '' }}"></div>
+      <div class="col-sm-6 col-lg-3 validation-number"><label class="form-label">En Küçük Değer</label><input class="form-control" type="number" step="any" name="field_min_value" value="{{ row.min_value or '' }}"></div>
+      <div class="col-sm-6 col-lg-3 validation-number"><label class="form-label">En Büyük Değer</label><input class="form-control" type="number" step="any" name="field_max_value" value="{{ row.max_value or '' }}"></div>
+      <div class="col-12 validation-text"><label class="form-label">Doğrulama Deseni <small class="text-secondary">(isteğe bağlı regex)</small></label><input class="form-control" name="field_pattern" maxlength="120" value="{{ row.pattern or '' }}"></div>
+      <div class="col-md-4"><label class="form-label">Şu Alana Bağlı</label><select class="form-select condition-source" name="field_condition_source" data-selected="{{ row.condition_source or '' }}"><option value="">Her zaman göster</option></select></div>
+      <div class="col-md-4 condition-settings"><label class="form-label">Koşul</label><select class="form-select" name="field_condition_operator"><option value="equals" {% if row.condition_operator == 'equals' %}selected{% endif %}>Eşitse</option><option value="not_equals" {% if row.condition_operator == 'not_equals' %}selected{% endif %}>Eşit değilse</option><option value="contains" {% if row.condition_operator == 'contains' %}selected{% endif %}>İçeriyorsa</option><option value="not_empty" {% if row.condition_operator == 'not_empty' %}selected{% endif %}>Doluysa</option></select></div>
+      <div class="col-md-4 condition-settings"><label class="form-label">Değer</label><input class="form-control condition-value" name="field_condition_value" maxlength="500" value="{{ row.condition_value or '' }}"></div>
+    </div>
+  </details>
+</article>
+{% endmacro %}

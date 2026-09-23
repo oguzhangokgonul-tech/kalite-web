@@ -25,6 +25,7 @@ node tests/ui/interactions.mjs
 node tests/ui/workflows.mjs
 node tests/ui/touch.mjs
 node tests/ui/supplier_quality.mjs
+node tests/ui/dynamic_forms.mjs
 ```
 
 Playwright proje dışında kuruluysa `PLAYWRIGHT_MODULE_PATH` değişkenini kurulu
@@ -48,6 +49,8 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
   ikinci parmak ve iptal edilen sürüklemenin geri alınması.
 - `supplier_quality.mjs`: mobil ve tablette tedarikçi kalite denetimi ile anket
   formlarının taşmadan açılması; mobilde kayıtların kaydedilip geçmişte görünmesi.
+- `dynamic_forms.mjs`: parametrik form tasarlama, alan sıralama, koşullu görünürlük,
+  yayınlama, atama ve yanıtlama akışını telefon, tablet ve masaüstünde doğrular.
 
 - `ebys.mjs`: resmî yazışma oluşturma ve detay ekranının mobil/tablet akışı.
 - `equipment_lifecycle.mjs`: ekipman kartı oluşturma ve yaşam döngüsü detayının mobil/tablet akışı.

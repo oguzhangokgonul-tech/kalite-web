@@ -181,6 +181,7 @@ NOTIFICATION_SOURCE_LABELS = {
     "quality-objective": "Kalite Hedefi", "stakeholder-review": "İlgili Taraflar",
     "stakeholder-requirement-due": "İlgili Taraf Beklentileri",
     "compliance-review": "Mevzuat İncelemesi", "compliance-verification": "Mevzuat Doğrulaması",
+    "dynamic-form": "Dinamik Form",
 }
 
 

@@ -7898,6 +7898,12 @@ def report_workflows_data():
     return data
 
 
+def report_dynamic_forms_data():
+    from .dynamic_forms import report_data
+
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8640,6 +8646,17 @@ REPORT_CENTER_REPORTS = (
         "required_permission": "workflow.view",
         "required_export_permission": "workflow.export",
         "builder": report_workflows_data,
+    },
+    {
+        "key": "dynamic_forms",
+        "title": "Dinamik Form Yanıt Raporu",
+        "description": "Form atamaları, yanıt oranları, termin ve tamamlanma durumu.",
+        "icon": "bi-ui-checks-grid",
+        "tone": "blue",
+        "module_key": "dynamic_forms",
+        "required_permission": "dynamic_forms.results_view",
+        "required_export_permission": "dynamic_forms.export",
+        "builder": report_dynamic_forms_data,
     },
     {
         "key": "fmea",
@@ -15294,6 +15311,8 @@ def notification_source_label(notification):
         return "İç Denetim"
     if source_key.startswith("maintenance:"):
         return "Bakım"
+    if source_key.startswith("dynamic-form:"):
+        return "Dinamik Form"
     return "Sistem"
 
 

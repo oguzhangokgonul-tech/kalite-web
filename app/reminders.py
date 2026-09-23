@@ -38,6 +38,7 @@ from .models import (
     EnergyReading,
     EnergySavingProject,
     EnergyTarget,
+    DynamicFormAssignment,
     OhsRiskAssessment,
     WorkflowInstanceStep,
 )
@@ -1093,6 +1094,53 @@ def _workflow_reminders(company_id, run_date, days_before):
     return stats
 
 
+def _dynamic_form_reminders(company_id, run_date, days_before):
+    stats = {"notifications": 0, "emails": 0}
+    limit_date = run_date + timedelta(days=days_before)
+    assignments = _company_query(DynamicFormAssignment, company_id).filter(
+        DynamicFormAssignment.status == "assigned",
+        DynamicFormAssignment.due_date.isnot(None),
+        DynamicFormAssignment.due_date <= limit_date,
+    ).all()
+    for assignment in assignments:
+        completed_user_ids = {
+            submission.respondent_user_id
+            for submission in assignment.submissions
+            if submission.status == "completed"
+        }
+        pending_user_ids = [
+            recipient.user_id
+            for recipient in assignment.recipients
+            if recipient.user_id not in completed_user_ids
+        ]
+        if not assignment.recipients and assignment.assigned_user_id not in completed_user_ids:
+            pending_user_ids = [assignment.assigned_user_id] if assignment.assigned_user_id else []
+        if not pending_user_ids:
+            continue
+        severity, label = _due_state(assignment.due_date, run_date)
+        form_name = assignment.version.name_snapshot
+        created, emails = _send_record_reminders(
+            users_by_ids(pending_user_ids, company_id=company_id),
+            company_id=company_id,
+            kind="dynamic-form",
+            record_id=assignment.id,
+            title=f"Form yanıtlama hatırlatması: {form_name}",
+            message=f"{form_name} formu için termin durumu: {label}.",
+            target_url=f"/dinamik-formlar/atama/{assignment.id}/doldur",
+            due_date=assignment.due_date,
+            notification_type=severity,
+            run_date=run_date,
+            email_details=[
+                ("Form", form_name),
+                ("Sürüm", str(assignment.version.version_number)),
+                ("Atama", assignment.target_label),
+            ],
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
+
+
 def generate_due_reminders(company_id=None, run_date=None):
     run_date = run_date or date.today()
     days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
@@ -1121,6 +1169,7 @@ def generate_due_reminders(company_id=None, run_date=None):
         lambda: _environmental_reminders(company_id, run_date, 30),
         lambda: _energy_reminders(company_id, run_date, 30),
         lambda: _workflow_reminders(company_id, run_date, days_before),
+        lambda: _dynamic_form_reminders(company_id, run_date, days_before),
     )
     for build_stats in builders:
         item_stats = build_stats()

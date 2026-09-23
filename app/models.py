@@ -3596,6 +3596,10 @@ DYNAMIC_FORM_FIELD_TYPES = (
     "long_text",
     "number",
     "date",
+    "email",
+    "phone",
+    "time",
+    "rating",
     "yes_no",
     "single_choice",
     "multiple_choice",
@@ -3717,6 +3721,16 @@ class DynamicFormField(db.Model):
     is_required = db.Column(db.Boolean, nullable=False, default=False)
     sort_order = db.Column(db.Integer, nullable=False, default=0)
     options_json = db.Column(db.Text, nullable=True)
+    help_text = db.Column(db.Text, nullable=True)
+    placeholder = db.Column(db.String(255), nullable=True)
+    validation_json = db.Column(db.Text, nullable=True)
+    visibility_rule_json = db.Column(db.Text, nullable=True)
+    layout_width = db.Column(
+        db.Integer,
+        nullable=False,
+        default=12,
+        server_default="12",
+    )
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
 
     version = db.relationship("DynamicFormVersion", back_populates="fields")
@@ -3730,6 +3744,26 @@ class DynamicFormField(db.Model):
         except (TypeError, ValueError):
             return []
         return [str(item) for item in value] if isinstance(value, list) else []
+
+    @property
+    def validation(self):
+        if not self.validation_json:
+            return {}
+        try:
+            value = __import__("json").loads(self.validation_json)
+        except (TypeError, ValueError):
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    @property
+    def visibility_rule(self):
+        if not self.visibility_rule_json:
+            return {}
+        try:
+            value = __import__("json").loads(self.visibility_rule_json)
+        except (TypeError, ValueError):
+            return {}
+        return value if isinstance(value, dict) else {}
 
 
 class DynamicFormAssignment(db.Model):
@@ -3825,6 +3859,12 @@ class DynamicFormSubmission(db.Model):
     )
     respondent_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False, default="draft", index=True)
+    lock_version = db.Column(
+        db.Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
     submitted_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
@@ -3833,6 +3873,8 @@ class DynamicFormSubmission(db.Model):
         server_default=db.func.now(),
         onupdate=db.func.now(),
     )
+
+    __mapper_args__ = {"version_id_col": lock_version}
 
     assignment = db.relationship("DynamicFormAssignment", back_populates="submissions")
     respondent = db.relationship("User", foreign_keys=[respondent_user_id])
