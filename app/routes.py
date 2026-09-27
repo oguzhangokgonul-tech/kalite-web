@@ -276,6 +276,9 @@ DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
 LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS = {
     "static",
+    "pwa.manifest",
+    "pwa.service_worker",
+    "pwa.offline",
     "main.login",
     "main.logout",
     "main.landing",
@@ -2656,6 +2659,8 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "pwa.mobile_hub": None,
+    "pwa.mobile_qr": None,
     "workflows.dashboard": "workflow_designer",
     "workflows.create_template": "workflow_designer",
     "workflows.edit_version": "workflow_designer",

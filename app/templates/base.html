@@ -4,7 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="{{ g.company_brand_primary_color or '#0d6efd' }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="{{ (g.current_company.name if g.current_company else config.SITE_NAME) | truncate(24, True, '') }}">
     <title>{% block title %}Dashboard{% endblock %} | {{ config.SITE_NAME }}</title>
+    <link rel="manifest" href="{{ url_for('pwa.manifest') }}">
     <link rel="icon" href="{{ url_for('static', filename='brand/favicon/favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon/favicon-32x32.png') }}">
     <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='brand/favicon/favicon-16x16.png') }}">
@@ -30,6 +35,7 @@
     {% endif %}
     {% block head_extra %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css', v=config.ASSET_VERSION) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa.css', v=config.ASSET_VERSION) }}">
   </head>
   <body class="{% block body_class %}{% endblock %}">
     {% block navbar %}
@@ -251,6 +257,7 @@
       </script>
     {% endif %}
     <script defer src="{{ url_for('static', filename='js/responsive.js', v=config.ASSET_VERSION) }}"></script>
+    <script defer src="{{ url_for('static', filename='js/pwa.js', v=config.ASSET_VERSION) }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

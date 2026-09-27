@@ -50,6 +50,7 @@
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.create_supplier_quality_audit', 'main.edit_supplier_quality_audit', 'main.delete_supplier_quality_audit', 'main.create_supplier_survey', 'main.edit_supplier_survey', 'main.delete_supplier_survey', 'main.deactivate_supplier'] %}
   {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf', 'main.create_custom_report', 'main.preview_custom_report', 'main.custom_report_detail', 'main.edit_custom_report', 'main.archive_custom_report', 'main.download_custom_report_excel', 'main.custom_report_pdf'] %}
+  {% set mobile_hub_active = request.endpoint in ['pwa.mobile_hub', 'pwa.mobile_qr'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -436,6 +437,17 @@
         {% endif %}
       </nav>
       <div class="dashboard-sidebar-bottom">
+        <a class="sidebar-quick-link {% if mobile_hub_active %}active{% endif %}" href="{{ url_for('pwa.mobile_hub') }}">
+          <i class="bi bi-phone"></i>
+          <span>Mobil Merkez</span>
+        </a>
+        <button class="sidebar-quick-link pwa-install-button" type="button" data-pwa-install hidden>
+          <i class="bi bi-box-arrow-down"></i>
+          <span>Uygulamayı Yükle</span>
+        </button>
+        <div class="pwa-ios-help" data-pwa-ios-help hidden role="status">
+          Safari paylaşım menüsünü açıp <strong>Ana Ekrana Ekle</strong> seçeneğine dokunun.
+        </div>
         <a class="sidebar-quick-link notification-sidebar-link {% if request.endpoint == 'main.notifications' %}active{% endif %}" href="{{ url_for('main.notifications') }}">
           <i class="bi bi-bell"></i>
           <span>Bildirimler</span>

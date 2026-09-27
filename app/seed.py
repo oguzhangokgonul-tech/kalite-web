@@ -3860,6 +3860,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_workflow_designer",
             "sales_readiness:competitor_form_designer",
             "sales_readiness:competitor_report_designer",
+            "sales_readiness:competitor_mobile_pwa",
         ):
             db.session.execute(
                 text(

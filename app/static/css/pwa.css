@@ -1,0 +1,181 @@
+.pwa-install-button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+}
+
+.pwa-ios-help {
+  margin: 4px 8px 8px;
+  padding: 9px 10px;
+  border: 1px solid #cfe0ff;
+  border-radius: 6px;
+  color: #42597b;
+  background: #f7faff;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pwa-mobile-page {
+  width: 100%;
+}
+
+.pwa-network-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #bce8d4;
+  border-radius: 999px;
+  color: #087a52;
+  background: #edfbf5;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pwa-network-status.offline {
+  border-color: #ffd4d8;
+  color: #b42338;
+  background: #fff2f3;
+}
+
+.pwa-mobile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 18px;
+  align-items: start;
+}
+
+.pwa-quick-panel,
+.pwa-qr-panel {
+  border: 1px solid #dce6f4;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(29, 59, 99, 0.06);
+}
+
+.pwa-quick-panel { padding: 22px; }
+.pwa-qr-panel { padding: 22px; text-align: center; }
+
+.pwa-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.pwa-section-heading > i {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: #0d6efd;
+  background: #edf4ff;
+  border-radius: 8px;
+  font-size: 20px;
+}
+
+.pwa-section-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: #5f7291;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pwa-section-heading h2,
+.pwa-qr-panel h2 {
+  margin: 0;
+  color: #12213d;
+  font-size: 19px;
+  letter-spacing: 0;
+}
+
+.pwa-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pwa-action-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 18px;
+  gap: 12px;
+  align-items: center;
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid #dce6f4;
+  border-radius: 7px;
+  color: #12213d;
+  text-decoration: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.pwa-action-card:hover,
+.pwa-action-card:focus-visible {
+  border-color: #8db7ff;
+  color: #0b56d6;
+  box-shadow: 0 8px 20px rgba(13, 110, 253, 0.1);
+  transform: translateY(-1px);
+}
+
+.pwa-action-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  color: #0d6efd;
+  background: #edf4ff;
+  font-size: 19px;
+}
+
+.pwa-action-copy { min-width: 0; }
+.pwa-action-copy strong,
+.pwa-action-copy small { display: block; overflow-wrap: anywhere; }
+.pwa-action-copy strong { margin-bottom: 3px; font-size: 14px; }
+.pwa-action-copy small { color: #657797; font-size: 12px; line-height: 1.35; }
+.pwa-action-arrow { color: #8ea1bd; }
+
+.pwa-qr-frame {
+  width: min(100%, 246px);
+  margin: 18px auto 12px;
+  padding: 12px;
+  border: 1px solid #dce6f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pwa-qr-frame img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
+.pwa-qr-panel p { margin: 0 0 16px; color: #657797; font-size: 12px; line-height: 1.55; }
+.pwa-page-install { width: 100%; min-height: 42px; }
+.pwa-ios-help-page { margin: 12px 0 0; text-align: left; }
+
+.pwa-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px 18px;
+  border: 1px dashed #cbd9ec;
+  border-radius: 7px;
+  color: #657797;
+  text-align: center;
+}
+
+.pwa-empty-state i { color: #0d6efd; font-size: 25px; }
+.pwa-empty-state.compact { margin-top: 18px; padding: 20px 14px; }
+
+@media (max-width: 900px) {
+  .pwa-mobile-layout { grid-template-columns: 1fr; }
+  .pwa-qr-panel { order: 2; }
+}
+
+@media (max-width: 575.98px) {
+  .pwa-quick-panel,
+  .pwa-qr-panel { padding: 15px; }
+  .pwa-action-grid { grid-template-columns: 1fr; }
+  .pwa-action-card { min-height: 78px; }
+  .pwa-section-heading h2,
+  .pwa-qr-panel h2 { font-size: 17px; }
+}
