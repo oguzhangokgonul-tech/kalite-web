@@ -49,7 +49,7 @@
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.create_supplier_quality_audit', 'main.edit_supplier_quality_audit', 'main.delete_supplier_quality_audit', 'main.create_supplier_survey', 'main.edit_supplier_survey', 'main.delete_supplier_survey', 'main.deactivate_supplier'] %}
-  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf'] %}
+  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf', 'main.create_custom_report', 'main.preview_custom_report', 'main.custom_report_detail', 'main.edit_custom_report', 'main.archive_custom_report', 'main.download_custom_report_excel', 'main.custom_report_pdf'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
     ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
@@ -363,7 +363,7 @@
           <span>Tedarikçi Değerlendirme</span>
         </a>
         {% endif %}
-        {% if g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export')) %}
+        {% if g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export') or g.current_user.has_permission('reports.design') or g.current_user.has_permission('reports.manage')) %}
         <a class="dashboard-nav-item {% if report_center_active %}active{% endif %}" href="{{ url_for('main.report_center') }}">
           <i class="bi bi-bar-chart-line"></i>
           <span>Rapor Merkezi</span>

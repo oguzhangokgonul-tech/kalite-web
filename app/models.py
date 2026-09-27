@@ -6246,6 +6246,102 @@ class AuditLog(db.Model):
     user = db.relationship("User")
 
 
+class ReportDefinition(db.Model):
+    __tablename__ = "report_definitions"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id",
+            "name",
+            "status",
+            name="uq_report_definitions_company_name_status",
+        ),
+        db.Index(
+            "ix_report_definitions_company_status",
+            "company_id",
+            "status",
+        ),
+        db.CheckConstraint(
+            "visibility IN ('private','company')",
+            name="ck_report_definitions_visibility",
+        ),
+        db.CheckConstraint(
+            "status IN ('active','archived')",
+            name="ck_report_definitions_status",
+        ),
+        db.CheckConstraint(
+            "revision_no >= 1",
+            name="ck_report_definitions_revision_positive",
+        ),
+        db.CheckConstraint(
+            "lock_version >= 1",
+            name="ck_report_definitions_lock_positive",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(
+        db.Integer,
+        db.ForeignKey("companies.id"),
+        nullable=False,
+        index=True,
+    )
+    name = db.Column(db.String(160), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    source_key = db.Column(db.String(80), nullable=False, index=True)
+    configuration_json = db.Column(db.Text, nullable=False)
+    visibility = db.Column(
+        db.String(20),
+        nullable=False,
+        default="private",
+        server_default="private",
+    )
+    status = db.Column(
+        db.String(20),
+        nullable=False,
+        default="active",
+        server_default="active",
+        index=True,
+    )
+    created_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=False,
+        index=True,
+    )
+    updated_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id"),
+        nullable=True,
+        index=True,
+    )
+    revision_no = db.Column(
+        db.Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+    lock_version = db.Column(
+        db.Integer,
+        nullable=False,
+        default=1,
+        server_default="1",
+    )
+    configuration_hash = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        server_default=db.func.now(),
+        onupdate=db.func.now(),
+    )
+
+    __mapper_args__ = {"version_id_col": lock_version}
+
+    company = db.relationship("Company")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_user_id])
+
+
 class AppSetting(db.Model):
     __tablename__ = "app_settings"
 

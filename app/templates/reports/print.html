@@ -246,12 +246,12 @@
   </head>
   <body>
     <div class="report-toolbar">
-      <a class="report-button" href="{{ url_for('main.report_center') }}">
+      <a class="report-button" href="{{ report.back_url if report.back_url is defined else url_for('main.report_center') }}">
         <i class="bi bi-arrow-left"></i>
         <span>Rapor Merkezi</span>
       </a>
       <div class="report-toolbar-actions">
-        <a class="report-button" href="{{ url_for('main.download_report_center_excel', report_key=report.key) }}">
+        <a class="report-button" href="{{ report.excel_url if report.excel_url is defined else url_for('main.download_report_center_excel', report_key=report.key) }}">
           <i class="bi bi-file-earmark-excel"></i>
           <span>Excel</span>
         </a>

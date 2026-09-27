@@ -5,10 +5,18 @@
 
 {% block app_content %}
   {% call ui.page_header("Rapor Merkezi", "ISO 9001 denetim kanıtları ve yönetici özetleri için modül bazlı Excel ve PDF çıktıları.", icon="bi-bar-chart-line") %}
-    <span class="vp-status-badge vp-status-blue">
-      <i class="bi bi-buildings"></i>
-      <span>{{ scope_label }}</span>
-    </span>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="vp-status-badge vp-status-blue">
+        <i class="bi bi-buildings"></i>
+        <span>{{ scope_label }}</span>
+      </span>
+      {% if can_design_reports %}
+        <a class="btn btn-primary" href="{{ url_for('main.create_custom_report') }}">
+          <i class="bi bi-magic"></i>
+          <span>Rapor Tasarla</span>
+        </a>
+      {% endif %}
+    </div>
   {% endcall %}
 
   <div class="dashboard-metrics">
@@ -34,7 +42,56 @@
     </div>
   </div>
 
-  <section class="row g-3">
+  <section class="mb-4" aria-labelledby="savedReportsHeading">
+    <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
+      <div>
+        <h2 class="h5 mb-1" id="savedReportsHeading">Kayıtlı Raporlar</h2>
+        <p class="text-secondary mb-0">Kolon, filtre ve sıralaması şirketinize göre hazırlanmış raporlar.</p>
+      </div>
+      <span class="vp-status-badge vp-status-blue">{{ saved_reports|length }} tasarım</span>
+    </div>
+    <div class="row g-3">
+      {% for saved_report in saved_reports %}
+        <div class="col-md-6 col-xxl-4">
+          <article class="document-list-card h-100 p-4">
+            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+              <span class="app-card-icon"><i class="bi bi-layout-text-window-reverse"></i></span>
+              <span class="vp-status-badge {% if saved_report.visibility == 'company' %}vp-status-success{% else %}vp-status-blue{% endif %}">
+                <i class="bi {% if saved_report.visibility == 'company' %}bi-people{% else %}bi-lock{% endif %}"></i>
+                <span>{{ "Şirketle Paylaşıldı" if saved_report.visibility == "company" else "Özel" }}</span>
+              </span>
+            </div>
+            <h3 class="h5 mb-2">{{ saved_report.name }}</h3>
+            <p class="text-secondary mb-3">{{ saved_report.description or "Kayıtlı özel rapor tasarımı." }}</p>
+            <div class="d-flex flex-wrap gap-2 mt-auto">
+              <a class="btn btn-primary" href="{{ url_for('main.custom_report_detail', report_id=saved_report.id) }}">
+                <i class="bi bi-eye"></i><span>Raporu Aç</span>
+              </a>
+              {% if can_export_reports %}
+                <a class="btn btn-outline-primary" href="{{ url_for('main.download_custom_report_excel', report_id=saved_report.id) }}" title="Excel indir">
+                  <i class="bi bi-file-earmark-excel"></i><span>Excel</span>
+                </a>
+              {% endif %}
+            </div>
+          </article>
+        </div>
+      {% else %}
+        <div class="col-12">
+          <div class="document-list-card p-4 text-center text-secondary">
+            <i class="bi bi-layout-text-window-reverse d-block fs-3 mb-2"></i>
+            Henüz erişebileceğiniz kayıtlı rapor yok.
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section aria-labelledby="standardReportsHeading">
+    <div class="mb-3">
+      <h2 class="h5 mb-1" id="standardReportsHeading">Standart Raporlar</h2>
+      <p class="text-secondary mb-0">Modüllerdeki güncel verilerden otomatik hazırlanan raporlar.</p>
+    </div>
+    <div class="row g-3">
     {% for card in cards %}
       <div class="col-md-6 col-xxl-4">
         <article class="document-list-card h-100 p-4">
@@ -75,5 +132,6 @@
         </section>
       </div>
     {% endfor %}
+    </div>
   </section>
 {% endblock %}

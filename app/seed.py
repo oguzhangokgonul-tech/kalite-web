@@ -1,7 +1,7 @@
 from sqlalchemy import inspect, text
 
 from .extensions import db
-from .models import AppSetting, Company, MaintenanceMachine, Role, User
+from .models import AppSetting, Company, MaintenanceMachine, ReportDefinition, Role, User
 from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
@@ -501,6 +501,18 @@ PERMISSION_CATALOG = (
         "label": "Rapor merkezi dışa aktarma",
         "group": "Rapor Merkezi",
         "description": "Rapor merkezindeki Excel çıktılarını indirir.",
+    },
+    {
+        "key": "reports.design",
+        "label": "Özel rapor tasarlama",
+        "group": "Rapor Merkezi",
+        "description": "Kendi özel raporlarını oluşturur, düzenler ve arşivler.",
+    },
+    {
+        "key": "reports.manage",
+        "label": "Şirket raporlarını yönetme",
+        "group": "Rapor Merkezi",
+        "description": "Şirketle paylaşılan raporları oluşturur ve tüm rapor tasarımlarını yönetir.",
     },
     {
         "key": "internal_audit.manage",
@@ -1050,6 +1062,8 @@ ROLE_DEFINITIONS = (
             "suppliers.delete",
             "reports.view",
             "reports.export",
+            "reports.design",
+            "reports.manage",
             "internal_audit.manage",
             "documents.manage",
             "documents.delete",
@@ -1104,6 +1118,7 @@ ROLE_DEFINITIONS = (
             "suppliers.view",
             "reports.view",
             "reports.export",
+            "reports.design",
             "vehicles.view",
         ],
     },
@@ -1149,6 +1164,7 @@ ROLE_DEFINITIONS = (
             "suppliers.view",
             "suppliers.evaluate",
             "reports.view",
+            "reports.design",
             "quality.create",
             "vehicles.view",
             "vehicles.manage",
@@ -3767,6 +3783,7 @@ def ensure_runtime_schema():
         WasteBatch,
         WasteMovement,
         WasteMovementFile,
+        ReportDefinition,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
@@ -3842,6 +3859,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_ohs_risk_matrix",
             "sales_readiness:competitor_workflow_designer",
             "sales_readiness:competitor_form_designer",
+            "sales_readiness:competitor_report_designer",
         ):
             db.session.execute(
                 text(

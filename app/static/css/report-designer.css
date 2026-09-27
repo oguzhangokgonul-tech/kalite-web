@@ -1,0 +1,203 @@
+.report-designer {
+  display: grid;
+  gap: 16px;
+}
+
+.report-designer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+  gap: 16px;
+}
+
+.report-designer-panel {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--vp-border, #dce7f5);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-designer-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.report-designer-heading h2 {
+  margin: 0 0 3px;
+  font-size: 1rem;
+}
+
+.report-designer-heading p {
+  margin: 0;
+  color: var(--bs-secondary-color);
+  font-size: .875rem;
+}
+
+.report-column-grid,
+.report-metric-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-option-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #dce7f5;
+  border-radius: 7px;
+  background: #f9fbff;
+  cursor: pointer;
+}
+
+.report-option-check span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: .875rem;
+}
+
+.report-rule-list {
+  display: grid;
+  gap: 10px;
+}
+
+.report-rule-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, .65fr) minmax(180px, 1fr);
+  gap: 10px;
+}
+
+.report-sort-row {
+  grid-template-columns: 36px minmax(220px, 1fr) minmax(140px, .4fr);
+  align-items: center;
+}
+
+.report-rule-number {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf4ff;
+  color: var(--vp-blue, #0d6efd);
+  font-weight: 700;
+}
+
+.report-designer-empty {
+  grid-column: 1 / -1;
+  padding: 24px;
+  border: 1px dashed #c8d7ec;
+  border-radius: 7px;
+  color: var(--bs-secondary-color);
+  text-align: center;
+}
+
+.report-designer-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dce7f5;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(10px);
+}
+
+.custom-report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.custom-report-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #dce7f5;
+  border-radius: 7px;
+  background: #fff;
+  color: #40577a;
+  font-size: .82rem;
+}
+
+.custom-report-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.custom-report-chart {
+  display: grid;
+  gap: 11px;
+}
+
+.custom-report-bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 220px) minmax(120px, 1fr) 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+.custom-report-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.custom-report-bar-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #e9f1fc;
+}
+
+.custom-report-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vp-blue, #0d6efd);
+}
+
+.custom-report-table-wrap {
+  max-height: 62vh;
+  border: 1px solid #e1eaf6;
+  border-radius: 7px;
+}
+
+.custom-report-table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f4f8fd;
+  white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+  .report-designer-layout { grid-template-columns: 1fr; }
+  .custom-report-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767.98px) {
+  .report-designer-panel { padding: 16px; }
+  .report-column-grid,
+  .report-metric-list { grid-template-columns: 1fr; }
+  .report-rule-row,
+  .report-sort-row { grid-template-columns: 1fr; }
+  .report-rule-number { display: none; }
+  .report-designer-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .report-designer-actions .btn { width: 100%; }
+  .custom-report-metrics { grid-template-columns: 1fr; }
+  .custom-report-bar-row { grid-template-columns: minmax(90px, 120px) minmax(90px, 1fr) 36px; }
+}

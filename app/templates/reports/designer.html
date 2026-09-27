@@ -1,0 +1,159 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ "Raporu Düzenle" if report else "Rapor Tasarla" }}{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/report-designer.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header("Raporu Düzenle" if report else "Rapor Tasarla", "Yetkili olduğunuz verilerden tekrar kullanılabilir rapor görünümü oluşturun.", icon="bi-magic") %}
+    <a class="btn btn-outline-primary" href="{{ url_for('main.report_center') }}">
+      <i class="bi bi-arrow-left"></i><span>Rapor Merkezi</span>
+    </a>
+  {% endcall %}
+
+  <form method="post" class="report-designer" id="reportDesignerForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if report %}<input type="hidden" name="lock_version" value="{{ report.lock_version }}">{% endif %}
+
+    <section class="report-designer-panel" aria-labelledby="reportIdentityHeading">
+      <div class="report-designer-heading">
+        <span class="app-card-icon"><i class="bi bi-file-earmark-bar-graph"></i></span>
+        <div>
+          <h2 id="reportIdentityHeading">Rapor Bilgileri</h2>
+          <p>Raporun adını, veri kaynağını ve kimlerin görebileceğini belirleyin.</p>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-4">
+          <label class="form-label" for="reportName">Rapor Adı</label>
+          <input class="form-control" id="reportName" name="name" maxlength="160" required value="{{ report.name if report else '' }}">
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label" for="reportSource">Veri Kaynağı</label>
+          <select class="form-select" id="reportSource" name="source_key" required>
+            <option value="">Kaynak seçin</option>
+            {% for source in sources %}
+              <option value="{{ source.key }}" {% if report and report.source_key == source.key %}selected{% endif %}>{{ source.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-lg-4">
+          <label class="form-label" for="reportVisibility">Görünürlük</label>
+          <select class="form-select" id="reportVisibility" name="visibility">
+            <option value="private" {% if not report or report.visibility == 'private' %}selected{% endif %}>Yalnızca Ben</option>
+            {% if can_manage_reports %}
+              <option value="company" {% if report and report.visibility == 'company' %}selected{% endif %}>Şirket Kullanıcıları</option>
+            {% endif %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="reportDescription">Açıklama</label>
+          <textarea class="form-control" id="reportDescription" name="description" rows="2" maxlength="1000">{{ report.description if report and report.description else '' }}</textarea>
+        </div>
+      </div>
+    </section>
+
+    <div class="report-designer-layout">
+      <section class="report-designer-panel" aria-labelledby="reportColumnsHeading">
+        <div class="report-designer-heading">
+          <span class="app-card-icon"><i class="bi bi-layout-three-columns"></i></span>
+          <div>
+            <h2 id="reportColumnsHeading">Kolonlar</h2>
+            <p>Raporda gösterilecek alanları seçin. En fazla 20 kolon kullanılabilir.</p>
+          </div>
+        </div>
+        <div class="report-column-grid" id="reportColumns" aria-live="polite">
+          <div class="report-designer-empty">Önce veri kaynağı seçin.</div>
+        </div>
+      </section>
+
+      <section class="report-designer-panel" aria-labelledby="reportMetricsHeading">
+        <div class="report-designer-heading">
+          <span class="app-card-icon"><i class="bi bi-speedometer2"></i></span>
+          <div>
+            <h2 id="reportMetricsHeading">Özet</h2>
+            <p>Üst bilgi kartlarını ve kategori kırılımını seçin.</p>
+          </div>
+        </div>
+        <div class="report-metric-list">
+          {% for key, label in metric_options.items() %}
+            <label class="report-option-check">
+              <input class="form-check-input" type="checkbox" name="metrics" value="{{ key }}" {% if key in configuration.get('metrics', ['row_count']) %}checked{% endif %}>
+              <span>{{ label }}</span>
+            </label>
+          {% endfor %}
+        </div>
+        <label class="form-label mt-3" for="reportGroupBy">Kategori Kırılımı</label>
+        <select class="form-select report-field-select" id="reportGroupBy" name="group_by" data-selected="{{ configuration.get('group_by') or '' }}">
+          <option value="">Grafik gösterme</option>
+        </select>
+      </section>
+    </div>
+
+    <section class="report-designer-panel" aria-labelledby="reportFiltersHeading">
+      <div class="report-designer-heading">
+        <span class="app-card-icon"><i class="bi bi-funnel"></i></span>
+        <div>
+          <h2 id="reportFiltersHeading">Filtreler</h2>
+          <p>Üç hızlı filtre tanımlayın; boş bırakılan satırlar uygulanmaz.</p>
+        </div>
+      </div>
+      <div class="report-rule-list" id="reportFilters">
+        {% for index in range(3) %}
+          {% set rule = configuration.get('filters', [])[index] if index < configuration.get('filters', [])|length else {} %}
+          <div class="report-rule-row">
+            <select class="form-select report-field-select" name="filter_column" data-selected="{{ rule.get('column', '') }}"><option value="">Kolon seçin</option></select>
+            <select class="form-select" name="filter_operator">
+              {% for key, label in filter_operators.items() %}<option value="{{ key }}" {% if rule.get('operator') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+            <input class="form-control" name="filter_value" maxlength="255" placeholder="Değer" value="{{ rule.get('value', '') }}">
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="report-designer-panel" aria-labelledby="reportSortsHeading">
+      <div class="report-designer-heading">
+        <span class="app-card-icon"><i class="bi bi-sort-down"></i></span>
+        <div>
+          <h2 id="reportSortsHeading">Sıralama</h2>
+          <p>Öncelik sırasına göre en fazla üç sıralama kuralı uygulayın.</p>
+        </div>
+      </div>
+      <div class="report-rule-list" id="reportSorts">
+        {% for index in range(3) %}
+          {% set rule = configuration.get('sorts', [])[index] if index < configuration.get('sorts', [])|length else {} %}
+          <div class="report-rule-row report-sort-row">
+            <span class="report-rule-number">{{ index + 1 }}</span>
+            <select class="form-select report-field-select" name="sort_column" data-selected="{{ rule.get('column', '') }}"><option value="">Kolon seçin</option></select>
+            <select class="form-select" name="sort_direction">
+              <option value="asc" {% if rule.get('direction') != 'desc' %}selected{% endif %}>Artan</option>
+              <option value="desc" {% if rule.get('direction') == 'desc' %}selected{% endif %}>Azalan</option>
+            </select>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <div class="report-designer-actions">
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.report_center') }}">Vazgeç</a>
+      <button class="btn btn-outline-primary" type="submit" formaction="{{ url_for('main.preview_custom_report') }}" formtarget="_blank">
+        <i class="bi bi-eye"></i><span>Önizle</span>
+      </button>
+      <button class="btn btn-primary" type="submit">
+        <i class="bi bi-check2-circle"></i><span>{{ "Değişiklikleri Kaydet" if report else "Raporu Oluştur" }}</span>
+      </button>
+    </div>
+  </form>
+
+  <script type="application/json" id="reportSourcesData">{{ sources|tojson }}</script>
+  <script type="application/json" id="reportSelectedColumns">{{ configuration.get('columns', [])|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/report-designer.js', v=config.ASSET_VERSION) }}"></script>
+{% endblock %}

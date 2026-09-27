@@ -1,0 +1,96 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}{{ report.title }}{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/report-designer.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+
+{% block app_content %}
+  {% call ui.page_header(report.title, report.description, icon=report.icon) %}
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary" href="{{ url_for('main.report_center') }}"><i class="bi bi-arrow-left"></i><span>Rapor Merkezi</span></a>
+      {% if can_edit %}<a class="btn btn-outline-primary" href="{{ url_for('main.edit_custom_report', report_id=report_definition.id) }}"><i class="bi bi-pencil"></i><span>Düzenle</span></a>{% endif %}
+      {% if can_export %}
+        <a class="btn btn-primary" href="{{ url_for('main.download_custom_report_excel', report_id=report_definition.id) }}"><i class="bi bi-file-earmark-excel"></i><span>Excel</span></a>
+        <a class="btn btn-outline-primary" target="_blank" rel="noopener" href="{{ url_for('main.custom_report_pdf', report_id=report_definition.id) }}"><i class="bi bi-printer"></i><span>PDF / Yazdır</span></a>
+      {% endif %}
+    </div>
+  {% endcall %}
+
+  {% if is_preview|default(false) %}
+    <div class="alert alert-info d-flex align-items-center gap-2" role="status">
+      <i class="bi bi-eye"></i><span>Bu bir önizlemedir; rapor henüz kaydedilmedi.</span>
+    </div>
+  {% endif %}
+
+  <div class="custom-report-meta mb-3">
+    <span><i class="bi bi-database"></i>{{ report.source_title }}</span>
+    <span><i class="bi bi-buildings"></i>{{ scope_label }}</span>
+    <span><i class="bi {{ 'bi-people' if report_definition.visibility == 'company' else 'bi-lock' }}"></i>{{ "Şirketle Paylaşıldı" if report_definition.visibility == "company" else "Özel" }}</span>
+    <span><i class="bi bi-clock-history"></i>Revizyon {{ report_definition.revision_no }}</span>
+  </div>
+
+  {% if report.metrics %}
+    <section class="custom-report-metrics" aria-label="Rapor özeti">
+      {% for label, value, icon in report.metrics %}
+        <article class="dashboard-stat-card stat-primary">
+          <span class="stat-icon"><i class="bi {{ icon }}"></i></span>
+          <span class="stat-label">{{ label }}</span>
+          <strong>{{ value }}</strong>
+        </article>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {% if report.group_items %}
+    <section class="report-designer-panel mb-3" aria-labelledby="reportBreakdownHeading">
+      <div class="report-designer-heading">
+        <span class="app-card-icon"><i class="bi bi-bar-chart"></i></span>
+        <div><h2 id="reportBreakdownHeading">{{ report.group_by }} Dağılımı</h2><p>En yüksek 12 kategori gösteriliyor.</p></div>
+      </div>
+      <div class="custom-report-chart">
+        {% for label, count in report.group_items %}
+          <div class="custom-report-bar-row">
+            <span class="custom-report-bar-label">{{ label }}</span>
+            <span class="custom-report-bar-track"><span class="custom-report-bar-fill" style="width: {{ (count / report.max_group_count * 100)|round if report.max_group_count else 0 }}%"></span></span>
+            <strong>{{ count }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="report-designer-panel" aria-labelledby="reportTableHeading">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <div>
+        <h2 class="h5 mb-1" id="reportTableHeading">Rapor Sonuçları</h2>
+        <p class="text-secondary mb-0">{{ report.source_count }} kaynak kaydından {{ report.filtered_count }} eşleşme.</p>
+      </div>
+      {% if report.filtered_count > report.rows|length %}<span class="vp-status-badge vp-status-warning">İlk {{ report.rows|length }} kayıt</span>{% endif %}
+    </div>
+    <div class="table-responsive custom-report-table-wrap">
+      <table class="table align-middle mb-0">
+        <thead><tr>{% for header in report.headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in report.rows %}
+            <tr>{% for value in row %}<td>{{ value if value not in [none, ''] else '-' }}</td>{% endfor %}</tr>
+          {% else %}
+            <tr><td class="text-center text-secondary py-5" colspan="{{ report.headers|length }}">Filtrelere uyan kayıt bulunamadı.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if can_edit %}
+    <div class="d-flex justify-content-end mt-3">
+      <form method="post" action="{{ url_for('main.archive_custom_report', report_id=report_definition.id) }}" onsubmit="return confirm('Bu rapor tasarımı arşivlensin mi?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="lock_version" value="{{ report_definition.lock_version }}">
+        <button class="btn btn-outline-danger" type="submit"><i class="bi bi-archive"></i><span>Arşivle</span></button>
+      </form>
+    </div>
+  {% endif %}
+{% endblock %}

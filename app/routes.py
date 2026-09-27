@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from calendar import monthrange
 from functools import wraps
+import hashlib
 from io import BytesIO
 import json
 from pathlib import Path
@@ -30,6 +31,7 @@ from flask import (
 )
 from sqlalchemy import and_, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm.exc import StaleDataError
 
 from .audit import record_audit_event
 from .extensions import db
@@ -178,6 +180,7 @@ from .models import (
     DEFAULT_SUGGESTION_SCORE_PARAMETERS,
     QualityTestRecord,
     OhsRiskAssessment,
+    ReportDefinition,
     RiskRecord,
     Role,
     RolePermission,
@@ -3006,6 +3009,13 @@ MODULE_ENDPOINTS = {
     "main.report_center": "report_center",
     "main.download_report_center_excel": "report_center",
     "main.report_center_pdf": "report_center",
+    "main.create_custom_report": "report_center",
+    "main.preview_custom_report": "report_center",
+    "main.custom_report_detail": "report_center",
+    "main.edit_custom_report": "report_center",
+    "main.archive_custom_report": "report_center",
+    "main.download_custom_report_excel": "report_center",
+    "main.custom_report_pdf": "report_center",
     "main.internal_audit": "internal_audit",
     "main.create_internal_audit": "internal_audit",
     "main.edit_internal_audit": "internal_audit",
@@ -6903,7 +6913,20 @@ def can_export_reports():
 
 
 def can_view_report_center():
-    return current_user_can("reports.view") or can_export_reports()
+    return (
+        current_user_can("reports.view")
+        or can_export_reports()
+        or current_user_can("reports.design")
+        or current_user_can("reports.manage")
+    )
+
+
+def can_design_reports():
+    return current_user_can("reports.design") or current_user_can("reports.manage")
+
+
+def can_manage_reports():
+    return current_user_can("reports.manage")
 
 
 def can_view_management_due_dashboard():
@@ -8841,10 +8864,406 @@ def report_center_context():
     total_rows = sum(card["count"] for card in cards)
     return {
         "cards": cards,
+        "saved_reports": accessible_custom_reports(),
         "total_reports": len(cards),
         "total_rows": total_rows,
         "can_export_reports": can_export_reports(),
+        "can_design_reports": can_design_reports(),
         "scope_label": report_scope_label(),
+    }
+
+
+CUSTOM_REPORT_FILTER_OPERATORS = {
+    "contains": "İçerir",
+    "equals": "Eşittir",
+    "not_equals": "Eşit değildir",
+    "starts_with": "İle başlar",
+    "empty": "Boş",
+    "not_empty": "Boş değil",
+}
+CUSTOM_REPORT_METRICS = {
+    "row_count": "Kayıt sayısı",
+    "column_count": "Seçili kolon",
+    "group_count": "Kategori sayısı",
+}
+CUSTOM_REPORT_SOURCE_PERMISSIONS = {
+    "management_due_summary": ("management_due_dashboard.view",),
+    "actions_master": (
+        "actions.view_all",
+        "actions.create",
+        "actions.comment_assigned",
+        "actions.request_close_assigned",
+    ),
+    "actions_overdue": (
+        "actions.view_all",
+        "actions.create",
+        "actions.comment_assigned",
+        "actions.request_close_assigned",
+    ),
+    "dofs_status": ("if.view_all", "if.approve_management", "if.approve_deputy"),
+    "dof_capa_effectiveness": ("if.view_all", "if.approve_management", "if.approve_deputy"),
+    "documents_master": ("documents.view", "documents.manage"),
+    "document_revisions": ("documents.view", "documents.manage"),
+    "document_acknowledgements": ("documents.view", "documents.manage"),
+    "internal_audits": ("internal_audit.manage",),
+    "risks": ("risk.view", "risk.manage"),
+    "trainings": ("training.view", "training.manage"),
+    "complaints": ("complaints.view", "complaints.manage"),
+    "suppliers": ("suppliers.view", "suppliers.evaluate", "suppliers.manage"),
+    "management_reviews": ("management_review.view", "management_review.manage"),
+    "personnel_contacts": ("users.manage", "roles.manage"),
+}
+
+
+def report_source_definition(source_key, export=False):
+    for definition in REPORT_CENTER_REPORTS:
+        if definition["key"] != source_key:
+            continue
+        if not report_definition_access_allowed(definition, export=export):
+            return None
+        source_permissions = CUSTOM_REPORT_SOURCE_PERMISSIONS.get(source_key, ())
+        if source_permissions and not any(
+            current_user_can(permission) for permission in source_permissions
+        ):
+            return None
+        return definition
+    return None
+
+
+def report_source_data(source_key, export=False):
+    definition = report_source_definition(source_key, export=export)
+    if definition is None:
+        return None
+    return {**definition, **definition["builder"]()}
+
+
+def custom_report_configuration(report):
+    try:
+        value = json.loads(report.configuration_json or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def accessible_custom_reports():
+    company_id = current_company_id()
+    if not company_id:
+        return []
+    query = ReportDefinition.query.filter_by(company_id=company_id, status="active")
+    if not can_manage_reports():
+        query = query.filter(
+            or_(
+                ReportDefinition.visibility == "company",
+                ReportDefinition.created_by_user_id == g.current_user.id,
+            )
+        )
+    reports = query.order_by(ReportDefinition.name.asc(), ReportDefinition.id.asc()).all()
+    return [
+        report
+        for report in reports
+        if report_source_definition(report.source_key) is not None
+    ]
+
+
+def get_custom_report_or_404(report_id, include_archived=False):
+    if not can_view_report_center():
+        abort(403)
+    company_id = current_company_id()
+    if not company_id:
+        abort(404)
+    query = ReportDefinition.query.filter_by(company_id=company_id, id=report_id)
+    if not include_archived:
+        query = query.filter_by(status="active")
+    report = query.first_or_404()
+    if not can_manage_reports() and (
+        report.visibility != "company"
+        and report.created_by_user_id != g.current_user.id
+    ):
+        abort(404)
+    if report_source_definition(report.source_key) is None:
+        abort(404)
+    return report
+
+
+def can_edit_custom_report(report):
+    return can_manage_reports() or (
+        can_design_reports() and report.created_by_user_id == g.current_user.id
+    )
+
+
+def report_designer_source_catalog():
+    catalog = []
+    for definition in REPORT_CENTER_REPORTS:
+        if report_source_definition(definition["key"]) is None:
+            continue
+        data = definition["builder"]()
+        catalog.append(
+            {
+                "key": definition["key"],
+                "title": definition["title"],
+                "description": definition["description"],
+                "headers": [str(header) for header in data["headers"]],
+            }
+        )
+    return catalog
+
+
+def normalize_custom_report_value(value):
+    return "" if value is None else str(value).strip()
+
+
+def custom_report_sort_value(value):
+    text_value = normalize_custom_report_value(value)
+    try:
+        return (0, Decimal(text_value.replace(".", "").replace(",", ".")))
+    except (InvalidOperation, ValueError):
+        return (1, text_value.casefold())
+
+
+def custom_report_row_matches(row, header_indexes, filters):
+    for rule in filters:
+        index = header_indexes.get(rule.get("column"))
+        if index is None:
+            return False
+        actual = normalize_custom_report_value(row[index] if index < len(row) else "")
+        expected = normalize_custom_report_value(rule.get("value"))
+        actual_folded = actual.casefold()
+        expected_folded = expected.casefold()
+        operator = rule.get("operator")
+        matches = {
+            "contains": expected_folded in actual_folded,
+            "equals": actual_folded == expected_folded,
+            "not_equals": actual_folded != expected_folded,
+            "starts_with": actual_folded.startswith(expected_folded),
+            "empty": not actual,
+            "not_empty": bool(actual),
+        }.get(operator, False)
+        if not matches:
+            return False
+    return True
+
+
+def custom_report_rows_for_current_role(headers, rows):
+    has_department_scope = has_role(g.current_user, "department_manager") or has_role(
+        g.current_user, "department_staff"
+    )
+    if not has_department_scope or can_manage_reports():
+        return rows
+    normalized_headers = [normalize_for_role(header) for header in headers]
+    department_index = next(
+        (
+            index
+            for index, header in enumerate(normalized_headers)
+            if "departman" in header or header == "birim"
+        ),
+        None,
+    )
+    responsible_indexes = [
+        index for index, header in enumerate(normalized_headers) if "sorumlu" in header
+    ]
+    if department_index is None:
+        if not responsible_indexes:
+            return []
+        return [
+            row
+            for row in rows
+            if any(
+                normalize_for_role(row[index] if index < len(row) else "").strip()
+                == normalize_for_role(g.current_user.full_name).strip()
+                for index in responsible_indexes
+            )
+        ]
+    visible_rows = []
+    for row in rows:
+        department = row[department_index] if department_index < len(row) else ""
+        department_key = normalize_for_role(department).strip()
+        targets_all = not department_key or department_key in {
+            "tum departmanlar",
+            "tum departman",
+            "hepsi",
+            "all",
+        }
+        user_is_responsible = any(
+            normalize_for_role(row[index] if index < len(row) else "").strip()
+            == normalize_for_role(g.current_user.full_name).strip()
+            for index in responsible_indexes
+        )
+        if targets_all or user_matches_process_department(g.current_user, department) or user_is_responsible:
+            visible_rows.append(row)
+    return visible_rows
+
+
+def build_custom_report_data(report, *, export=False, row_limit=None):
+    source = report_source_data(report.source_key, export=export)
+    if source is None:
+        return None
+    configuration = custom_report_configuration(report)
+    source_headers = [str(header) for header in source["headers"]]
+    header_indexes = {header: index for index, header in enumerate(source_headers)}
+    selected_headers = [
+        header
+        for header in configuration.get("columns", [])
+        if header in header_indexes
+    ][:20]
+    if not selected_headers:
+        selected_headers = source_headers[:20]
+
+    source_rows = custom_report_rows_for_current_role(
+        source_headers,
+        [tuple(row) for row in source["rows"]],
+    )
+    filters = configuration.get("filters", [])[:10]
+    filtered_rows = [
+        row for row in source_rows if custom_report_row_matches(row, header_indexes, filters)
+    ]
+    for sort_rule in reversed(configuration.get("sorts", [])[:3]):
+        sort_index = header_indexes.get(sort_rule.get("column"))
+        if sort_index is None:
+            continue
+        filtered_rows.sort(
+            key=lambda row: custom_report_sort_value(
+                row[sort_index] if sort_index < len(row) else ""
+            ),
+            reverse=sort_rule.get("direction") == "desc",
+        )
+
+    group_by = configuration.get("group_by")
+    group_counts = {}
+    if group_by in header_indexes:
+        group_index = header_indexes[group_by]
+        for row in filtered_rows:
+            label = normalize_custom_report_value(
+                row[group_index] if group_index < len(row) else ""
+            ) or "Boş"
+            group_counts[label] = group_counts.get(label, 0) + 1
+    group_items = sorted(group_counts.items(), key=lambda item: (-item[1], item[0]))[:12]
+
+    projected_rows = [
+        tuple(row[header_indexes[header]] if header_indexes[header] < len(row) else "" for header in selected_headers)
+        for row in filtered_rows[:row_limit]
+    ] if row_limit else [
+        tuple(row[header_indexes[header]] if header_indexes[header] < len(row) else "" for header in selected_headers)
+        for row in filtered_rows
+    ]
+    metrics = configuration.get("metrics", ["row_count"])
+    metric_values = []
+    if "row_count" in metrics:
+        metric_values.append(("Kayıt", len(filtered_rows), "bi-list-ol"))
+    if "column_count" in metrics:
+        metric_values.append(("Kolon", len(selected_headers), "bi-layout-three-columns"))
+    if "group_count" in metrics and group_by:
+        metric_values.append(("Kategori", len(group_counts), "bi-pie-chart"))
+
+    return {
+        "key": f"custom-report-{report.id}",
+        "title": report.name,
+        "description": report.description or source["description"],
+        "icon": source.get("icon", "bi-bar-chart-line"),
+        "headers": tuple(selected_headers),
+        "rows": projected_rows,
+        "sheet_name": report.name[:31] or "Özel Rapor",
+        "column_widths": tuple(22 for _ in selected_headers),
+        "source_title": source["title"],
+        "source_count": len(source_rows),
+        "filtered_count": len(filtered_rows),
+        "metrics": metric_values,
+        "group_by": group_by if group_items else None,
+        "group_items": group_items,
+        "max_group_count": max((count for _, count in group_items), default=0),
+    }
+
+
+def parse_custom_report_form():
+    source_key = request.form.get("source_key", "").strip()
+    source = report_source_data(source_key)
+    if source is None:
+        raise ValueError("source")
+    source_headers = [str(header) for header in source["headers"]]
+    name = request.form.get("name", "").strip()
+    description = request.form.get("description", "").strip()
+    if not name or len(name) > 160 or len(description) > 1000:
+        raise ValueError("name")
+
+    columns = []
+    for column in request.form.getlist("columns"):
+        if column not in source_headers:
+            raise ValueError("columns")
+        if column not in columns:
+            columns.append(column)
+    if not columns or len(columns) > 20:
+        raise ValueError("columns")
+
+    filter_columns = request.form.getlist("filter_column")
+    filter_operators = request.form.getlist("filter_operator")
+    filter_values = request.form.getlist("filter_value")
+    filters = []
+    for column, operator, value in zip(filter_columns, filter_operators, filter_values):
+        if not column:
+            continue
+        if column not in source_headers or operator not in CUSTOM_REPORT_FILTER_OPERATORS:
+            raise ValueError("filter")
+        value = value.strip()[:255]
+        if operator not in {"empty", "not_empty"} and not value:
+            raise ValueError("filter")
+        filters.append({"column": column, "operator": operator, "value": value})
+    if len(filters) > 10:
+        raise ValueError("filter")
+
+    sort_columns = request.form.getlist("sort_column")
+    sort_directions = request.form.getlist("sort_direction")
+    sorts = []
+    for column, direction in zip(sort_columns, sort_directions):
+        if not column:
+            continue
+        if column not in source_headers or direction not in {"asc", "desc"}:
+            raise ValueError("sort")
+        sorts.append({"column": column, "direction": direction})
+    if len(sorts) > 3:
+        raise ValueError("sort")
+
+    metrics = [
+        metric
+        for metric in request.form.getlist("metrics")
+        if metric in CUSTOM_REPORT_METRICS
+    ][:4]
+    if not metrics:
+        metrics = ["row_count"]
+    group_by = request.form.get("group_by", "").strip()
+    if group_by and group_by not in source_headers:
+        raise ValueError("group")
+    visibility = request.form.get("visibility", "private")
+    if visibility not in {"private", "company"}:
+        visibility = "private"
+    if visibility == "company" and not can_manage_reports():
+        visibility = "private"
+
+    configuration = {
+        "version": 1,
+        "columns": columns,
+        "filters": filters,
+        "sorts": sorts,
+        "metrics": metrics,
+        "group_by": group_by or None,
+    }
+    configuration_json = json.dumps(configuration, ensure_ascii=False, sort_keys=True)
+    return {
+        "name": name,
+        "description": description or None,
+        "source_key": source_key,
+        "configuration_json": configuration_json,
+        "configuration_hash": hashlib.sha256(configuration_json.encode("utf-8")).hexdigest(),
+        "visibility": visibility,
+    }
+
+
+def report_designer_form_context(report=None):
+    return {
+        "report": report,
+        "configuration": custom_report_configuration(report) if report else {},
+        "sources": report_designer_source_catalog(),
+        "filter_operators": CUSTOM_REPORT_FILTER_OPERATORS,
+        "metric_options": CUSTOM_REPORT_METRICS,
+        "can_manage_reports": can_manage_reports(),
     }
 
 
@@ -22541,6 +22960,199 @@ def report_center():
     return render_template("reports/dashboard.html", **report_center_context())
 
 
+@bp.route("/rapor-merkezi/tasarim/yeni", methods=["GET", "POST"])
+@login_required
+def create_custom_report():
+    if not can_design_reports():
+        abort(403)
+    if not current_company_id():
+        flash("Rapor tasarlamak için önce bir şirket seçin.", "warning")
+        return redirect(url_for("main.report_center"))
+    if request.method == "POST":
+        try:
+            values = parse_custom_report_form()
+        except ValueError:
+            flash("Rapor ayarlarını kontrol edin; kaynak, ad ve en az bir kolon zorunludur.", "danger")
+        else:
+            report = assign_current_company(
+                ReportDefinition(
+                    **values,
+                    created_by_user_id=g.current_user.id,
+                    updated_by_user_id=g.current_user.id,
+                )
+            )
+            db.session.add(report)
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                flash("Bu adla aktif bir rapor zaten bulunuyor.", "danger")
+            else:
+                flash("Özel rapor oluşturuldu.", "success")
+                return redirect(url_for("main.custom_report_detail", report_id=report.id))
+    return render_template("reports/designer.html", **report_designer_form_context())
+
+
+@bp.post("/rapor-merkezi/tasarim/onizleme")
+@login_required
+def preview_custom_report():
+    if not can_design_reports():
+        abort(403)
+    if not current_company_id():
+        abort(400)
+    try:
+        values = parse_custom_report_form()
+    except ValueError:
+        abort(400)
+    report_definition = assign_current_company(
+        ReportDefinition(
+            **values,
+            created_by_user_id=g.current_user.id,
+            updated_by_user_id=g.current_user.id,
+        )
+    )
+    report = build_custom_report_data(report_definition, row_limit=250)
+    if report is None:
+        abort(404)
+    return render_template(
+        "reports/custom_detail.html",
+        report_definition=report_definition,
+        report=report,
+        can_edit=False,
+        can_export=False,
+        is_preview=True,
+        scope_label=report_scope_label(),
+    )
+
+
+@bp.route("/rapor-merkezi/tasarim/<int:report_id>/duzenle", methods=["GET", "POST"])
+@login_required
+def edit_custom_report(report_id):
+    report = get_custom_report_or_404(report_id)
+    if not can_edit_custom_report(report):
+        abort(403)
+    if request.method == "POST":
+        submitted_lock_version = request.form.get("lock_version", type=int)
+        if submitted_lock_version != report.lock_version:
+            flash("Rapor başka bir kullanıcı tarafından güncellendi. Güncel halini yeniden açın.", "warning")
+            return redirect(url_for("main.edit_custom_report", report_id=report.id))
+        try:
+            values = parse_custom_report_form()
+        except ValueError:
+            flash("Rapor ayarlarını kontrol edin; kaynak, ad ve en az bir kolon zorunludur.", "danger")
+        else:
+            for key, value in values.items():
+                setattr(report, key, value)
+            report.updated_by_user_id = g.current_user.id
+            report.revision_no += 1
+            try:
+                db.session.commit()
+            except (IntegrityError, StaleDataError):
+                db.session.rollback()
+                flash("Rapor güncellenemedi; ad çakışmasını veya yeni bir değişikliği kontrol edin.", "danger")
+            else:
+                flash("Rapor tasarımı güncellendi.", "success")
+                return redirect(url_for("main.custom_report_detail", report_id=report.id))
+    return render_template(
+        "reports/designer.html",
+        **report_designer_form_context(report),
+    )
+
+
+@bp.post("/rapor-merkezi/tasarim/<int:report_id>/arsivle")
+@login_required
+def archive_custom_report(report_id):
+    report = get_custom_report_or_404(report_id)
+    if not can_edit_custom_report(report):
+        abort(403)
+    submitted_lock_version = request.form.get("lock_version", type=int)
+    if submitted_lock_version != report.lock_version:
+        flash("Rapor başka bir kullanıcı tarafından güncellendi. Güncel halini yeniden açın.", "warning")
+        return redirect(url_for("main.custom_report_detail", report_id=report.id))
+    report.name = f"[Arşiv #{report.id}] {report.name}"[:160]
+    report.status = "archived"
+    report.updated_by_user_id = g.current_user.id
+    report.revision_no += 1
+    try:
+        db.session.commit()
+    except StaleDataError:
+        db.session.rollback()
+        flash("Rapor başka bir kullanıcı tarafından güncellendi. Güncel halini yeniden açın.", "warning")
+        return redirect(url_for("main.custom_report_detail", report_id=report.id))
+    flash("Rapor tasarımı arşivlendi; denetim izi korundu.", "success")
+    return redirect(url_for("main.report_center"))
+
+
+@bp.get("/rapor-merkezi/tasarim/<int:report_id>")
+@login_required
+def custom_report_detail(report_id):
+    report_definition = get_custom_report_or_404(report_id)
+    report = build_custom_report_data(report_definition, row_limit=250)
+    if report is None:
+        abort(404)
+    record_audit_event(
+        "ReportDefinition",
+        "viewed",
+        f"{report_definition.name} raporu görüntülendi",
+        entity_id=report_definition.id,
+        details={"source_key": report_definition.source_key},
+    )
+    return render_template(
+        "reports/custom_detail.html",
+        report_definition=report_definition,
+        report=report,
+        can_edit=can_edit_custom_report(report_definition),
+        can_export=can_export_reports()
+        and report_source_definition(report_definition.source_key, export=True) is not None,
+        scope_label=report_scope_label(),
+    )
+
+
+@bp.get("/rapor-merkezi/tasarim/<int:report_id>/excel")
+@login_required
+def download_custom_report_excel(report_id):
+    if not can_export_reports():
+        abort(403)
+    report_definition = get_custom_report_or_404(report_id)
+    report = build_custom_report_data(report_definition, export=True, row_limit=10000)
+    if report is None:
+        abort(404)
+    workbook = build_simple_xlsx(
+        report["headers"],
+        report["rows"],
+        sheet_name=report["sheet_name"],
+        column_widths=report["column_widths"],
+    )
+    log_report_export(report, "excel")
+    return send_file(
+        workbook,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=report_filename(report["key"], "xlsx"),
+    )
+
+
+@bp.get("/rapor-merkezi/tasarim/<int:report_id>/pdf")
+@login_required
+def custom_report_pdf(report_id):
+    if not can_export_reports():
+        abort(403)
+    report_definition = get_custom_report_or_404(report_id)
+    report = build_custom_report_data(report_definition, export=True, row_limit=10000)
+    if report is None:
+        abort(404)
+    report["excel_url"] = url_for("main.download_custom_report_excel", report_id=report_id)
+    report["back_url"] = url_for("main.custom_report_detail", report_id=report_id)
+    log_report_export(report, "pdf")
+    return render_template(
+        "reports/print.html",
+        report=report,
+        scope_label=report_scope_label(),
+        generated_at=datetime.now(timezone.utc),
+        suggested_filename=report_filename(report["key"], "pdf"),
+    )
+
+
 @bp.get("/rapor-merkezi/<report_key>/excel")
 @login_required
 def download_report_center_excel(report_key):
@@ -22581,7 +23193,7 @@ def report_center_pdf(report_key):
         "reports/print.html",
         report=report,
         scope_label=report_scope_label(),
-        generated_at=datetime.utcnow(),
+        generated_at=datetime.now(timezone.utc),
         suggested_filename=report_filename(report["key"], "pdf"),
     )
 
