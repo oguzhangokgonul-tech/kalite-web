@@ -2674,6 +2674,13 @@ QUALITY_TEST_ENDPOINTS = {
 MODULE_ENDPOINTS = {
     "pwa.mobile_hub": None,
     "pwa.mobile_qr": None,
+    "integrations.dashboard": "integration_management",
+    "integrations.create_api_client": "integration_management",
+    "integrations.revoke_api_client": "integration_management",
+    "integrations.create_webhook": "integration_management",
+    "integrations.toggle_webhook": "integration_management",
+    "integrations.test_webhook": "integration_management",
+    "integrations.retry_delivery": "integration_management",
     "workflows.dashboard": "workflow_designer",
     "workflows.create_template": "workflow_designer",
     "workflows.edit_version": "workflow_designer",
@@ -3145,6 +3152,7 @@ def selected_company_module_keys_from_form():
                 "compliance_management",
                 "customer_feedback_portal",
                 "workflow_designer",
+                "integration_management",
             }
         )
     for item in COMPANY_MODULE_CATALOG:

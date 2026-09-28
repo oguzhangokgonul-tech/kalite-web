@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cryptography.fernet import Fernet
+
 from app.config import Config
 from app.request_security import request_client_ip
 from app.routes import NOTIFICATION_FILTERS
@@ -169,6 +171,7 @@ def test_wsgi_import_does_not_create_or_seed_production_database(tmp_path):
             "DATA_DIR": str(tmp_path / "data"),
             "UPLOAD_FOLDER": str(tmp_path / "uploads"),
             "AUTO_BOOTSTRAP_DATABASE": "false",
+            "INTEGRATION_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
         }
     )
 
@@ -184,3 +187,31 @@ def test_wsgi_import_does_not_create_or_seed_production_database(tmp_path):
 
     assert result.returncode == 0, result.stderr
     assert not database_path.exists()
+
+
+def test_production_startup_requires_integration_encryption_key(tmp_path):
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "APP_ENV": "production",
+            "SECRET_KEY": "production-integration-key-test-secret",
+            "DATABASE_URL": f"sqlite:///{(tmp_path / 'missing-key.db').as_posix()}",
+            "DATA_DIR": str(tmp_path / "data"),
+            "UPLOAD_FOLDER": str(tmp_path / "uploads"),
+            "AUTO_BOOTSTRAP_DATABASE": "false",
+        }
+    )
+    environment.pop("INTEGRATION_ENCRYPTION_KEY", None)
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import run"],
+        cwd=Path(__file__).parents[1],
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "INTEGRATION_ENCRYPTION_KEY" in result.stderr

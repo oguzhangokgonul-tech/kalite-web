@@ -2,6 +2,7 @@ from flask import Flask
 from flask.cli import with_appcontext
 from flask import flash, g, jsonify, redirect, request, url_for
 from flask_wtf.csrf import CSRFError
+from cryptography.fernet import Fernet
 from pathlib import Path
 from dotenv import load_dotenv
 import click
@@ -39,6 +40,13 @@ from .energy_management import bp as energy_bp
 from .ohs_risk_management import bp as ohs_risk_bp
 from .workflow_designer import bp as workflow_designer_bp
 from .pwa import bp as pwa_bp
+from .integrations import (
+    bp as integrations_bp,
+    dispatch_webhooks,
+    register_integration_event_listeners,
+    verify_integration_readiness,
+)
+from .integration_api import bp as integration_api_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -47,6 +55,18 @@ def create_app(config_class=Config):
     mimetypes.add_type("text/javascript", ".js")
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if app.config.get("APP_ENV") == "production":
+        integration_key = str(app.config.get("INTEGRATION_ENCRYPTION_KEY") or "").strip()
+        if not integration_key:
+            raise RuntimeError(
+                "Production ortaminda INTEGRATION_ENCRYPTION_KEY tanimlanmalidir."
+            )
+        try:
+            Fernet(integration_key.encode("ascii"))
+        except (TypeError, ValueError) as error:
+            raise RuntimeError(
+                "INTEGRATION_ENCRYPTION_KEY gecerli bir Fernet anahtari olmalidir."
+            ) from error
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
 
@@ -63,6 +83,7 @@ def create_app(config_class=Config):
     from .audit import register_audit_listeners
 
     register_audit_listeners()
+    register_integration_event_listeners()
 
     app.register_blueprint(bp)
     app.register_blueprint(dynamic_forms_bp)
@@ -84,6 +105,9 @@ def create_app(config_class=Config):
     app.register_blueprint(ohs_risk_bp)
     app.register_blueprint(workflow_designer_bp)
     app.register_blueprint(pwa_bp)
+    app.register_blueprint(integrations_bp)
+    csrf.exempt(integration_api_bp)
+    app.register_blueprint(integration_api_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):
@@ -168,6 +192,31 @@ def create_app(config_class=Config):
     def seed_maintenance_machines_command():
         ensure_default_maintenance_machines()
         print("Bakım makine envanteri oluşturuldu/güncellendi.")
+
+    @app.cli.command("dispatch-webhooks")
+    @click.option("--limit", default=100, type=click.IntRange(1, 500), show_default=True)
+    @with_appcontext
+    def dispatch_webhooks_command(limit):
+        delivered = dispatch_webhooks(limit=limit)
+        click.echo(f"{delivered} webhook teslimati islendi.")
+
+    @app.cli.command("integration-readiness-check")
+    @click.option(
+        "--mark",
+        is_flag=True,
+        help="Dogrulama basariliysa satis checklistini tamamlandi olarak isaretle.",
+    )
+    @with_appcontext
+    def integration_readiness_check_command(mark):
+        try:
+            result = verify_integration_readiness(mark=mark)
+        except RuntimeError as error:
+            raise click.ClickException(str(error)) from error
+        click.echo(
+            "Entegrasyon hazirlik kontrolu basarili: "
+            f"{result['tables']} tablo, sifreleme dogrulandi, "
+            f"checklist={'isaretlendi' if result['marked'] else 'degismedi'}."
+        )
 
     @app.cli.command("test-mail")
     @click.argument("to_address")

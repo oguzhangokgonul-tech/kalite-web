@@ -54,6 +54,8 @@ TRACKED_MODEL_NAMES = {
     "InternalAudit",
     "InternalAuditAnswer",
     "InternalAuditQuestion",
+    "IntegrationApiClient",
+    "IntegrationEvent",
     "IncidentFile",
     "IncidentReport",
     "InspectionFinding",
@@ -137,6 +139,9 @@ TRACKED_MODEL_NAMES = {
     "Vehicle",
     "VehicleFuelEntry",
     "VehicleOperation",
+    "WebhookDelivery",
+    "WebhookDeliveryAttempt",
+    "WebhookEndpoint",
     "WorkflowTemplate",
     "WorkflowVersion",
     "WorkflowStep",
@@ -161,6 +166,14 @@ SENSITIVE_FIELD_NAMES = {
     "email_hash",
     "ip_hash",
     "body",
+    "payload",
+    "response_excerpt",
+    "authorization",
+    "cookie",
+    "client_secret",
+    "api_key",
+    "secret",
+    "ciphertext",
 }
 
 NOISY_FIELD_NAMES = {"updated_at"}
@@ -289,7 +302,10 @@ def audit_scalar(value):
 
 def audit_payload(value):
     if isinstance(value, dict):
-        return {str(key): audit_payload(item) for key, item in sorted(value.items())}
+        return {
+            str(key): "<redacted>" if skip_audit_field(str(key)) else audit_payload(item)
+            for key, item in sorted(value.items())
+        }
     if isinstance(value, (list, tuple)):
         return [audit_payload(item) for item in value]
     if isinstance(value, set):

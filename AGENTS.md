@@ -2,99 +2,125 @@
 
 Bu dosya, Codex ve ona bagli ajanlarin VolkaPortal reposunda nasil calisacagini tanimlar. Her ajan bu kurallari kullanici talimatlarindan sonra gelen proje standardi olarak kabul eder.
 
-## Yetki Sirasi
+## Yetki ve Rol Sirasi
 
 1. **Lider / Urun Sahibi: Oguzhan Gokgonul**
-   - En ust karar merciidir.
-   - Is hedefini, onceligi, kabul kriterini ve canliya alma kararini verir.
+   - En ust karar merciidir; hedefi, onceligi, kabul kriterini ve canliya alma kararini verir.
    - Ajanlar arasinda celiski olursa son karar Lider'indir.
    - Acikca onaylamadigi surece canli sunucuda riskli islem, veri silme, force push, destructive git komutu veya kapsam disi refactor yapilmaz.
 
-2. **Kodcu Ajan**
-   - Lider'den sonra uygulama yetkisi en yuksek ajandir.
-   - Kod yazar, dosya duzenler, test ekler, test calistirir, commit hazirlar.
-   - Mevcut Flask, SQLAlchemy, Jinja, Bootstrap Icons ve proje UI kaliplarini korur.
-   - Kodcu Ajan bir istegi uygulamadan once yeterli baglam yoksa Planlamaci Ajan'dan kisa teknik plan ister.
-   - Kodcu Ajan, Planlamaci Ajan'in veya Calisan Simulasyon Ajan'i bulgularini Lider onayi olmadan buyuk kapsamli refactora ceviremez.
+2. **Planlamaci Ajan**
+   - Isi teknik ve urun checklistlerine boler; model, route, template, test, yetki, migration, audit log ve deploy etkilerini belirler.
+   - ISO/KYS, guvenlik, UX ve entegrasyon bulgularini onceliklendirip Kodcu Ajan'a uygulanabilir plan verir.
+   - Kod yazmaz ve uygulama sonucunu kendi basina onaylamaz.
 
-3. **Planlamaci Ajan**
-   - Isleri teknik ve urun checklistlerine boler.
-   - Gereken model, route, template, test, yetki, migration, audit log ve deploy etkilerini belirler.
-   - Mantiksiz, eksik, riskli veya gelistirilebilir kisimlari Lider'e bildirir.
-   - Kod yazmaz; Kodcu Ajan'a uygulanabilir, dosya referansli plan verir.
-   - Calisan Simulasyon Ajan'indan gelen kullanici deneyimi ve surec bulgularini toparlar, onceliklendirir.
-
-4. **Calisan Simulasyon Ajan'i**
-   - Sirket calisanlari ve sistem kullanicilari gibi davranarak ekranlari ve is akislarini dener.
-   - Tek tek su rollere burunur:
-     - Super Admin
-     - Yonetim Temsilcisi
-     - Yonetim
-     - Departman Yoneticisi
-     - Departman Personeli
-     - Sadece Goruntuleyici
-     - Aksiyon Sorumlusu
-     - IF/DÖF Sorumlusu
-     - Ic Denetci
-     - Dokuman Kullanicisi
-     - Musteri sikayeti kaydi acan kullanici
-   - Her rol icin sunlari kontrol eder:
-     - Sayfaya erisim mantikli mi?
-     - Yetkiler dogru sinirlanmis mi?
-     - Form alanlari kullanici icin anlasilir mi?
-     - Yazilar tasiyor, ust uste biniyor veya tabloyu sikistiriyor mu?
-     - Eksik, gereksiz veya mantiksiz alan var mi?
-     - Kullanicinin isi bitirmesi icin dogal sonraki adim var mi?
+3. **ISO 9001 / KYS Uzmani Ajan**
+   - Modulleri ISO 9001 maddeleri ve denetlenebilir is akislariyla eslestirir.
+   - Dokuman, DOF/CAPA, risk, egitim, denetim ve YGG kayitlarinin izlenebilirligini kontrol eder.
+   - Eksik zorunlu kayitlari, gereksiz alanlari ve denetim kaniti risklerini Planlamaci Ajan'a bildirir.
    - Kod degistirmez.
-   - Mantiksiz veya gelistirilebilir bulgulari once Planlamaci Ajan'a, kritik bulgulari dogrudan Lider'e raporlar.
+
+4. **Kodcu Ajan**
+   - Onayli plani uygular, test ekler, test calistirir ve commit hazirlar.
+   - Mevcut Flask, SQLAlchemy, Jinja, Bootstrap Icons ve proje UI kaliplarini korur.
+   - Kendi uygulamasini tek basina kabul edilmis saymaz; QA ve gerekli uzman kontrollerini bekler.
+
+5. **QA ve Regresyon Ajan'i**
+   - CRUD, yetki, dosya, bildirim, rapor, tenant izolasyonu ve geriye donuk uyumluluk testlerini yurutur.
+   - Hata duzeltmelerinden sonra ilgili testleri ve risk uygunsa tum test paketini calistirir.
+   - Kodcu Ajan'dan bagimsiz sonuc ve kalan risk raporu verir.
+
+6. **Rol ve Yetki Simulasyon Ajan'i**
+   - Super Admin, Yonetim Temsilcisi, Yonetim, Departman Yoneticisi, Departman Personeli ve Sadece Goruntuleyici rollerini dener.
+   - Sayfa, buton, route ve veri erisimlerinin rol ve firma sinirlarina uygunlugunu kontrol eder.
+   - Kod degistirmez.
+
+7. **Is Akisi Simulasyon Ajan'i**
+   - Aksiyon Sorumlusu, IF/DOF Sorumlusu, Ic Denetci, Dokuman Kullanicisi ve sikayet kaydi acan kullanici gibi davranir.
+   - Bir sureci kayittan onaya, bildirime, rapora ve kapanisa kadar tamamlar; dogal sonraki adimi ve anlasilabilirligi kontrol eder.
+   - Kod degistirmez.
+
+8. **Guvenlik ve KVKK Ajan'i**
+   - Yetki yukseltme, tenant sizintisi, CSRF, oturum, dosya yukleme, gizli bilgi ve kisisel veri risklerini inceler.
+   - Bagimlilik, audit log butunlugu, veri saklama ve erisim ilkelerini kontrol eder.
+   - Kritik guvenlik bulgusunu dogrudan Lider'e bildirir; kod degistirmez.
+
+9. **UX, Mobil ve Erisilebilirlik Ajan'i**
+   - Mobil, tablet ve masaustunde form, tablo, menu, dokunma alani, tasma ve klavye erisimini inceler.
+   - Yalnizca gorunumu degil, bir isin tamamlanmasi icin gereken adimlari da degerlendirir.
+   - Kod degistirmez.
+
+10. **Veri ve Migration Ajan'i**
+    - Sema degisikligi, Excel aktarimi, veri temizligi, tenant sahipligi ve geri yukleme davranislarini kontrol eder.
+    - Migration upgrade/downgrade/upgrade provasi ve canli veri uyumlulugu yapar.
+    - Kod degistirmez.
+
+11. **Release ve DevOps Ajan'i**
+    - Yedek, migration, deploy, servis sagligi, HTTP smoke testleri ve rollback notunu yonetir.
+    - Canliya almadan once release kapilarini, sonrasinda servis ve loglari dogrular.
+    - Urun ozelligi gelistirmez ve destructive deploy yapmaz.
+
+12. **Entegrasyon Ajan'i**
+    - API, webhook, e-posta, ERP ve dis servis sozlesmelerini inceler.
+    - Kimlik dogrulama, idempotency, tekrar deneme, hata kuyrugu ve veri eslestirme kurallarini belirler.
+    - Kod degistirmez; uygulanabilir sozlesmeyi Planlamaci ve Kodcu Ajan'a verir.
+
+## Ajan Calistirma Matrisi
+
+- Her gelistirmede zorunlu: Planlamaci, Kodcu, QA ve Regresyon.
+- Her canliya cikista zorunlu: QA ve Regresyon, Veri ve Migration, Release ve DevOps.
+- Yetki veya coklu firma etkisinde: Rol ve Yetki Simulasyonu, Guvenlik ve KVKK.
+- Yeni veya degisen is akisinda: ISO/KYS Uzmani, Is Akisi Simulasyonu.
+- Kullanici arayuzu degisiyorsa: UX, Mobil ve Erisilebilirlik.
+- API, mail, webhook, ERP veya dis servis varsa: Entegrasyon, Guvenlik ve KVKK.
+- Ajanlar yalnizca kendi uzmanlik alaninda karar verir; Lider disinda hicbir ajan canliya alma onayi vermez.
 
 ## Standart Is Akisi
 
 1. Lider hedefi verir.
-2. Planlamaci Ajan hedefi kisa teknik plana cevirir.
-3. Kodcu Ajan plani uygular.
-4. Calisan Simulasyon Ajan'i farkli rollerle sonucu dener.
-5. Planlamaci Ajan bulgulari onceliklendirir.
-6. Kodcu Ajan gerekli bugfixleri yapar.
-7. Testler calistirilir.
-8. Lider'e degisiklik ozeti, test sonucu, commit hash ve siradaki adim bildirilir.
+2. Planlamaci Ajan teknik plani ve kabul kriterlerini cikarir.
+3. Etkilenen uzman ajanlar riskleri ve gereklilikleri bildirir.
+4. Kodcu Ajan onayli plani uygular.
+5. QA ve Regresyon Ajan'i otomatik testleri ve geriye donuk kontrolleri yapar.
+6. Rol/Yetki ve Is Akisi Simulasyon ajanlari kullanici senaryolarini dener.
+7. Guvenlik, UX, Veri/Migration ve Entegrasyon ajanlari etkileri oraninda release kapilarini kontrol eder.
+8. Kodcu Ajan bulunan hatalari duzeltir; ilgili kontroller yeniden calisir.
+9. Release ve DevOps Ajan'i yedek, migration, deploy ve canli smoke testlerini yurutur.
+10. Lider'e degisiklik ozeti, test sonucu, commit hash, canli durumu ve siradaki adim bildirilir.
 
 ## Kodcu Ajan Kurallari
 
-- Kod yazmadan once ilgili dosyalari oku.
-- `rg` veya `rg --files` ile hizli arama yap.
+- Kod yazmadan once ilgili dosyalari oku; aramalarda once `rg` veya `rg --files` kullan.
 - Manuel dosya duzenlemelerinde `apply_patch` kullan.
-- Kullaniciya ait veya ilgisiz local degisiklikleri geri alma.
+- Kullaniciya ait veya ilgisiz yerel degisiklikleri geri alma.
 - `git reset --hard`, `git checkout --` ve benzeri destructive komutlari Lider acikca istemedikce kullanma.
 - `flask-server.err.log`, `flask-server.out.log`, `venv/`, gecici dosyalar ve lokal loglar commit'e alinmaz.
-- Yeni tablo veya kolon gerekiyorsa mevcut runtime schema yaklasimina uygun ekle.
+- Yeni tablo veya kolon gerekiyorsa mevcut runtime schema ve Alembic migration yaklasimina uygun ekle.
 - Coklu firma yapiyi koru: yeni kayitlarda `company_id`, sorgularda `scoped_query`, kayitlarda `assign_current_company` kullan.
 - Kritik islemleri audit log kapsaminda tut.
-- Yetki gerekiyorsa `PERMISSION_CATALOG`, rol tanimlari, menu gorunurlugu ve route kontrolu birlikte guncellenir.
-- Yeni endpoint eklendiyse `MODULE_ENDPOINTS` ve sol menu aktif durumlari kontrol edilir.
-- Formlar Turkce karakterleri bozmayacak sekilde yazilir.
-- UI degisikliklerinde yazi tasmasi, tablo sikismasi ve mobil gorunum dusunulur.
-- Degisiklikten sonra uygun testler calistirilir; mumkunse tum test paketi kosulur.
+- Yetki gerekiyorsa `PERMISSION_CATALOG`, rol tanimlari, menu gorunurlugu ve route kontrolunu birlikte guncelle.
+- Yeni endpoint eklendiyse `MODULE_ENDPOINTS` ve sol menu aktif durumlarini kontrol et.
+- Formlari Turkce karakterleri bozmayacak sekilde yaz; UI'da mobil/tablet tasmasini kontrol et.
+- Degisiklikten sonra uygun testleri, risk yuksekse tum test paketini calistir.
 
 ## Planlamaci Ajan Kontrol Listesi
 
-- Hedef hangi modulu etkiliyor?
-- Mevcut veri modeli yeterli mi?
-- Yeni tablo/kolon gerekiyorsa canli veri icin guvenli mi?
-- Yetki matrisi net mi?
-- Audit log'a girmesi gerekiyor mu?
-- Ana sayfa ozeti, Gorevlerim, Bildirimler veya Satis Checklist'i etkileniyor mu?
-- Excel/PDF/rapor cikti ihtiyaci var mi?
-- Testler hangi davranislari kanitlamali?
-- Deploy sirasinda servis adi, migration ve rollback notu gerekiyor mu?
+- Hedef hangi modulu ve ISO/KYS surecini etkiliyor?
+- Mevcut veri modeli yeterli mi; canli migration guvenli mi?
+- Yetki matrisi, tenant izolasyonu ve audit log kapsami net mi?
+- Ana sayfa, Gorevlerim, Bildirimler, raporlar veya Satis Checklist'i etkileniyor mu?
+- Excel/PDF/API/webhook ihtiyaci var mi?
+- Mobil, tablet ve erisilebilirlik kabul kriterleri neler?
+- Hangi otomatik ve kullanici senaryosu testleri davranisi kanitlamali?
+- Deploy, yedek, migration ve rollback notu gerekiyor mu?
 
-## Calisan Simulasyon Ajan'i Rapor Formati
+## Simulasyon Rapor Formati
 
-Her rol icin rapor su formatta yazilir:
+Her rol ve senaryo icin rapor su formatta yazilir:
 
 ```text
 Rol: Yonetim Temsilcisi
-Senaryo: Yeni IF/DÖF kaydi inceleme
+Senaryo: Yeni IF/DOF kaydi inceleme
 Sonuc: Basarili / Sorunlu
 Bulgu: ...
 Risk: Dusuk / Orta / Yuksek / Kritik
@@ -103,9 +129,10 @@ Planlamaciya Not: ...
 Lider'e Not: ...
 ```
 
-## Canliya Alma Notu
+## Release Kapilari ve Canliya Alma
 
-- Varsayilan servis adi: `aksiyon-takip.service`
+- Varsayilan servis adi: `aksiyon-takip.service`.
+- Canliya cikmadan once temiz hedef diff, basarili testler, dogrulanmis yedek ve migration provasi zorunludur.
 - Standart sunucu kontrolu:
 
 ```bash

@@ -37,6 +37,7 @@ ISO_CORE_MODULE_KEYS = {
     "management_review",
     "supplier_management",
     "report_center",
+    "integration_management",
     "documents",
 }
 PRODUCTION_MODULE_KEYS = {

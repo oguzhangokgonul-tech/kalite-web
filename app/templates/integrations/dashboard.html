@@ -1,0 +1,204 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Entegrasyonlar{% endblock %}
+
+{% block app_content %}
+<div class="container-fluid px-0 integration-page">
+  <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3 mb-4">
+    <div>
+      <h1 class="h3 mb-1">Entegrasyonlar</h1>
+      <p class="text-secondary mb-0">API anahtarlarını, webhook aboneliklerini ve teslimat sağlığını yönetin.</p>
+    </div>
+    <span class="badge text-bg-light border px-3 py-2">API v1 · Salt okunur</span>
+  </div>
+
+  {% if one_time_token %}
+  <div class="alert alert-warning" role="alert">
+    <strong>API anahtarını şimdi kaydedin.</strong> Güvenlik nedeniyle tekrar gösterilmeyecek.
+    <code class="d-block mt-2 text-break user-select-all">{{ one_time_token }}</code>
+  </div>
+  {% endif %}
+  {% if one_time_webhook_secret %}
+  <div class="alert alert-warning" role="alert">
+    <strong>Webhook imzalama sırrını şimdi kaydedin.</strong> Bu değer tekrar gösterilmeyecek.
+    <code class="d-block mt-2 text-break user-select-all">{{ one_time_webhook_secret }}</code>
+  </div>
+  {% endif %}
+
+  <section class="border rounded-3 bg-white p-3 p-lg-4 mb-4" aria-labelledby="apiAccessTitle">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <i class="bi bi-braces text-primary fs-4"></i>
+      <h2 class="h5 mb-0" id="apiAccessTitle">API Erişimi</h2>
+    </div>
+    <p class="text-secondary mb-2">ERP ve raporlama uygulamalarınızı şirkete özel, salt okunur API üzerinden bağlayın.</p>
+    <code class="d-block text-break user-select-all">{{ request.host_url.rstrip('/') }}/api/v1</code>
+    <div class="small text-secondary mt-2">Yetkilendirme: <code>Authorization: Bearer &lt;API_ANAHTARI&gt;</code></div>
+  </section>
+
+  {% if g.current_user.has_permission('integrations.view') %}
+  <section class="border rounded-3 bg-white p-3 p-lg-4 mb-4" aria-labelledby="apiKeysTitle">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-key text-primary fs-4"></i>
+      <h2 class="h5 mb-0" id="apiKeysTitle">API Anahtarları</h2>
+    </div>
+    {% if g.current_user.has_permission('integrations.manage_api_keys') %}
+    <form method="post" action="{{ url_for('integrations.create_api_client') }}" class="row g-3 mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-lg-4">
+        <label class="form-label" for="apiName">İstemci adı</label>
+        <input class="form-control" id="apiName" name="name" maxlength="160" required placeholder="ERP raporlama">
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="apiLimit">Dakika limiti</label>
+        <input class="form-control" id="apiLimit" name="rate_limit" type="number" min="1" max="600" value="60" required>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label" for="apiExpiry">Geçerlilik sonu</label>
+        <input class="form-control" id="apiExpiry" name="expires_at" type="date">
+      </div>
+      <fieldset class="col-12 col-lg-4">
+        <legend class="form-label">Kapsamlar</legend>
+        <div class="d-flex flex-wrap gap-2">
+          {% for scope, label in api_scopes %}
+          <label class="border rounded px-2 py-1 small"><input class="form-check-input me-1" type="checkbox" name="scopes" value="{{ scope }}"> {{ label }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="col-12 d-flex justify-content-end">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg me-1"></i>Anahtar Oluştur</button>
+      </div>
+    </form>
+    {% endif %}
+    <div class="table-responsive" tabindex="0" aria-label="API anahtarları tablosu; yatay kaydırılabilir">
+      <table class="table align-middle mb-0">
+        <caption class="visually-hidden">Şirkete ait API anahtarları</caption>
+        <thead><tr><th scope="col">Ad</th><th scope="col">Anahtar</th><th scope="col">Kapsam</th><th scope="col">Son Kullanım</th><th scope="col">Durum</th><th scope="col" class="text-end">İşlem</th></tr></thead>
+        <tbody>
+          {% for client in clients %}
+          <tr>
+            <td class="fw-semibold">{{ client.name }}</td>
+            <td><code>{{ client.key_prefix }}...{{ client.token_last_four }}</code></td>
+            <td class="small text-secondary text-break">{{ client.scopes_json|replace('[', '')|replace(']', '')|replace('"', '') }}</td>
+            <td>{{ client.last_used_at|local_datetime if client.last_used_at else 'Henüz kullanılmadı' }}</td>
+            {% set expired = client.expires_at and client.expires_at <= now %}
+            <td><span class="badge {{ 'text-bg-secondary' if client.revoked_at or expired else 'text-bg-success' }}">{{ 'İptal' if client.revoked_at else ('Süresi doldu' if expired else 'Aktif') }}</span></td>
+            <td class="text-end">
+              {% if not client.revoked_at and g.current_user.has_permission('integrations.manage_api_keys') %}
+              <form method="post" action="{{ url_for('integrations.revoke_api_client', client_id=client.id) }}" class="d-inline" onsubmit="return confirm('Bu API anahtarı kalıcı olarak iptal edilsin mi?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger integration-action" type="submit" aria-label="{{ client.name }} API anahtarını iptal et">İptal Et</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-secondary py-4">Henüz API anahtarı yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if g.current_user.has_permission('integrations.view') %}
+  <section class="border rounded-3 bg-white p-3 p-lg-4 mb-4" aria-labelledby="webhooksTitle">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-broadcast text-primary fs-4"></i>
+      <h2 class="h5 mb-0" id="webhooksTitle">Webhook Abonelikleri</h2>
+    </div>
+    {% if g.current_user.has_permission('integrations.manage_webhooks') %}
+    <form method="post" action="{{ url_for('integrations.create_webhook') }}" class="row g-3 mb-4">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-lg-3">
+        <label class="form-label" for="webhookName">Abonelik adı</label>
+        <input class="form-control" id="webhookName" name="name" maxlength="160" required>
+      </div>
+      <div class="col-12 col-lg-5">
+        <label class="form-label" for="webhookUrl">HTTPS hedefi</label>
+        <input class="form-control" id="webhookUrl" name="endpoint_url" type="url" inputmode="url" required placeholder="https://erp.example.com/webhooks/volkaportal">
+      </div>
+      <fieldset class="col-12 col-lg-4">
+        <legend class="form-label">Olaylar</legend>
+        <div class="integration-event-grid">
+          {% for event in webhook_events %}
+          <label class="small"><input class="form-check-input me-1" type="checkbox" name="events" value="{{ event }}">{{ event }}</label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="col-12 d-flex justify-content-end">
+        <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg me-1"></i>Webhook Ekle</button>
+      </div>
+    </form>
+    {% endif %}
+    <div class="row g-3">
+      {% for endpoint in endpoints %}
+      <div class="col-12 col-xl-6">
+        <article class="border rounded p-3 h-100">
+          <div class="d-flex justify-content-between gap-2">
+            <div class="min-w-0"><h3 class="h6 mb-1">{{ endpoint.name }}</h3><div class="small text-secondary text-break">{{ endpoint.endpoint_url }}</div></div>
+            <span class="badge {{ 'text-bg-success' if endpoint.is_active else 'text-bg-secondary' }} align-self-start">{{ 'Aktif' if endpoint.is_active else 'Kapalı' }}</span>
+          </div>
+          <div class="small mt-2">İmza sırrı: <code>••••••{{ endpoint.secret_hint }}</code></div>
+          {% if endpoint.disabled_reason %}<div class="small text-danger mt-2">{{ endpoint.disabled_reason }}</div>{% endif %}
+          {% if g.current_user.has_permission('integrations.manage_webhooks') %}
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            {% if endpoint.is_active %}<form method="post" action="{{ url_for('integrations.test_webhook', endpoint_id=endpoint.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-primary integration-action" type="submit" aria-label="{{ endpoint.name }} webhookunu test et"><i class="bi bi-send me-1"></i>Test</button></form>{% endif %}
+            <form method="post" action="{{ url_for('integrations.toggle_webhook', endpoint_id=endpoint.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-secondary integration-action" type="submit" aria-label="{{ endpoint.name }} webhookunu {{ 'durdur' if endpoint.is_active else 'etkinleştir' }}">{{ 'Durdur' if endpoint.is_active else 'Etkinleştir' }}</button></form>
+          </div>
+          {% endif %}
+        </article>
+      </div>
+      {% else %}
+      <div class="col-12 text-center text-secondary py-3">Henüz webhook aboneliği yok.</div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if g.current_user.has_permission('integrations.view_deliveries') %}
+  <section class="border rounded-3 bg-white p-3 p-lg-4" aria-labelledby="deliveriesTitle">
+    <div class="d-flex align-items-center gap-2 mb-3"><i class="bi bi-clock-history text-primary fs-4"></i><h2 class="h5 mb-0" id="deliveriesTitle">Teslimat Geçmişi</h2></div>
+    <div class="table-responsive" tabindex="0" aria-label="Webhook teslimat geçmişi; yatay kaydırılabilir">
+      <table class="table align-middle mb-0">
+        <caption class="visually-hidden">Webhook teslimat geçmişi</caption>
+        <thead><tr><th scope="col">Teslimat</th><th scope="col">Webhook</th><th scope="col">Olay</th><th scope="col">Deneme</th><th scope="col">HTTP</th><th scope="col">Durum</th><th scope="col" class="text-end">İşlem</th></tr></thead>
+        <tbody>
+          {% for delivery in deliveries %}
+          <tr>
+            <td><code>{{ delivery.delivery_uuid[:8] }}</code><div class="small text-secondary">{{ delivery.created_at|local_datetime }}</div></td>
+            <td>{{ delivery.endpoint.name }}</td><td><code>{{ delivery.event.event_type }}</code></td><td>{{ delivery.attempt_count }}</td><td>{{ delivery.last_http_status or '—' }}</td>
+            {% set status_labels = {'pending': 'Bekliyor', 'processing': 'İşleniyor', 'retry': 'Tekrar denenecek', 'delivered': 'Teslim edildi', 'failed': 'Başarısız'} %}
+            <td><span class="badge text-bg-{{ 'success' if delivery.status == 'delivered' else ('danger' if delivery.status == 'failed' else 'warning') }}">{{ status_labels.get(delivery.status, delivery.status) }}</span>{% if delivery.last_error_code %}<div class="small text-danger mt-1">{{ delivery.last_error_code }}</div>{% endif %}</td>
+            <td class="text-end">
+              {% if delivery.status in ['failed', 'retry'] and delivery.endpoint.is_active and g.current_user.has_permission('integrations.retry_deliveries') %}
+              <form method="post" action="{{ url_for('integrations.retry_delivery', delivery_id=delivery.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-primary integration-action" type="submit" aria-label="{{ delivery.endpoint.name }} teslimatını yeniden dene"><i class="bi bi-arrow-repeat me-1"></i>Yeniden Dene</button></form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-center text-secondary py-4">Henüz teslimat yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  .integration-page { max-width: 1600px; margin-inline: auto; }
+  .integration-event-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem .75rem; }
+  .integration-action { min-height: 40px; }
+  .min-w-0 { min-width: 0; }
+  @media (max-width: 767.98px) {
+    .integration-event-grid { grid-template-columns: 1fr; }
+    .integration-page .table-responsive { border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+    .integration-page table { min-width: 680px; }
+    .integration-page .btn-sm { min-height: 44px; padding-inline: .75rem; }
+    .integration-page .form-check-input { width: 1.25rem; height: 1.25rem; }
+  }
+</style>
+{% endblock %}

@@ -80,6 +80,16 @@ class Config:
         for value in os.environ.get("TRUSTED_PROXY_IPS", "127.0.0.1,::1").split(",")
         if value.strip()
     )
+    INTEGRATION_ENCRYPTION_KEY = os.environ.get("INTEGRATION_ENCRYPTION_KEY", "")
+    INTEGRATION_LOG_RETENTION_DAYS = max(
+        7, int(os.environ.get("INTEGRATION_LOG_RETENTION_DAYS", "90"))
+    )
+    INTEGRATION_EVENT_RETENTION_DAYS = max(
+        30, int(os.environ.get("INTEGRATION_EVENT_RETENTION_DAYS", "365"))
+    )
+    INTEGRATION_AUTH_FAILURES_PER_MINUTE = max(
+        5, int(os.environ.get("INTEGRATION_AUTH_FAILURES_PER_MINUTE", "30"))
+    )
 
     MAIL_ENABLED = os.environ.get("MAIL_ENABLED", "false").lower() in {
         "1",

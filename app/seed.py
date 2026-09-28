@@ -491,6 +491,36 @@ PERMISSION_CATALOG = (
         "description": "Tedarikçi kartlarını denetim izi korunacak şekilde pasife alır.",
     },
     {
+        "key": "integrations.view",
+        "label": "Entegrasyon merkezini görüntüleme",
+        "group": "Entegrasyonlar",
+        "description": "API istemcilerini, webhookları ve teslimat sağlığını görüntüler.",
+    },
+    {
+        "key": "integrations.manage_api_keys",
+        "label": "API anahtarlarını yönetme",
+        "group": "Entegrasyonlar",
+        "description": "Firma API anahtarı oluşturur ve iptal eder.",
+    },
+    {
+        "key": "integrations.manage_webhooks",
+        "label": "Webhookları yönetme",
+        "group": "Entegrasyonlar",
+        "description": "Webhook aboneliği oluşturur, durdurur ve test eder.",
+    },
+    {
+        "key": "integrations.view_deliveries",
+        "label": "Webhook teslimatlarını görüntüleme",
+        "group": "Entegrasyonlar",
+        "description": "Webhook teslimat ve deneme geçmişini görüntüler.",
+    },
+    {
+        "key": "integrations.retry_deliveries",
+        "label": "Webhook teslimatını yeniden deneme",
+        "group": "Entegrasyonlar",
+        "description": "Başarısız webhook teslimatlarını yeniden kuyruğa alır.",
+    },
+    {
         "key": "reports.view",
         "label": "Rapor merkezi görüntüleme",
         "group": "Rapor Merkezi",
@@ -1289,6 +1319,23 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in WORKFLOW_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+INTEGRATION_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "integrations.view",
+        "integrations.manage_api_keys",
+        "integrations.manage_webhooks",
+        "integrations.view_deliveries",
+        "integrations.retry_deliveries",
+    ),
+    "management": ("integrations.view", "integrations.view_deliveries"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in INTEGRATION_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3778,6 +3825,14 @@ def ensure_runtime_schema():
         WasteBatch,
         WasteMovement,
         WasteMovementFile,
+        IntegrationApiClient,
+        IntegrationApiAuthRateBucket,
+        IntegrationApiRateBucket,
+        IntegrationApiRequest,
+        IntegrationEvent,
+        WebhookDelivery,
+        WebhookDeliveryAttempt,
+        WebhookEndpoint,
     )
 
     for model in (
@@ -3835,6 +3890,14 @@ def ensure_runtime_schema():
         WasteBatch,
         WasteMovement,
         WasteMovementFile,
+        IntegrationApiClient,
+        IntegrationApiAuthRateBucket,
+        IntegrationApiRateBucket,
+        WebhookEndpoint,
+        IntegrationEvent,
+        WebhookDelivery,
+        WebhookDeliveryAttempt,
+        IntegrationApiRequest,
         ReportDefinition,
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)

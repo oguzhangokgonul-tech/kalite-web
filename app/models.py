@@ -318,6 +318,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "integration_management",
+        "name": "Entegrasyonlar",
+        "description": "Firma API anahtarlarini, webhook aboneliklerini ve teslimat gecmisini yonetir.",
+        "icon": "bi-plug",
+        "sort_order": 69,
+        "parent_key": None,
+    },
+    {
         "key": "documents",
         "name": "Doküman Yönetimi",
         "description": "Doküman kategori, yayın, revizyon ve indirme yönetimi.",
@@ -6342,6 +6350,302 @@ class ReportDefinition(db.Model):
     company = db.relationship("Company")
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
     updated_by = db.relationship("User", foreign_keys=[updated_by_user_id])
+
+
+class IntegrationApiClient(db.Model):
+    __tablename__ = "integration_api_clients"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id", "key_prefix", name="uq_integration_api_clients_company_prefix"
+        ),
+        db.UniqueConstraint(
+            "company_id", "id", name="uq_integration_api_clients_company_id"
+        ),
+        db.CheckConstraint(
+            "rate_limit_per_minute BETWEEN 1 AND 600",
+            name="ck_integration_api_clients_rate_limit",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    key_prefix = db.Column(db.String(32), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False)
+    token_last_four = db.Column(db.String(4), nullable=False)
+    scopes_json = db.Column(db.Text, nullable=False, default="[]", server_default="[]")
+    rate_limit_per_minute = db.Column(db.Integer, nullable=False, default=60, server_default="60")
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    company = db.relationship("Company")
+    created_by = db.relationship("User")
+
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoints"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id", "id", name="uq_webhook_endpoints_company_id"
+        ),
+        db.CheckConstraint(
+            "timeout_seconds BETWEEN 3 AND 10",
+            name="ck_webhook_endpoints_timeout",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    name = db.Column(db.String(160), nullable=False)
+    endpoint_url = db.Column(db.String(1000), nullable=False)
+    events_json = db.Column(db.Text, nullable=False, default="[]", server_default="[]")
+    secret_ciphertext = db.Column(db.Text, nullable=False)
+    secret_hint = db.Column(db.String(16), nullable=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
+    timeout_seconds = db.Column(db.Integer, nullable=False, default=10, server_default="10")
+    disabled_reason = db.Column(db.String(255), nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    company = db.relationship("Company")
+    created_by = db.relationship("User")
+
+
+class IntegrationEvent(db.Model):
+    __tablename__ = "integration_events"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "event_uuid", name="uq_integration_events_company_uuid"),
+        db.UniqueConstraint("company_id", "id", name="uq_integration_events_company_id"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_uuid = db.Column(db.String(36), nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    event_type = db.Column(db.String(120), nullable=False, index=True)
+    subject_type = db.Column(db.String(80), nullable=False)
+    subject_id = db.Column(db.String(80), nullable=False)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    payload_json = db.Column(db.Text, nullable=False)
+    occurred_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    dispatched_at = db.Column(db.DateTime, nullable=True)
+
+    company = db.relationship("Company")
+    actor = db.relationship("User")
+
+
+class WebhookDelivery(db.Model):
+    __tablename__ = "webhook_deliveries"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "company_id", "id", name="uq_webhook_deliveries_company_id"
+        ),
+        db.UniqueConstraint(
+            "webhook_endpoint_id", "integration_event_id", name="uq_webhook_delivery_endpoint_event"
+        ),
+        db.ForeignKeyConstraint(
+            ("company_id", "webhook_endpoint_id"),
+            ("webhook_endpoints.company_id", "webhook_endpoints.id"),
+            name="fk_webhook_delivery_company_endpoint",
+        ),
+        db.ForeignKeyConstraint(
+            ("company_id", "integration_event_id"),
+            ("integration_events.company_id", "integration_events.id"),
+            name="fk_webhook_delivery_company_event",
+        ),
+        db.CheckConstraint(
+            "status IN ('pending','processing','retry','delivered','failed')",
+            name="ck_webhook_deliveries_status",
+        ),
+        db.CheckConstraint(
+            "attempt_count >= 0",
+            name="ck_webhook_deliveries_attempt_count",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    delivery_uuid = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    webhook_endpoint_id = db.Column(db.Integer, nullable=False, index=True)
+    integration_event_id = db.Column(db.Integer, nullable=False, index=True)
+    status = db.Column(db.String(24), nullable=False, default="pending", server_default="pending", index=True)
+    attempt_count = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at = db.Column(db.DateTime, nullable=True, index=True)
+    locked_at = db.Column(db.DateTime, nullable=True)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+    last_http_status = db.Column(db.Integer, nullable=True)
+    last_error_code = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    updated_at = db.Column(
+        db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now()
+    )
+
+    endpoint = db.relationship("WebhookEndpoint", foreign_keys=[webhook_endpoint_id])
+    event = db.relationship("IntegrationEvent", foreign_keys=[integration_event_id])
+
+
+class WebhookDeliveryAttempt(db.Model):
+    __tablename__ = "webhook_delivery_attempts"
+    __table_args__ = (
+        db.UniqueConstraint("delivery_id", "attempt_no", name="uq_webhook_attempt_delivery_no"),
+        db.ForeignKeyConstraint(
+            ("company_id", "delivery_id"),
+            ("webhook_deliveries.company_id", "webhook_deliveries.id"),
+            name="fk_webhook_attempt_company_delivery",
+        ),
+        db.CheckConstraint("attempt_no > 0", name="ck_webhook_attempt_number"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    delivery_id = db.Column(db.Integer, nullable=False, index=True)
+    attempt_no = db.Column(db.Integer, nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    finished_at = db.Column(db.DateTime, nullable=True)
+    http_status = db.Column(db.Integer, nullable=True)
+    duration_ms = db.Column(db.Integer, nullable=True)
+    error_code = db.Column(db.String(80), nullable=True)
+    response_excerpt = db.Column(db.String(500), nullable=True)
+
+    delivery = db.relationship(
+        "WebhookDelivery",
+        foreign_keys=[delivery_id],
+        backref=db.backref("attempts", order_by="WebhookDeliveryAttempt.attempt_no"),
+    )
+
+
+class IntegrationApiRequest(db.Model):
+    __tablename__ = "integration_api_requests"
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ("company_id", "api_client_id"),
+            ("integration_api_clients.company_id", "integration_api_clients.id"),
+            name="fk_integration_api_request_company_client",
+        ),
+        db.CheckConstraint("status_code >= 0", name="ck_integration_api_requests_status"),
+        db.CheckConstraint("duration_ms >= 0", name="ck_integration_api_requests_duration"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    api_client_id = db.Column(db.Integer, nullable=False, index=True)
+    request_id = db.Column(db.String(36), nullable=False, unique=True, index=True)
+    endpoint = db.Column(db.String(160), nullable=False)
+    method = db.Column(db.String(12), nullable=False)
+    status_code = db.Column(db.Integer, nullable=False)
+    duration_ms = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+
+    api_client = db.relationship("IntegrationApiClient", foreign_keys=[api_client_id])
+
+
+class IntegrationApiRateBucket(db.Model):
+    __tablename__ = "integration_api_rate_buckets"
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ("company_id", "api_client_id"),
+            ("integration_api_clients.company_id", "integration_api_clients.id"),
+            name="fk_integration_api_rate_company_client",
+        ),
+        db.UniqueConstraint(
+            "api_client_id",
+            "window_start",
+            name="uq_integration_api_rate_bucket_window",
+        ),
+        db.CheckConstraint(
+            "request_count >= 1",
+            name="ck_integration_api_rate_bucket_count",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    api_client_id = db.Column(
+        db.Integer,
+        nullable=False,
+        index=True,
+    )
+    window_start = db.Column(db.DateTime, nullable=False, index=True)
+    request_count = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+
+
+class IntegrationApiAuthRateBucket(db.Model):
+    __tablename__ = "integration_api_auth_rate_buckets"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "ip_hash",
+            "window_start",
+            name="uq_integration_api_auth_rate_bucket_window",
+        ),
+        db.CheckConstraint(
+            "request_count >= 1",
+            name="ck_integration_api_auth_rate_bucket_count",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_hash = db.Column(db.String(64), nullable=False, index=True)
+    window_start = db.Column(db.DateTime, nullable=False, index=True)
+    request_count = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+
+
+def _assert_integration_parent_company(connection, table, row_id, company_id, label):
+    parent_company_id = connection.execute(
+        db.select(table.c.company_id).where(table.c.id == row_id)
+    ).scalar_one_or_none()
+    if parent_company_id is None or parent_company_id != company_id:
+        raise ValueError(f"{label} sirket kapsami gecersiz.")
+
+
+@event.listens_for(WebhookDelivery, "before_insert")
+@event.listens_for(WebhookDelivery, "before_update")
+def _validate_webhook_delivery_company(_mapper, connection, target):
+    _assert_integration_parent_company(
+        connection,
+        WebhookEndpoint.__table__,
+        target.webhook_endpoint_id,
+        target.company_id,
+        "Webhook endpoint",
+    )
+    _assert_integration_parent_company(
+        connection,
+        IntegrationEvent.__table__,
+        target.integration_event_id,
+        target.company_id,
+        "Entegrasyon olayi",
+    )
+
+
+@event.listens_for(WebhookDeliveryAttempt, "before_insert")
+@event.listens_for(WebhookDeliveryAttempt, "before_update")
+def _validate_webhook_attempt_company(_mapper, connection, target):
+    _assert_integration_parent_company(
+        connection,
+        WebhookDelivery.__table__,
+        target.delivery_id,
+        target.company_id,
+        "Webhook teslimati",
+    )
+
+
+@event.listens_for(IntegrationApiRequest, "before_insert")
+@event.listens_for(IntegrationApiRequest, "before_update")
+@event.listens_for(IntegrationApiRateBucket, "before_insert")
+@event.listens_for(IntegrationApiRateBucket, "before_update")
+def _validate_integration_api_client_company(_mapper, connection, target):
+    _assert_integration_parent_company(
+        connection,
+        IntegrationApiClient.__table__,
+        target.api_client_id,
+        target.company_id,
+        "Entegrasyon API istemcisi",
+    )
 
 
 class AppSetting(db.Model):

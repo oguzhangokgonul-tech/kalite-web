@@ -1,5 +1,5 @@
 [Unit]
-Description=VolkaPortal daily reminder emails
+Description=VolkaPortal webhook delivery dispatcher
 After=network-online.target aksiyon-takip.service
 Wants=network-online.target
 
@@ -12,7 +12,8 @@ Environment=DATA_DIR=/var/data/aksiyon-takip
 Environment=APP_ENV=production
 Environment=AUTO_BOOTSTRAP_DATABASE=false
 EnvironmentFile=/etc/aksiyon-takip/integrations.env
-ExecStart=/var/www/aksiyon-takip/venv-py312/bin/python -m flask --app app:create_app send-reminders
+TimeoutStartSec=12min
+ExecStart=/var/www/aksiyon-takip/venv-py312/bin/python -m flask --app app:create_app dispatch-webhooks --limit 50
 
 [Install]
 WantedBy=multi-user.target
