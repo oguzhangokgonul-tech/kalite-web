@@ -1,6 +1,8 @@
 (() => {
   "use strict";
 
+  const messages = window.VolkaportalI18n || {};
+
   const installButtons = Array.from(document.querySelectorAll("[data-pwa-install]"));
   const iosHelpItems = Array.from(document.querySelectorAll("[data-pwa-ios-help]"));
   const networkItems = Array.from(document.querySelectorAll("[data-pwa-network-status]"));
@@ -30,7 +32,7 @@
       const icon = item.querySelector("i");
       const text = item.querySelector("span");
       if (icon) icon.className = online ? "bi bi-wifi" : "bi bi-wifi-off";
-      if (text) text.textContent = online ? "Çevrimiçi" : "Çevrimdışı";
+      if (text) text.textContent = online ? (messages.online || "Çevrimiçi") : (messages.offline || "Çevrimdışı");
     });
   }
 
@@ -45,7 +47,7 @@
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
     installPrompt = event;
-    setButtonsVisible(!standalone, "Uygulamayı Yükle");
+    setButtonsVisible(!standalone, messages.install || "Uygulamayı Yükle");
   });
 
   installButtons.forEach((button) => {
@@ -71,7 +73,7 @@
   window.addEventListener("online", updateNetworkStatus);
   window.addEventListener("offline", updateNetworkStatus);
 
-  if (ios && !standalone) setButtonsVisible(true, "Ana Ekrana Ekle");
+  if (ios && !standalone) setButtonsVisible(true, messages.addToHome || "Ana Ekrana Ekle");
   if (standalone) setButtonsVisible(false);
   updateNetworkStatus();
 })();

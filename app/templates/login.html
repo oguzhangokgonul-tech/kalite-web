@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Giri&#351;{% endblock %}
+{% block title %}{{ _("Giriş") }}{% endblock %}
 {% block body_class %}dashboard-body login-body{% endblock %}
 {% block navbar %}{% endblock %}
 {% block main_class %}login-shell login-page{% endblock %}
@@ -8,7 +8,7 @@
 
 {% block content %}
   <img class="login-watermark" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
-  <section class="login-form-panel" aria-label="Giri&#351;">
+  <section class="login-form-panel" aria-label="{{ _('Giriş') }}">
     <form class="login-card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="login-card-brand">
@@ -28,7 +28,7 @@
                   <i class="bi bi-info-circle-fill"></i>
                 {% endif %}
                 <span>{{ message }}</span>
-                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="{{ _('Kapat') }}"></button>
               </div>
             {% endfor %}
           </div>
@@ -37,37 +37,46 @@
 
       <div class="login-form-stack">
         <div>
-          <label class="form-label" for="identity">Kullan&#305;c&#305; ad&#305;</label>
+          <label class="form-label" for="identity">{{ _("Kullanıcı adı") }}</label>
           <div class="login-input-icon">
             <i class="bi bi-person"></i>
-            <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username" placeholder="Kullan&#305;c&#305; ad&#305;n&#305;z&#305; girin">
+            <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username" placeholder="{{ _('Kullanıcı adınızı girin') }}">
           </div>
         </div>
         <div>
-          <label class="form-label" for="password">&#350;ifre</label>
+          <label class="form-label" for="password">{{ _("Şifre") }}</label>
           <div class="login-input-icon">
             <i class="bi bi-lock"></i>
-            <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password" placeholder="&#350;ifrenizi girin">
+            <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password" placeholder="{{ _('Şifrenizi girin') }}">
           </div>
         </div>
         <label class="login-remember-option" for="remember_me">
           <input class="form-check-input" id="remember_me" name="remember_me" type="checkbox" value="1">
-          <span>Beni hat&#305;rla</span>
+          <span>{{ _("Beni hatırla") }}</span>
         </label>
         <button class="btn login-button w-100" type="submit">
           <i class="bi bi-box-arrow-in-right"></i>
-          <span>Giri&#351; Yap</span>
+          <span>{{ _("Giriş Yap") }}</span>
         </button>
       </div>
       <div class="login-footer-note">
-        <span><i class="bi bi-shield-check"></i> G&#252;venli ba&#287;lant&#305;</span>
+        <span><i class="bi bi-shield-check"></i> {{ _("Güvenli bağlantı") }}</span>
         <span aria-hidden="true">-</span>
-        <span>T&#252;m haklar&#305; sakl&#305;d&#305;r.</span>
+        <span>{{ _("Tüm hakları saklıdır.") }}</span>
         <span aria-hidden="true">-</span>
-        <a href="{{ url_for('main.legal_policy', slug='kullanim-sartlari') }}">Kullan&#305;m &#350;artlar&#305;</a>
-        <a href="{{ url_for('main.legal_policy', slug='gizlilik-politikasi') }}">Gizlilik Politikas&#305;</a>
+        <a href="{{ url_for('main.legal_policy', slug='kullanim-sartlari') }}">{{ _("Kullanım Şartları") }}</a>
+        <a href="{{ url_for('main.legal_policy', slug='gizlilik-politikasi') }}">{{ _("Gizlilik Politikası") }}</a>
         <a href="{{ url_for('main.legal_policy', slug='kvkk-aydinlatma-metni') }}">KVKK</a>
       </div>
+    </form>
+    <form class="locale-switcher locale-switcher-login" method="post" action="{{ url_for('main.set_language') }}" aria-label="{{ _('Dil seçimi') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+      {% for locale_code, locale_data in supported_locales.items() %}
+        <button class="locale-choice {% if current_locale() == locale_code %}active{% endif %}" type="submit" name="locale" value="{{ locale_code }}" aria-pressed="{{ 'true' if current_locale() == locale_code else 'false' }}">
+          {{ locale_code|upper }}
+        </button>
+      {% endfor %}
     </form>
   </section>
 {% endblock %}

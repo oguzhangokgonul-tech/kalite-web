@@ -6,7 +6,7 @@
 {% block flashes %}{% endblock %}
 
 {% block content %}
-  <a class="vp-skip-link" href="#dashboardMainContent">Ana i&#231;eri&#287;e ge&#231;</a>
+  <a class="vp-skip-link" href="#dashboardMainContent">{{ _("Ana içeriğe geç") }}</a>
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
   {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] or (request.endpoint or '').startswith('customer_portal.') %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
@@ -53,16 +53,16 @@
   {% set mobile_hub_active = request.endpoint in ['pwa.mobile_hub', 'pwa.mobile_qr'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
-    ('beton-deneyi', 'Beton Deneyi', 'bi-box-seam'),
-    ('metilen-deneyi', 'Metilen Deneyi', 'bi-droplet'),
-    ('su-emme-deneyi', 'Su Emme Deneyi', 'bi-moisture'),
-    ('elek-analizi-deneyi', 'Elek Analizi Deneyi', 'bi-grid-3x3-gap'),
-    ('demir-cekme-deneyi', 'Demir Çekme Deneyi', 'bi-bezier2')
+    ('beton-deneyi', _("Beton Deneyi"), 'bi-box-seam'),
+    ('metilen-deneyi', _("Metilen Deneyi"), 'bi-droplet'),
+    ('su-emme-deneyi', _("Su Emme Deneyi"), 'bi-moisture'),
+    ('elek-analizi-deneyi', _("Elek Analizi Deneyi"), 'bi-grid-3x3-gap'),
+    ('demir-cekme-deneyi', _("Demir Çekme Deneyi"), 'bi-bezier2')
   ] %}
   <aside class="dashboard-sidebar offcanvas-xl offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
     <div class="offcanvas-header d-xl-none">
-      <h2 class="h6 mb-0" id="dashboardSidebarLabel">Menü</h2>
-      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Kapat"></button>
+      <h2 class="h6 mb-0" id="dashboardSidebarLabel">{{ _("Menü") }}</h2>
+      <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="{{ _('Kapat') }}"></button>
     </div>
     <div class="offcanvas-body">
       <a class="dashboard-sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="{{ config.SITE_NAME }} ana sayfa">
@@ -75,26 +75,26 @@
       <nav class="dashboard-sidebar-nav" aria-label="Ana men&#252;" tabindex="0">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
-          <span>Ana Sayfa</span>
+          <span>{{ _("Ana Sayfa") }}</span>
         </a>
         {% if iso_management_summary_visible or management_due_dashboard_visible %}
           <div class="dashboard-nav-group {% if company_management_status_active %}active{% endif %}">
             <button class="dashboard-nav-item dashboard-nav-toggle dashboard-nav-item-wrap {% if company_management_status_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#companyManagementStatusNav" aria-expanded="{{ 'true' if company_management_status_active else 'false' }}" aria-controls="companyManagementStatusNav" title="Şirket İçi Yönetim Durumu">
               <i class="bi bi-clipboard-data"></i>
-              <span class="dashboard-nav-label-wrap dashboard-nav-group-label">Şirket İçi Yönetim Durumu</span>
+              <span class="dashboard-nav-label-wrap dashboard-nav-group-label">{{ _("Şirket İçi Yönetim Durumu") }}</span>
               <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
             </button>
             <div class="dashboard-subnav collapse {% if company_management_status_active %}show{% endif %}" id="companyManagementStatusNav">
               {% if iso_management_summary_visible %}
                 <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if iso_management_summary_active %}active{% endif %}" href="{{ url_for('main.iso_executive_summary') }}">
                   <i class="bi bi-speedometer2"></i>
-                  <span>ISO 9001 Yönetici Özeti</span>
+                  <span>{{ _("ISO 9001 Yönetici Özeti") }}</span>
                 </a>
               {% endif %}
               {% if management_due_dashboard_visible %}
                 <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if management_due_dashboard_active %}active{% endif %}" href="{{ url_for('main.management_due_dashboard') }}">
                   <i class="bi bi-calendar2-week"></i>
-                  <span>Yönetici Termin Paneli</span>
+                  <span>{{ _("Yönetici Termin Paneli") }}</span>
                 </a>
               {% endif %}
             </div>
@@ -103,54 +103,54 @@
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
             <i class="bi bi-people"></i>
-            <span>Kullanıcılar</span>
+            <span>{{ _("Kullanıcılar") }}</span>
           </a>
         {% endif %}
         {% if g.current_user_is_super_admin %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.companies', 'main.create_company', 'main.edit_company'] %}active{% endif %}" href="{{ url_for('main.companies') }}">
             <i class="bi bi-buildings"></i>
-            <span>Şirket Yönetimi</span>
+            <span>{{ _("Şirket Yönetimi") }}</span>
           </a>
           <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>
-            <span>Rol Yönetimi</span>
+            <span>{{ _("Rol Yönetimi") }}</span>
           </a>
         {% endif %}
         {% if g.current_user_is_superadmin_account %}
           <div class="dashboard-nav-group {% if admin_panel_group_active %}active{% endif %}">
             <button class="dashboard-nav-item dashboard-nav-toggle {% if admin_panel_group_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#adminPanelNav" aria-expanded="{{ 'true' if admin_panel_group_active else 'false' }}" aria-controls="adminPanelNav">
               <i class="bi bi-shield-lock"></i>
-              <span>Admin Paneli</span>
+              <span>{{ _("Admin Paneli") }}</span>
               <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
             </button>
             <div class="dashboard-subnav collapse {% if admin_panel_group_active %}show{% endif %}" id="adminPanelNav">
               <a class="dashboard-subnav-item {% if company_onboarding_active %}active{% endif %}" href="{{ url_for('main.company_onboarding_wizard') }}">
                 <i class="bi bi-magic"></i>
-                <span>Kurulum Sihirbazı</span>
+                <span>{{ _("Kurulum Sihirbazı") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if sales_readiness_active %}active{% endif %}" href="{{ url_for('main.sales_readiness') }}">
                 <i class="bi bi-rocket-takeoff"></i>
-                <span>Satışa Hazırlık</span>
+                <span>{{ _("Satışa Hazırlık") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if system_backups_active %}active{% endif %}" href="{{ url_for('main.system_backups') }}">
                 <i class="bi bi-cloud-arrow-up"></i>
-                <span>Sistem Yedekleri</span>
+                <span>{{ _("Sistem Yedekleri") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if system_admin_panel_active %}active{% endif %}" href="{{ url_for('main.system_admin_panel') }}">
                 <i class="bi bi-speedometer2"></i>
-                <span>Admin Paneli</span>
+                <span>{{ _("Admin Paneli") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if pilot_programs_active %}active{% endif %}" href="{{ url_for('main.pilot_programs') }}">
                 <i class="bi bi-flag"></i>
-                <span>Pilot Programı</span>
+                <span>{{ _("Pilot Programı") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if legal_documents_active %}active{% endif %}" href="{{ url_for('main.legal_documents_admin') }}">
                 <i class="bi bi-file-earmark-lock"></i>
-                <span>Hukuki Metinler</span>
+                <span>{{ _("Hukuki Metinler") }}</span>
               </a>
               <a class="dashboard-subnav-item {% if audit_log_active %}active{% endif %}" href="{{ url_for('main.audit_log') }}">
                 <i class="bi bi-activity"></i>
-                <span>Denetim Logu</span>
+                <span>{{ _("Denetim Logu") }}</span>
               </a>
             </div>
           </div>
@@ -158,38 +158,38 @@
         {% if g.company_module_enabled('organization') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.organization', 'main.organization_legacy', 'main.orientation'] %}active{% endif %}" href="{{ url_for('main.organization') }}">
           <i class="bi bi-diagram-3"></i>
-          <span>Organizasyon Şeması</span>
+          <span>{{ _("Organizasyon Şeması") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('maintenance') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.maintenance_dashboard', 'main.create_maintenance_machine', 'main.edit_maintenance_machine', 'main.create_maintenance_fault', 'main.maintenance_fault_detail', 'main.edit_maintenance_fault'] %}active{% endif %}" href="{{ url_for('main.maintenance_dashboard') }}">
           <i class="bi bi-wrench-adjustable"></i>
-          <span>Bakım</span>
+          <span>{{ _("Bakım") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('vehicles') and (g.current_user.has_permission('vehicles.view') or g.current_user.has_permission('vehicles.manage') or g.current_user.has_permission('maintenance.fault_manage') or g.current_user.has_permission('maintenance.inventory_manage')) %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.vehicle_dashboard', 'main.create_vehicle', 'main.edit_vehicle'] %}active{% endif %}" href="{{ url_for('main.vehicle_dashboard') }}">
             <i class="bi bi-car-front"></i>
-            <span>Araç Yönetimi</span>
+            <span>{{ _("Araç Yönetimi") }}</span>
           </a>
         {% endif %}
         {% if g.company_module_enabled('calibration') %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.calibration_dashboard', 'main.create_calibration_record', 'main.edit_calibration_record'] %}active{% endif %}" href="{{ url_for('main.calibration_dashboard') }}">
             <i class="bi bi-rulers"></i>
-            <span>Kalibrasyon Planı</span>
+            <span>{{ _("Kalibrasyon Planı") }}</span>
           </a>
         {% endif %}
         {% if g.company_module_enabled('human_resources') %}
         <div class="dashboard-nav-group {% if human_resources_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if human_resources_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#humanResourcesNav" aria-expanded="{{ 'true' if human_resources_active else 'false' }}" aria-controls="humanResourcesNav">
             <i class="bi bi-person-vcard"></i>
-            <span>İnsan Kaynakları</span>
+            <span>{{ _("İnsan Kaynakları") }}</span>
             <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
           </button>
           <div class="dashboard-subnav collapse {% if human_resources_active %}show{% endif %}" id="humanResourcesNav">
             <a class="dashboard-subnav-item {% if human_resources_active %}active{% endif %}" href="{{ url_for('main.personnel_contacts') }}">
               <i class="bi bi-people"></i>
-              <span>Personel Listesi</span>
+              <span>{{ _("Personel Listesi") }}</span>
             </a>
           </div>
         </div>
@@ -198,7 +198,7 @@
         <div class="dashboard-nav-group {% if quality_tests_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if quality_tests_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#qualityTestsNav" aria-expanded="{{ 'true' if quality_tests_active else 'false' }}" aria-controls="qualityTestsNav">
             <i class="bi bi-box-seam"></i>
-            <span>Kalite Deneyleri</span>
+            <span>{{ _("Kalite Deneyleri") }}</span>
             <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
           </button>
           <div class="dashboard-subnav collapse {% if quality_tests_active %}show{% endif %}" id="qualityTestsNav">
@@ -224,22 +224,22 @@
         <div class="dashboard-nav-group {% if suggestion_module_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if suggestion_module_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#suggestionsNav" aria-expanded="{{ 'true' if suggestion_module_active else 'false' }}" aria-controls="suggestionsNav">
             <i class="bi bi-chat-dots"></i>
-            <span>Öneri &amp; Şikayet</span>
+            <span>{{ _("Öneri & Şikayet") }}</span>
             <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
           </button>
           <div class="dashboard-subnav collapse {% if suggestion_module_active %}show{% endif %}" id="suggestionsNav">
             <a class="dashboard-subnav-item {% if request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion'] %}active{% endif %}" href="{{ url_for('main.suggestions_dashboard') }}">
               <i class="bi bi-lightbulb"></i>
-              <span>Öneri</span>
+              <span>{{ _("Öneri") }}</span>
             </a>
             <a class="dashboard-subnav-item {% if request.endpoint in ['main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] %}active{% endif %}" href="{{ url_for('main.complaints_dashboard') }}">
               <i class="bi bi-chat-left-text"></i>
-              <span>Şikayet</span>
+              <span>{{ _("Şikayet") }}</span>
             </a>
             {% if g.company_module_enabled('customer_feedback_portal') and g.current_user.has_permission('customer_portal.view') %}
             <a class="dashboard-subnav-item {% if (request.endpoint or '').startswith('customer_portal.') %}active{% endif %}" href="{{ url_for('customer_portal.dashboard') }}">
               <i class="bi bi-inboxes"></i>
-              <span>Müşteri Geri Bildirimleri</span>
+              <span>{{ _("Müşteri Geri Bildirimleri") }}</span>
             </a>
             {% endif %}
           </div>
@@ -248,27 +248,27 @@
         {% if g.company_module_enabled('if_management') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dof_management', 'main.create_dof', 'main.edit_dof_draft', 'main.dof_detail', 'main.delete_dof'] %}active{% endif %}" href="{{ url_for('main.dof_management') }}">
           <i class="bi bi-shield-check"></i>
-          <span>İF Yönetimi</span>
+          <span>{{ _("İF Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('risk_management') and (g.current_user.has_permission('risk.view') or g.current_user.has_permission('risk.manage') or g.current_user.has_permission('risk.ohs_view') or g.current_user.has_permission('risk.ohs_create') or g.current_user.has_permission('risk.ohs_manage')) %}
         <div class="dashboard-nav-group {% if risk_management_active %}active{% endif %}">
           <button class="dashboard-nav-item dashboard-nav-toggle {% if risk_management_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#riskManagementNav" aria-expanded="{{ 'true' if risk_management_active else 'false' }}" aria-controls="riskManagementNav">
             <i class="bi bi-exclamation-diamond"></i>
-            <span>Risk Yönetimi</span>
+            <span>{{ _("Risk Yönetimi") }}</span>
             <i class="bi bi-chevron-down dashboard-nav-chevron"></i>
           </button>
           <div class="dashboard-subnav collapse {% if risk_management_active %}show{% endif %}" id="riskManagementNav">
             {% if g.current_user.has_permission('risk.view') or g.current_user.has_permission('risk.manage') %}
             <a class="dashboard-subnav-item {% if request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] %}active{% endif %}" href="{{ url_for('main.risk_dashboard') }}">
               <i class="bi bi-grid-3x3-gap"></i>
-              <span>Risk ve Fırsatlar</span>
+              <span>{{ _("Risk ve Fırsatlar") }}</span>
             </a>
             {% endif %}
             {% if g.current_user.has_permission('risk.ohs_view') or g.current_user.has_permission('risk.ohs_create') or g.current_user.has_permission('risk.ohs_manage') %}
             <a class="dashboard-subnav-item {% if (request.endpoint or '').startswith('ohs_risk.') %}active{% endif %}" href="{{ url_for('ohs_risk.dashboard') }}">
               <i class="bi bi-shield-exclamation"></i>
-              <span>İSG Risk Matrisi</span>
+              <span>{{ _("İSG Risk Matrisi") }}</span>
             </a>
             {% endif %}
           </div>
@@ -277,206 +277,215 @@
         {% if g.company_module_enabled('fmea_management') and (g.current_user.has_permission('fmea.view') or g.current_user.has_permission('fmea.create') or g.current_user.has_permission('fmea.manage')) %}
         <a class="dashboard-nav-item {% if fmea_management_active %}active{% endif %}" href="{{ url_for('main.fmea_dashboard') }}">
           <i class="bi bi-diagram-3"></i>
-          <span>FMEA Analizi</span>
+          <span>{{ _("FMEA Analizi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('process_management') and (g.current_user.has_permission('process.view') or g.current_user.has_permission('process.create') or g.current_user.has_permission('process.manage')) %}
         <a class="dashboard-nav-item {% if process_management_active %}active{% endif %}" href="{{ url_for('main.process_dashboard') }}">
           <i class="bi bi-diagram-3"></i>
-          <span>S&uuml;re&ccedil; Y&ouml;netimi</span>
+          <span>{{ _("Süreç Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('quality_objectives') and (g.current_user.has_permission('quality_objective.view') or g.current_user.has_permission('quality_objective.create') or g.current_user.has_permission('quality_objective.manage') or g.current_user.has_permission('quality_objective.measure') or g.current_user.has_permission('quality_objective.approve')) %}
         <a class="dashboard-nav-item {% if quality_objectives_active %}active{% endif %}" href="{{ url_for('main.quality_objective_dashboard') }}">
           <i class="bi bi-bullseye"></i>
-          <span>Kalite Hedefleri</span>
+          <span>{{ _("Kalite Hedefleri") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('dynamic_forms') and (g.current_user.has_permission('dynamic_forms.view') or g.current_user.has_permission('dynamic_forms.manage') or g.current_user.has_permission('dynamic_forms.respond')) %}
         <a class="dashboard-nav-item {% if dynamic_forms_active %}active{% endif %}" href="{{ url_for('dynamic_forms.dashboard') }}">
           <i class="bi bi-ui-checks-grid"></i>
-          <span>Dinamik Formlar</span>
+          <span>{{ _("Dinamik Formlar") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('workflow_designer') and (g.current_user.has_permission('workflow.view') or g.current_user.has_permission('workflow.start') or g.current_user.has_permission('workflow.act') or g.current_user.has_permission('workflow.design')) %}
         <a class="dashboard-nav-item {% if workflows_active %}active{% endif %}" href="{{ url_for('workflows.dashboard') }}">
           <i class="bi bi-bezier2"></i>
-          <span>İş Akışları</span>
+          <span>{{ _("İş Akışları") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('inspection_management') and (g.current_user.has_permission('inspection.view') or g.current_user.has_permission('inspection.manage') or g.current_user.has_permission('inspection.perform') or g.current_user.has_permission('inspection.review')) %}
         <a class="dashboard-nav-item {% if inspections_active %}active{% endif %}" href="{{ url_for('inspections.dashboard') }}">
           <i class="bi bi-clipboard2-check"></i>
-          <span>Saha Kontrol ve Muayene</span>
+          <span>{{ _("Saha Kontrol ve Muayene") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('stakeholder_management') and (g.current_user.has_permission('stakeholder.view') or g.current_user.has_permission('stakeholder.manage') or g.current_user.has_permission('stakeholder.review')) %}
         <a class="dashboard-nav-item {% if stakeholders_active %}active{% endif %}" href="{{ url_for('stakeholders.dashboard') }}">
           <i class="bi bi-people"></i>
-          <span>İlgili Taraflar</span>
+          <span>{{ _("İlgili Taraflar") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('compliance_management') and (g.current_user.has_permission('compliance.view') or g.current_user.has_permission('compliance.manage') or g.current_user.has_permission('compliance.verify') or g.current_user.has_permission('compliance.evaluate')) %}
         <a class="dashboard-nav-item {% if compliance_active %}active{% endif %}" href="{{ url_for('compliance.dashboard') }}">
           <i class="bi bi-bank"></i>
-          <span>Yasal Şartlar ve Mevzuat</span>
+          <span>{{ _("Yasal Şartlar ve Mevzuat") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('change_management') and (g.current_user.has_permission('change_management.view') or g.current_user.has_permission('change_management.create') or g.current_user.has_permission('change_management.manage') or g.current_user.has_permission('change_management.approve')) %}
         <a class="dashboard-nav-item {% if change_management_active %}active{% endif %}" href="{{ url_for('main.change_management_dashboard') }}">
           <i class="bi bi-arrow-repeat"></i>
-          <span>De&#287;i&#351;iklik Y&#246;netimi</span>
+          <span>{{ _("Değişiklik Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('deviation_management') and (g.current_user.has_permission('deviation.view') or g.current_user.has_permission('deviation.create') or g.current_user.has_permission('deviation.manage') or g.current_user.has_permission('deviation.approve')) %}
         <a class="dashboard-nav-item {% if deviation_management_active %}active{% endif %}" href="{{ url_for('main.deviation_dashboard') }}">
           <i class="bi bi-exclamation-octagon"></i>
-          <span>Sapma / Uygunsuz &#220;r&#252;n</span>
+          <span>{{ _("Sapma / Uygunsuz Ürün") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('incident_near_miss') and (g.current_user.has_permission('incident.view') or g.current_user.has_permission('incident.create') or g.current_user.has_permission('incident.manage') or g.current_user.has_permission('incident.review')) %}
         <a class="dashboard-nav-item {% if incident_management_active %}active{% endif %}" href="{{ url_for('main.incident_dashboard') }}">
           <i class="bi bi-exclamation-triangle"></i>
-          <span>Olay / Ramak Kala</span>
+          <span>{{ _("Olay / Ramak Kala") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('training') and (g.current_user.has_permission('training.view') or g.current_user.has_permission('training.manage')) %}
         <a class="dashboard-nav-item {% if training_active %}active{% endif %}" href="{{ url_for('main.training_dashboard') }}">
           <i class="bi bi-mortarboard"></i>
-          <span>Eğitim / Yeterlilik</span>
+          <span>{{ _("Eğitim / Yeterlilik") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('internal_audit') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.internal_audit', 'main.create_internal_audit', 'main.edit_internal_audit', 'main.copy_internal_audit', 'main.internal_audit_report', 'main.delete_internal_audit', 'main.internal_audit_question', 'main.save_internal_audit_answer', 'main.open_internal_audit_nonconformity', 'main.complete_internal_audit'] %}active{% endif %}" href="{{ url_for('main.internal_audit') }}">
           <i class="bi bi-clipboard-check"></i>
-          <span>İç Denetim Yönetimi</span>
+          <span>{{ _("İç Denetim Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('management_review') and (g.current_user.has_permission('management_review.view') or g.current_user.has_permission('management_review.manage')) %}
         <a class="dashboard-nav-item {% if management_review_active %}active{% endif %}" href="{{ url_for('main.management_review_dashboard') }}">
           <i class="bi bi-clipboard-data"></i>
-          <span>YGG Yönetimi</span>
+          <span>{{ _("YGG Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('supplier_management') and (g.current_user.has_permission('suppliers.view') or g.current_user.has_permission('suppliers.evaluate') or g.current_user.has_permission('suppliers.manage')) %}
         <a class="dashboard-nav-item {% if supplier_management_active %}active{% endif %}" href="{{ url_for('main.supplier_dashboard') }}">
           <i class="bi bi-truck"></i>
-          <span>Tedarikçi Değerlendirme</span>
+          <span>{{ _("Tedarikçi Değerlendirme") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export') or g.current_user.has_permission('reports.design') or g.current_user.has_permission('reports.manage')) %}
         <a class="dashboard-nav-item {% if report_center_active %}active{% endif %}" href="{{ url_for('main.report_center') }}">
           <i class="bi bi-bar-chart-line"></i>
-          <span>Rapor Merkezi</span>
+          <span>{{ _("Rapor Merkezi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('documents') %}
         <a class="dashboard-nav-item {% if request.endpoint in ['main.documents_dashboard', 'main.documents_list', 'main.documents_category', 'main.upload_document', 'main.document_detail', 'main.edit_document', 'main.request_document_revision', 'main.acknowledge_document', 'main.document_acknowledgements', 'main.document_revision_request_detail', 'main.download_document_revision_request_file', 'main.approve_document_revision_request', 'main.revise_document', 'main.download_document', 'main.preview_document', 'main.generate_document_preview_route', 'main.archive_document', 'main.delete_document'] %}active{% endif %}" href="{{ url_for('main.documents_dashboard') }}">
           <i class="bi bi-file-earmark-text"></i>
-          <span>Doküman Yönetimi</span>
+          <span>{{ _("Doküman Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('ebys') and (g.current_user.has_permission('ebys.view') or g.current_user.has_permission('ebys.view_all') or g.current_user.has_permission('ebys.manage')) %}
         <a class="dashboard-nav-item {% if ebys_active %}active{% endif %}" href="{{ url_for('ebys.dashboard') }}">
           <i class="bi bi-envelope-paper"></i>
-          <span>Resmî Yazışma ve Arşiv</span>
+          <span>{{ _("Resmî Yazışma ve Arşiv") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('equipment_lifecycle') and (g.current_user.has_permission('equipment.view') or g.current_user.has_permission('equipment.view_all') or g.current_user.has_permission('equipment.manage')) %}
         <a class="dashboard-nav-item {% if equipment_lifecycle_active %}active{% endif %}" href="{{ url_for('equipment.dashboard') }}">
           <i class="bi bi-pc-display-horizontal"></i>
-          <span>Cihaz / Ekipman Yaşam Döngüsü</span>
+          <span>{{ _("Cihaz / Ekipman Yaşam Döngüsü") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('kaizen_management') and (g.current_user.has_permission('kaizen.view') or g.current_user.has_permission('kaizen.view_all') or g.current_user.has_permission('kaizen.manage')) %}
         <a class="dashboard-nav-item {% if kaizen_active %}active{% endif %}" href="{{ url_for('kaizen.dashboard') }}">
           <i class="bi bi-arrow-up-right-circle"></i>
-          <span>Kaizen / Sürekli İyileştirme</span>
+          <span>{{ _("Kaizen / Sürekli İyileştirme") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('five_s_audit') and (g.current_user.has_permission('five_s.view') or g.current_user.has_permission('five_s.view_all') or g.current_user.has_permission('five_s.manage')) %}
         <a class="dashboard-nav-item {% if five_s_active %}active{% endif %}" href="{{ url_for('five_s.dashboard') }}">
           <i class="bi bi-grid-3x3-gap"></i>
-          <span>5S Saha Denetimi</span>
+          <span>{{ _("5S Saha Denetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('problem_solving') and (g.current_user.has_permission('problem_solving.view') or g.current_user.has_permission('problem_solving.view_all') or g.current_user.has_permission('problem_solving.manage')) %}
         <a class="dashboard-nav-item {% if problem_solving_active %}active{% endif %}" href="{{ url_for('problem_solving.dashboard') }}">
-          <i class="bi bi-diagram-2"></i><span>A3 / 8D Problem Çözme</span>
+          <i class="bi bi-diagram-2"></i><span>{{ _("A3 / 8D Problem Çözme") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('lessons_learned') and (g.current_user.has_permission('lessons.view') or g.current_user.has_permission('lessons.view_all') or g.current_user.has_permission('lessons.manage')) %}
         <a class="dashboard-nav-item {% if lessons_learned_active %}active{% endif %}" href="{{ url_for('lessons_learned.dashboard') }}">
-          <i class="bi bi-journal-check"></i><span>Alınan Dersler</span>
+          <i class="bi bi-journal-check"></i><span>{{ _("Alınan Dersler") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('help_desk') and (g.current_user.has_permission('helpdesk.view') or g.current_user.has_permission('helpdesk.view_all') or g.current_user.has_permission('helpdesk.manage')) %}
         <a class="dashboard-nav-item {% if help_desk_active %}active{% endif %}" href="{{ url_for('help_desk.dashboard') }}">
-          <i class="bi bi-headset"></i><span>İç Talep / Help Desk</span>
+          <i class="bi bi-headset"></i><span>{{ _("İç Talep / Help Desk") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('work_permits') and (g.current_user.has_permission('work_permits.view') or g.current_user.has_permission('work_permits.view_all') or g.current_user.has_permission('work_permits.manage')) %}
         <a class="dashboard-nav-item {% if work_permits_active %}active{% endif %}" href="{{ url_for('work_permits.dashboard') }}">
-          <i class="bi bi-shield-check"></i><span>İş İzinleri</span>
+          <i class="bi bi-shield-check"></i><span>{{ _("İş İzinleri") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('hazardous_substances') and (g.current_user.has_permission('hazardous_substances.view') or g.current_user.has_permission('hazardous_substances.view_all') or g.current_user.has_permission('hazardous_substances.manage')) %}
         <a class="dashboard-nav-item {% if hazardous_substances_active %}active{% endif %}" href="{{ url_for('hazardous_substances.dashboard') }}">
-          <i class="bi bi-radioactive"></i><span>Tehlikeli Madde Yönetimi</span>
+          <i class="bi bi-radioactive"></i><span>{{ _("Tehlikeli Madde Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('environmental_management') and (g.current_user.has_permission('environmental.view') or g.current_user.has_permission('environmental.view_all') or g.current_user.has_permission('environmental.manage')) %}
         <a class="dashboard-nav-item {% if environmental_active %}active{% endif %}" href="{{ url_for('environmental.dashboard') }}">
-          <i class="bi bi-recycle"></i><span>Çevre ve Atık Yönetimi</span>
+          <i class="bi bi-recycle"></i><span>{{ _("Çevre ve Atık Yönetimi") }}</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('energy_management') and (g.current_user.has_permission('energy.view') or g.current_user.has_permission('energy.view_all') or g.current_user.has_permission('energy.manage')) %}
         <a class="dashboard-nav-item {% if energy_active %}active{% endif %}" href="{{ url_for('energy.dashboard') }}">
-          <i class="bi bi-lightning-charge"></i><span>Enerji Yönetimi</span>
+          <i class="bi bi-lightning-charge"></i><span>{{ _("Enerji Yönetimi") }}</span>
         </a>
         {% endif %}
       </nav>
       <div class="dashboard-sidebar-bottom">
         <a class="sidebar-quick-link {% if mobile_hub_active %}active{% endif %}" href="{{ url_for('pwa.mobile_hub') }}">
           <i class="bi bi-phone"></i>
-          <span>Mobil Merkez</span>
+          <span>{{ _("Mobil Merkez") }}</span>
         </a>
         <button class="sidebar-quick-link pwa-install-button" type="button" data-pwa-install hidden>
           <i class="bi bi-box-arrow-down"></i>
-          <span>Uygulamayı Yükle</span>
+          <span>{{ _("Uygulamayı Yükle") }}</span>
         </button>
         <div class="pwa-ios-help" data-pwa-ios-help hidden role="status">
-          Safari paylaşım menüsünü açıp <strong>Ana Ekrana Ekle</strong> seçeneğine dokunun.
+          {{ _("Safari paylaşım menüsünü açıp Ana Ekrana Ekle seçeneğine dokunun.") }}
         </div>
         <a class="sidebar-quick-link notification-sidebar-link {% if request.endpoint == 'main.notifications' %}active{% endif %}" href="{{ url_for('main.notifications') }}">
           <i class="bi bi-bell"></i>
-          <span>Bildirimler</span>
+          <span>{{ _("Bildirimler") }}</span>
           <span class="sidebar-count-badge {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span>
         </a>
         <a class="sidebar-quick-link assigned-sidebar-link {% if request.endpoint == 'main.assigned_tasks' %}active{% endif %}" href="{{ url_for('main.assigned_tasks') }}">
           <i class="bi bi-person-check"></i>
-          <span>Görevlerim</span>
+          <span>{{ _("Görevlerim") }}</span>
           <span class="assigned-count-badge">{{ g.assigned_tasks_count }}</span>
         </a>
+        <form class="locale-switcher locale-switcher-sidebar" method="post" action="{{ url_for('main.set_language') }}" aria-label="{{ _('Dil seçimi') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+          {% for locale_code, locale_data in supported_locales.items() %}
+            <button class="locale-choice {% if current_locale() == locale_code %}active{% endif %}" type="submit" name="locale" value="{{ locale_code }}" title="{{ locale_data.label }}" aria-pressed="{{ 'true' if current_locale() == locale_code else 'false' }}">
+              {{ locale_code|upper }}
+            </button>
+          {% endfor %}
+        </form>
         <div class="dashboard-sidebar-user">
           <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
           <div>
             <strong>{{ g.current_user.full_name }}</strong>
-            <span>{{ g.current_user.title or "Kullanıcı" }}</span>
+            <span>{{ g.current_user.title or _("Kullanıcı") }}</span>
           </div>
         </div>
         <form class="dashboard-logout-form" method="post" action="{{ url_for('main.logout') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="dashboard-logout" type="submit" aria-label="Çıkış">
+          <button class="dashboard-logout" type="submit" aria-label="{{ _('Çıkış') }}">
           <i class="bi bi-box-arrow-left"></i>
-          <span>Çıkış</span>
+          <span>{{ _("Çıkış") }}</span>
           </button>
         </form>
       </div>
     </div>
   </aside>
 
-  <button class="dashboard-mobile-menu-button btn btn-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Menüyü aç">
+  <button class="dashboard-mobile-menu-button btn btn-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="{{ _('Menüyü aç') }}">
     <i class="bi bi-list"></i>
   </button>
 
@@ -495,7 +504,7 @@
                   <i class="bi bi-info-circle-fill"></i>
                 {% endif %}
                 <span>{{ message }}</span>
-                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                <button class="btn-close" type="button" data-bs-dismiss="alert" aria-label="{{ _('Kapat') }}"></button>
               </div>
             {% endfor %}
           </div>

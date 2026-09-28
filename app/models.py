@@ -44,6 +44,7 @@ class Company(db.Model):
     brand_accent_color = db.Column(db.String(7), nullable=True)
     user_limit = db.Column(db.Integer, nullable=True, default=25)
     storage_quota_mb = db.Column(db.Integer, nullable=True, default=1024)
+    default_locale = db.Column(db.String(10), nullable=False, default="tr", server_default="tr")
     is_demo = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
@@ -927,6 +928,7 @@ class User(db.Model):
     full_name = db.Column(db.String(160), nullable=False)
     title = db.Column(db.String(160), nullable=True)
     email = db.Column(db.String(255), nullable=True)
+    preferred_locale = db.Column(db.String(10), nullable=True)
     personnel_contact_id = db.Column(
         db.Integer,
         db.ForeignKey(

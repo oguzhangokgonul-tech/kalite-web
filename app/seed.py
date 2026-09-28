@@ -1642,6 +1642,11 @@ def ensure_runtime_schema():
                 text("ALTER TABLE users ADD COLUMN personnel_contact_id INTEGER")
             )
             changed = True
+        if "preferred_locale" not in columns:
+            db.session.execute(
+                text("ALTER TABLE users ADD COLUMN preferred_locale VARCHAR(10)")
+            )
+            changed = True
         db.session.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS ix_users_personnel_contact_id "
@@ -1708,6 +1713,10 @@ def ensure_runtime_schema():
     if "companies" in tables:
         columns = {column["name"] for column in inspector.get_columns("companies")}
         company_columns = {
+            "default_locale": (
+                "ALTER TABLE companies "
+                "ADD COLUMN default_locale VARCHAR(10) NOT NULL DEFAULT 'tr'"
+            ),
             "package_key": (
                 "ALTER TABLE companies "
                 "ADD COLUMN package_key VARCHAR(40) NOT NULL DEFAULT 'production_plus'"
@@ -3904,6 +3913,7 @@ def ensure_runtime_schema():
             "sales_readiness:competitor_form_designer",
             "sales_readiness:competitor_report_designer",
             "sales_readiness:competitor_mobile_pwa",
+            "sales_readiness:competitor_multilanguage",
         ):
             db.session.execute(
                 text(

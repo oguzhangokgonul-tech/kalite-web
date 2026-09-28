@@ -96,6 +96,16 @@
             value="{{ request.form.get('custom_domain', company.custom_domain if company and company.custom_domain else '') }}"
           >
         </div>
+        <div class="col-md-4">
+          <label class="form-label" for="default_locale">Varsayılan Arayüz Dili</label>
+          {% set default_locale_value = request.form.get('default_locale', company.default_locale if company and company.default_locale else 'tr') %}
+          <select class="form-select form-select-lg" id="default_locale" name="default_locale" required>
+            {% for locale_code, locale_data in supported_locales.items() %}
+              <option value="{{ locale_code }}" {% if default_locale_value == locale_code %}selected{% endif %}>{{ locale_data.label }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Kişisel dil tercihi olmayan kullanıcılar bu dili görür.</div>
+        </div>
         <div class="col-12">
           <label class="company-active-toggle" for="is_active">
             <input

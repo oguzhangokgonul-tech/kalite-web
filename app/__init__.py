@@ -11,7 +11,14 @@ from urllib.parse import urlsplit
 load_dotenv()
 
 from .config import Config
-from .extensions import csrf, db, migrate
+from .extensions import babel, csrf, db, migrate
+from .i18n import (
+    SUPPORTED_LOCALES,
+    current_locale_code,
+    format_local_date,
+    format_local_datetime,
+    select_locale,
+)
 from .routes import bp
 from .dynamic_forms import bp as dynamic_forms_bp
 from .inspections import bp as inspections_bp
@@ -46,6 +53,13 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
+    babel.init_app(app, locale_selector=select_locale)
+    app.jinja_env.filters["local_date"] = format_local_date
+    app.jinja_env.filters["local_datetime"] = format_local_datetime
+    app.jinja_env.globals.update(
+        current_locale=current_locale_code,
+        supported_locales=SUPPORTED_LOCALES,
+    )
     from .audit import register_audit_listeners
 
     register_audit_listeners()

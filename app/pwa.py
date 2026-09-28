@@ -4,10 +4,12 @@ import json
 import re
 
 from flask import Blueprint, Response, abort, current_app, g, redirect, render_template, request, url_for
+from flask_babel import gettext as _
 import qrcode
 from qrcode.image.svg import SvgPathImage
 
 from .tenant import tenant_url_for_company
+from .i18n import current_locale_code
 
 
 bp = Blueprint("pwa", __name__)
@@ -49,8 +51,8 @@ def _quick_actions():
     if _has_permission("actions.create"):
         actions.append(
             {
-                "label": "Yeni Aksiyon",
-                "description": "Sorumlu, termin ve takip bilgileriyle aksiyon oluşturun.",
+                "label": _("Yeni Aksiyon"),
+                "description": _("Sorumlu, termin ve takip bilgileriyle aksiyon oluşturun."),
                 "icon": "bi-plus-circle",
                 "url": url_for("main.create_action"),
             }
@@ -58,8 +60,8 @@ def _quick_actions():
     if _module_enabled("if_management"):
         actions.append(
             {
-                "label": "Yeni İF / DÖF",
-                "description": "Uygunsuzluk veya düzeltici faaliyet kaydı açın.",
+                "label": _("Yeni İF / DÖF"),
+                "description": _("Uygunsuzluk veya düzeltici faaliyet kaydı açın."),
                 "icon": "bi-shield-exclamation",
                 "url": url_for("main.create_dof"),
             }
@@ -67,8 +69,8 @@ def _quick_actions():
     if _module_enabled("suggestions"):
         actions.append(
             {
-                "label": "Yeni Öneri",
-                "description": "İyileştirme önerinizi hızlıca kaydedin.",
+                "label": _("Yeni Öneri"),
+                "description": _("İyileştirme önerinizi hızlıca kaydedin."),
                 "icon": "bi-lightbulb",
                 "url": url_for("main.create_suggestion"),
             }
@@ -76,8 +78,8 @@ def _quick_actions():
         if _has_permission("complaints.manage"):
             actions.append(
                 {
-                    "label": "Yeni Şikayet",
-                    "description": "Şikayet kaydını ilgili iş akışına gönderin.",
+                    "label": _("Yeni Şikayet"),
+                    "description": _("Şikayet kaydını ilgili iş akışına gönderin."),
                     "icon": "bi-chat-left-dots",
                     "url": url_for("main.create_complaint"),
                 }
@@ -87,8 +89,8 @@ def _quick_actions():
     ):
         actions.append(
             {
-                "label": "Yeni İç Talep",
-                "description": "Şirket içi destek veya hizmet talebi oluşturun.",
+                "label": _("Yeni İç Talep"),
+                "description": _("Şirket içi destek veya hizmet talebi oluşturun."),
                 "icon": "bi-headset",
                 "url": url_for("help_desk.create"),
             }
@@ -106,8 +108,8 @@ def manifest():
         "id": "/mobil",
         "name": name,
         "short_name": company_name[:24] if company_name else "VolkaPortal",
-        "description": "Kalite ve kurumsal süreç yönetimi mobil merkezi",
-        "lang": "tr",
+        "description": _("Kalite ve kurumsal süreç yönetimi mobil merkezi"),
+        "lang": current_locale_code(),
         "dir": "ltr",
         "start_url": "/mobil",
         "scope": "/",
@@ -130,9 +132,9 @@ def manifest():
             },
         ],
         "shortcuts": [
-            {"name": "Mobil Merkez", "short_name": "Mobil", "url": url_for("pwa.mobile_hub")},
-            {"name": "Görevlerim", "short_name": "Görevler", "url": url_for("main.assigned_tasks")},
-            {"name": "Bildirimler", "short_name": "Bildirimler", "url": url_for("main.notifications")},
+            {"name": _("Mobil Merkez"), "short_name": _("Mobil"), "url": url_for("pwa.mobile_hub")},
+            {"name": _("Görevlerim"), "short_name": _("Görevler"), "url": url_for("main.assigned_tasks")},
+            {"name": _("Bildirimler"), "short_name": _("Bildirimler"), "url": url_for("main.notifications")},
         ],
     }
     response = Response(
@@ -146,6 +148,9 @@ def manifest():
 @bp.get("/service-worker.js")
 def service_worker():
     version = re.sub(r"[^a-zA-Z0-9._-]", "-", str(current_app.config.get("ASSET_VERSION", "1")))
+    locale = current_locale_code()
+    company = _company()
+    tenant_cache_key = getattr(company, "id", "public")
     offline_url = url_for("pwa.offline")
     allowed_assets = [
         offline_url,
@@ -155,7 +160,7 @@ def service_worker():
         url_for("static", filename="brand/favicon/favicon-512x512.png"),
     ]
     script = f"""'use strict';
-const CACHE_NAME = 'volkaportal-shell-{version}';
+const CACHE_NAME = 'volkaportal-shell-{version}-{tenant_cache_key}-{locale}';
 const OFFLINE_URL = {json.dumps(offline_url)};
 const ALLOWED_ASSETS = Object.freeze({json.dumps(allowed_assets)});
 const ALLOWED_PATHS = new Set(ALLOWED_ASSETS);

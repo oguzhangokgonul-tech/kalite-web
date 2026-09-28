@@ -40,6 +40,16 @@
         <label class="form-label" for="email">E-posta</label>
         <input class="form-control" id="email" name="email" type="email" value="{{ user.email if user and user.email else '' }}" maxlength="255">
       </div>
+      <div>
+        <label class="form-label" for="preferred_locale">Arayüz Dili</label>
+        {% set preferred_locale_value = request.form.get('preferred_locale', user.preferred_locale if user and user.preferred_locale else '') %}
+        <select class="form-select" id="preferred_locale" name="preferred_locale">
+          <option value="" {% if not preferred_locale_value %}selected{% endif %}>Şirket varsayılanı</option>
+          {% for locale_code, locale_data in supported_locales.items() %}
+            <option value="{{ locale_code }}" {% if preferred_locale_value == locale_code %}selected{% endif %}>{{ locale_data.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
       <div class="app-form-full">
         <label class="form-label" for="password">Şifre</label>
         <input class="form-control" id="password" name="password" type="password" minlength="{{ config.PASSWORD_MIN_LENGTH }}" maxlength="{{ config.PASSWORD_MAX_LENGTH|default(128) }}" {% if not user %}required{% endif %}>

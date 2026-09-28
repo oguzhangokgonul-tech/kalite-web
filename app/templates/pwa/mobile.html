@@ -1,24 +1,24 @@
 {% extends "app_shell.html" %}
 {% import "components/ui.html" as ui %}
 
-{% block title %}Mobil Merkez{% endblock %}
-{% block topbar_title %}Mobil Merkez{% endblock %}
+{% block title %}{{ _("Mobil Merkez") }}{% endblock %}
+{% block topbar_title %}{{ _("Mobil Merkez") }}{% endblock %}
 
 {% block app_content %}
   <div class="pwa-mobile-page">
-    {% call ui.page_header("Mobil Merkez", "Sahadaki sık kullanılan işlemlere hızlı erişim", icon="bi-phone") %}
+    {% call ui.page_header(_("Mobil Merkez"), _("Sahadaki sık kullanılan işlemlere hızlı erişim"), icon="bi-phone") %}
       <span class="pwa-network-status" data-pwa-network-status aria-live="polite">
         <i class="bi bi-wifi"></i>
-        <span>Çevrimiçi</span>
+        <span>{{ _("Çevrimiçi") }}</span>
       </span>
     {% endcall %}
 
-    <section class="pwa-mobile-layout" aria-label="Mobil hızlı işlemler">
+    <section class="pwa-mobile-layout" aria-label="{{ _('Mobil hızlı işlemler') }}">
       <div class="pwa-quick-panel">
         <div class="pwa-section-heading">
           <div>
-            <span class="pwa-section-kicker">Hızlı İşlemler</span>
-            <h2>Ne yapmak istiyorsunuz?</h2>
+            <span class="pwa-section-kicker">{{ _("Hızlı İşlemler") }}</span>
+            <h2>{{ _("Ne yapmak istiyorsunuz?") }}</h2>
           </div>
           <i class="bi bi-lightning-charge" aria-hidden="true"></i>
         </div>
@@ -39,32 +39,32 @@
         {% else %}
           <div class="pwa-empty-state">
             <i class="bi bi-shield-lock"></i>
-            <strong>Hızlı işlem bulunamadı</strong>
-            <span>Rolünüze tanımlı kayıt oluşturma yetkisi bulunmuyor.</span>
+            <strong>{{ _("Hızlı işlem bulunamadı") }}</strong>
+            <span>{{ _("Rolünüze tanımlı kayıt oluşturma yetkisi bulunmuyor.") }}</span>
           </div>
         {% endif %}
       </div>
 
       <aside class="pwa-qr-panel">
-        <span class="pwa-section-kicker">Cihaza Aktar</span>
-        <h2>Mobil erişim QR kodu</h2>
+        <span class="pwa-section-kicker">{{ _("Cihaza Aktar") }}</span>
+        <h2>{{ _("Mobil erişim QR kodu") }}</h2>
         {% if company %}
           <div class="pwa-qr-frame">
-            <img src="{{ url_for('pwa.mobile_qr') }}" alt="{{ company.name }} mobil merkez QR kodu" width="220" height="220">
+            <img src="{{ url_for('pwa.mobile_qr') }}" alt="{{ _('%(company)s mobil merkez QR kodu', company=company.name) }}" width="220" height="220">
           </div>
-          <p>Bu kod yalnızca <strong>{{ company.name }}</strong> şirketinin güvenilir mobil adresini açar.</p>
+          <p>{{ _("Bu kod yalnızca %(company)s şirketinin güvenilir mobil adresini açar.", company=company.name) }}</p>
         {% else %}
           <div class="pwa-empty-state compact">
             <i class="bi bi-building"></i>
-            <span>QR kodu için önce şirket seçin.</span>
+            <span>{{ _("QR kodu için önce şirket seçin.") }}</span>
           </div>
         {% endif %}
         <button class="btn btn-primary pwa-page-install" type="button" data-pwa-install hidden>
           <i class="bi bi-box-arrow-down"></i>
-          <span>Uygulamayı Yükle</span>
+          <span>{{ _("Uygulamayı Yükle") }}</span>
         </button>
         <div class="pwa-ios-help pwa-ios-help-page" data-pwa-ios-help hidden role="status">
-          Safari paylaşım menüsünü açıp <strong>Ana Ekrana Ekle</strong> seçeneğine dokunun.
+          {{ _("Safari paylaşım menüsünü açıp Ana Ekrana Ekle seçeneğine dokunun.") }}
         </div>
       </aside>
     </section>

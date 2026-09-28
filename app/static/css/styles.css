@@ -15755,3 +15755,47 @@ textarea.form-control::placeholder {
         width: 100%;
     }
 }
+.locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--vp-border, #d8e2f0);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.locale-choice {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  color: #52647f;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.locale-choice:hover,
+.locale-choice:focus-visible {
+  color: var(--vp-blue, #1e5bff);
+  background: #eef4ff;
+}
+
+.locale-choice.active {
+  color: #fff;
+  background: var(--vp-blue, #1e5bff);
+}
+
+.locale-switcher-login {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+.locale-switcher-sidebar {
+  align-self: flex-start;
+  margin: 4px 14px;
+}

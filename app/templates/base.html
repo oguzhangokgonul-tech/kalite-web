@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="{{ current_locale() }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -43,16 +43,16 @@
         <div class="container">
           <div class="ms-auto d-flex align-items-center gap-2">
             {% if g.current_user %}
-              <a class="btn btn-outline-primary" href="{{ url_for('main.organization') }}">Organizasyon Şeması</a>
+              <a class="btn btn-outline-primary" href="{{ url_for('main.organization') }}">{{ _("Organizasyon Şeması") }}</a>
               <div class="dropdown">
                 <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Bildirimler
+                  {{ _("Bildirimler") }}
                   <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill text-bg-danger {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>
                     {{ g.unread_notification_count }}
                   </span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end notification-menu p-0">
-                  <div class="px-3 py-2 border-bottom fw-semibold">Bildirimler</div>
+                  <div class="px-3 py-2 border-bottom fw-semibold">{{ _("Bildirimler") }}</div>
                   {% if g.latest_notifications %}
                     {% for notification in g.latest_notifications %}
                       <a class="dropdown-item py-2 {% if not notification.is_read %}fw-semibold{% endif %}" href="{{ url_for('main.open_notification', notification_id=notification.id) }}" data-notification-item data-notification-id="{{ notification.id }}" data-notification-read="{{ '1' if notification.is_read else '0' }}">
@@ -61,20 +61,20 @@
                       </a>
                     {% endfor %}
                   {% else %}
-                    <div class="px-3 py-3 text-secondary small">Henüz bildirim yok.</div>
+                    <div class="px-3 py-3 text-secondary small">{{ _("Henüz bildirim yok.") }}</div>
                   {% endif %}
                   <div class="border-top">
-                    <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">Tüm bildirimler</a>
+                    <a class="dropdown-item text-center py-2" href="{{ url_for('main.notifications') }}">{{ _("Tüm bildirimler") }}</a>
                   </div>
                 </div>
               </div>
               {% if g.current_user.can_manage_users %}
-                <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">Kullanıcılar</a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">{{ _("Kullanıcılar") }}</a>
               {% endif %}
               <span class="text-secondary small d-none d-md-inline">{{ g.current_user.full_name }}</span>
               <form class="d-inline-flex" method="post" action="{{ url_for('main.logout') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-dark" type="submit">Çıkış</button>
+                <button class="btn btn-outline-dark" type="submit">{{ _("Çıkış") }}</button>
               </form>
             {% endif %}
           </div>
@@ -99,6 +99,14 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      window.VolkaportalI18n = Object.freeze({
+        online: {{ _("Çevrimiçi")|tojson }},
+        offline: {{ _("Çevrimdışı")|tojson }},
+        install: {{ _("Uygulamayı Yükle")|tojson }},
+        addToHome: {{ _("Ana Ekrana Ekle")|tojson }}
+      });
+    </script>
     <script>
       (() => {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");

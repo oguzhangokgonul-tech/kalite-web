@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="tr">
+<html lang="{{ current_locale() }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0d6efd">
-    <title>Bağlantı Yok | VolkaPortal</title>
+    <title>{{ _("Bağlantı Yok") }} | VolkaPortal</title>
     <style>
       :root { color-scheme: light; font-family: Arial, sans-serif; }
       * { box-sizing: border-box; }
@@ -19,9 +19,9 @@
   <body>
     <main>
       <div class="icon" aria-hidden="true">!</div>
-      <h1>Bağlantı kurulamadı</h1>
-      <p>VolkaPortal verileri güvenlik nedeniyle çevrimdışı saklanmaz. İnternet bağlantınızı kontrol edip yeniden deneyin.</p>
-      <button type="button" onclick="window.location.reload()">Yeniden Dene</button>
+      <h1>{{ _("Bağlantı kurulamadı") }}</h1>
+      <p>{{ _("VolkaPortal verileri güvenlik nedeniyle çevrimdışı saklanmaz. İnternet bağlantınızı kontrol edip yeniden deneyin.") }}</p>
+      <button type="button" onclick="window.location.reload()">{{ _("Yeniden Dene") }}</button>
     </main>
   </body>
 </html>

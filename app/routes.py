@@ -13,6 +13,7 @@ import unicodedata
 import zipfile
 from xml.etree import ElementTree as ET
 from uuid import uuid4
+from urllib.parse import urlsplit
 
 from flask import (
     Blueprint,
@@ -29,12 +30,20 @@ from flask import (
     session,
     url_for,
 )
+from flask_babel import gettext as _, refresh as refresh_locale
 from sqlalchemy import and_, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm.exc import StaleDataError
 
 from .audit import record_audit_event
 from .extensions import db
+from .i18n import (
+    DEFAULT_LOCALE,
+    SUPPORTED_LOCALES,
+    normalize_locale,
+    select_locale,
+    tenant_locale_session_key,
+)
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
 from .mail import (
     send_action_notification_email,
@@ -281,6 +290,7 @@ LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS = {
     "pwa.offline",
     "main.login",
     "main.logout",
+    "main.set_language",
     "main.landing",
     "main.landing_dynamic_preview",
     "main.legal_index",
@@ -697,6 +707,7 @@ def load_logged_in_user():
         g.current_user = None
     g.current_company = None
     g.tenant_company = tenant_company_from_host(request.host)
+    refresh_locale()
     session.pop("company_code", None)
     g.current_user_initials = ""
     g.unread_notification_count = 0
@@ -730,6 +741,7 @@ def load_logged_in_user():
             g.current_company = g.tenant_company
             g.enabled_company_modules = company_module_state(g.current_company)
             refresh_company_branding()
+            refresh_locale()
             if request.endpoint != "main.login":
                 flash(
                     "Bu şirket alanına erişmek için ilgili şirket hesabıyla giriş yapın.",
@@ -763,6 +775,7 @@ def load_logged_in_user():
             return
         g.enabled_company_modules = company_module_state(g.current_company)
         refresh_company_branding()
+        refresh_locale()
         enforce_company_module_access()
         ensure_company_department_schema()
         ensure_notification_schema()
@@ -6346,7 +6359,14 @@ def can_manage_legal_documents():
 
 def safe_internal_next_url(value=None):
     target = (value or request.values.get("next") or url_for("main.dashboard")).strip()
-    if not target.startswith("/") or target.startswith("//"):
+    parsed = urlsplit(target)
+    if (
+        not target.startswith("/")
+        or target.startswith("//")
+        or "\\" in target
+        or parsed.scheme
+        or parsed.netloc
+    ):
         return url_for("main.dashboard")
     return target
 
@@ -14898,6 +14918,10 @@ def parse_user_form(user=None):
     user.full_name = full_name
     user.title = request.form.get("title", "").strip()
     user.email = request.form.get("email", "").strip() or None
+    preferred_locale_value = request.form.get("preferred_locale", "").strip().lower()
+    if preferred_locale_value and preferred_locale_value not in SUPPORTED_LOCALES:
+        raise ValueError("invalid_locale")
+    user.preferred_locale = preferred_locale_value or None
     if username != "superadmin":
         contact = linked_personnel_contact_for_user_form(
             full_name,
@@ -15075,6 +15099,14 @@ def parse_company_form(company=None):
         "storage_quota_mb",
         DEFAULT_COMPANY_STORAGE_QUOTA_MB,
     )
+    default_locale_value = request.form.get(
+        "default_locale",
+        getattr(company, "default_locale", DEFAULT_LOCALE) or DEFAULT_LOCALE,
+    )
+    default_locale_value = str(default_locale_value or "").strip().lower()
+    if default_locale_value not in SUPPORTED_LOCALES:
+        raise ValueError("invalid_locale")
+    company.default_locale = default_locale_value
     if company.id and company.user_limit:
         if active_company_user_count(company.id) > company.user_limit:
             raise ValueError("user_limit_below_usage")
@@ -15135,6 +15167,7 @@ def flash_company_form_error(error):
         "invalid_company_logo": "Firma logosu PNG, JPG veya WEBP olmalidir.",
         "company_logo_too_large": "Firma logosu en fazla 2 MB olabilir.",
         "storage_quota_exceeded": "Depolama kotasi asildi. Daha yuksek kota belirleyin veya dosyalari azaltin.",
+        "invalid_locale": "Desteklenmeyen bir dil seçildi.",
     }
     if error_key in extra_messages:
         flash(extra_messages[error_key], "danger")
@@ -15580,6 +15613,9 @@ def flash_user_form_error(error):
     if error_key == "user_limit_reached":
         flash("Kullanici limiti doldu. Sirket lisans limitini artirin veya pasif kullanici birakin.", "danger")
         return
+    if error_key == "invalid_locale":
+        flash("Desteklenmeyen bir dil seçildi.", "danger")
+        return
     if error_key == "username_exists":
         flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
     elif error_key == "password_too_short":
@@ -15594,6 +15630,46 @@ def flash_user_form_error(error):
         )
     else:
         flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
+
+
+@bp.post("/dil")
+def set_language():
+    requested_locale = request.form.get("locale", "").strip().lower()
+    if requested_locale not in SUPPORTED_LOCALES:
+        abort(400)
+    locale = requested_locale
+
+    previous_locale = select_locale()
+    company = getattr(g, "current_company", None) or getattr(g, "tenant_company", None)
+    if g.current_user is not None:
+        previous_preference = normalize_locale(g.current_user.preferred_locale)
+        if previous_preference != locale:
+            g.current_user.preferred_locale = locale
+            record_audit_event(
+                "LocalePreference",
+                "updated",
+                f"Kullanıcı arayüz dili {previous_locale} -> {locale} olarak değiştirildi",
+                entity_id=g.current_user.id,
+                old_values={
+                    "preferred_locale": previous_preference,
+                    "effective_locale": previous_locale,
+                },
+                new_values={
+                    "preferred_locale": locale,
+                    "effective_locale": locale,
+                },
+                company_id=getattr(company, "id", None),
+                user_id=g.current_user.id,
+                commit=False,
+            )
+            db.session.commit()
+    else:
+        session[tenant_locale_session_key(company)] = locale
+        session.modified = True
+
+    refresh_locale()
+    flash(_("Dil tercihi güncellendi."), "success")
+    return redirect(safe_internal_next_url(request.form.get("next")))
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -15637,11 +15713,28 @@ def login():
                     flash("Bu kullanıcı seçilen şirkete bağlı değil.", "danger")
                     return render_template("login.html")
 
+            tenant_locale_key = tenant_locale_session_key(company)
+            anonymous_locale = normalize_locale(session.get(tenant_locale_key))
+            if anonymous_locale and not normalize_locale(user.preferred_locale):
+                user.preferred_locale = anonymous_locale
+                record_audit_event(
+                    "LocalePreference",
+                    "updated",
+                    f"Giriş dili {anonymous_locale} kullanıcı tercihine kaydedildi",
+                    entity_id=user.id,
+                    old_values={"locale": None},
+                    new_values={"locale": anonymous_locale},
+                    company_id=getattr(company, "id", None) or user.company_id,
+                    user_id=user.id,
+                    commit=False,
+                )
             log_login_attempt(identity, ip_address, True, "success")
             db.session.commit()
             session.clear()
             session.permanent = remember_me
             session["user_id"] = user.id
+            if anonymous_locale:
+                session[tenant_locale_key] = anonymous_locale
             user_company = None
             if company is not None:
                 session["company_id"] = company.id
@@ -15649,7 +15742,7 @@ def login():
                 user_company = db.session.get(Company, user.company_id)
                 if user_company is not None:
                     session["company_id"] = user_company.id
-            flash("Giriş başarılı.", "success")
+            flash(_("Giriş başarılı."), "success")
             next_url = safe_internal_next_url(request.args.get("next"))
             from .legal import user_needs_legal_acceptance
 

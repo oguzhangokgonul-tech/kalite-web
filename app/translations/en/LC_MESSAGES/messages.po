@@ -1,0 +1,502 @@
+# English translations for PROJECT.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-09-28 08:56+0300\n"
+"PO-Revision-Date: 2026-09-28 08:56+0300\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: en\n"
+"Language-Team: en <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: app/pwa.py:54
+msgid "Yeni Aksiyon"
+msgstr "New Action"
+
+#: app/pwa.py:55
+msgid "Sorumlu, termin ve takip bilgileriyle aksiyon oluşturun."
+msgstr "Create an action with owner, due date and tracking details."
+
+#: app/pwa.py:63
+msgid "Yeni İF / DÖF"
+msgstr "New NC / CAPA"
+
+#: app/pwa.py:64
+msgid "Uygunsuzluk veya düzeltici faaliyet kaydı açın."
+msgstr "Open a nonconformity or corrective action record."
+
+#: app/pwa.py:72
+msgid "Yeni Öneri"
+msgstr "New Suggestion"
+
+#: app/pwa.py:73
+msgid "İyileştirme önerinizi hızlıca kaydedin."
+msgstr "Quickly submit your improvement suggestion."
+
+#: app/pwa.py:81
+msgid "Yeni Şikayet"
+msgstr "New Complaint"
+
+#: app/pwa.py:82
+msgid "Şikayet kaydını ilgili iş akışına gönderin."
+msgstr "Submit a complaint to the relevant workflow."
+
+#: app/pwa.py:92
+msgid "Yeni İç Talep"
+msgstr "New Internal Request"
+
+#: app/pwa.py:93
+msgid "Şirket içi destek veya hizmet talebi oluşturun."
+msgstr "Create an internal support or service request."
+
+#: app/pwa.py:111
+msgid "Kalite ve kurumsal süreç yönetimi mobil merkezi"
+msgstr "Quality and corporate process management mobile hub"
+
+#: app/pwa.py:135 app/templates/app_shell.html:442 app/templates/pwa/mobile.html:4 app/templates/pwa/mobile.html:5
+#: app/templates/pwa/mobile.html:9
+msgid "Mobil Merkez"
+msgstr "Mobile Hub"
+
+#: app/pwa.py:135
+msgid "Mobil"
+msgstr "Mobile"
+
+#: app/pwa.py:136 app/templates/app_shell.html:458
+msgid "Görevlerim"
+msgstr "My Tasks"
+
+#: app/pwa.py:136
+msgid "Görevler"
+msgstr "Tasks"
+
+#: app/pwa.py:137 app/templates/app_shell.html:453 app/templates/base.html:49 app/templates/base.html:55
+msgid "Bildirimler"
+msgstr "Notifications"
+
+#: app/routes.py:15650
+msgid "Dil tercihi güncellendi."
+msgstr "Language preference updated."
+
+#: app/routes.py:15711
+msgid "Giriş başarılı."
+msgstr "Signed in successfully."
+
+#: app/templates/app_shell.html:9
+msgid "Ana içeriğe geç"
+msgstr "Skip to main content"
+
+#: app/templates/app_shell.html:56
+msgid "Beton Deneyi"
+msgstr "Concrete Test"
+
+#: app/templates/app_shell.html:57
+msgid "Metilen Deneyi"
+msgstr "Methylene Blue Test"
+
+#: app/templates/app_shell.html:58
+msgid "Su Emme Deneyi"
+msgstr "Water Absorption Test"
+
+#: app/templates/app_shell.html:59
+msgid "Elek Analizi Deneyi"
+msgstr "Sieve Analysis Test"
+
+#: app/templates/app_shell.html:60
+msgid "Demir Çekme Deneyi"
+msgstr "Rebar Tensile Test"
+
+#: app/templates/app_shell.html:64
+msgid "Menü"
+msgstr "Menu"
+
+#: app/templates/app_shell.html:65 app/templates/app_shell.html:507 app/templates/login.html:31
+msgid "Kapat"
+msgstr "Close"
+
+#: app/templates/app_shell.html:78
+msgid "Ana Sayfa"
+msgstr "Home"
+
+#: app/templates/app_shell.html:84
+msgid "Şirket İçi Yönetim Durumu"
+msgstr "Company Management Status"
+
+#: app/templates/app_shell.html:91
+msgid "ISO 9001 Yönetici Özeti"
+msgstr "ISO 9001 Executive Summary"
+
+#: app/templates/app_shell.html:97
+msgid "Yönetici Termin Paneli"
+msgstr "Management Due Date Dashboard"
+
+#: app/templates/app_shell.html:106 app/templates/base.html:72
+msgid "Kullanıcılar"
+msgstr "Users"
+
+#: app/templates/app_shell.html:112
+msgid "Şirket Yönetimi"
+msgstr "Company Management"
+
+#: app/templates/app_shell.html:116
+msgid "Rol Yönetimi"
+msgstr "Role Management"
+
+#: app/templates/app_shell.html:123 app/templates/app_shell.html:141
+msgid "Admin Paneli"
+msgstr "Admin Panel"
+
+#: app/templates/app_shell.html:129
+msgid "Kurulum Sihirbazı"
+msgstr "Setup Wizard"
+
+#: app/templates/app_shell.html:133
+msgid "Satışa Hazırlık"
+msgstr "Sales Readiness"
+
+#: app/templates/app_shell.html:137
+msgid "Sistem Yedekleri"
+msgstr "System Backups"
+
+#: app/templates/app_shell.html:145
+msgid "Pilot Programı"
+msgstr "Pilot Program"
+
+#: app/templates/app_shell.html:149
+msgid "Hukuki Metinler"
+msgstr "Legal Documents"
+
+#: app/templates/app_shell.html:153
+msgid "Denetim Logu"
+msgstr "Audit Log"
+
+#: app/templates/app_shell.html:161 app/templates/base.html:46
+msgid "Organizasyon Şeması"
+msgstr "Organization Chart"
+
+#: app/templates/app_shell.html:167
+msgid "Bakım"
+msgstr "Maintenance"
+
+#: app/templates/app_shell.html:173
+msgid "Araç Yönetimi"
+msgstr "Vehicle Management"
+
+#: app/templates/app_shell.html:179
+msgid "Kalibrasyon Planı"
+msgstr "Calibration Plan"
+
+#: app/templates/app_shell.html:186
+msgid "İnsan Kaynakları"
+msgstr "Human Resources"
+
+#: app/templates/app_shell.html:192
+msgid "Personel Listesi"
+msgstr "Personnel List"
+
+#: app/templates/app_shell.html:201
+msgid "Kalite Deneyleri"
+msgstr "Quality Tests"
+
+#: app/templates/app_shell.html:227
+msgid "Öneri & Şikayet"
+msgstr "Suggestions & Complaints"
+
+#: app/templates/app_shell.html:233
+msgid "Öneri"
+msgstr "Suggestions"
+
+#: app/templates/app_shell.html:237
+msgid "Şikayet"
+msgstr "Complaints"
+
+#: app/templates/app_shell.html:242
+msgid "Müşteri Geri Bildirimleri"
+msgstr "Customer Feedback"
+
+#: app/templates/app_shell.html:251
+msgid "İF Yönetimi"
+msgstr "NC Management"
+
+#: app/templates/app_shell.html:258
+msgid "Risk Yönetimi"
+msgstr "Risk Management"
+
+#: app/templates/app_shell.html:265
+msgid "Risk ve Fırsatlar"
+msgstr "Risks and Opportunities"
+
+#: app/templates/app_shell.html:271
+msgid "İSG Risk Matrisi"
+msgstr "OHS Risk Matrix"
+
+#: app/templates/app_shell.html:280
+msgid "FMEA Analizi"
+msgstr "FMEA Analysis"
+
+#: app/templates/app_shell.html:286
+msgid "Süreç Yönetimi"
+msgstr "Process Management"
+
+#: app/templates/app_shell.html:292
+msgid "Kalite Hedefleri"
+msgstr "Quality Objectives"
+
+#: app/templates/app_shell.html:298
+msgid "Dinamik Formlar"
+msgstr "Dynamic Forms"
+
+#: app/templates/app_shell.html:304
+msgid "İş Akışları"
+msgstr "Workflows"
+
+#: app/templates/app_shell.html:310
+msgid "Saha Kontrol ve Muayene"
+msgstr "Field Inspection"
+
+#: app/templates/app_shell.html:316
+msgid "İlgili Taraflar"
+msgstr "Interested Parties"
+
+#: app/templates/app_shell.html:322
+msgid "Yasal Şartlar ve Mevzuat"
+msgstr "Legal and Regulatory Requirements"
+
+#: app/templates/app_shell.html:328
+msgid "Değişiklik Yönetimi"
+msgstr "Change Management"
+
+#: app/templates/app_shell.html:334
+msgid "Sapma / Uygunsuz Ürün"
+msgstr "Deviation / Nonconforming Product"
+
+#: app/templates/app_shell.html:340
+msgid "Olay / Ramak Kala"
+msgstr "Incident / Near Miss"
+
+#: app/templates/app_shell.html:346
+msgid "Eğitim / Yeterlilik"
+msgstr "Training / Competence"
+
+#: app/templates/app_shell.html:352
+msgid "İç Denetim Yönetimi"
+msgstr "Internal Audit Management"
+
+#: app/templates/app_shell.html:358
+msgid "YGG Yönetimi"
+msgstr "Management Review"
+
+#: app/templates/app_shell.html:364
+msgid "Tedarikçi Değerlendirme"
+msgstr "Supplier Evaluation"
+
+#: app/templates/app_shell.html:370
+msgid "Rapor Merkezi"
+msgstr "Report Center"
+
+#: app/templates/app_shell.html:376
+msgid "Doküman Yönetimi"
+msgstr "Document Management"
+
+#: app/templates/app_shell.html:382
+msgid "Resmî Yazışma ve Arşiv"
+msgstr "Official Correspondence and Archive"
+
+#: app/templates/app_shell.html:388
+msgid "Cihaz / Ekipman Yaşam Döngüsü"
+msgstr "Equipment Lifecycle"
+
+#: app/templates/app_shell.html:394
+msgid "Kaizen / Sürekli İyileştirme"
+msgstr "Kaizen / Continual Improvement"
+
+#: app/templates/app_shell.html:400
+msgid "5S Saha Denetimi"
+msgstr "5S Field Audit"
+
+#: app/templates/app_shell.html:405
+msgid "A3 / 8D Problem Çözme"
+msgstr "A3 / 8D Problem Solving"
+
+#: app/templates/app_shell.html:410
+msgid "Alınan Dersler"
+msgstr "Lessons Learned"
+
+#: app/templates/app_shell.html:415
+msgid "İç Talep / Help Desk"
+msgstr "Internal Request / Help Desk"
+
+#: app/templates/app_shell.html:420
+msgid "İş İzinleri"
+msgstr "Work Permits"
+
+#: app/templates/app_shell.html:425
+msgid "Tehlikeli Madde Yönetimi"
+msgstr "Hazardous Substances"
+
+#: app/templates/app_shell.html:430
+msgid "Çevre ve Atık Yönetimi"
+msgstr "Environmental and Waste Management"
+
+#: app/templates/app_shell.html:435
+msgid "Enerji Yönetimi"
+msgstr "Energy Management"
+
+#: app/templates/app_shell.html:446 app/templates/base.html:106 app/templates/pwa/mobile.html:64
+msgid "Uygulamayı Yükle"
+msgstr "Install App"
+
+#: app/templates/app_shell.html:449 app/templates/pwa/mobile.html:67
+msgid "Safari paylaşım menüsünü açıp Ana Ekrana Ekle seçeneğine dokunun."
+msgstr "Open the Safari share menu and tap Add to Home Screen."
+
+#: app/templates/app_shell.html:461 app/templates/login.html:72
+msgid "Dil seçimi"
+msgstr "Language selection"
+
+#: app/templates/app_shell.html:474
+msgid "Kullanıcı"
+msgstr "User"
+
+#: app/templates/app_shell.html:479 app/templates/app_shell.html:481 app/templates/base.html:77
+msgid "Çıkış"
+msgstr "Sign Out"
+
+#: app/templates/app_shell.html:488
+msgid "Menüyü aç"
+msgstr "Open menu"
+
+#: app/templates/base.html:64
+msgid "Henüz bildirim yok."
+msgstr "No notifications yet."
+
+#: app/templates/base.html:67
+msgid "Tüm bildirimler"
+msgstr "All notifications"
+
+#: app/templates/base.html:104 app/templates/pwa/mobile.html:12
+msgid "Çevrimiçi"
+msgstr "Online"
+
+#: app/templates/base.html:105
+msgid "Çevrimdışı"
+msgstr "Offline"
+
+#: app/templates/base.html:107
+msgid "Ana Ekrana Ekle"
+msgstr "Add to Home Screen"
+
+#: app/templates/login.html:3 app/templates/login.html:11
+msgid "Giriş"
+msgstr "Sign In"
+
+#: app/templates/login.html:40
+msgid "Kullanıcı adı"
+msgstr "Username"
+
+#: app/templates/login.html:43
+msgid "Kullanıcı adınızı girin"
+msgstr "Enter your username"
+
+#: app/templates/login.html:47
+msgid "Şifre"
+msgstr "Password"
+
+#: app/templates/login.html:50
+msgid "Şifrenizi girin"
+msgstr "Enter your password"
+
+#: app/templates/login.html:55
+msgid "Beni hatırla"
+msgstr "Remember me"
+
+#: app/templates/login.html:59
+msgid "Giriş Yap"
+msgstr "Sign In"
+
+#: app/templates/login.html:63
+msgid "Güvenli bağlantı"
+msgstr "Secure connection"
+
+#: app/templates/login.html:65
+msgid "Tüm hakları saklıdır."
+msgstr "All rights reserved."
+
+#: app/templates/login.html:67
+msgid "Kullanım Şartları"
+msgstr "Terms of Use"
+
+#: app/templates/login.html:68
+msgid "Gizlilik Politikası"
+msgstr "Privacy Policy"
+
+#: app/templates/pwa/mobile.html:9
+msgid "Sahadaki sık kullanılan işlemlere hızlı erişim"
+msgstr "Quick access to frequently used field operations"
+
+#: app/templates/pwa/mobile.html:16
+msgid "Mobil hızlı işlemler"
+msgstr "Mobile quick actions"
+
+#: app/templates/pwa/mobile.html:20
+msgid "Hızlı İşlemler"
+msgstr "Quick Actions"
+
+#: app/templates/pwa/mobile.html:21
+msgid "Ne yapmak istiyorsunuz?"
+msgstr "What would you like to do?"
+
+#: app/templates/pwa/mobile.html:42
+msgid "Hızlı işlem bulunamadı"
+msgstr "No quick actions available"
+
+#: app/templates/pwa/mobile.html:43
+msgid "Rolünüze tanımlı kayıt oluşturma yetkisi bulunmuyor."
+msgstr "Your role does not have permission to create records."
+
+#: app/templates/pwa/mobile.html:49
+msgid "Cihaza Aktar"
+msgstr "Open on Device"
+
+#: app/templates/pwa/mobile.html:50
+msgid "Mobil erişim QR kodu"
+msgstr "Mobile access QR code"
+
+#: app/templates/pwa/mobile.html:53
+#, python-format
+msgid "%(company)s mobil merkez QR kodu"
+msgstr "%(company)s mobile hub QR code"
+
+#: app/templates/pwa/mobile.html:55
+#, python-format
+msgid "Bu kod yalnızca %(company)s şirketinin güvenilir mobil adresini açar."
+msgstr "This code only opens the trusted mobile address for %(company)s."
+
+#: app/templates/pwa/mobile.html:59
+msgid "QR kodu için önce şirket seçin."
+msgstr "Select a company before creating a QR code."
+
+#: app/templates/pwa/offline.html:7
+msgid "Bağlantı Yok"
+msgstr "No Connection"
+
+#: app/templates/pwa/offline.html:22
+msgid "Bağlantı kurulamadı"
+msgstr "Unable to connect"
+
+#: app/templates/pwa/offline.html:23
+msgid "VolkaPortal verileri güvenlik nedeniyle çevrimdışı saklanmaz. İnternet bağlantınızı kontrol edip yeniden deneyin."
+msgstr "For security, VolkaPortal data is not stored offline. Check your internet connection and try again."
+
+#: app/templates/pwa/offline.html:24
+msgid "Yeniden Dene"
+msgstr "Try Again"
