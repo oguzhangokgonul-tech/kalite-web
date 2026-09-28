@@ -493,3 +493,8 @@ def test_runtime_schema_marks_sales_readiness_report_center_done(app):
     roadmap_setting = db.session.get(AppSetting, "sales_readiness:month2_reports")
     assert roadmap_setting is not None
     assert roadmap_setting.value == "1"
+    periodic_setting = db.session.get(
+        AppSetting, "sales_readiness:periodic_module_reporting"
+    )
+    assert periodic_setting is not None
+    assert periodic_setting.value == "1"

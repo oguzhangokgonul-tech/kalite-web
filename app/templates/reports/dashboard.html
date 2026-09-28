@@ -19,6 +19,34 @@
     </div>
   {% endcall %}
 
+  <section class="document-list-card p-3 p-lg-4 mb-4" aria-labelledby="reportPeriodHeading">
+    <form class="row g-3 align-items-end" method="get" action="{{ url_for('main.report_center') }}">
+      <div class="col-12 col-md-5 col-xl-3">
+        <label class="form-label fw-semibold" for="reportPeriod" id="reportPeriodHeading">Rapor Dönemi</label>
+        <select class="form-select" id="reportPeriod" name="period">
+          {% for value, label in period_choices %}
+            <option value="{{ value }}" {% if period and period.key == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-5 col-xl-3">
+        <label class="form-label fw-semibold" for="reportAnchor">Referans Tarihi</label>
+        <input class="form-control" id="reportAnchor" name="anchor" type="date" value="{{ period.anchor_date.isoformat() if period else '' }}">
+      </div>
+      <div class="col-12 col-md-2 col-xl-auto">
+        <button class="btn btn-primary w-100" type="submit">
+          <i class="bi bi-funnel"></i><span>Uygula</span>
+        </button>
+      </div>
+      <div class="col-12 col-xl">
+        <div class="small text-secondary">
+          <strong class="d-block text-body">{{ period.label if period else 'Tüm kayıtlar' }}</strong>
+          {{ period.range_label if period else 'Tarih sınırı uygulanmıyor.' }}
+        </div>
+      </div>
+    </form>
+  </section>
+
   <div class="dashboard-metrics">
     <div class="dashboard-stat-card stat-primary">
       <span class="stat-icon"><i class="bi bi-files"></i></span>
@@ -91,8 +119,15 @@
       <h2 class="h5 mb-1" id="standardReportsHeading">Standart Raporlar</h2>
       <p class="text-secondary mb-0">Modüllerdeki güncel verilerden otomatik hazırlanan raporlar.</p>
     </div>
-    <div class="row g-3">
-    {% for card in cards %}
+    <details class="report-catalog">
+      <summary class="document-list-card p-3 mb-3">
+        <span class="d-flex align-items-center justify-content-between gap-3">
+          <span><i class="bi bi-grid me-2"></i>{{ cards|length }} hazır raporu göster</span>
+          <i class="bi bi-chevron-down"></i>
+        </span>
+      </summary>
+      <div class="row g-3 report-card-grid">
+      {% for card in cards %}
       <div class="col-md-6 col-xxl-4">
         <article class="document-list-card h-100 p-4">
           <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
@@ -104,6 +139,10 @@
           </div>
           <h2 class="h5 mb-2">{{ card.title }}</h2>
           <p class="text-secondary mb-4">{{ card.description }}</p>
+          <div class="small text-secondary mb-3">
+            <i class="bi bi-calendar-range me-1"></i>
+            {{ card.date_basis }} · {{ "Dönem hareketi" if card.period_mode == "activity" else "Dönem sonu görünümü" }}
+          </div>
           <div class="d-flex flex-wrap gap-2 mt-auto">
             {% if card.can_export %}
               <a class="btn btn-primary" href="{{ card.excel_url }}">
@@ -123,7 +162,7 @@
           </div>
         </article>
       </div>
-    {% else %}
+      {% else %}
       <div class="col-12">
         <section class="document-list-card p-5 text-center">
           <span class="app-card-icon mx-auto mb-3"><i class="bi bi-file-earmark-x"></i></span>
@@ -131,7 +170,46 @@
           <p class="text-secondary mb-0">Açık modüllere bağlı raporlar burada listelenecek.</p>
         </section>
       </div>
-    {% endfor %}
+      {% endfor %}
+      </div>
+    </details>
+  </section>
+
+  <section class="mt-4" aria-labelledby="moduleActivityHeading">
+    <div class="mb-3">
+      <h2 class="h5 mb-1" id="moduleActivityHeading">Tüm Modüller Hareket Raporu</h2>
+      <p class="text-secondary mb-0">Aktif modüllerdeki oluşturma, güncelleme, silme ve indirme işlemlerini seçili dönemde raporlar.</p>
     </div>
+    <form class="document-list-card p-3 p-lg-4 row g-3 align-items-end" method="get">
+      <div class="col-12 col-lg">
+        <label class="form-label fw-semibold" for="activityModule">Modül</label>
+        <select class="form-select" id="activityModule" name="module" required>
+          <option value="">Modül seçin</option>
+          {% for module in module_reports %}
+            <option value="{{ module.key }}">{{ module.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <input type="hidden" name="period" value="{{ period.key if period else 'month' }}">
+      <input type="hidden" name="anchor" value="{{ period.anchor_date.isoformat() if period else '' }}">
+      {% if can_export_reports %}
+        <div class="col-12 col-sm-6 col-lg-auto">
+          <button class="btn btn-primary w-100" type="submit" formaction="{{ url_for('main.download_module_activity_report_excel') }}">
+            <i class="bi bi-file-earmark-excel"></i><span>Excel İndir</span>
+          </button>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-auto">
+          <button class="btn btn-outline-primary w-100" type="submit" formtarget="_blank" formaction="{{ url_for('main.module_activity_report_pdf') }}">
+            <i class="bi bi-printer"></i><span>PDF / Yazdır</span>
+          </button>
+        </div>
+      {% else %}
+        <div class="col-12 col-lg-auto">
+          <button class="btn btn-outline-secondary w-100" type="button" disabled>
+            <i class="bi bi-lock"></i><span>Çıktı Yetkisi Yok</span>
+          </button>
+        </div>
+      {% endif %}
+    </form>
   </section>
 {% endblock %}

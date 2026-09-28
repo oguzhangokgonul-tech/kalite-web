@@ -3931,6 +3931,7 @@ def ensure_runtime_schema():
             "sales_readiness:month4_admin_panel",
             "sales_readiness:report_center",
             "sales_readiness:month2_reports",
+            "sales_readiness:periodic_module_reporting",
             "sales_readiness:notification_upgrade",
             "sales_readiness:onboarding_wizard",
             "sales_readiness:core_package",

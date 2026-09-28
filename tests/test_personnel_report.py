@@ -7,7 +7,7 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import PersonnelContact, User
+from app.models import PersonnelContact, User, UserPermission
 
 
 @pytest.fixture()
@@ -73,6 +73,7 @@ def test_personnel_report_download_includes_active_and_deleted_contacts(app, cli
         is_active=False,
     )
     db.session.add_all([user, active, deleted])
+    user.extra_permissions.append(UserPermission(permission_key="reports.export"))
     db.session.commit()
 
     login(client, user)
@@ -98,6 +99,7 @@ def test_personnel_report_button_is_visible_on_list_page(app, client):
         is_active=True,
     )
     db.session.add(user)
+    user.extra_permissions.append(UserPermission(permission_key="reports.export"))
     db.session.commit()
 
     login(client, user)
@@ -106,3 +108,21 @@ def test_personnel_report_button_is_visible_on_list_page(app, client):
     assert response.status_code == 200
     assert "Rapor İndir" in response.get_data(as_text=True)
     assert "/insan-kaynaklari/personel-listesi/rapor" in response.get_data(as_text=True)
+
+
+def test_personnel_report_requires_export_permission(app, client):
+    user = User(
+        username="plain-viewer",
+        full_name="Plain Viewer",
+        password_hash="not-used",
+        is_active=True,
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    login(client, user)
+
+    assert client.get("/insan-kaynaklari/personel-listesi/rapor").status_code == 403
+    assert "Rapor İndir" not in client.get(
+        "/insan-kaynaklari/personel-listesi"
+    ).get_data(as_text=True)

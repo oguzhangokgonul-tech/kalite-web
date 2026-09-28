@@ -304,3 +304,31 @@
 @media (prefers-reduced-motion: reduce) {
     .dashboard-body .dashboard-sidebar.offcanvas-xl { transition: none !important; }
 }
+@media (min-width: 768px) {
+  .report-catalog > summary {
+    display: none;
+  }
+
+  .report-catalog:not([open]) > .report-card-grid {
+    display: flex;
+  }
+}
+
+.report-catalog > summary {
+  cursor: pointer;
+  color: var(--vp-text, #071c3d);
+  font-weight: 600;
+  list-style: none;
+}
+
+.report-catalog > summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-catalog[open] > summary .bi-chevron-down {
+  transform: rotate(180deg);
+}
+
+.report-catalog > summary .bi-chevron-down {
+  transition: transform 160ms ease;
+}

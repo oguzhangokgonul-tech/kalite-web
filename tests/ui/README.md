@@ -27,6 +27,7 @@ node tests/ui/touch.mjs
 node tests/ui/supplier_quality.mjs
 node tests/ui/dynamic_forms.mjs
 node tests/ui/report_designer.mjs
+node tests/ui/periodic_reporting.mjs
 node tests/ui/pwa.mjs
 node tests/ui/i18n.mjs
 ```
@@ -56,6 +57,8 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
   yayınlama, atama ve yanıtlama akışını telefon, tablet ve masaüstünde doğrular.
 - `report_designer.mjs`: özel rapor oluşturma, kolon/filtre/sıralama/özet seçimi ve
   sonuç görünümünü telefon, tablet ve masaüstünde doğrular.
+- `periodic_reporting.mjs`: aylık/3 aylık/6 aylık/yıllık dönem seçimini, tüm modül
+  hareket raporunu, Excel indirmeyi ve telefon/tablet/masaüstü taşma kontrolünü doğrular.
 - `pwa.mjs`: Mobil Merkez, tenant manifesti, QR çıktısı, iOS kurulum yardımı ve
   veri içermeyen çevrimdışı PWA ekranını telefon, tablet ve masaüstünde doğrular.
 - `i18n.mjs`: altı kullanıcı rolünde Türkçe/İngilizce dil tercihini, kalıcılığı,

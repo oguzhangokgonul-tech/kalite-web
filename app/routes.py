@@ -60,6 +60,12 @@ from .notifications import (
 )
 from .reminders import maybe_run_due_reminders_for_request
 from .request_security import request_client_ip
+from .reporting import (
+    REPORT_PERIOD_CHOICES,
+    apply_period_to_report,
+    report_period_metadata,
+    resolve_report_period,
+)
 from .personnel_seed import PERSONNEL_CONTACT_DEFAULTS
 from .models import (
     Action,
@@ -344,6 +350,7 @@ SALES_READINESS_SECTIONS = (
             ("month2_document_read", "Doküman okundu / onaylandı kaydı"),
             ("month2_capa_fields", "DÖF / IF ve aksiyon alanlarını standartlaştırma"),
             ("month2_reports", "Excel / PDF raporlarını modül bazında tamamlama"),
+            ("periodic_module_reporting", "Tüm modüllerde aylık, 3 aylık, 6 aylık ve yıllık raporlama"),
             ("month2_management_dashboard", "Yönetici dashboard ve termin raporları"),
         ),
     },
@@ -3034,6 +3041,8 @@ MODULE_ENDPOINTS = {
     "main.report_center": "report_center",
     "main.download_report_center_excel": "report_center",
     "main.report_center_pdf": "report_center",
+    "main.download_module_activity_report_excel": "report_center",
+    "main.module_activity_report_pdf": "report_center",
     "main.create_custom_report": "report_center",
     "main.preview_custom_report": "report_center",
     "main.custom_report_detail": "report_center",
@@ -6782,7 +6791,7 @@ def flash_personnel_contact_form_error(error):
 
 def xlsx_escape(value):
     return (
-        str(value or "")
+        ("" if value is None else str(value))
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
@@ -6799,7 +6808,7 @@ def xlsx_column_name(index):
     return name
 
 
-def build_simple_xlsx(headers, rows, sheet_name="Sayfa1", column_widths=None):
+def build_simple_xlsx(headers, rows, sheet_name="Sayfa1", column_widths=None, metadata=None):
     def cell_xml(row_number, column_number, value, style_id=0):
         cell_ref = f"{xlsx_column_name(column_number)}{row_number}"
         style_attr = f' s="{style_id}"' if style_id else ""
@@ -6847,28 +6856,69 @@ def build_simple_xlsx(headers, rows, sheet_name="Sayfa1", column_widths=None):
   <sheetData>{''.join(sheet_rows)}</sheetData>
 </worksheet>"""
 
+    metadata = list(metadata or ())
+    metadata_sheet = ""
+    metadata_relationship = ""
+    metadata_content_type = ""
+    if metadata:
+        metadata_rows = [
+            '<row r="1">'
+            + cell_xml(1, 1, "Alan", style_id=1)
+            + cell_xml(1, 2, "Değer", style_id=1)
+            + "</row>"
+        ]
+        for row_number, (label, value) in enumerate(metadata, start=2):
+            metadata_rows.append(
+                f'<row r="{row_number}">'
+                + cell_xml(row_number, 1, label)
+                + cell_xml(row_number, 2, value)
+                + "</row>"
+            )
+        metadata_sheet = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:B{len(metadata) + 1}"/>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="54" customWidth="1"/></cols>
+  <sheetData>{''.join(metadata_rows)}</sheetData>
+</worksheet>"""
+        metadata_relationship = (
+            '<Relationship Id="rId3" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+            'Target="worksheets/sheet2.xml"/>'
+        )
+        metadata_content_type = (
+            '<Override PartName="/xl/worksheets/sheet2.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        )
+
+    metadata_workbook_sheet = (
+        '<sheet name="Rapor Bilgisi" sheetId="2" r:id="rId3"/>' if metadata else ""
+    )
     workbook_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
     <sheet name="{xlsx_escape(sheet_name)}" sheetId="1" r:id="rId1"/>
+    {metadata_workbook_sheet}
   </sheets>
 </workbook>"""
-    workbook_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    workbook_rels_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  {metadata_relationship}
 </Relationships>"""
     root_rels_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>"""
-    content_types_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    content_types_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+  {metadata_content_type}
 </Types>"""
     styles_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -6909,6 +6959,8 @@ def build_simple_xlsx(headers, rows, sheet_name="Sayfa1", column_widths=None):
         archive.writestr("xl/workbook.xml", workbook_xml)
         archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
         archive.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+        if metadata_sheet:
+            archive.writestr("xl/worksheets/sheet2.xml", metadata_sheet)
         archive.writestr("xl/styles.xml", styles_xml)
     output.seek(0)
     return output
@@ -6978,9 +7030,30 @@ def report_scope_label():
     return "Mevcut Firma"
 
 
-def report_filename(report_key, extension="xlsx"):
+def report_filename(report_key, extension="xlsx", period=None):
     safe_extension = str(extension or "xlsx").strip().lstrip(".") or "xlsx"
-    return f"{report_key.replace('_', '-')}-{date.today():%Y%m%d}.{safe_extension}"
+    suffix = (
+        f"{period.start_date.isoformat()}_{period.end_date.isoformat()}"
+        if period
+        else f"{date.today():%Y%m%d}"
+    )
+    return f"{report_key.replace('_', '-')}-{suffix}.{safe_extension}"
+
+
+def ensure_report_export_company_scope():
+    if getattr(g, "current_user_is_super_admin", False) and current_company_id() is None:
+        abort(400, description="Rapor indirmeden önce bir şirket seçmelisiniz.")
+
+
+def report_output_metadata(report, generated_at=None):
+    generated_at = generated_at or datetime.now(timezone.utc)
+    user = getattr(g, "current_user", None)
+    return report_period_metadata(
+        report,
+        scope_label=report_scope_label(),
+        generated_by=report_user_name(user),
+        generated_at=generated_at,
+    )
 
 
 def report_user_name(user):
@@ -8828,6 +8901,196 @@ REPORT_CENTER_REPORTS = (
 )
 
 
+REPORT_PERIOD_POLICIES = {
+    "energy_consumption": {"date_headers": ("Dönem / Termin",)},
+    "management_due_summary": {"date_headers": ("Termin",)},
+    "actions_master": {"date_headers": ("Termin", "Etkinlik Termin")},
+    "actions_overdue": {"date_headers": ("Termin",)},
+    "dofs_status": {"date_headers": ("Açılış",)},
+    "dof_capa_effectiveness": {"date_headers": ("Kontrol Tarihi", "Etkinlik Termin")},
+    "documents_master": {"date_headers": ("Yayın Tarihi", "Son Revizyon")},
+    "document_revisions": {"date_headers": ("Talep Tarihi", "Onay Tarihi")},
+    "document_acknowledgements": {"date_headers": ("Onay Tarihi",)},
+    "internal_audits": {"date_headers": ("Plan Tarihi",)},
+    "calibration": {"date_headers": ("Son Kalibrasyon", "Gelecek Kalibrasyon")},
+    "risks": {"date_headers": ("Termin",)},
+    "ohs_risks": {"date_headers": ("Termin",)},
+    "workflows": {"mode": "snapshot"},
+    "dynamic_forms": {"date_headers": ("Termin",)},
+    "fmea": {"date_headers": ("Termin",)},
+    "processes": {"date_headers": ("Sonraki Gözden Geçirme",)},
+    "quality_objectives": {"date_headers": ("Dönem Sonu", "Sonraki Ölçüm")},
+    "change_requests": {"date_headers": ("Plan Tarihi", "Etki Tarihi")},
+    "deviations": {"date_headers": ("Tespit Tarihi",)},
+    "incidents": {"date_headers": ("Olay Tarihi",)},
+    "trainings": {"date_headers": ("Plan Tarihi",)},
+    "complaints": {"date_headers": ("Alınma Tarihi",)},
+    "suppliers": {"date_headers": ("Son Değerlendirme",)},
+    "management_reviews": {"date_headers": ("Tarih",)},
+    "personnel_contacts": {"mode": "snapshot"},
+}
+
+
+MODULE_ACTIVITY_ENTITY_TYPES = {
+    "iso_executive_summary": ("Action", "Dof", "Document", "InternalAudit", "RiskRecord"),
+    "management_due_dashboard": ("Action", "Dof", "InternalAudit", "CalibrationRecord"),
+    "organization": ("CompanyDepartment", "OrientationNode", "User"),
+    "maintenance": ("MaintenanceMachine", "MaintenanceFault"),
+    "vehicles": ("Vehicle", "VehicleOperation", "VehicleFuelEntry"),
+    "calibration": ("CalibrationRecord",),
+    "human_resources": ("PersonnelContact", "User"),
+    "suggestions": ("Suggestion", "SuggestionEvaluation", "SuggestionScore"),
+    "customer_feedback_portal": (
+        "ComplaintRecord", "ComplaintMessage", "ComplaintStatusHistory", "CustomerPortalSetting",
+    ),
+    "quality_tests": ("QualityTestRecord",),
+    "quality_test_concrete": ("QualityTestRecord",),
+    "quality_test_methylene": ("QualityTestRecord",),
+    "quality_test_water_absorption": ("QualityTestRecord",),
+    "quality_test_sieve_analysis": ("QualityTestRecord",),
+    "quality_test_rebar_tensile": ("QualityTestRecord",),
+    "if_management": ("Dof", "DofComment", "DofFile"),
+    "risk_management": ("RiskRecord", "OhsRiskAssessment", "OhsRiskEvaluation"),
+    "fmea_management": ("FmeaRecord",),
+    "process_management": ("ProcessRecord", "ProcessRelation", "ProcessStep"),
+    "quality_objectives": ("QualityObjective", "QualityObjectiveMeasurement"),
+    "dynamic_forms": (
+        "DynamicFormTemplate", "DynamicFormVersion", "DynamicFormAssignment", "DynamicFormSubmission",
+    ),
+    "inspection_management": ("InspectionRecord", "InspectionFinding"),
+    "stakeholder_management": ("StakeholderParty", "StakeholderRequirement", "StakeholderReview"),
+    "compliance_management": ("ComplianceObligation", "ComplianceRevision", "ComplianceEvaluation"),
+    "change_management": ("ChangeRequest", "ChangeRequestFile"),
+    "deviation_management": ("DeviationRecord", "DeviationFile"),
+    "incident_near_miss": ("IncidentReport", "IncidentFile"),
+    "training": ("TrainingRecord", "TrainingParticipant"),
+    "internal_audit": ("InternalAudit", "InternalAuditQuestion", "InternalAuditAnswer"),
+    "management_review": ("ManagementReview",),
+    "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
+    "report_center": ("ReportDefinition", "ReportCenter"),
+    "integration_management": (
+        "IntegrationApiClient", "IntegrationEvent", "WebhookEndpoint", "WebhookDelivery", "WebhookDeliveryAttempt",
+    ),
+    "documents": (
+        "Document", "DocumentAcknowledgement", "DocumentRevisionRequest", "DocumentRevisionRequestFile",
+    ),
+    "ebys": ("OfficialCorrespondence", "OfficialCorrespondenceDistribution", "OfficialCorrespondenceFile"),
+    "equipment_lifecycle": ("EquipmentAsset", "EquipmentLifecycleEvent", "EquipmentAssetFile"),
+    "kaizen_management": ("KaizenProject", "KaizenProjectUpdate", "KaizenProjectFile"),
+    "five_s_audit": ("FiveSAudit", "FiveSAuditItem", "FiveSAuditFile"),
+    "problem_solving": ("ProblemSolvingCase", "ProblemSolvingStep", "ProblemSolvingFile"),
+    "lessons_learned": ("LessonLearned", "LessonLearnedFile"),
+    "help_desk": ("HelpDeskTicket", "HelpDeskComment", "HelpDeskFile"),
+    "work_permits": ("WorkPermit", "WorkPermitControl", "WorkPermitFile"),
+    "hazardous_substances": (
+        "HazardousSubstance", "HazardousSubstanceTransaction", "HazardousSubstanceFile",
+    ),
+    "environmental_management": (
+        "EnvironmentalAspect", "EnvironmentalAspectAssessment", "WasteStream", "WasteBatch", "WasteMovement",
+    ),
+    "energy_management": (
+        "EnergyMeter", "EnergyReading", "EnergyTarget", "EnergySavingProject", "EnergySavingVerification",
+    ),
+    "workflow_designer": (
+        "WorkflowTemplate", "WorkflowVersion", "WorkflowInstance", "WorkflowInstanceStep",
+    ),
+}
+
+
+def requested_report_period(default=None):
+    period_key = request.args.get("period") or default
+    return resolve_report_period(period_key, request.args.get("anchor"))
+
+
+def requested_report_period_or_400(default=None):
+    try:
+        return requested_report_period(default)
+    except ValueError:
+        abort(400, description="Rapor dönemi veya referans tarihi geçersiz.")
+
+
+def report_period_policy(report_key):
+    return REPORT_PERIOD_POLICIES.get(report_key, {"mode": "snapshot"})
+
+
+def apply_standard_report_period(definition, data, period):
+    policy = report_period_policy(definition["key"])
+    report = apply_period_to_report(
+        {**definition, **data},
+        period,
+        date_headers=policy.get("date_headers", ()),
+        mode=policy.get("mode", "activity"),
+    )
+    report["rows"] = custom_report_rows_for_current_role(
+        report["headers"], report["rows"]
+    )
+    return report
+
+
+def module_activity_definition(module_key):
+    module = next((item for item in COMPANY_MODULE_CATALOG if item["key"] == module_key), None)
+    if module is None or not company_module_enabled(module_key):
+        return None
+    return module
+
+
+def module_activity_report_data(module_key, period):
+    module = module_activity_definition(module_key)
+    if module is None:
+        return None
+    entity_types = MODULE_ACTIVITY_ENTITY_TYPES.get(module_key, ())
+    query = scoped_query(AuditLog.query, AuditLog)
+    if not entity_types:
+        query = query.filter(text("1 = 0"))
+    else:
+        query = query.filter(AuditLog.entity_type.in_(entity_types))
+    if period is not None:
+        start_at = datetime.combine(period.start_date, datetime.min.time())
+        end_at = datetime.combine(period.end_date + timedelta(days=1), datetime.min.time())
+        query = query.filter(AuditLog.created_at >= start_at, AuditLog.created_at < end_at)
+    if (
+        has_role(g.current_user, "department_manager")
+        or has_role(g.current_user, "department_staff")
+    ) and not can_manage_reports():
+        query = query.filter(AuditLog.user_id == g.current_user.id)
+    logs = query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).all()
+    action_labels = {
+        "created": "Oluşturuldu",
+        "updated": "Güncellendi",
+        "deleted": "Silindi",
+        "exported": "Dışa Aktarıldı",
+        "downloaded": "İndirildi",
+        "viewed": "Görüntülendi",
+    }
+    rows = [
+        (
+            log.created_at.strftime("%d.%m.%Y %H:%M") if log.created_at else "-",
+            log.entity_type,
+            log.entity_id or "-",
+            action_labels.get(log.action, log.action),
+            log.summary or "-",
+            report_user_name(log.user),
+        )
+        for log in logs
+    ]
+    return {
+        "key": f"module_activity_{module_key}",
+        "title": f"{module['name']} Hareket Raporu",
+        "description": "Modülde dönem içinde oluşturulan, güncellenen, silinen ve dışa aktarılan kayıtlar.",
+        "icon": module["icon"],
+        "module_key": module_key,
+        "module_name": module["name"],
+        "headers": ("Tarih", "Kayıt Türü", "Kayıt ID", "İşlem", "Özet", "Kullanıcı"),
+        "rows": rows,
+        "sheet_name": "Modul Hareketleri",
+        "column_widths": (20, 28, 16, 18, 48, 28),
+        "period": period,
+        "period_mode": "activity",
+        "date_basis": "Denetim logu işlem tarihi",
+        "undated_count": 0,
+    }
+
+
 def report_definition_access_allowed(definition, export=False):
     module_key = definition.get("module_key")
     if module_key and not company_module_enabled(module_key):
@@ -8841,43 +9104,47 @@ def report_definition_access_allowed(definition, export=False):
     return True
 
 
-def report_center_export_data(report_key):
+def report_center_export_data(report_key, period=None):
     for definition in REPORT_CENTER_REPORTS:
         if definition["key"] == report_key:
             if not report_definition_access_allowed(definition, export=True):
                 return None
             data = definition["builder"]()
-            return {**definition, **data}
+            return apply_standard_report_period(definition, data, period)
     return None
 
 
-def report_center_cards():
+def report_center_cards(period=None):
     cards = []
     for definition in REPORT_CENTER_REPORTS:
         if not report_definition_access_allowed(definition):
             continue
-        data = definition["builder"]()
+        data = apply_standard_report_period(definition, definition["builder"](), period)
+        query_args = period.query_args if period else {}
         cards.append(
             {
-                **definition,
+                **data,
                 "count": len(data["rows"]),
                 "can_export": can_export_reports()
                 and report_definition_access_allowed(definition, export=True),
                 "excel_url": url_for(
                     "main.download_report_center_excel",
                     report_key=definition["key"],
+                    **query_args,
                 ),
                 "pdf_url": url_for(
                     "main.report_center_pdf",
                     report_key=definition["key"],
+                    **query_args,
                 ),
             }
         )
     return cards
 
 
-def log_report_export(report, export_format="excel"):
+def log_report_export(report, export_format="excel", filename=None):
     normalized_format = str(export_format or "excel").lower()
+    period = report.get("period")
     record_audit_event(
         "ReportCenter",
         "exported",
@@ -8888,13 +9155,25 @@ def log_report_export(report, export_format="excel"):
             "report_title": report["title"],
             "format": normalized_format,
             "scope": report_scope_label(),
+            "module_key": report.get("module_key"),
+            "row_count": len(report.get("rows", ())),
+            "period_key": period.key if period else None,
+            "period_code": period.code if period else "ALL",
+            "period_start": period.start_date if period else None,
+            "period_end": period.end_date if period else None,
+            "filename": filename,
         },
     )
 
 
-def report_center_context():
-    cards = report_center_cards()
+def report_center_context(period=None):
+    cards = report_center_cards(period)
     total_rows = sum(card["count"] for card in cards)
+    module_reports = [
+        item
+        for item in sorted(COMPANY_MODULE_CATALOG, key=lambda module: module["sort_order"])
+        if item["key"] != "report_center" and company_module_enabled(item["key"])
+    ]
     return {
         "cards": cards,
         "saved_reports": accessible_custom_reports(),
@@ -8903,6 +9182,9 @@ def report_center_context():
         "can_export_reports": can_export_reports(),
         "can_design_reports": can_design_reports(),
         "scope_label": report_scope_label(),
+        "period": period,
+        "period_choices": REPORT_PERIOD_CHOICES,
+        "module_reports": module_reports,
     }
 
 
@@ -9314,6 +9596,7 @@ def personnel_contacts_context():
         "departments": departments,
         "filters": filters,
         "can_manage_personnel_contacts": can_manage_personnel_contacts(),
+        "can_export_personnel_contacts": can_export_reports(),
     }
 
 
@@ -23063,7 +23346,8 @@ def deactivate_supplier(supplier_id):
 def report_center():
     if not can_view_report_center():
         abort(403)
-    return render_template("reports/dashboard.html", **report_center_context())
+    period = requested_report_period_or_400("month")
+    return render_template("reports/dashboard.html", **report_center_context(period))
 
 
 @bp.route("/rapor-merkezi/tasarim/yeni", methods=["GET", "POST"])
@@ -23264,23 +23548,28 @@ def custom_report_pdf(report_id):
 def download_report_center_excel(report_key):
     if not can_export_reports():
         abort(403)
+    ensure_report_export_company_scope()
 
-    report = report_center_export_data(report_key)
+    period = requested_report_period_or_400()
+    report = report_center_export_data(report_key, period)
     if report is None:
         abort(404)
 
+    generated_at = datetime.now(timezone.utc)
+    filename = report_filename(report["key"], "xlsx", period)
     workbook = build_simple_xlsx(
         report["headers"],
         report["rows"],
         sheet_name=report["sheet_name"],
         column_widths=report.get("column_widths"),
+        metadata=report_output_metadata(report, generated_at),
     )
-    log_report_export(report, "excel")
+    log_report_export(report, "excel", filename)
     return send_file(
         workbook,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name=report_filename(report["key"], "xlsx"),
+        download_name=filename,
     )
 
 
@@ -23289,18 +23578,85 @@ def download_report_center_excel(report_key):
 def report_center_pdf(report_key):
     if not can_export_reports():
         abort(403)
+    ensure_report_export_company_scope()
 
-    report = report_center_export_data(report_key)
+    period = requested_report_period_or_400()
+    report = report_center_export_data(report_key, period)
     if report is None:
         abort(404)
 
-    log_report_export(report, "pdf")
+    generated_at = datetime.now(timezone.utc)
+    filename = report_filename(report["key"], "pdf", period)
+    query_args = period.query_args if period else {}
+    report["excel_url"] = url_for(
+        "main.download_report_center_excel", report_key=report_key, **query_args
+    )
+    log_report_export(report, "pdf", filename)
     return render_template(
         "reports/print.html",
         report=report,
         scope_label=report_scope_label(),
-        generated_at=datetime.now(timezone.utc),
-        suggested_filename=report_filename(report["key"], "pdf"),
+        generated_at=generated_at,
+        suggested_filename=filename,
+        report_metadata=report_output_metadata(report, generated_at),
+    )
+
+
+@bp.get("/rapor-merkezi/modul-hareket/excel")
+@login_required
+def download_module_activity_report_excel():
+    if not can_export_reports():
+        abort(403)
+    ensure_report_export_company_scope()
+    module_key = str(request.args.get("module") or "").strip()
+    period = requested_report_period_or_400("month")
+    report = module_activity_report_data(module_key, period)
+    if report is None:
+        abort(404)
+    generated_at = datetime.now(timezone.utc)
+    filename = report_filename(report["key"], "xlsx", period)
+    workbook = build_simple_xlsx(
+        report["headers"],
+        report["rows"],
+        sheet_name=report["sheet_name"],
+        column_widths=report.get("column_widths"),
+        metadata=report_output_metadata(report, generated_at),
+    )
+    log_report_export(report, "excel", filename)
+    return send_file(
+        workbook,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@bp.get("/rapor-merkezi/modul-hareket/pdf")
+@login_required
+def module_activity_report_pdf():
+    if not can_export_reports():
+        abort(403)
+    ensure_report_export_company_scope()
+    module_key = str(request.args.get("module") or "").strip()
+    period = requested_report_period_or_400("month")
+    report = module_activity_report_data(module_key, period)
+    if report is None:
+        abort(404)
+    generated_at = datetime.now(timezone.utc)
+    filename = report_filename(report["key"], "pdf", period)
+    report["excel_url"] = url_for(
+        "main.download_module_activity_report_excel",
+        module=module_key,
+        **period.query_args,
+    )
+    log_report_export(report, "pdf", filename)
+    return render_template(
+        "reports/print.html",
+        report=report,
+        scope_label=report_scope_label(),
+        generated_at=generated_at,
+        suggested_filename=filename,
+        report_metadata=report_output_metadata(report, generated_at),
     )
 
 
@@ -25269,6 +25625,9 @@ def personnel_contacts():
 @bp.get("/insan-kaynaklari/personel-listesi/rapor")
 @login_required
 def download_personnel_contacts_report():
+    if not can_export_reports():
+        abort(403)
+    ensure_report_export_company_scope()
     filename = f"personel-iletisim-listesi-{date.today():%Y%m%d}.xlsx"
     workbook = personnel_contacts_report_workbook()
     record_audit_event(

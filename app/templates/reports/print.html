@@ -195,6 +195,30 @@
         font-size: 11px;
       }
 
+      @media (max-width: 720px) {
+        .report-toolbar,
+        .report-header,
+        .report-footer {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .report-toolbar-actions,
+        .report-button {
+          width: 100%;
+        }
+
+        .report-page {
+          margin: 0;
+          padding: 18px 14px;
+          border-radius: 0;
+        }
+
+        .report-meta {
+          min-width: 0;
+        }
+      }
+
       @media print {
         @page {
           size: A4 landscape;
@@ -273,22 +297,18 @@
           <p class="report-description">{{ report.description }}</p>
         </div>
         <aside class="report-meta" aria-label="Rapor bilgileri">
-          <div>
-            <span>Kapsam</span>
-            <strong>{{ scope_label }}</strong>
-          </div>
-          <div>
-            <span>Kayıt</span>
-            <strong>{{ report.rows|length }}</strong>
-          </div>
-          <div>
-            <span>Tarih</span>
-            <strong>{{ generated_at.strftime("%d.%m.%Y %H:%M") }}</strong>
-          </div>
-          <div>
-            <span>Dosya</span>
-            <strong>{{ suggested_filename }}</strong>
-          </div>
+          {% if report_metadata is defined %}
+            {% for label, value in report_metadata %}
+              {% if label in ("Şirket / Kapsam", "Dönem", "Tarih Aralığı", "Rapor Tipi", "Tarih Esası", "Kayıt Sayısı") %}
+                <div><span>{{ label }}</span><strong>{{ value }}</strong></div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div><span>Kapsam</span><strong>{{ scope_label }}</strong></div>
+            <div><span>Kayıt</span><strong>{{ report.rows|length }}</strong></div>
+            <div><span>Tarih</span><strong>{{ generated_at.strftime("%d.%m.%Y %H:%M") }}</strong></div>
+            <div><span>Dosya</span><strong>{{ suggested_filename }}</strong></div>
+          {% endif %}
         </aside>
       </header>
 

@@ -130,7 +130,7 @@ def test_sales_readiness_persists_completed_items(app, client):
     assert settings[f"{SALES_READINESS_SETTING_PREFIX}risk_module"] == "1"
     assert f"{SALES_READINESS_SETTING_PREFIX}training_module" not in settings
     body = response.get_data(as_text=True)
-    assert "2 / 141 madde" in body
+    assert "2 / 142 madde" in body
 
 
 def test_runtime_schema_marks_sales_readiness_tenant_tests_done(app):
