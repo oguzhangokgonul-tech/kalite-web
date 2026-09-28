@@ -5,7 +5,8 @@
   const iosHelpItems = Array.from(document.querySelectorAll("[data-pwa-ios-help]"));
   const networkItems = Array.from(document.querySelectorAll("[data-pwa-network-status]"));
   const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-  const ios = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const ios = /iphone|ipad|ipod/i.test(window.navigator.userAgent) ||
+    (/macintosh/i.test(window.navigator.userAgent) && window.navigator.maxTouchPoints > 1);
   let installPrompt = null;
 
   function setButtonsVisible(visible, label) {

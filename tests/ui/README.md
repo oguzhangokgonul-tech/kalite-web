@@ -27,6 +27,7 @@ node tests/ui/touch.mjs
 node tests/ui/supplier_quality.mjs
 node tests/ui/dynamic_forms.mjs
 node tests/ui/report_designer.mjs
+node tests/ui/pwa.mjs
 ```
 
 Playwright proje dışında kuruluysa `PLAYWRIGHT_MODULE_PATH` değişkenini kurulu
@@ -54,6 +55,8 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
   yayınlama, atama ve yanıtlama akışını telefon, tablet ve masaüstünde doğrular.
 - `report_designer.mjs`: özel rapor oluşturma, kolon/filtre/sıralama/özet seçimi ve
   sonuç görünümünü telefon, tablet ve masaüstünde doğrular.
+- `pwa.mjs`: Mobil Merkez, tenant manifesti, QR çıktısı, iOS kurulum yardımı ve
+  veri içermeyen çevrimdışı PWA ekranını telefon, tablet ve masaüstünde doğrular.
 
 - `ebys.mjs`: resmî yazışma oluşturma ve detay ekranının mobil/tablet akışı.
 - `equipment_lifecycle.mjs`: ekipman kartı oluşturma ve yaşam döngüsü detayının mobil/tablet akışı.

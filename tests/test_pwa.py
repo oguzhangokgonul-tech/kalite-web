@@ -6,7 +6,7 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.models import AppSetting, Company, CompanyModule, User, UserPermission
-from app.seed import ensure_runtime_schema
+from app.seed import ensure_default_roles, ensure_runtime_schema
 
 
 @pytest.fixture()
@@ -177,3 +177,53 @@ def test_runtime_schema_marks_mobile_pwa_checklist_done(app):
     setting = db.session.get(AppSetting, "sales_readiness:competitor_mobile_pwa")
     assert setting is not None
     assert setting.value == "1"
+
+
+def test_default_employee_roles_can_create_helpdesk_requests(app, client):
+    company = create_company("PHR", "Rol Firması", "rol-firmasi")
+    roles = ensure_default_roles()
+    db.session.commit()
+
+    for index, role_key in enumerate(
+        ("management_representative", "management", "department_manager", "department_staff"),
+        start=1,
+    ):
+        user = User(
+            username=f"pwa-role-{index}",
+            full_name=role_key,
+            password_hash="not-used",
+            company_id=company.id,
+            is_active=True,
+        )
+        user.roles.append(roles[role_key])
+        db.session.add(user)
+        db.session.commit()
+        login(client, user, base_url=f"https://{company.primary_domain}")
+
+        hub = client.get("/mobil", base_url=f"https://{company.primary_domain}")
+        create_page = client.get(
+            "/ic-talepler/yeni", base_url=f"https://{company.primary_domain}"
+        )
+        assert hub.status_code == 200
+        assert "Yeni İç Talep" in hub.get_data(as_text=True)
+        assert create_page.status_code == 200
+
+    viewer = User(
+        username="pwa-viewer",
+        full_name="Sadece Görüntüleyici",
+        password_hash="not-used",
+        company_id=company.id,
+        is_active=True,
+    )
+    viewer.roles.append(roles["viewer"])
+    db.session.add(viewer)
+    db.session.commit()
+    login(client, viewer, base_url=f"https://{company.primary_domain}")
+
+    hub = client.get("/mobil", base_url=f"https://{company.primary_domain}")
+    create_page = client.get(
+        "/ic-talepler/yeni", base_url=f"https://{company.primary_domain}"
+    )
+    assert hub.status_code == 200
+    assert "Yeni İç Talep" not in hub.get_data(as_text=True)
+    assert create_page.status_code == 403

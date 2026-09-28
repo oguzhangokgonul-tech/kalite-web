@@ -1469,6 +1469,49 @@ for role_definition in ROLE_DEFINITIONS:
     )
 
 
+HELP_DESK_ROLE_PERMISSIONS = {
+    "management_representative": (
+        "helpdesk.view",
+        "helpdesk.view_all",
+        "helpdesk.create",
+        "helpdesk.assign",
+        "helpdesk.work",
+        "helpdesk.comment",
+        "helpdesk.manage",
+        "helpdesk.archive",
+        "helpdesk.file_download",
+    ),
+    "management": (
+        "helpdesk.view",
+        "helpdesk.view_all",
+        "helpdesk.create",
+        "helpdesk.comment",
+        "helpdesk.file_download",
+    ),
+    "department_manager": (
+        "helpdesk.view",
+        "helpdesk.create",
+        "helpdesk.work",
+        "helpdesk.comment",
+        "helpdesk.file_download",
+    ),
+    "department_staff": (
+        "helpdesk.view",
+        "helpdesk.create",
+        "helpdesk.work",
+        "helpdesk.comment",
+        "helpdesk.file_download",
+    ),
+    "viewer": ("helpdesk.view", "helpdesk.file_download"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission
+        for permission in HELP_DESK_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+
 REMOVED_ROLE_MAPPINGS = {
     "executive_approver": "management",
     "module_responsible": "department_staff",
