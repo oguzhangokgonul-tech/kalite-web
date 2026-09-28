@@ -29,6 +29,7 @@ def test_management_status_group_respects_role_permissions(app, client):
     assert 'data-bs-target="#companyManagementStatusNav"' in body
     assert 'href="/iso-9001-yonetici-ozeti"' in body
     assert 'href="/yonetici-termin-paneli"' in body
+    assert 'href="/rapor-merkezi"' in body
     assert 'id="adminPanelNav"' not in body
 
 
@@ -48,6 +49,7 @@ def test_management_status_group_only_lists_authorized_children(app, client):
     assert "Şirket İçi Yönetim Durumu" in body
     assert 'href="/iso-9001-yonetici-ozeti"' not in body
     assert 'href="/yonetici-termin-paneli"' in body
+    assert 'href="/rapor-merkezi"' in body
 
 
 def test_management_status_group_opens_on_active_child(app, client):
@@ -63,6 +65,24 @@ def test_management_status_group_opens_on_active_child(app, client):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
+    assert 'data-bs-target="#companyManagementStatusNav" aria-expanded="true"' in body
+    assert 'class="dashboard-subnav collapse show" id="companyManagementStatusNav"' in body
+
+
+def test_management_status_group_opens_on_report_center(app, client):
+    company = create_company("945")
+    manager = create_user(
+        "active-report-center-user",
+        company=company,
+        role_key="management_representative",
+    )
+    login(client, manager, company)
+
+    response = client.get("/rapor-merkezi")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert body.count('href="/rapor-merkezi"') == 1
     assert 'data-bs-target="#companyManagementStatusNav" aria-expanded="true"' in body
     assert 'class="dashboard-subnav collapse show" id="companyManagementStatusNav"' in body
 

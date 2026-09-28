@@ -19,9 +19,11 @@
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
   {% set iso_management_summary_active = request.endpoint == 'main.iso_executive_summary' %}
   {% set management_due_dashboard_active = request.endpoint == 'main.management_due_dashboard' %}
+  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf', 'main.download_module_activity_report_excel', 'main.module_activity_report_pdf', 'main.create_custom_report', 'main.preview_custom_report', 'main.custom_report_detail', 'main.edit_custom_report', 'main.archive_custom_report', 'main.download_custom_report_excel', 'main.custom_report_pdf'] %}
   {% set iso_management_summary_visible = g.company_module_enabled('iso_executive_summary') and g.current_user.has_permission('iso_dashboard.view') %}
   {% set management_due_dashboard_visible = g.company_module_enabled('management_due_dashboard') and g.current_user.has_permission('management_due_dashboard.view') %}
-  {% set company_management_status_active = iso_management_summary_active or management_due_dashboard_active %}
+  {% set report_center_visible = g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export') or g.current_user.has_permission('reports.design') or g.current_user.has_permission('reports.manage')) %}
+  {% set company_management_status_active = iso_management_summary_active or management_due_dashboard_active or report_center_active %}
   {% set admin_panel_group_active = company_onboarding_active or sales_readiness_active or system_backups_active or system_admin_panel_active or pilot_programs_active or legal_documents_active or audit_log_active %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] or (request.endpoint or '').startswith('ohs_risk.') %}
   {% set fmea_management_active = request.endpoint in ['main.fmea_dashboard', 'main.create_fmea', 'main.fmea_detail', 'main.edit_fmea', 'main.mark_fmea_action_pending', 'main.close_fmea', 'main.archive_fmea'] %}
@@ -49,7 +51,6 @@
   {% set training_active = request.endpoint in ['main.training_dashboard', 'main.create_training', 'main.edit_training'] %}
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.create_supplier_quality_audit', 'main.edit_supplier_quality_audit', 'main.delete_supplier_quality_audit', 'main.create_supplier_survey', 'main.edit_supplier_survey', 'main.delete_supplier_survey', 'main.deactivate_supplier'] %}
-  {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf', 'main.create_custom_report', 'main.preview_custom_report', 'main.custom_report_detail', 'main.edit_custom_report', 'main.archive_custom_report', 'main.download_custom_report_excel', 'main.custom_report_pdf'] %}
   {% set integrations_active = request.endpoint and request.endpoint.startswith('integrations.') %}
   {% set mobile_hub_active = request.endpoint in ['pwa.mobile_hub', 'pwa.mobile_qr'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
@@ -78,7 +79,7 @@
           <i class="bi bi-house-door"></i>
           <span>{{ _("Ana Sayfa") }}</span>
         </a>
-        {% if iso_management_summary_visible or management_due_dashboard_visible %}
+        {% if iso_management_summary_visible or management_due_dashboard_visible or report_center_visible %}
           <div class="dashboard-nav-group {% if company_management_status_active %}active{% endif %}">
             <button class="dashboard-nav-item dashboard-nav-toggle dashboard-nav-item-wrap {% if company_management_status_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#companyManagementStatusNav" aria-expanded="{{ 'true' if company_management_status_active else 'false' }}" aria-controls="companyManagementStatusNav" title="Şirket İçi Yönetim Durumu">
               <i class="bi bi-clipboard-data"></i>
@@ -96,6 +97,12 @@
                 <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if management_due_dashboard_active %}active{% endif %}" href="{{ url_for('main.management_due_dashboard') }}">
                   <i class="bi bi-calendar2-week"></i>
                   <span>{{ _("Yönetici Termin Paneli") }}</span>
+                </a>
+              {% endif %}
+              {% if report_center_visible %}
+                <a class="dashboard-subnav-item dashboard-subnav-item-wrap {% if report_center_active %}active{% endif %}" href="{{ url_for('main.report_center') }}">
+                  <i class="bi bi-bar-chart-line"></i>
+                  <span>{{ _("Rapor Merkezi") }}</span>
                 </a>
               {% endif %}
             </div>
@@ -363,12 +370,6 @@
         <a class="dashboard-nav-item {% if supplier_management_active %}active{% endif %}" href="{{ url_for('main.supplier_dashboard') }}">
           <i class="bi bi-truck"></i>
           <span>{{ _("Tedarikçi Değerlendirme") }}</span>
-        </a>
-        {% endif %}
-        {% if g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export') or g.current_user.has_permission('reports.design') or g.current_user.has_permission('reports.manage')) %}
-        <a class="dashboard-nav-item {% if report_center_active %}active{% endif %}" href="{{ url_for('main.report_center') }}">
-          <i class="bi bi-bar-chart-line"></i>
-          <span>{{ _("Rapor Merkezi") }}</span>
         </a>
         {% endif %}
         {% if g.current_company and g.company_module_enabled('integration_management') and g.current_user.has_permission('integrations.view') %}
