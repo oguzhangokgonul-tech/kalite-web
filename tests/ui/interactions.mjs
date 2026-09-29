@@ -7,6 +7,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:5067';
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const completed = [];
 const failures = [];
+const runId = Date.now();
 try {
  for (const width of [360, 820, 1024]) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch:true, isMobile:width<768 });
@@ -57,6 +58,7 @@ try {
     assert.equal(await page.locator('.vp-responsive-table thead').first().evaluate(e=>getComputedStyle(e).display),'table-header-group');
     if(url==='/documents/list') {
      assert.ok(await page.locator('.vp-responsive-table tbody tr').first().evaluate(el=>el.getBoundingClientRect().height<180));
+     assert.equal(await page.evaluate(()=>Math.max(0,document.documentElement.scrollWidth-innerWidth)),0);
      await page.screenshot({path:`.tmp-ui-audit/responsive/${width}-documents-table-final.png`,fullPage:true});
     }
     await group.getByRole('button',{name:'Liste görünümü',exact:true}).click();
@@ -95,7 +97,7 @@ try {
   });
   await check('personnel create, edit and report download',async()=>{
    await page.goto(base+'/insan-kaynaklari/personel-listesi/yeni',{waitUntil:'domcontentloaded'});
-   const name=`Mobil Çalışan ${width}`;
+   const name=`Mobil Çalışan ${width}-${runId}`;
    await page.locator('[name="full_name"]').fill(name);
    await page.locator('[name="phone"]').fill(`0532000${width}`);
    await page.locator('[name="title"]').fill('Kalite Sorumlusu');

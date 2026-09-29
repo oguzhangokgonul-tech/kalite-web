@@ -9,60 +9,6 @@
     .customer-portal-body header > span { flex-shrink: 0; }
     .customer-portal-body h1 { font-size: 24px; overflow-wrap: anywhere; }
     .dashboard-body { font-size: 15px; }
-    .dashboard-body .dashboard-app,
-    .dashboard-body .dashboard-app:has(.dashboard-sidebar:hover),
-    .dashboard-body .dashboard-app:has(.dashboard-sidebar:focus-within) {
-        display: block;
-        grid-template-columns: none;
-    }
-    .dashboard-body .dashboard-main { width: 100%; margin: 0; }
-    .dashboard-body .dashboard-content {
-        width: 100%; max-width: 100%; padding: 76px 20px 28px;
-    }
-    .dashboard-body .dashboard-sidebar.offcanvas-xl {
-        --bs-offcanvas-width: min(320px, calc(100vw - 32px));
-        display: flex; flex-direction: column;
-        position: fixed; inset: 0 auto 0 0;
-        width: var(--bs-offcanvas-width); height: 100dvh; max-height: 100dvh;
-        z-index: 1045; visibility: hidden; clip-path: none;
-        background: var(--vp-surface, #fff) !important;
-        contain: layout paint style;
-        transform: translate3d(-100%, 0, 0);
-        transition: transform 175ms cubic-bezier(.2, .8, .2, 1) !important;
-    }
-    .dashboard-body .dashboard-sidebar.offcanvas-xl:is(.show, .showing) {
-        visibility: visible; transform: translate3d(0, 0, 0);
-    }
-    .dashboard-body .dashboard-sidebar.offcanvas-xl.hiding { visibility: visible; }
-    .dashboard-sidebar.offcanvas-xl .offcanvas-header { display: flex !important; flex: 0 0 auto; }
-    .dashboard-body .dashboard-sidebar .offcanvas-body {
-        display: flex; flex-direction: column; flex: 1 1 auto;
-        height: auto; min-height: 0; padding: 12px;
-    }
-    .dashboard-body .dashboard-sidebar .dashboard-brand-logo {
-        width: 178px; max-width: 178px; transform: none; filter: none;
-    }
-    .dashboard-body .dashboard-sidebar :is(.dashboard-nav-item span, .dashboard-nav-chevron,
-        .sidebar-quick-link span, .dashboard-logout span, .dashboard-sidebar-user > div,
-        .dashboard-subnav) {
-        opacity: 1; transform: none; pointer-events: auto; max-width: none;
-    }
-    .dashboard-body .dashboard-sidebar:not(:hover):not(:focus-within) .dashboard-subnav.collapse.show {
-        display: grid;
-    }
-    .dashboard-body .dashboard-sidebar :is(.dashboard-nav-item, .sidebar-quick-link, .dashboard-logout) {
-        justify-content: flex-start; gap: 12px; padding-inline: 12px;
-        min-height: 44px; font-size: 14px; font-weight: 500;
-    }
-    .dashboard-body .dashboard-sidebar .dashboard-subnav-item { min-height: 44px; font-size: 14px; }
-    .dashboard-body .dashboard-sidebar .dashboard-nav-item span { white-space: normal; }
-    .dashboard-body .dashboard-sidebar .dashboard-nav-chevron { margin-left: auto; }
-    .dashboard-body .dashboard-mobile-menu-button {
-        display: inline-flex !important; position: fixed; top: max(12px, env(safe-area-inset-top));
-        left: max(12px, env(safe-area-inset-left)); width: 48px; height: 48px;
-        z-index: 1035; background: #fff; border: 1px solid var(--vp-border);
-        box-shadow: 0 2px 8px #15233a14;
-    }
     .dashboard-body :is(.btn, .vp-action-btn, .document-action-btn, .table-disclosure-toggle,
         .org-toolbar-button, .audit-report-toolbar-button) {
         min-width: 44px; min-height: 44px; white-space: normal; line-height: 1.35;
@@ -288,29 +234,15 @@
     .notification-menu { max-width: calc(100vw - 24px); }
 }
 
-@media screen and (max-width: 399.98px) {
+@media screen and (max-width: 359.98px) {
     .dashboard-body .vp-records-active .vp-responsive-table > tbody > tr.vp-record-row {
         grid-template-columns: minmax(0, 1fr);
     }
 }
 
-@media screen and (max-width: 1199.98px) and (max-height: 600px),
-       screen and (hover: none) and (pointer: coarse) and (max-height: 600px) {
-    .dashboard-body .dashboard-sidebar .offcanvas-body { overflow-y: auto; }
-    .dashboard-body .dashboard-sidebar-nav { flex: 0 0 auto; overflow-y: visible; }
-    .dashboard-body .dashboard-sidebar-brand { display: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .dashboard-body .dashboard-sidebar.offcanvas-xl { transition: none !important; }
-}
 @media (min-width: 768px) {
   .report-catalog > summary {
     display: none;
-  }
-
-  .report-catalog:not([open]) > .report-card-grid {
-    display: flex;
   }
 }
 

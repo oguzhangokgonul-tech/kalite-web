@@ -9,6 +9,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="{{ (g.current_company.name if g.current_company else config.SITE_NAME) | truncate(24, True, '') }}">
     <title>{% block title %}Dashboard{% endblock %} | {{ config.SITE_NAME }}</title>
+    <script>
+      try {
+        document.documentElement.dataset.navMode = localStorage.getItem('vp-nav-mode') === 'compact' ? 'compact' : 'expanded';
+      } catch (_) { document.documentElement.dataset.navMode = 'expanded'; }
+    </script>
     <link rel="manifest" href="{{ url_for('pwa.manifest') }}">
     <link rel="icon" href="{{ url_for('static', filename='brand/favicon/favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='brand/favicon/favicon-32x32.png') }}">
@@ -36,6 +41,8 @@
     {% block head_extra %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css', v=config.ASSET_VERSION) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa.css', v=config.ASSET_VERSION) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace-ui.css', v=config.ASSET_VERSION) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css', v=config.ASSET_VERSION) }}">
   </head>
   <body class="{% block body_class %}{% endblock %}">
     {% block navbar %}
@@ -101,6 +108,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       window.VolkaportalI18n = Object.freeze({
+        filters: {{ _("Filtreler")|tojson }},
         online: {{ _("Çevrimiçi")|tojson }},
         offline: {{ _("Çevrimdışı")|tojson }},
         install: {{ _("Uygulamayı Yükle")|tojson }},
@@ -114,7 +122,7 @@
 
         function ensureFormToken(form) {
           if (!(form instanceof HTMLFormElement)) return;
-          if ((form.method || "get").toLowerCase() !== "post") return;
+          if ((form.getAttribute("method") || "get").toLowerCase() !== "post") return;
           if (form.querySelector('input[name="csrf_token"]')) return;
           const input = document.createElement("input");
           input.type = "hidden";
@@ -265,6 +273,7 @@
       </script>
     {% endif %}
     <script defer src="{{ url_for('static', filename='js/responsive.js', v=config.ASSET_VERSION) }}"></script>
+    <script defer src="{{ url_for('static', filename='js/navigation.js', v=config.ASSET_VERSION) }}"></script>
     <script defer src="{{ url_for('static', filename='js/pwa.js', v=config.ASSET_VERSION) }}"></script>
     {% block scripts %}{% endblock %}
   </body>

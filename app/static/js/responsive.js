@@ -10,6 +10,36 @@
   try { preference = sessionStorage.getItem('vp-list-view'); } catch (_) { /* Storage may be disabled. */ }
   if (!['records', 'table'].includes(preference)) preference = null;
 
+  content.querySelectorAll('.report-catalog').forEach(catalog => {
+    const sync = () => { catalog.open = !phone.matches; };
+    phone.addEventListener('change', sync);
+    sync();
+  });
+
+  content.querySelectorAll('form:is(.dashboard-filter-card, .documents-list-tools)[method="get"]').forEach((form, index) => {
+    form.classList.add('vp-filter-panel');
+    if (!form.id) form.id = `vpFilterPanel${index}`;
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn btn-outline-secondary vp-filter-toggle';
+    toggle.setAttribute('aria-controls', form.id);
+    const icon = document.createElement('i');
+    icon.className = 'bi bi-funnel';
+    icon.setAttribute('aria-hidden', 'true');
+    const arrow = document.createElement('i');
+    arrow.className = 'bi bi-chevron-down';
+    arrow.setAttribute('aria-hidden', 'true');
+    toggle.append(icon, document.createTextNode(window.VolkaportalI18n?.filters || 'Filtreler'), arrow);
+    const params = new URLSearchParams(location.search);
+    const active = [...form.elements].some(control => control.name && params.has(control.name) && control.value);
+    form.classList.toggle('is-open', active);
+    const sync = () => toggle.setAttribute('aria-expanded', String(!phone.matches || form.classList.contains('is-open')));
+    toggle.addEventListener('click', () => { form.classList.toggle('is-open'); sync(); });
+    phone.addEventListener('change', sync);
+    sync();
+    form.before(toggle);
+  });
+
   function resetTable(table, scroll = false) {
     const state = tables.get(table);
     if (state) {

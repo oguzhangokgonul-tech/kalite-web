@@ -21,6 +21,16 @@ from app.reporting import resolve_report_period
 from app.routes import MODULE_ACTIVITY_ENTITY_TYPES, REPORT_CENTER_REPORTS, REPORT_PERIOD_POLICIES
 
 
+@pytest.fixture(autouse=True)
+def report_clock(monkeypatch):
+    class ReportDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 9, 28)
+
+    monkeypatch.setattr("app.reporting.date", ReportDate)
+
+
 @pytest.fixture()
 def app(tmp_path):
     class TestConfig:

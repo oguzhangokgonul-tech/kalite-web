@@ -67,13 +67,24 @@
       <button class="btn-close" type="button" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="{{ _('Kapat') }}"></button>
     </div>
     <div class="offcanvas-body">
-      <a class="dashboard-sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="{{ config.SITE_NAME }} ana sayfa">
+      <div class="vp-nav-brand-row">
+      <a class="dashboard-sidebar-brand" href="{{ url_for('main.dashboard') }}" aria-label="{{ config.get('SITE_NAME', 'VolkaPortal') }} {{ _('Ana Sayfa') }}">
         {% if g.current_company and g.current_company.logo_file_path %}
           <img class="dashboard-brand-logo sidebar-logo-expanded" src="{{ url_for('main.company_logo', company_id=g.current_company.id) }}" alt="{{ g.current_company.name }}" width="400" height="105">
         {% else %}
         <img class="dashboard-brand-logo sidebar-logo-expanded" src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-400.png') }}" alt="VolkaPortal — Kurumsal Süreç Yönetim Platformu" width="400" height="105">
         {% endif %}
+        <img class="vp-brand-mark" src="{{ url_for('static', filename='brand/favicon/favicon-32x32.png') }}" alt="" width="32" height="32">
       </a>
+      <button class="vp-nav-mode-button" type="button" data-nav-mode-toggle aria-controls="dashboardSidebar" aria-expanded="true" aria-label="{{ _('Menüyü küçült') }}" title="{{ _('Menüyü küçült') }}" data-expand-label="{{ _('Menüyü genişlet') }}" data-collapse-label="{{ _('Menüyü küçült') }}">
+        <i class="bi bi-layout-sidebar-inset" aria-hidden="true"></i>
+      </button>
+      </div>
+      <div class="vp-nav-search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <label class="visually-hidden" for="vpNavSearch">{{ _('Menüde ara') }}</label>
+        <input id="vpNavSearch" type="search" placeholder="{{ _('Menüde ara') }}" autocomplete="off">
+      </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana men&#252;" tabindex="0">
         <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
@@ -443,6 +454,7 @@
           <i class="bi bi-lightning-charge"></i><span>{{ _("Enerji Yönetimi") }}</span>
         </a>
         {% endif %}
+        <p class="vp-nav-empty" hidden role="status">{{ _('Eşleşen menü bulunamadı.') }}</p>
       </nav>
       <div class="dashboard-sidebar-bottom">
         <a class="sidebar-quick-link {% if mobile_hub_active %}active{% endif %}" href="{{ url_for('pwa.mobile_hub') }}">
@@ -493,11 +505,21 @@
     </div>
   </aside>
 
-  <button class="dashboard-mobile-menu-button btn btn-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="{{ _('Menüyü aç') }}">
-    <i class="bi bi-list"></i>
-  </button>
-
   <div class="dashboard-main">
+    <header class="vp-workspace-bar">
+      <button class="dashboard-mobile-menu-button btn btn-icon d-xl-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="{{ _('Menüyü aç') }}">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+      <div class="vp-workspace-identity">
+        <span class="vp-workspace-name">{{ g.current_company.name if g.current_company else config.get('SITE_NAME', 'VolkaPortal') }}</span>
+        <span class="vp-workspace-caption">{% block topbar_title %}{{ _('Çalışma Alanı') }}{% endblock %}</span>
+      </div>
+      <div class="vp-workspace-tools">
+        <a class="vp-toolbar-icon" href="{{ url_for('main.assigned_tasks') }}" aria-label="{{ _('Görevlerim') }}" title="{{ _('Görevlerim') }}"><i class="bi bi-check2-square" aria-hidden="true"></i></a>
+        <a class="vp-toolbar-icon" href="{{ url_for('main.notifications') }}" aria-label="{{ _('Bildirimler') }}" title="{{ _('Bildirimler') }}"><i class="bi bi-bell" aria-hidden="true"></i><span class="vp-toolbar-count {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span></a>
+        <span class="vp-workspace-avatar" title="{{ g.current_user.full_name }}">{{ g.current_user_initials }}</span>
+      </div>
+    </header>
     <section class="dashboard-content {% block content_extra_class %}{% endblock %}" id="dashboardMainContent" tabindex="-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}

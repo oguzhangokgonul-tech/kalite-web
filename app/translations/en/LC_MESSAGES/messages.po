@@ -500,3 +500,27 @@ msgstr "For security, VolkaPortal data is not stored offline. Check your interne
 #: app/templates/pwa/offline.html:24
 msgid "Yeniden Dene"
 msgstr "Try Again"
+
+#: app/templates/app_shell.html
+msgid "Menüyü küçült"
+msgstr "Collapse navigation"
+
+#: app/templates/app_shell.html
+msgid "Menüyü genişlet"
+msgstr "Expand navigation"
+
+#: app/templates/app_shell.html
+msgid "Menüde ara"
+msgstr "Search navigation"
+
+#: app/templates/app_shell.html
+msgid "Eşleşen menü bulunamadı."
+msgstr "No matching menu items."
+
+#: app/templates/app_shell.html
+msgid "Çalışma Alanı"
+msgstr "Workspace"
+
+#: app/templates/base.html
+msgid "Filtreler"
+msgstr "Filters"

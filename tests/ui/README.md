@@ -21,6 +21,7 @@ Başka bir terminalde Node.js, Playwright ve Google Chrome kullanarak:
 ```powershell
 $env:UI_BASE_URL = 'http://127.0.0.1:5067'
 node tests/ui/responsive.mjs
+node tests/ui/navigation.mjs
 node tests/ui/interactions.mjs
 node tests/ui/workflows.mjs
 node tests/ui/touch.mjs
@@ -39,6 +40,10 @@ olun; testleri aynı veritabanında sırayla çalıştırın.
 
 ## Kapsam
 
+- `navigation.mjs`: açık/dar menü, tercih kalıcılığı, Türkçe arama, alt menüler,
+  ekran boyutu geçişleri, klavye odağı, kısa ekran ve çıkış erişimi; altı rol,
+  azaltılmış hareket ve kapalı tarayıcı depolaması. Mobil filtre ve masaüstü
+  rapor kataloğu erişimini de doğrular. Çıktılar `.tmp-ui-audit/navigation/`.
 - `responsive.mjs`: menüdeki modüller, oluşturma ekranları ve örnek detaylar;
   HTTP yanıtı, JavaScript hatası, sayfa taşması, form sınırları, altı temel rolün
   menü bağlantıları. Telefon/tablet/masaüstü ekran görüntülerini üretir.

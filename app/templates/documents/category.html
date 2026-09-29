@@ -32,22 +32,22 @@
       <i class="bi bi-arrow-left"></i>
       <span>Geri Dön</span>
     </a>
+    {% if can_manage_documents %}
+      <a class="btn btn-primary" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni Doküman</span>
+      </a>
+    {% endif %}
   {% endcall %}
 
   <section class="documents-table-card vp-table-card documents-list-card">
     <div class="documents-list-header">
-      <div class="documents-list-title">
-        <span class="documents-list-icon"><i class="bi bi-file-earmark-text"></i></span>
-        <div>
-          <h2>{{ page_title if category else "Doküman Listesi" }}</h2>
-          <p>Toplam {{ documents|length }} kayıt bulundu</p>
-        </div>
-      </div>
+      <p class="documents-list-count">Toplam {{ documents|length }} kayıt bulundu</p>
 
       <form class="documents-list-tools" method="get">
         <div class="dashboard-search-control documents-list-search">
           <i class="bi bi-search"></i>
-          <input class="form-control" id="search" name="search" value="{{ filters.search }}" placeholder="Doküman, kod veya açıklama ara...">
+          <input class="form-control" id="search" name="search" value="{{ filters.search }}" aria-label="Doküman ara" placeholder="Doküman, kod veya açıklama ara...">
         </div>
         <select class="form-select documents-list-select" id="status" name="status" aria-label="Durum filtresi">
           <option value="">Tüm durumlar</option>
@@ -68,12 +68,6 @@
         <a class="btn btn-outline-secondary documents-clear-button" href="{{ url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_list') }}" aria-label="Temizle">
           <i class="bi bi-arrow-clockwise"></i>
         </a>
-        {% if can_manage_documents %}
-          <a class="btn btn-primary documents-new-button" href="{{ url_for('main.upload_document', category=category.slug) if category else url_for('main.upload_document') }}">
-            <i class="bi bi-plus-lg"></i>
-            <span>Yeni Doküman</span>
-          </a>
-        {% endif %}
       </form>
     </div>
 
