@@ -1,0 +1,57 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Yerel Kayıt Analizi{% endblock %}
+{% block app_content %}
+  {% call ui.page_header("Yerel Kayıt Analizi", scope_label, icon="bi-intersect") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.report_center') }}"><i class="bi bi-arrow-left"></i><span>Rapor Merkezi</span></a>
+    {% if data and can_export %}
+      <a class="btn btn-primary" href="{{ url_for('record_analysis.excel', source=data.source) }}"><i class="bi bi-download"></i><span>Excel İndir</span></a>
+    {% endif %}
+  {% endcall %}
+  <form class="d-flex flex-wrap align-items-end gap-2 border-bottom pb-3 mb-3" method="get">
+    <div><label class="form-label" for="analysis-source">Modül</label>
+      <select class="form-select" name="source" id="analysis-source">
+        {% for key, label in sources.items() %}<option value="{{ key }}" {% if data and data.source == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit" {% if not sources %}disabled{% endif %}><i class="bi bi-search"></i><span>Analiz Et</span></button>
+  </form>
+  {% if data %}
+    <div class="d-flex flex-wrap gap-3 mb-3 small text-secondary">
+      <span>Yerel analiz · Üretken AI yok</span>
+      <span>{{ data.records|length }} kayıt · Son {{ data.record_limit }} kayıt kapsamı</span>
+      <span>{{ data.generated_at.strftime('%d.%m.%Y %H:%M') }} UTC</span>
+      {% if data.limited %}<strong class="text-warning-emphasis">Kayıt sınırı uygulandı</strong>{% endif %}
+    </div>
+    <section class="border-bottom pb-3 mb-3" aria-labelledby="analysis-summary">
+      <h2 class="h6" id="analysis-summary">Durum Özeti</h2>
+      <dl class="d-flex flex-wrap gap-4 mb-0">
+        {% for name, count in data.statuses %}<div><dt class="small fw-normal">{{ name }}</dt><dd class="h5 mb-0">{{ count }}</dd></div>{% else %}<p class="text-secondary mb-0">Yetkiniz kapsamında kayıt bulunamadı.</p>{% endfor %}
+      </dl>
+    </section>
+    <section class="border-bottom pb-3 mb-3" aria-labelledby="analysis-pairs">
+      <h2 class="h6" id="analysis-pairs">Benzer Kayıt Adayları <span class="text-secondary">({{ data.pair_count }})</span></h2>
+      <p class="small text-secondary">Başlık benzerliği · Kesin mükerrerlik kararı değildir · En yüksek 20 eşleşme</p>
+      {% for pair in data.pairs %}
+        <div class="border-top py-2 d-flex flex-wrap gap-2 align-items-center">
+          <span class="badge text-bg-light">%{{ pair.score }}</span>
+          <a class="text-break" href="{{ pair.left.url }}">{{ pair.left.code }} · {{ pair.left.title }}</a>
+          <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+          <a class="text-break" href="{{ pair.right.url }}">{{ pair.right.code }} · {{ pair.right.title }}</a>
+        </div>
+      {% else %}<p class="text-secondary mb-0">İncelenen kayıtlarda eşik üzerinde benzer başlık bulunamadı.</p>{% endfor %}
+    </section>
+    <section aria-labelledby="analysis-records">
+      <h2 class="h6" id="analysis-records">Kaynak Kayıtlar</h2>
+      {% for record in data.records %}
+        <article class="border-top py-3">
+          <div class="d-flex flex-wrap gap-2 justify-content-between">
+            <h3 class="h6 text-break mb-1"><a href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></h3>
+            <span class="small text-secondary">{{ record.status }}{% if record.due %} · {{ record.due.strftime('%d.%m.%Y') }}{% endif %}</span>
+          </div>
+          {% if record.excerpt %}<p class="small text-secondary text-break mb-0">{{ record.excerpt }}</p>{% endif %}
+        </article>
+      {% endfor %}
+    </section>
+  {% else %}<p class="text-secondary">Bu şirket için analiz edilebilecek açık modül bulunamadı.</p>{% endif %}
+{% endblock %}

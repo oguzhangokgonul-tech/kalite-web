@@ -6,6 +6,7 @@
 {% block app_content %}
   {% call ui.page_header("Rapor Merkezi", "ISO 9001 denetim kanıtları ve yönetici özetleri için modül bazlı Excel ve PDF çıktıları.", icon="bi-bar-chart-line") %}
     <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-primary" href="{{ url_for('record_analysis.dashboard') }}"><i class="bi bi-intersect"></i><span>Yerel Kayıt Analizi</span></a>
       <span class="vp-status-badge vp-status-blue">
         <i class="bi bi-buildings"></i>
         <span>{{ scope_label }}</span>

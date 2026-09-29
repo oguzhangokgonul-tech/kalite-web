@@ -289,6 +289,18 @@ DEFAULT_COMPANY_PRIMARY_COLOR = "#1e5bff"
 DEFAULT_COMPANY_ACCENT_COLOR = "#00bbaa"
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
+SALES_READINESS_DEFERRED = {
+    "competitor_esignature": {
+        "scope": "E-imza entegrasyonu",
+        "date": "2026-09-29",
+        "reason": "Lider kararıyla aktif satış kapsamından ertelendi. Mevcut elektronik onay korunur.",
+    },
+    "competitor_sso_mfa": {
+        "scope": "SSO/MFA",
+        "date": "2026-09-29",
+        "reason": "Lider kararıyla aktif satış kapsamından ertelendi.",
+    },
+}
 LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS = {
     "static",
     "pwa.manifest",
@@ -3039,6 +3051,8 @@ MODULE_ENDPOINTS = {
     "main.delete_supplier_survey": "supplier_management",
     "main.deactivate_supplier": "supplier_management",
     "main.report_center": "report_center",
+    "record_analysis.dashboard": "report_center",
+    "record_analysis.excel": "report_center",
     "main.download_report_center_excel": "report_center",
     "main.report_center_pdf": "report_center",
     "main.download_module_activity_report_excel": "report_center",
@@ -6331,6 +6345,10 @@ def sales_readiness_item_ids():
     }
 
 
+def sales_readiness_active_item_ids():
+    return sales_readiness_item_ids() - SALES_READINESS_DEFERRED.keys()
+
+
 def strip_sales_readiness_prefix(key):
     if key.startswith(SALES_READINESS_SETTING_PREFIX):
         return key[len(SALES_READINESS_SETTING_PREFIX):]
@@ -6342,7 +6360,7 @@ def sales_readiness_completed_ids():
         AppSetting.key.like(f"{SALES_READINESS_SETTING_PREFIX}%"),
         AppSetting.value == "1",
     ).all()
-    valid_ids = sales_readiness_item_ids()
+    valid_ids = sales_readiness_active_item_ids()
     return {
         strip_sales_readiness_prefix(setting.key)
         for setting in settings
@@ -6432,15 +6450,22 @@ def can_view_audit_log():
 def sales_readiness_context():
     completed_ids = sales_readiness_completed_ids()
     sections = []
+    deferred_items = []
+    next_item = None
     total_count = 0
     completed_count = 0
     for section in SALES_READINESS_SECTIONS:
         items = []
         section_completed = 0
         for item_id, label in section["items"]:
+            if item_id in SALES_READINESS_DEFERRED:
+                deferred_items.append({"id": item_id, **SALES_READINESS_DEFERRED[item_id]})
+                continue
             is_done = item_id in completed_ids
             section_completed += 1 if is_done else 0
             items.append({"id": item_id, "label": label, "is_done": is_done})
+            if next_item is None and not is_done:
+                next_item = {"id": item_id, "label": label, "section_title": section["title"]}
         item_count = len(items)
         total_count += item_count
         completed_count += section_completed
@@ -6449,6 +6474,7 @@ def sales_readiness_context():
                 "title": section["title"],
                 "items": items,
                 "completed_count": section_completed,
+                "remaining_count": item_count - section_completed,
                 "total_count": item_count,
                 "progress": round((section_completed / item_count) * 100) if item_count else 0,
             }
@@ -6456,6 +6482,10 @@ def sales_readiness_context():
     progress = round((completed_count / total_count) * 100) if total_count else 0
     return {
         "sections": sections,
+        "deferred_items": deferred_items,
+        "deferred_count": len(deferred_items),
+        "catalog_total_count": len(sales_readiness_item_ids()),
+        "next_item": next_item,
         "total_count": total_count,
         "completed_count": completed_count,
         "remaining_count": total_count - completed_count,
@@ -6464,7 +6494,7 @@ def sales_readiness_context():
 
 
 def save_sales_readiness_state(selected_ids):
-    valid_ids = sales_readiness_item_ids()
+    valid_ids = sales_readiness_active_item_ids()
     selected_ids = selected_ids & valid_ids
     existing_settings = {
         strip_sales_readiness_prefix(setting.key): setting
@@ -6480,7 +6510,8 @@ def save_sales_readiness_state(selected_ids):
                 db.session.add(setting)
             setting.value = "1"
         elif setting is not None:
-            db.session.delete(setting)
+            # Keep an explicit opt-out so runtime defaults cannot re-complete it.
+            setting.value = "0"
     db.session.commit()
 
 

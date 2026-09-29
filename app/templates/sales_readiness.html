@@ -3,76 +3,115 @@
 
 {% block title %}Satışa Hazırlık{% endblock %}
 
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .sales-readiness { width: 100%; min-width: 0; letter-spacing: 0; }
+    .sales-readiness .readiness-stats { display: flex; flex-wrap: wrap; gap: 16px 32px; }
+    .sales-readiness .readiness-stats dd { margin: 0; font-size: 20px; font-weight: 600; }
+    .sales-readiness .readiness-stats dt { font-size: 13px; color: var(--bs-secondary-color); font-weight: 400; }
+    .sales-readiness .readiness-category { border-bottom: 1px solid var(--bs-border-color); }
+    .sales-readiness summary { padding: 12px 0; cursor: pointer; overflow-wrap: anywhere; }
+    .sales-readiness .readiness-category-title { font-weight: 600; }
+    .sales-readiness .readiness-category-count { display: inline-block; margin-left: 8px; font-size: 13px; color: var(--bs-secondary-color); }
+    .sales-readiness .readiness-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 8px; min-height: 44px; scroll-margin-top: 96px; }
+    .sales-readiness .readiness-item:target { background: var(--bs-tertiary-bg); outline: 2px solid var(--bs-primary); outline-offset: -2px; }
+    .sales-readiness .readiness-item input { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 3px; }
+    .sales-readiness .readiness-item label { flex: 1; min-width: 0; cursor: pointer; overflow-wrap: anywhere; }
+    .sales-readiness .readiness-item small { display: block; color: var(--bs-secondary-color); }
+    .sales-readiness .readiness-next, .sales-readiness .readiness-deferred { overflow-wrap: anywhere; }
+    .sales-readiness .readiness-deferred h3 { font-size: 15px; }
+  </style>
+{% endblock %}
+
 {% block app_content %}
-  {% call ui.page_header("Satışa Hazırlık", "VolkaPortal'ı SaaS ISO 9001 KYS ürünü olarak satışa hazırlama checklist'i.", icon="bi-rocket-takeoff") %}
-    <button class="btn btn-primary btn-lg" form="sales-readiness-form" type="submit">
-      <i class="bi bi-check2-circle"></i>
+  {% call ui.page_header("Satışa Hazırlık", "ISO 9001 KYS Çekirdek", icon="bi-rocket-takeoff") %}
+    <button class="btn btn-primary" form="sales-readiness-form" type="submit">
+      <i class="bi bi-check2-circle" aria-hidden="true"></i>
       <span>İlerlemeyi Kaydet</span>
     </button>
   {% endcall %}
 
-  <section class="row g-3 mb-4">
-    <div class="col-md-4">
-      <div class="document-list-card h-100 p-4">
-        <span class="text-secondary small fw-semibold">Toplam İlerleme</span>
-        <div class="d-flex align-items-end gap-2 mt-2">
-          <strong class="display-6 lh-1">{{ progress }}%</strong>
-          <span class="text-secondary mb-1">{{ completed_count }} / {{ total_count }} madde</span>
-        </div>
-        <div class="progress mt-3" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
-          <div class="progress-bar" style="width: {{ progress }}%"></div>
-        </div>
+  <div class="sales-readiness">
+    <section class="border-bottom pb-3 mb-3" aria-label="Aktif ilerleme">
+      <dl class="readiness-stats mb-3">
+        <div><dt>Aktif İlerleme</dt><dd>{{ completed_count }} / {{ total_count }} madde</dd></div>
+        <div><dt>Tamamlanma</dt><dd>{{ progress }}%</dd></div>
+        <div><dt>Kalan</dt><dd>{{ remaining_count }}</dd></div>
+        <div><dt>Ertelenen</dt><dd>{{ deferred_count }}</dd></div>
+        <div><dt>Genel Toplam</dt><dd>{{ catalog_total_count }}</dd></div>
+      </dl>
+      <div class="progress" role="progressbar" aria-label="Aktif tamamlanma oranı" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar" style="width: {{ progress }}%"></div>
       </div>
-    </div>
-    <div class="col-md-4">
-      <div class="document-list-card h-100 p-4">
-        <span class="text-secondary small fw-semibold">Kalan İş</span>
-        <strong class="display-6 d-block mt-2">{{ remaining_count }}</strong>
-        <span class="text-secondary">Satış öncesi tamamlanacak madde</span>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="document-list-card h-100 p-4">
-        <span class="text-secondary small fw-semibold">Hedef Paket</span>
-        <strong class="h4 d-block mt-2 mb-1">ISO 9001 KYS Çekirdek</strong>
-        <span class="text-secondary">KOBİ üretim firmaları için SaaS</span>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <form id="sales-readiness-form" method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <div class="row g-3">
+    <section class="readiness-next border-bottom pb-3 mb-2" aria-labelledby="readiness-next-heading">
+      <h2 class="h6 mb-2" id="readiness-next-heading">Sıradaki İş</h2>
+      {% if next_item %}
+        <a href="#readiness-{{ next_item.id }}" id="readiness-next-link" class="fw-semibold">
+          <i class="bi bi-arrow-down" aria-hidden="true"></i> {{ next_item.label }}
+        </a>
+        <p class="small text-secondary mb-0 mt-1">{{ next_item.section_title }}</p>
+      {% else %}
+        <p class="mb-0">Aktif maddeler tamamlandı.</p>
+      {% endif %}
+    </section>
+
+    <form id="sales-readiness-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for section in sections %}
-        <div class="col-xl-6">
-          <section class="document-list-card h-100 p-4">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-              <div>
-                <h2 class="h5 mb-1">{{ section.title }}</h2>
-                <p class="text-secondary mb-0">{{ section.completed_count }} / {{ section.total_count }} tamamlandı</p>
-              </div>
-              <span class="vp-status-badge vp-status-blue">
-                <i class="bi bi-graph-up"></i>
-                <span>{{ section.progress }}%</span>
-              </span>
+        <details class="readiness-category" {% if next_item and next_item.id in section['items']|map(attribute='id') %}open{% endif %}>
+          <summary>
+            <span class="readiness-category-title">{{ section.title }}</span>
+            <span class="readiness-category-count">{{ section.completed_count }} / {{ section.total_count }} tamamlandı · {{ section.remaining_count }} kalan</span>
+          </summary>
+          {% for item in section["items"] %}
+            <div class="readiness-item" id="readiness-{{ item.id }}">
+              <input class="form-check-input" id="check-{{ item.id }}" type="checkbox" name="completed_items" value="{{ item.id }}" {% if item.is_done %}checked{% endif %}>
+              <label for="check-{{ item.id }}">
+                {{ item.label }}
+                <small>{{ "Tamamlandı" if item.is_done else "Bekliyor" }}</small>
+                {% if item.id == 'competitor_ai_assistants' and not item.is_done %}
+                  <small>Yerel ön analiz: geliştirme kapsamında · Üretken AI: bekliyor</small>
+                {% endif %}
+              </label>
             </div>
-            <div class="progress mb-3" role="progressbar" aria-valuenow="{{ section.progress }}" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar" style="width: {{ section.progress }}%"></div>
-            </div>
-            <div class="vstack gap-2">
-              {% for item in section["items"] %}
-                <label class="border rounded-3 p-3 d-flex align-items-start gap-3 bg-white">
-                  <input class="form-check-input mt-1" type="checkbox" name="completed_items" value="{{ item.id }}" {% if item.is_done %}checked{% endif %}>
-                  <span>
-                    <strong class="d-block">{{ item.label }}</strong>
-                    <small class="text-secondary">{{ "Tamamlandı" if item.is_done else "Bekliyor" }}</small>
-                  </span>
-                </label>
-              {% endfor %}
-            </div>
-          </section>
+          {% endfor %}
+        </details>
+      {% endfor %}
+    </form>
+
+    <section class="readiness-deferred mt-4" aria-labelledby="readiness-deferred-heading">
+      <h2 class="h6 mb-2" id="readiness-deferred-heading">Ertelenenler <span class="text-secondary">({{ deferred_count }})</span></h2>
+      {% for item in deferred_items %}
+        <div class="border-top py-3" id="deferred-{{ item.id }}">
+          <h3 class="mb-1">{{ item.scope }} <span class="text-secondary fw-normal">· Ertelendi</span></h3>
+          <p class="small text-secondary mb-0"><time datetime="{{ item.date }}">{{ item.date }}</time> · {{ item.reason }}</p>
         </div>
       {% endfor %}
-    </div>
-  </form>
+    </section>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (() => {
+      function revealItem(hash) {
+        if (!hash.startsWith('#readiness-')) return;
+        const item = document.getElementById(hash.slice(1));
+        const category = item?.closest('details.readiness-category');
+        if (!category) return;
+        category.open = true;
+        item.scrollIntoView({ block: 'center' });
+        item.querySelector('input')?.focus({ preventScroll: true });
+      }
+      document.getElementById('readiness-next-link')?.addEventListener('click', (event) => {
+        revealItem(event.currentTarget.hash);
+      });
+      window.addEventListener('hashchange', () => revealItem(window.location.hash));
+      revealItem(window.location.hash);
+    })();
+  </script>
 {% endblock %}
