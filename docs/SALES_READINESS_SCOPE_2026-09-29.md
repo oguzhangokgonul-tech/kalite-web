@@ -27,27 +27,39 @@ izlerini kaldirmaz. Bunlar sertifikali e-imza olarak tanitilmaz.
 - Isareti kaldirilan mevcut madde `0` olarak korunur; runtime varsayimi onu
   eksik kayit sanarak yeniden tamamlamaz.
 
-## Siradaki Adim
+## Yerel Karar Destek Karari - 30 Eylul 2026
 
-Siradaki aktif madde `competitor_ai_assistants` kaydidir. Ilk dilimde Rapor
-Merkezi icinde yerel kayit analizi eklenmistir:
+`competitor_ai_assistants` katalog kimligi geriye uyumluluk icin korunmus,
+aktif madde adi "Yerel karar destek, mukerrer kayit, ozet ve rapor yardimcisi"
+olarak netlestirilmistir. Harici uretken AI bu satis dilimine dahil degildir.
 
-- Yetkili olunan Aksiyon ve IF/DÖF kayitlarinin durum ozeti.
-- Yerel baslik sozcuk benzerligiyle inceleme adayi kayitlar.
-- Kaynak kayda dogrudan baglanti ve yetkili Excel ciktisi.
-- Acik firma kapsami, kayit bazli yetki ve en fazla 300 kayit siniri.
-- Kaynak kayitlarda otomatik degisiklik, birlestirme veya kapatma yoktur.
-- Harici servise veri gonderimi ve uretken AI yoktur.
+Rapor Merkezi icindeki asistan su kapsamda tamamlanmistir:
 
-Bu nedenle AI maddesi tamamlandi olarak isaretlenmez. Uretken ozet veya harici
-AI entegrasyonu, saglayici, aktarilacak veri, saklama, KVKK ve insan onayi
-sinirlari kararlastirildiktan sonra ayri dilimde ele alinir.
+- Yetkili olunan Aksiyon ve IF/DOF kayitlarinin yonetim ozeti.
+- Geciken, yaklasan, onay bekleyen ve veri kalitesi zayif kayitlar.
+- Insan tarafindan dogrulanacak kok neden inceleme sorulari.
+- Yerel baslik benzerligiyle mukerrer kayit inceleme adaylari.
+- Her bulgu icin kaynak kayda dogrudan kanit baglantisi.
+- Kaynak, bulgu, kayit ve calisma metadatasi iceren Excel ciktisi.
+- Firma, modul ve kayit bazli yetki; yalniz ayri `reports.assist` izni.
+- Kullanici, IP ve firma bazli dakika/gun calistirma sinirlari.
+- Excel icin POST, CSRF, `reports.assist`, `reports.export` ve ayni kota.
+- Ham kayit metni icermeyen, girdi/sonuc hash'li audit izi.
+- En fazla 1.000 kayit tarama ve 300 yetkili kayit analiz siniri.
+
+Asistan kaynak kayitlari degistirmez, onaylamaz, kapatmaz ve otomatik kok
+neden karari vermez. Veri harici bir servise aktarilmaz. Global checklist
+maddesini yalniz gercek `superadmin` hesabi, asistan veya Excel basariyla
+calistiginda audit kaydiyla birlikte tamamlayabilir; musteri rolleri checklist
+durumunu degistiremez.
+
+Bir sonraki aktif madde `competitor_import_center` kaydidir.
 
 ## Kabul Kaniti
 
-- Checklist kimlik koruma, sayaç, siradaki is, explicit `0`, yetkisiz POST,
+- Checklist kimlik koruma, sayac, siradaki is, explicit `0`, yetkisiz POST,
   CSRF ve audit testleri.
-- Yerel analiz icin tenant izolasyonu, kayit bazli yetki, modul kapatma,
-  Excel/audit, HTML kacis ve sorgu limiti testleri.
+- Yerel karar destek icin tenant izolasyonu, kayit bazli yetki, ayri calistirma
+  izni, CSRF, hiz siniri, modul kapatma, Excel/audit ve sorgu limiti testleri.
 - Telefon, tablet ve masaustunde checklist ile iki analiz kaynagi icin tasma,
-  klavye odagi, kaydetme ve Excel indirme tarayici senaryolari.
+  sonuc odagi, kanit baglantilari ve Excel indirme tarayici senaryolari.

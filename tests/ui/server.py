@@ -171,7 +171,12 @@ def main():
 
         print(f"Disposable UI preview: http://127.0.0.1:{args.port}/__ui/login/super_admin", flush=True)
         logging.getLogger("werkzeug").setLevel(logging.ERROR)
-        app.run(host="127.0.0.1", port=args.port, use_reloader=False, threaded=True)
+        try:
+            app.run(host="127.0.0.1", port=args.port, use_reloader=False, threaded=True)
+        finally:
+            with app.app_context():
+                db.session.remove()
+                db.engine.dispose()
 
 
 if __name__ == "__main__":

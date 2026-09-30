@@ -40,12 +40,54 @@ try {
       } else {
         assert.ok(await page.locator('#analysis-records').isVisible());
         assert.equal(await page.locator('#dashboardSidebar a.active[href="/rapor-merkezi"]').count(), 1);
-        const downloadPromise = page.waitForEvent('download');
-        await page.locator('a[href*="/analiz/excel"]').click();
-        const download = await downloadPromise;
-        assert.ok(download.suggestedFilename().endsWith('.xlsx'));
-        assert.equal(await download.failure(), null);
-        await download.saveAs(`${output}/${width}-${route.includes('dofs') ? 'dofs' : 'actions'}.xlsx`);
+        const targetSource = route.includes('dofs') ? 'actions' : 'dofs';
+        await page.locator('#analysis-source').selectOption(targetSource);
+        const runButton = page.locator('button[formaction$="/rapor-merkezi/analiz/calistir"]');
+        assert.equal(await runButton.count(), 1);
+        await runButton.focus();
+        assert.equal(await runButton.evaluate(el => document.activeElement === el), true);
+        await Promise.all([
+          page.waitForResponse(response => response.request().method() === 'POST' && response.url().includes('/analiz/calistir')),
+          page.keyboard.press('Enter'),
+        ]);
+        await page.waitForURL(url => url.pathname === '/rapor-merkezi/analiz/calistir');
+        await page.waitForLoadState('domcontentloaded');
+        assert.equal(await page.locator('#analysis-source').inputValue(), targetSource);
+        assert.ok(await page.locator('#decision-support-result').isVisible());
+        assert.equal(await page.locator('#decision-support-result').evaluate(el => document.activeElement === el), true);
+        assert.ok((await page.locator('body').innerText()).includes('Üretken AI yok'));
+        const firstSummary = page.locator('.decision-support details > summary').first();
+        await firstSummary.focus();
+        await page.keyboard.press('Enter');
+        assert.equal(await firstSummary.evaluate(el => el.parentElement.open), true);
+        await page.keyboard.press('Space');
+        assert.equal(await firstSummary.evaluate(el => el.parentElement.open), false);
+        const undersizedTargets = await page.locator('.decision-support button, .decision-support a, .decision-support summary').evaluateAll(elements => elements
+          .filter(el => {
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+          })
+          .filter(el => {
+            const rect = el.getBoundingClientRect();
+            return rect.height < 44 || rect.width < 44;
+          })
+          .map(el => ({ tag: el.tagName, text: el.textContent.trim(), rect: el.getBoundingClientRect().toJSON() })));
+        if (width < 1000) assert.deepEqual(undersizedTargets, []);
+        const clippedContainers = await page.locator('.decision-support, .support-toolbar, .support-section, .support-finding, .support-evidence').evaluateAll(elements => elements
+          .filter(el => {
+            const rect = el.getBoundingClientRect();
+            return rect.width > 0 && (rect.left < -1 || rect.right > innerWidth + 1);
+          })
+          .map(el => ({ className: el.className, rect: el.getBoundingClientRect().toJSON() })));
+        assert.deepEqual(clippedContainers, []);
+        if (!route.includes('dofs')) {
+          const downloadPromise = page.waitForEvent('download');
+          await page.locator('form[action*="/analiz/excel"] button[type="submit"]').click();
+          const download = await downloadPromise;
+          assert.ok(download.suggestedFilename().endsWith('.xlsx'));
+          assert.equal(await download.failure(), null);
+          await download.saveAs(`${output}/${width}-dofs.xlsx`);
+        }
       }
       const name = route.includes('satisa') ? 'checklist' : route.includes('dofs') ? 'dofs' : 'actions';
       await page.screenshot({ path: `${output}/${width}-${name}.png`, fullPage: true });

@@ -1,11 +1,11 @@
-{% macro page_header(title, subtitle=None, class_name="", icon=None, subtitle_is_html=False) -%}
+{% macro page_header(title, subtitle=None, class_name="", icon=None, subtitle_is_html=False, heading_level=2) -%}
   <div class="dashboard-page-heading app-page-header{% if class_name %} {{ class_name }}{% endif %}">
     <div class="app-page-title">
       {% if icon %}
         <span class="app-page-icon"><i class="bi {{ icon }}"></i></span>
       {% endif %}
       <div>
-        <h2>{{ title }}</h2>
+        {% if heading_level == 1 %}<h1>{{ title }}</h1>{% else %}<h2>{{ title }}</h2>{% endif %}
         {% if subtitle and subtitle_is_html %}
           {{ subtitle|safe }}
         {% elif subtitle %}

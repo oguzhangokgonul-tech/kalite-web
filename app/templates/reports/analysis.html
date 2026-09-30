@@ -1,57 +1,208 @@
 {% extends "app_shell.html" %}
 {% import "components/ui.html" as ui %}
-{% block title %}Yerel Kayıt Analizi{% endblock %}
+{% block title %}Yerel Karar Destek Asistanı{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .decision-support { min-width: 0; letter-spacing: 0; }
+    .decision-support .support-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+    .decision-support .support-toolbar .form-field { flex: 1 1 240px; max-width: 420px; }
+    .decision-support .support-section { padding: 18px 0; border-bottom: 1px solid var(--bs-border-color); }
+    .decision-support .support-section > :last-child { margin-bottom: 0; }
+    .decision-support .support-stats { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 0; }
+    .decision-support .support-stats div { min-width: 112px; }
+    .decision-support .support-stats dt { color: var(--bs-secondary-color); font-size: 13px; font-weight: 400; }
+    .decision-support .support-stats dd { margin: 0; font-size: 20px; font-weight: 600; }
+    .decision-support .support-finding { padding: 12px 0; border-top: 1px solid var(--bs-border-color); }
+    .decision-support .support-finding:first-of-type { border-top: 0; }
+    .decision-support .support-finding > p { max-width: 90ch; }
+    .decision-support .support-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .decision-support .support-evidence li { min-width: 0; }
+    .decision-support .support-evidence a,
+    .decision-support .record-link { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 8px; overflow-wrap: anywhere; }
+    .decision-support details > summary { min-height: 44px; padding: 10px 0; cursor: pointer; font-weight: 600; }
+    .decision-support .source-record { padding: 12px 0; border-top: 1px solid var(--bs-border-color); }
+    .decision-support .source-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--bs-secondary-color); font-size: 13px; }
+    .decision-support .method-note { max-width: 80ch; }
+    .decision-page-heading h1 { margin: 0; font-size: 24px; font-weight: 600; line-height: 1.3; color: #1d2939; }
+    @media (max-width: 767.98px) {
+      .decision-support .support-toolbar > *,
+      .decision-support .support-toolbar .form-field { width: 100%; max-width: none; }
+      .decision-support .support-toolbar .btn { width: 100%; }
+      .decision-support .support-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .decision-support .support-evidence { display: grid; grid-template-columns: 1fr; }
+      .decision-support .support-evidence li,
+      .decision-support .support-evidence a { width: 100%; }
+      .decision-page-heading h1 { font-size: 22px; }
+    }
+  </style>
+{% endblock %}
 {% block app_content %}
-  {% call ui.page_header("Yerel Kayıt Analizi", scope_label, icon="bi-intersect") %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.report_center') }}"><i class="bi bi-arrow-left"></i><span>Rapor Merkezi</span></a>
-    {% if data and can_export %}
-      <a class="btn btn-primary" href="{{ url_for('record_analysis.excel', source=data.source) }}"><i class="bi bi-download"></i><span>Excel İndir</span></a>
+  {% call ui.page_header("Yerel Karar Destek Asistanı", scope_label, class_name="decision-page-heading", icon="bi-intersect", heading_level=1) %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.report_center') }}">
+      <i class="bi bi-arrow-left" aria-hidden="true"></i><span>Rapor Merkezi</span>
+    </a>
+    {% if data and can_export and can_assist %}
+      <form method="post" action="{{ url_for('record_analysis.excel', source=data.source) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary" type="submit">
+        <i class="bi bi-download" aria-hidden="true"></i><span>Excel İndir</span>
+        </button>
+      </form>
     {% endif %}
   {% endcall %}
-  <form class="d-flex flex-wrap align-items-end gap-2 border-bottom pb-3 mb-3" method="get">
-    <div><label class="form-label" for="analysis-source">Modül</label>
-      <select class="form-select" name="source" id="analysis-source">
-        {% for key, label in sources.items() %}<option value="{{ key }}" {% if data and data.source == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
-      </select>
-    </div>
-    <button class="btn btn-primary" type="submit" {% if not sources %}disabled{% endif %}><i class="bi bi-search"></i><span>Analiz Et</span></button>
-  </form>
-  {% if data %}
-    <div class="d-flex flex-wrap gap-3 mb-3 small text-secondary">
-      <span>Yerel analiz · Üretken AI yok</span>
-      <span>{{ data.records|length }} kayıt · Son {{ data.record_limit }} kayıt kapsamı</span>
-      <span>{{ data.generated_at.strftime('%d.%m.%Y %H:%M') }} UTC</span>
-      {% if data.limited %}<strong class="text-warning-emphasis">Kayıt sınırı uygulandı</strong>{% endif %}
-    </div>
-    <section class="border-bottom pb-3 mb-3" aria-labelledby="analysis-summary">
-      <h2 class="h6" id="analysis-summary">Durum Özeti</h2>
-      <dl class="d-flex flex-wrap gap-4 mb-0">
-        {% for name, count in data.statuses %}<div><dt class="small fw-normal">{{ name }}</dt><dd class="h5 mb-0">{{ count }}</dd></div>{% else %}<p class="text-secondary mb-0">Yetkiniz kapsamında kayıt bulunamadı.</p>{% endfor %}
-      </dl>
-    </section>
-    <section class="border-bottom pb-3 mb-3" aria-labelledby="analysis-pairs">
-      <h2 class="h6" id="analysis-pairs">Benzer Kayıt Adayları <span class="text-secondary">({{ data.pair_count }})</span></h2>
-      <p class="small text-secondary">Başlık benzerliği · Kesin mükerrerlik kararı değildir · En yüksek 20 eşleşme</p>
-      {% for pair in data.pairs %}
-        <div class="border-top py-2 d-flex flex-wrap gap-2 align-items-center">
-          <span class="badge text-bg-light">%{{ pair.score }}</span>
-          <a class="text-break" href="{{ pair.left.url }}">{{ pair.left.code }} · {{ pair.left.title }}</a>
-          <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
-          <a class="text-break" href="{{ pair.right.url }}">{{ pair.right.code }} · {{ pair.right.title }}</a>
+
+  <div class="decision-support">
+    <section class="support-section pt-0" aria-labelledby="support-scope-heading">
+      <h2 class="h6" id="support-scope-heading">Kapsam</h2>
+      <form class="support-toolbar" method="get" action="{{ url_for('record_analysis.dashboard') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-field">
+          <label class="form-label" for="analysis-source">Modül</label>
+          <select class="form-select" name="source" id="analysis-source">
+            {% for key, label in sources.items() %}
+              <option value="{{ key }}" {% if data and data.source == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
         </div>
-      {% else %}<p class="text-secondary mb-0">İncelenen kayıtlarda eşik üzerinde benzer başlık bulunamadı.</p>{% endfor %}
+        <button class="btn btn-outline-primary" type="submit" {% if not sources %}disabled{% endif %}>
+          <i class="bi bi-eye" aria-hidden="true"></i><span>Kapsamı Görüntüle</span>
+        </button>
+        {% if data and can_assist %}
+          <button class="btn btn-primary" type="submit" formmethod="post" formaction="{{ url_for('record_analysis.run') }}">
+            <i class="bi bi-play-circle" aria-hidden="true"></i><span>Karar Desteğini Çalıştır</span>
+          </button>
+        {% endif %}
+      </form>
+      {% if data and not can_assist %}
+        <p class="small text-secondary mt-3 mb-0">Karar desteğini çalıştırma yetkiniz bulunmuyor.</p>
+      {% endif %}
+      <p class="small text-secondary method-note mt-3 mb-0">Üretken AI yok; analiz yerel kurallarla çalışır ve veriler dış servise gönderilmez.</p>
     </section>
-    <section aria-labelledby="analysis-records">
-      <h2 class="h6" id="analysis-records">Kaynak Kayıtlar</h2>
-      {% for record in data.records %}
-        <article class="border-top py-3">
-          <div class="d-flex flex-wrap gap-2 justify-content-between">
-            <h3 class="h6 text-break mb-1"><a href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></h3>
-            <span class="small text-secondary">{{ record.status }}{% if record.due %} · {{ record.due.strftime('%d.%m.%Y') }}{% endif %}</span>
+
+    {% if data %}
+      <section class="support-section" id="analysis-records" aria-labelledby="analysis-status-heading">
+        <h2 class="h6" id="analysis-status-heading">Kayıt Durumu</h2>
+        <dl class="support-stats">
+          {% for name, count in data.statuses %}
+            <div><dt>{{ name }}</dt><dd>{{ count }}</dd></div>
+          {% else %}
+            <div><dt>Kayıt</dt><dd>0</dd></div>
+          {% endfor %}
+        </dl>
+        <p class="small text-secondary mt-3 mb-0">
+          {{ data.records|length }} yetkili kayıt incelenebilir · Son {{ data.record_limit }} kayıt kapsamı · SQL tarama sınırı {{ data.scan_limit }}
+          {% if data.limited %} · <strong>Kayıt sınırı uygulandı</strong>{% endif %}
+        </p>
+      </section>
+
+      {% if decision_support %}
+        <section class="support-section" id="decision-support-result" tabindex="-1" aria-labelledby="decision-support-heading" aria-live="polite">
+          <h2 class="h5" id="decision-support-heading">Karar desteği hazır</h2>
+          <p class="small text-secondary method-note mb-3">
+            Yerel kurallarla üretildi; veriler dış servise gönderilmedi. Bulgular öneridir ve hiçbir kaynak kayıt otomatik değiştirilmedi.
+          </p>
+          {% for text in decision_support.summary %}<p class="mb-2">{{ text }}</p>{% endfor %}
+          <p class="small text-secondary mb-0">Yöntem: {{ decision_support.algorithm_version }}</p>
+        </section>
+
+        <section class="support-section" aria-labelledby="attention-heading">
+          <h2 class="h6" id="attention-heading">Öncelikli Dikkat Noktaları</h2>
+          {% for item in decision_support.attention_items %}
+            <article class="support-finding">
+              <div class="d-flex flex-wrap justify-content-between gap-2">
+                <h3 class="h6 mb-1">{{ item.title }}</h3><span>{{ item.count }} kayıt</span>
+              </div>
+              <p class="small text-secondary mb-0">{{ item.detail }} · Kural: {{ item.rule_code }}</p>
+              <ul class="support-evidence list-unstyled mb-0" aria-label="{{ item.title }} kanıt kayıtları">
+                {% for record in item.records %}<li><a href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></li>{% endfor %}
+              </ul>
+            </article>
+          {% else %}<p class="text-secondary mb-0">Öncelikli dikkat noktası bulunmadı.</p>{% endfor %}
+        </section>
+
+        <section class="support-section" aria-labelledby="quality-heading">
+          <h2 class="h6" id="quality-heading">Kayıt Kalitesi</h2>
+          {% for item in decision_support.data_quality_findings %}
+            <article class="support-finding">
+              <div class="d-flex flex-wrap justify-content-between gap-2">
+                <h3 class="h6 mb-1">{{ item.title }}</h3><span>{{ item.count }} kayıt</span>
+              </div>
+              <p class="small text-secondary mb-0">{{ item.detail }} · Kural: {{ item.rule_code }}</p>
+              <ul class="support-evidence list-unstyled mb-0" aria-label="{{ item.title }} kanıt kayıtları">
+                {% for record in item.records %}<li><a href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></li>{% endfor %}
+              </ul>
+            </article>
+          {% else %}<p class="text-secondary mb-0">Kontrol edilen alanlarda eksik bulunmadı.</p>{% endfor %}
+        </section>
+
+        {% if decision_support.cause_hypotheses %}
+          <section class="support-section" aria-labelledby="cause-heading">
+            <h2 class="h6" id="cause-heading">Kök Neden İnceleme Alanları</h2>
+            {% for item in decision_support.cause_hypotheses %}
+              <article class="support-finding">
+                <h3 class="h6 mb-1"><a class="record-link" href="{{ item.record.url }}">{{ item.title }}</a></h3>
+                <p class="small text-secondary mb-0">{{ item.detail }}</p>
+              </article>
+            {% endfor %}
+          </section>
+        {% endif %}
+
+        <section class="support-section" aria-labelledby="next-steps-heading">
+          <h2 class="h6" id="next-steps-heading">Önerilen Sonraki Adımlar</h2>
+          {% for item in decision_support.recommended_next_steps %}
+            <article class="support-finding">
+              <h3 class="h6 mb-1">{{ item.title }}</h3>
+              <p class="small text-secondary mb-0">{{ item.detail }}</p>
+              <ul class="support-evidence list-unstyled mb-0" aria-label="{{ item.title }} ilgili kayıtları">
+                {% for record in item.records %}<li><a href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></li>{% endfor %}
+              </ul>
+            </article>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <section class="support-section" aria-labelledby="similar-records-heading">
+        <h2 class="visually-hidden" id="similar-records-heading">Benzer Kayıt Adayları</h2>
+        <details>
+        <summary>Benzer Kayıt Adayları ({{ data.pair_count }})</summary>
+        <p class="small text-secondary">Başlık benzerliği kesin mükerrerlik kararı değildir. En yüksek 20 eşleşme gösterilir.</p>
+        {% for pair in data.pairs %}
+          <div class="support-finding">
+            <span class="visually-hidden">Benzerlik yüzde {{ pair.score }}</span><span aria-hidden="true">%{{ pair.score }}</span>
+            <a class="record-link" href="{{ pair.left.url }}">{{ pair.left.code }} · {{ pair.left.title }}</a>
+            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+            <a class="record-link" href="{{ pair.right.url }}">{{ pair.right.code }} · {{ pair.right.title }}</a>
+            {% if pair.common_terms %}<div class="small text-secondary">Ortak terimler: {{ pair.common_terms|join(', ') }}</div>{% endif %}
           </div>
-          {% if record.excerpt %}<p class="small text-secondary text-break mb-0">{{ record.excerpt }}</p>{% endif %}
-        </article>
-      {% endfor %}
-    </section>
-  {% else %}<p class="text-secondary">Bu şirket için analiz edilebilecek açık modül bulunamadı.</p>{% endif %}
+        {% else %}<p class="text-secondary mb-0">Eşik üzerinde benzer başlık bulunmadı.</p>{% endfor %}
+        </details>
+      </section>
+
+      <section class="support-section" aria-labelledby="source-records-heading">
+        <h2 class="visually-hidden" id="source-records-heading">Kaynak Kayıtlar</h2>
+        <details>
+        <summary>Kaynak Kayıtlar ({{ data.records|length }})</summary>
+        {% for record in data.records[:data.visible_record_limit] %}
+          <article class="source-record">
+            <h3 class="h6 mb-1"><a class="record-link" href="{{ record.url }}">{{ record.code }} · {{ record.title }}</a></h3>
+            <div class="source-meta"><span>Durum: {{ record.status }}</span><span>Termin: {{ record.due.strftime('%d.%m.%Y') if record.due else '-' }}</span></div>
+            {% if record.excerpt %}<p class="small text-secondary text-break mb-0">{{ record.excerpt }}</p>{% endif %}
+          </article>
+        {% endfor %}
+        {% if data.records|length > data.visible_record_limit %}
+          <p class="small text-secondary mb-0">Ekran performansı için ilk {{ data.visible_record_limit }} kayıt gösteriliyor. Tam kapsam Excel raporundadır.</p>
+        {% endif %}
+        </details>
+      </section>
+    {% else %}
+      <p class="text-secondary">Bu şirket için analiz edilebilecek açık modül bulunamadı.</p>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  {% if decision_support %}
+    <script>document.getElementById("decision-support-result")?.focus({preventScroll: false});</script>
+  {% endif %}
 {% endblock %}

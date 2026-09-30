@@ -73,7 +73,7 @@
                 {{ item.label }}
                 <small>{{ "Tamamlandı" if item.is_done else "Bekliyor" }}</small>
                 {% if item.id == 'competitor_ai_assistants' and not item.is_done %}
-                  <small>Yerel ön analiz: geliştirme kapsamında · Üretken AI: bekliyor</small>
+                  <small>Yerel karar destek uygulanmayı bekliyor · Harici üretken AI bu maddeye dahil değildir</small>
                 {% endif %}
               </label>
             </div>

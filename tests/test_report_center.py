@@ -461,14 +461,17 @@ def test_default_roles_receive_report_permissions_idempotently(app):
     management = Role.query.filter_by(key="management").one()
     department_manager = Role.query.filter_by(key="department_manager").one()
     department_staff = Role.query.filter_by(key="department_staff").one()
+    viewer = Role.query.filter_by(key="viewer").one()
 
-    assert {"reports.view", "reports.export"}.issubset(
+    assert {"reports.view", "reports.export", "reports.assist"}.issubset(
         management_representative.permission_keys
     )
-    assert {"reports.view", "reports.export"}.issubset(management.permission_keys)
-    assert "reports.view" in department_manager.permission_keys
+    assert {"reports.view", "reports.export", "reports.assist"}.issubset(management.permission_keys)
+    assert {"reports.view", "reports.assist"}.issubset(department_manager.permission_keys)
     assert "reports.export" not in department_manager.permission_keys
     assert "reports.view" not in department_staff.permission_keys
+    assert "reports.assist" not in department_staff.permission_keys
+    assert "reports.assist" not in viewer.permission_keys
     assert (
         len(
             [

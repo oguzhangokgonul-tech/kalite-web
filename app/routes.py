@@ -421,7 +421,7 @@ SALES_READINESS_SECTIONS = (
             ("competitor_api_webhooks", "API, webhook ve ERP entegrasyon katmanı"),
             ("competitor_esignature", "E-imza / elektronik onay kanıtı"),
             ("competitor_sso_mfa", "SSO ve iki aşamalı doğrulama"),
-            ("competitor_ai_assistants", "AI destekli mükerrer kayıt, özet ve rapor yardımcısı"),
+            ("competitor_ai_assistants", "Yerel karar destek, mükerrer kayıt, özet ve rapor yardımcısı"),
             ("competitor_import_center", "Excel veri içe aktarma ve kurulum migrasyon merkezi"),
         ),
     },
@@ -3052,6 +3052,7 @@ MODULE_ENDPOINTS = {
     "main.deactivate_supplier": "supplier_management",
     "main.report_center": "report_center",
     "record_analysis.dashboard": "report_center",
+    "record_analysis.run": "report_center",
     "record_analysis.excel": "report_center",
     "main.download_report_center_excel": "report_center",
     "main.report_center_pdf": "report_center",
@@ -3355,11 +3356,16 @@ def can_view_all_dofs():
     )
 
 
+def can_view_all_dof_records():
+    """Viewing every IF record is independent from workflow approval authority."""
+    return current_user_can("if.view_all") or can_view_all_dofs()
+
+
 def can_view_dof(dof):
     return (
         g.current_user is not None
         and (
-            can_view_all_dofs()
+            can_view_all_dof_records()
             or dof.responsible_id == g.current_user.id
             or dof.effectiveness_owner_user_id == g.current_user.id
             or dof.created_by_user_id == g.current_user.id
@@ -3542,11 +3548,15 @@ def can_view_action(action):
     if g.current_user is None:
         return False
     return (
-        is_oguzhan_admin()
+        current_user_can("actions.view_all")
         or is_assigned_to_current_user(action)
         or is_related_to_current_user(action)
         or action.effectiveness_owner_user_id == g.current_user.id
-        or (action.source_dof is not None and can_view_dof(action.source_dof))
+        or (
+            action.source_dof is not None
+            and action.source_dof.company_id == action.company_id
+            and can_view_dof(action.source_dof)
+        )
         or has_visible_linked_risk(action_id=action.id)
         or any(
             g.current_user.id in item.participant_user_ids()
@@ -3639,23 +3649,33 @@ def can_complete_sub_action(sub_action):
 
 def visible_actions_query():
     query = scoped_query(Action.query, Action)
-    if is_oguzhan_admin():
+    if current_user_can("actions.view_all"):
         return query
-    return query.filter(
-        or_(
-            Action.responsible_user_id == g.current_user.id,
-            Action.related_user_1_id == g.current_user.id,
-            Action.related_user_2_id == g.current_user.id,
-            Action.effectiveness_owner_user_id == g.current_user.id,
-            Action.sub_actions.any(
-                or_(
-                    ActionSubTask.responsible_id == g.current_user.id,
-                    ActionSubTask.related_user_1_id == g.current_user.id,
-                    ActionSubTask.related_user_2_id == g.current_user.id,
-                )
-            ),
+    visibility_filters = [
+        Action.responsible_user_id == g.current_user.id,
+        Action.related_user_1_id == g.current_user.id,
+        Action.related_user_2_id == g.current_user.id,
+        Action.effectiveness_owner_user_id == g.current_user.id,
+        Action.sub_actions.any(
+            or_(
+                ActionSubTask.responsible_id == g.current_user.id,
+                ActionSubTask.related_user_1_id == g.current_user.id,
+                ActionSubTask.related_user_2_id == g.current_user.id,
+            )
+        ),
+        Action.dof_id.in_(visible_dofs_query().with_entities(Dof.id)),
+    ]
+    if (
+        company_module_enabled("risk_management")
+        and (current_user_can("risk.view") or current_user_can("risk.manage"))
+    ):
+        visible_risk_action_ids = (
+            scoped_query(RiskRecord.query, RiskRecord)
+            .with_entities(RiskRecord.action_id)
+            .filter(RiskRecord.action_id.isnot(None))
         )
-    )
+        visibility_filters.append(Action.id.in_(visible_risk_action_ids))
+    return query.filter(or_(*visibility_filters))
 
 
 def active_users():
@@ -11257,15 +11277,24 @@ def dof_approval_steps(dof):
 
 def visible_dofs_query():
     query = scoped_query(Dof.query, Dof)
-    if can_view_all_dofs():
+    if can_view_all_dof_records():
         return query
-    return query.filter(
-        or_(
-            Dof.responsible_id == g.current_user.id,
-            Dof.effectiveness_owner_user_id == g.current_user.id,
-            Dof.created_by_user_id == g.current_user.id,
+    visibility_filters = [
+        Dof.responsible_id == g.current_user.id,
+        Dof.effectiveness_owner_user_id == g.current_user.id,
+        Dof.created_by_user_id == g.current_user.id,
+    ]
+    if (
+        company_module_enabled("risk_management")
+        and (current_user_can("risk.view") or current_user_can("risk.manage"))
+    ):
+        visible_risk_dof_ids = (
+            scoped_query(RiskRecord.query, RiskRecord)
+            .with_entities(RiskRecord.dof_id)
+            .filter(RiskRecord.dof_id.isnot(None))
         )
-    )
+        visibility_filters.append(Dof.id.in_(visible_risk_dof_ids))
+    return query.filter(or_(*visibility_filters))
 
 
 def dof_filters():
