@@ -31,6 +31,7 @@ from flask import (
     url_for,
 )
 from flask_babel import gettext as _, refresh as refresh_locale
+from flask_wtf.csrf import generate_csrf
 from sqlalchemy import and_, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm.exc import StaleDataError
@@ -308,6 +309,7 @@ LEGAL_ACCEPTANCE_EXEMPT_ENDPOINTS = {
     "pwa.offline",
     "main.login",
     "main.logout",
+    "main.session_csrf_token",
     "main.set_language",
     "main.landing",
     "main.landing_dynamic_preview",
@@ -16119,9 +16121,60 @@ def logout():
         if g.current_user is not None:
             return redirect(url_for("main.dashboard"))
         return redirect(url_for("main.login"))
+    user = g.current_user
+    company_id = getattr(g.current_company, "id", None) or getattr(user, "company_id", None)
+    if user is not None:
+        try:
+            record_audit_event(
+                "UserSession",
+                "logged_out",
+                "Kullanıcı güvenli çıkış yaptı",
+                entity_id=user.id,
+                company_id=company_id,
+                user_id=user.id,
+            )
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Çıkış audit kaydı oluşturulamadı.")
     session.clear()
-    flash("Çıkış yapıldı.", "success")
-    return redirect(url_for("main.login"))
+    response = redirect(url_for("main.login"))
+    cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
+    cookie_path = current_app.config.get("SESSION_COOKIE_PATH") or "/"
+    cookie_domain = current_app.config.get("SESSION_COOKIE_DOMAIN")
+    delete_options = {
+        "path": cookie_path,
+        "secure": bool(current_app.config.get("SESSION_COOKIE_SECURE")),
+        "httponly": bool(current_app.config.get("SESSION_COOKIE_HTTPONLY", True)),
+        "samesite": current_app.config.get("SESSION_COOKIE_SAMESITE"),
+    }
+    # Eski host-only ve güncel ortak-domain oturum çerezlerini birlikte temizle.
+    response.delete_cookie(cookie_name, **delete_options)
+    if cookie_domain:
+        response.delete_cookie(cookie_name, domain=cookie_domain, **delete_options)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+@bp.get("/session/csrf-token")
+def session_csrf_token():
+    if g.current_user is None:
+        response = jsonify({"ok": False, "message": "Oturum sona erdi."})
+        response.status_code = 401
+    else:
+        response = jsonify({"ok": True, "csrf_token": generate_csrf()})
+        if current_app.config.get("SESSION_COOKIE_DOMAIN"):
+            # Remove a legacy host cookie before using the refreshed domain session.
+            response.delete_cookie(
+                current_app.config.get("SESSION_COOKIE_NAME", "session"),
+                path=current_app.config.get("SESSION_COOKIE_PATH") or "/",
+                secure=bool(current_app.config.get("SESSION_COOKIE_SECURE")),
+                httponly=True,
+                samesite=current_app.config.get("SESSION_COOKIE_SAMESITE"),
+            )
+            session.modified = True
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 NOTIFICATION_FILTERS = (

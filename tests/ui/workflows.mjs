@@ -27,7 +27,9 @@ try {
    await page.waitForURL(url=>url.pathname!=='/login',{waitUntil:'domcontentloaded'});
    assert.ok((await context.cookies()).find(cookie=>cookie.name==='session'&&cookie.expires>0));
    await page.getByRole('button',{name:'Menüyü aç'}).click();
-   await page.locator('#dashboardSidebar').getByRole('button',{name:'Çıkış',exact:true}).click();
+   const logoutForm=page.locator('#dashboardSidebar form[data-logout-form]');
+   await logoutForm.locator('[name="csrf_token"]').evaluate(input=>{input.value='expired-token';});
+   await logoutForm.getByRole('button',{name:'Çıkış',exact:true}).click();
    await page.waitForURL('**/login',{waitUntil:'domcontentloaded'});
   });
   await context.request.get(base+'/__ui/login/department_staff');

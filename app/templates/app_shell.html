@@ -490,7 +490,7 @@
             <span>{{ g.current_user.title or _("Kullanıcı") }}</span>
           </div>
         </div>
-        <form class="dashboard-logout-form" method="post" action="{{ url_for('main.logout') }}">
+        <form class="dashboard-logout-form" method="post" action="{{ url_for('main.logout') }}" data-logout-form data-csrf-refresh-url="{{ url_for('main.session_csrf_token') }}" data-login-url="{{ url_for('main.login') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="dashboard-logout" type="submit" aria-label="{{ _('Çıkış') }}">
           <i class="bi bi-box-arrow-left"></i>

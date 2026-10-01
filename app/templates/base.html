@@ -79,7 +79,7 @@
                 <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">{{ _("Kullanıcılar") }}</a>
               {% endif %}
               <span class="text-secondary small d-none d-md-inline">{{ g.current_user.full_name }}</span>
-              <form class="d-inline-flex" method="post" action="{{ url_for('main.logout') }}">
+              <form class="d-inline-flex" method="post" action="{{ url_for('main.logout') }}" data-logout-form data-csrf-refresh-url="{{ url_for('main.session_csrf_token') }}" data-login-url="{{ url_for('main.login') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-dark" type="submit">{{ _("Çıkış") }}</button>
               </form>
@@ -274,6 +274,7 @@
     {% endif %}
     <script defer src="{{ url_for('static', filename='js/responsive.js', v=config.ASSET_VERSION) }}"></script>
     <script defer src="{{ url_for('static', filename='js/navigation.js', v=config.ASSET_VERSION) }}"></script>
+    <script defer src="{{ url_for('static', filename='js/logout.js', v=config.ASSET_VERSION) }}"></script>
     <script defer src="{{ url_for('static', filename='js/pwa.js', v=config.ASSET_VERSION) }}"></script>
     {% block scripts %}{% endblock %}
   </body>

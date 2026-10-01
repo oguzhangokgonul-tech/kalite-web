@@ -36,7 +36,7 @@
         </span>
       </label>
     </form>
-    <form id="legal-logout-form" method="post" action="{{ url_for('main.logout') }}">
+    <form id="legal-logout-form" method="post" action="{{ url_for('main.logout') }}" data-logout-form data-csrf-refresh-url="{{ url_for('main.session_csrf_token') }}" data-login-url="{{ url_for('main.login') }}">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     </form>
     <div class="app-form-actions justify-content-between">
