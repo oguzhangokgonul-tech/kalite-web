@@ -69,14 +69,5 @@
         <a href="{{ url_for('main.legal_policy', slug='kvkk-aydinlatma-metni') }}">KVKK</a>
       </div>
     </form>
-    <form class="locale-switcher locale-switcher-login" method="post" action="{{ url_for('main.set_language') }}" aria-label="{{ _('Dil seçimi') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-      {% for locale_code, locale_data in supported_locales.items() %}
-        <button class="locale-choice {% if current_locale() == locale_code %}active{% endif %}" type="submit" name="locale" value="{{ locale_code }}" aria-pressed="{{ 'true' if current_locale() == locale_code else 'false' }}">
-          {{ locale_code|upper }}
-        </button>
-      {% endfor %}
-    </form>
   </section>
 {% endblock %}

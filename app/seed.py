@@ -38,6 +38,30 @@ PERMISSION_CATALOG = (
         "description": "Kullanıcılar sayfasından personel kayıtlarını sistemden kaldırır.",
     },
     {
+        "key": "imports.view",
+        "label": "Veri içe aktarma kayıtlarını görüntüleme",
+        "group": "Sistem",
+        "description": "Kurulum veri aktarım partilerini ve satır doğrulamalarını görüntüler.",
+    },
+    {
+        "key": "imports.prepare",
+        "label": "Veri içe aktarma dosyası doğrulama",
+        "group": "Sistem",
+        "description": "CSV ve XLSX dosyalarını veri yazmadan doğrular ve önizler.",
+    },
+    {
+        "key": "imports.apply",
+        "label": "Doğrulanmış veri aktarımını uygulama",
+        "group": "Sistem",
+        "description": "Hatasız ve açıkça onaylanmış aktarım partisini hedef şirkete uygular.",
+    },
+    {
+        "key": "imports.rollback",
+        "label": "Veri aktarımını geri alma",
+        "group": "Sistem",
+        "description": "Sonradan değiştirilmemiş aktarım kayıtlarını parti bazında geri alır.",
+    },
+    {
         "key": "actions.create",
         "label": "Aksiyon açma",
         "group": "Aksiyon",

@@ -33,9 +33,18 @@ try {
           await page.mouse.move(32, 120);
           await page.waitForTimeout(220);
         }
-        const english = page.locator('.locale-switcher-sidebar button[name="locale"][value="en"]');
-        await english.click();
-        await page.waitForLoadState('domcontentloaded');
+        assert.equal(await page.locator('.locale-switcher-sidebar, .locale-switcher-login').count(), 0, 'visible language controls removed');
+        const csrf = await page.locator('input[name="csrf_token"]').first().inputValue();
+        const languageResponse = await page.evaluate(async ({ csrf }) => {
+          const response = await fetch('/dil', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ csrf_token: csrf, locale: 'en', next: '/' }),
+          });
+          return response.status;
+        }, { csrf });
+        assert.equal(languageResponse, 200, 'hidden language infrastructure endpoint');
+        await page.reload({ waitUntil: 'domcontentloaded' });
         assert.equal(await page.locator('html').getAttribute('lang'), 'en', 'html lang');
         const sidebarText = await page.locator('#dashboardSidebar').textContent();
         assert.equal(sidebarText.includes('Home'), true, 'translated Home label');

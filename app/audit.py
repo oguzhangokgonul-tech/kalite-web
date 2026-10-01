@@ -33,6 +33,7 @@ TRACKED_MODEL_NAMES = {
     "ComplianceRevision",
     "Company",
     "CompanyDepartment",
+    "DataImportBatch",
     "CompanyModule",
     "DeviationFile",
     "DeviationRecord",

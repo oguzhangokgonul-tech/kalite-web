@@ -6256,6 +6256,79 @@ class AuditLog(db.Model):
     user = db.relationship("User")
 
 
+class DataImportBatch(db.Model):
+    __tablename__ = "data_import_batches"
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "id", name="uq_data_import_batches_company_id"),
+        db.UniqueConstraint(
+            "company_id",
+            "module_key",
+            "file_sha256",
+            name="uq_data_import_batches_company_module_hash",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    module_key = db.Column(db.String(40), nullable=False, index=True)
+    template_version = db.Column(db.String(20), nullable=False, default="1")
+    original_filename = db.Column(db.String(255), nullable=False)
+    stored_file_path = db.Column(db.String(500), nullable=False)
+    file_sha256 = db.Column(db.String(64), nullable=False, index=True)
+    file_size = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="validated", index=True)
+    total_count = db.Column(db.Integer, nullable=False, default=0)
+    valid_count = db.Column(db.Integer, nullable=False, default=0)
+    warning_count = db.Column(db.Integer, nullable=False, default=0)
+    error_count = db.Column(db.Integer, nullable=False, default=0)
+    created_count = db.Column(db.Integer, nullable=False, default=0)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    applied_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    rolled_back_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), index=True)
+    applied_at = db.Column(db.DateTime, nullable=True)
+    rolled_back_at = db.Column(db.DateTime, nullable=True)
+
+    company = db.relationship("Company")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    applied_by = db.relationship("User", foreign_keys=[applied_by_user_id])
+    rolled_back_by = db.relationship("User", foreign_keys=[rolled_back_by_user_id])
+    rows = db.relationship(
+        "DataImportRow",
+        back_populates="batch",
+        cascade="all, delete-orphan",
+        order_by="DataImportRow.row_number.asc()",
+    )
+
+
+class DataImportRow(db.Model):
+    __tablename__ = "data_import_rows"
+    __table_args__ = (
+        db.UniqueConstraint("batch_id", "row_number", name="uq_data_import_rows_batch_row"),
+        db.ForeignKeyConstraint(
+            ("company_id", "batch_id"),
+            ("data_import_batches.company_id", "data_import_batches.id"),
+            name="fk_data_import_rows_company_batch",
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    batch_id = db.Column(db.Integer, nullable=False, index=True)
+    row_number = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), nullable=False, index=True)
+    planned_action = db.Column(db.String(20), nullable=False, default="create")
+    source_json = db.Column(db.Text, nullable=False)
+    normalized_json = db.Column(db.Text, nullable=False)
+    messages_json = db.Column(db.Text, nullable=False, default="[]")
+    target_entity_type = db.Column(db.String(80), nullable=True)
+    target_entity_id = db.Column(db.Integer, nullable=True, index=True)
+    after_json = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    batch = db.relationship("DataImportBatch", back_populates="rows")
+
+
 class ReportDefinition(db.Model):
     __tablename__ = "report_definitions"
     __table_args__ = (

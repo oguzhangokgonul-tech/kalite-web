@@ -55,6 +55,31 @@ durumunu degistiremez.
 
 Bir sonraki aktif madde `competitor_import_center` kaydidir.
 
+## Veri Ice Aktarma Merkezi - 30 Eylul 2026
+
+`competitor_import_center` maddesi kontrollu kurulum migrasyonu olarak
+tamamlanmistir. Ilk satis surumu Departman, Personel, Kalibrasyon Cihazi ve
+Tedarikci ust verilerini destekler.
+
+- CSV ve XLSX icin revizyonlu bos sablonlar.
+- En fazla 5 MB, 2.000 satir, guvenli arsiv ve formul kontrolleri.
+- Veri yazmadan once zorunlu alan, tip, tarih, e-posta ve mukerrerlik kontrolu.
+- Gecerli, atlanacak ve hatali satirlar icin ayri sayac ve indirilebilir hata raporu.
+- Acik kullanici onayi olmadan olusturma, guncelleme veya silme yapilmamasi.
+- Mevcut kayitlari degistirmeyen create-only ilk surum ve idempotent dosya hash'i.
+- Hedef sirket, yukleyen, uygulayan, dosya SHA-256 ozeti ve sonuc sayilariyla audit izi.
+- Sonradan degistirilmemis ve kullanima alinmamis kayitlar icin parti bazli geri alma.
+- Yalniz gercek superadmin hesabi ve ayrik goruntuleme, hazirlama, uygulama,
+  geri alma izinleri.
+- Personel satirlarinin ham degerlerinin genel audit log'a kopyalanmamasi.
+
+Checklist isareti yalniz gercek bir partide en az bir kayit basariyla
+olusturuldugunda yazilir. Siradaki aktif madde `module_meeting_notes` kaydidir.
+
+Gorunur TR/EN secicileri urun sahibi karariyla giris ve sol menuden
+kaldirilmistir. Flask-Babel, ceviri kataloglari, sirket/kullanici dil alanlari ve
+guvenli `/dil` endpointi gelecekte yeniden etkinlestirmek uzere korunur.
+
 ## Kabul Kaniti
 
 - Checklist kimlik koruma, sayac, siradaki is, explicit `0`, yetkisiz POST,
@@ -63,3 +88,5 @@ Bir sonraki aktif madde `competitor_import_center` kaydidir.
   izni, CSRF, hiz siniri, modul kapatma, Excel/audit ve sorgu limiti testleri.
 - Telefon, tablet ve masaustunde checklist ile iki analiz kaynagi icin tasma,
   sonuc odagi, kanit baglantilari ve Excel indirme tarayici senaryolari.
+- Veri aktarimi icin yetki, tenant izolasyonu, dosya/hash idempotency, onizleme,
+  CSRF, XLSX/CSV guvenligi, atomik uygulama, hata raporu ve geri alma testleri.

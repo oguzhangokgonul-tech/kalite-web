@@ -17,6 +17,7 @@
   {% set pilot_programs_active = request.endpoint in ['main.pilot_programs', 'main.create_pilot_program', 'main.edit_pilot_program'] %}
   {% set legal_documents_active = request.endpoint in ['main.legal_documents_admin', 'main.create_legal_document_revision', 'main.publish_legal_document', 'main.archive_legal_document'] %}
   {% set audit_log_active = request.endpoint == 'main.audit_log' %}
+  {% set import_center_active = request.endpoint and request.endpoint.startswith('import_center.') %}
   {% set iso_management_summary_active = request.endpoint == 'main.iso_executive_summary' %}
   {% set management_due_dashboard_active = request.endpoint == 'main.management_due_dashboard' %}
   {% set report_center_active = request.endpoint in ['main.report_center', 'main.download_report_center_excel', 'main.report_center_pdf', 'main.download_module_activity_report_excel', 'main.module_activity_report_pdf', 'main.create_custom_report', 'main.preview_custom_report', 'main.custom_report_detail', 'main.edit_custom_report', 'main.archive_custom_report', 'main.download_custom_report_excel', 'main.custom_report_pdf'] or (request.endpoint or '').startswith('record_analysis.') %}
@@ -24,7 +25,7 @@
   {% set management_due_dashboard_visible = g.company_module_enabled('management_due_dashboard') and g.current_user.has_permission('management_due_dashboard.view') %}
   {% set report_center_visible = g.company_module_enabled('report_center') and (g.current_user.has_permission('reports.view') or g.current_user.has_permission('reports.export') or g.current_user.has_permission('reports.design') or g.current_user.has_permission('reports.manage')) %}
   {% set company_management_status_active = iso_management_summary_active or management_due_dashboard_active or report_center_active %}
-  {% set admin_panel_group_active = company_onboarding_active or sales_readiness_active or system_backups_active or system_admin_panel_active or pilot_programs_active or legal_documents_active or audit_log_active %}
+  {% set admin_panel_group_active = company_onboarding_active or sales_readiness_active or system_backups_active or system_admin_panel_active or pilot_programs_active or legal_documents_active or audit_log_active or import_center_active %}
   {% set risk_management_active = request.endpoint in ['main.risk_dashboard', 'main.create_risk', 'main.edit_risk'] or (request.endpoint or '').startswith('ohs_risk.') %}
   {% set fmea_management_active = request.endpoint in ['main.fmea_dashboard', 'main.create_fmea', 'main.fmea_detail', 'main.edit_fmea', 'main.mark_fmea_action_pending', 'main.close_fmea', 'main.archive_fmea'] %}
   {% set process_management_active = request.endpoint in ['main.process_dashboard', 'main.process_map', 'main.create_process', 'main.process_detail', 'main.edit_process', 'main.archive_process', 'main.add_process_step', 'main.delete_process_step', 'main.add_process_relation', 'main.delete_process_relation'] %}
@@ -170,6 +171,10 @@
               <a class="dashboard-subnav-item {% if audit_log_active %}active{% endif %}" href="{{ url_for('main.audit_log') }}">
                 <i class="bi bi-activity"></i>
                 <span>{{ _("Denetim Logu") }}</span>
+              </a>
+              <a class="dashboard-subnav-item {% if import_center_active %}active{% endif %}" href="{{ url_for('import_center.dashboard') }}">
+                <i class="bi bi-database-up"></i>
+                <span>Veri İçe Aktarma</span>
               </a>
             </div>
           </div>
@@ -478,15 +483,6 @@
           <span>{{ _("Görevlerim") }}</span>
           <span class="assigned-count-badge">{{ g.assigned_tasks_count }}</span>
         </a>
-        <form class="locale-switcher locale-switcher-sidebar" method="post" action="{{ url_for('main.set_language') }}" aria-label="{{ _('Dil seçimi') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
-          {% for locale_code, locale_data in supported_locales.items() %}
-            <button class="locale-choice {% if current_locale() == locale_code %}active{% endif %}" type="submit" name="locale" value="{{ locale_code }}" title="{{ locale_data.label }}" aria-pressed="{{ 'true' if current_locale() == locale_code else 'false' }}">
-              {{ locale_code|upper }}
-            </button>
-          {% endfor %}
-        </form>
         <div class="dashboard-sidebar-user">
           <div class="dashboard-avatar">{{ g.current_user_initials }}</div>
           <div>

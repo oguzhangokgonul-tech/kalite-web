@@ -62,10 +62,10 @@ def locale_choices(include_inherit=False):
 def format_local_date(value, format="medium"):
     if value is None:
         return "-"
-    return format_date(value, format=format, locale=SUPPORTED_LOCALES[current_locale_code()]["babel"])
+    return format_date(value, format=format)
 
 
 def format_local_datetime(value, format="medium"):
     if value is None:
         return "-"
-    return format_datetime(value, format=format, locale=SUPPORTED_LOCALES[current_locale_code()]["babel"])
+    return format_datetime(value, format=format)
