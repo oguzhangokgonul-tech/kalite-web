@@ -49,6 +49,7 @@ from .integrations import (
 from .integration_api import bp as integration_api_bp
 from .record_analysis import bp as record_analysis_bp
 from .import_center import bp as import_center_bp
+from .meetings import bp as meetings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -112,6 +113,7 @@ def create_app(config_class=Config):
     app.register_blueprint(integration_api_bp)
     app.register_blueprint(record_analysis_bp)
     app.register_blueprint(import_center_bp)
+    app.register_blueprint(meetings_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):

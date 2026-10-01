@@ -1,0 +1,81 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Toplantılar{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block content_extra_class %}meetings-page{% endblock %}
+{% block app_content %}
+  {% call ui.page_header('Toplantılar', icon='bi-calendar-event', heading_level=1) %}
+    {% if can_create %}
+      {{ ui.action_link(url_for('meetings.create'), 'Yeni Toplantı', icon='bi-plus-lg') }}
+    {% endif %}
+  {% endcall %}
+
+  <form method="get" action="{{ url_for('meetings.dashboard') }}" class="row g-3 align-items-end mb-4" role="search" aria-label="Toplantı filtreleri">
+    <div class="col-12 col-md-6 col-lg-7">
+      <label class="form-label" for="meeting-search">Toplantı ara</label>
+      <input class="form-control" id="meeting-search" type="search" name="q" value="{{ search or '' }}">
+    </div>
+    <div class="col-12 col-sm-6 col-md-3">
+      <label class="form-label" for="meeting-status">Durum</label>
+      <select class="form-select" id="meeting-status" name="status">
+        <option value="">Tüm durumlar</option>
+        {% for value, label in statuses.items() %}
+          <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-sm-6 col-md-3 col-lg-2 d-flex gap-2">
+      {{ ui.action_button('Filtrele', icon='bi-search') }}
+      {% if search or selected_status %}
+        {{ ui.action_link(url_for('meetings.dashboard'), 'Filtreleri temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}
+      {% endif %}
+    </div>
+  </form>
+
+  {% if meetings %}
+    <div class="table-responsive" role="region" aria-label="Toplantı listesi" tabindex="0">
+      <table class="table align-middle meetings-table">
+        <caption class="visually-hidden">Toplantılar</caption>
+        <thead>
+          <tr><th scope="col">Toplantı</th><th scope="col">Tarih / Saat</th><th scope="col">Yer</th><th scope="col">Düzenleyen</th><th scope="col">Durum</th><th scope="col"><span class="visually-hidden">İşlem</span></th></tr>
+        </thead>
+        <tbody>
+          {% for meeting in meetings %}
+            <tr>
+              <td class="meetings-title-cell">
+                <span class="d-block small text-secondary">{{ meeting.meeting_no }}</span>
+                <a href="{{ url_for('meetings.detail', meeting_id=meeting.id) }}">{{ meeting.title }}</a>
+              </td>
+              <td>{% if meeting.meeting_at %}<time datetime="{{ meeting.meeting_at.isoformat() }}">{{ meeting.meeting_at.strftime('%d.%m.%Y %H:%M') }}</time>{% else %}-{% endif %}</td>
+              <td>{{ meeting.location or '-' }}</td>
+              <td>{{ meeting.creator.full_name if meeting.creator else '-' }}</td>
+              <td>{{ ui.status_badge(statuses.get(meeting.status, meeting.status), tone={'draft': 'muted', 'open': 'info', 'completed': 'success', 'archived': 'muted'}.get(meeting.status)) }}</td>
+              <td>{{ ui.action_link(url_for('meetings.detail', meeting_id=meeting.id), meeting.meeting_no ~ ' ayrıntıları', icon='bi-arrow-right', tone='secondary', icon_only=True) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    {{ ui.empty_state('Toplantı bulunamadı' if search or selected_status else 'Henüz toplantı yok', icon='bi-calendar-event') }}
+  {% endif %}
+
+  {% if pagination and pagination.pages > 1 %}
+    <nav class="meetings-pagination border-top pt-3 mt-3" aria-label="Toplantı sayfaları">
+      {% if pagination.has_prev %}
+        {{ ui.action_link(url_for('meetings.dashboard', page=pagination.prev_num, q=search or '', status=selected_status or ''), 'Önceki sayfa', icon='bi-chevron-left', tone='secondary', icon_only=True) }}
+      {% else %}
+        {{ ui.action_button('Önceki sayfa', icon='bi-chevron-left', tone='secondary', icon_only=True, type='button', disabled=True) }}
+      {% endif %}
+      <span class="small text-secondary" aria-current="page">{{ pagination.page }} / {{ pagination.pages }}</span>
+      {% if pagination.has_next %}
+        {{ ui.action_link(url_for('meetings.dashboard', page=pagination.next_num, q=search or '', status=selected_status or ''), 'Sonraki sayfa', icon='bi-chevron-right', tone='secondary', icon_only=True) }}
+      {% else %}
+        {{ ui.action_button('Sonraki sayfa', icon='bi-chevron-right', tone='secondary', icon_only=True, type='button', disabled=True) }}
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endblock %}

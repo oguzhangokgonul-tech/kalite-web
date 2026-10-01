@@ -1,0 +1,140 @@
+.meetings-page {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+
+.meetings-page .app-page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.meetings-page :is(.app-page-title, .app-page-actions, .meetings-decision-title) {
+  min-width: 0;
+}
+
+.meetings-page .app-page-header,
+.meetings-page .app-page-actions {
+  flex-wrap: wrap;
+}
+
+.meetings-page .meetings-table {
+  min-width: 760px;
+}
+
+.meetings-page .meetings-title-cell {
+  min-width: 180px;
+  max-width: 320px;
+}
+
+.meetings-page .meetings-table td {
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.meetings-page :is(.meetings-pagination, .meetings-status-bar) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.meetings-page .meetings-pagination {
+  justify-content: flex-end;
+}
+
+.meetings-page .meetings-status-bar {
+  justify-content: space-between;
+}
+
+.meetings-page dt {
+  margin-bottom: 4px;
+  color: var(--vp-text-secondary, #667085);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.meetings-page dd {
+  margin-bottom: 0;
+}
+
+.meetings-page .meetings-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.meetings-page .meetings-participant-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.meetings-page .meetings-participant-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px 20px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.meetings-page .meetings-participant-option {
+  min-width: 0;
+  min-height: 44px;
+  margin-bottom: 0;
+}
+
+.meetings-page .meetings-participant-option label {
+  display: block;
+  min-height: 44px;
+  padding: 2px 0 8px;
+  cursor: pointer;
+}
+
+.meetings-page .meetings-decision-title {
+  flex: 1 1 240px;
+  line-height: 1.5;
+}
+
+.meetings-page .meetings-disclosure summary {
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--vp-blue-dark, #1648d8);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.meetings-page :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.meetings-page textarea {
+  resize: vertical;
+}
+
+@media (max-width: 991.98px) {
+  .meetings-page .meetings-participant-picker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 575.98px) {
+  .meetings-page .app-page-header h1 {
+    font-size: 22px;
+  }
+
+  .meetings-page .meetings-participant-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .meetings-page .app-page-actions {
+    width: 100%;
+  }
+}

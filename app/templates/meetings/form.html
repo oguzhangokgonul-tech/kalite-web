@@ -1,0 +1,64 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Toplantıyı Düzenle' if meeting else 'Yeni Toplantı' }}{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block content_extra_class %}meetings-page{% endblock %}
+{% block app_content %}
+  {% set source = values or {} %}
+  {% set back_url = url_for('meetings.detail', meeting_id=meeting.id) if meeting else url_for('meetings.dashboard') %}
+  {% set participant_ids = selected_participant_ids|map('string')|list %}
+  {% call ui.page_header('Toplantıyı Düzenle' if meeting else 'Yeni Toplantı', icon='bi-calendar-event', heading_level=1) %}
+    {{ ui.action_link(back_url, 'Geri dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+  {% endcall %}
+
+  {% if not meeting or meeting.status in ['draft', 'open'] %}
+    <form method="post" action="{{ url_for('meetings.edit', meeting_id=meeting.id) if meeting else url_for('meetings.create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if meeting %}<input type="hidden" name="version_id" value="{{ source.get('version_id', meeting.version_id) }}">{% endif %}
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label" for="meeting-title">Başlık <span class="text-danger" aria-hidden="true">*</span></label>
+          <input class="form-control" id="meeting-title" name="title" required value="{{ source.get('title', meeting.title if meeting else '') }}">
+        </div>
+        <div class="col-12 col-md-5 col-lg-4">
+          <label class="form-label" for="meeting-at">Tarih / Saat <span class="text-danger" aria-hidden="true">*</span></label>
+          <input class="form-control" id="meeting-at" name="meeting_at" type="datetime-local" required value="{{ source.get('meeting_at', meeting.meeting_at.strftime('%Y-%m-%dT%H:%M') if meeting and meeting.meeting_at else '') }}">
+        </div>
+        <div class="col-12 col-md-7 col-lg-8">
+          <label class="form-label" for="meeting-location">Yer</label>
+          <input class="form-control" id="meeting-location" name="location" value="{{ source.get('location', (meeting.location or '') if meeting else '') }}">
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="meeting-agenda">Gündem</label>
+          <textarea class="form-control" id="meeting-agenda" name="agenda" rows="6">{{ source.get('agenda', (meeting.agenda or '') if meeting else '') }}</textarea>
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label" for="meeting-minutes">Tutanak</label>
+          <textarea class="form-control" id="meeting-minutes" name="minutes" rows="6">{{ source.get('minutes', (meeting.minutes or '') if meeting else '') }}</textarea>
+        </div>
+      </div>
+      <fieldset class="border-top pt-3 mt-4">
+        <legend class="h6 mb-3">Katılımcılar</legend>
+        <div class="meetings-participant-picker">
+          {% for user in users %}
+            <div class="form-check meetings-participant-option">
+              <input class="form-check-input" id="participant-{{ user.id }}" type="checkbox" name="participant_ids" value="{{ user.id }}" {% if user.id|string in participant_ids %}checked{% endif %}>
+              <label class="form-check-label" for="participant-{{ user.id }}">{{ user.full_name }}</label>
+            </div>
+          {% else %}
+            <p class="text-secondary mb-0">Katılımcı bulunamadı.</p>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="d-flex flex-wrap justify-content-end gap-2 border-top pt-3 mt-4">
+        {{ ui.action_link(back_url, 'Vazgeç', icon='bi-x-lg', tone='secondary') }}
+        {{ ui.action_button('Değişiklikleri Kaydet' if meeting else 'Taslağı Kaydet', icon='bi-save') }}
+      </div>
+    </form>
+  {% else %}
+    {{ ui.status_badge('Arşiv' if meeting.status == 'archived' else 'Tutanak Kesinleşti', icon='bi-lock') }}
+  {% endif %}
+{% endblock %}

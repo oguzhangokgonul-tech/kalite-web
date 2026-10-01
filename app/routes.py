@@ -2693,6 +2693,14 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "meetings.dashboard": "meetings",
+    "meetings.create": "meetings",
+    "meetings.detail": "meetings",
+    "meetings.edit": "meetings",
+    "meetings.transition": "meetings",
+    "meetings.add_decision": "meetings",
+    "meetings.update_decision": "meetings",
+    "meetings.export": "meetings",
     "pwa.mobile_hub": None,
     "pwa.mobile_qr": None,
     "integrations.dashboard": "integration_management",
@@ -8086,6 +8094,12 @@ def report_dynamic_forms_data():
     return report_data()
 
 
+def report_meetings_data():
+    from .meetings import report_data
+
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8943,6 +8957,17 @@ REPORT_CENTER_REPORTS = (
         "builder": report_management_reviews_data,
     },
     {
+        "key": "meetings",
+        "title": "Toplantı ve Karar Raporu",
+        "description": "Toplantı tutanakları, karar sorumluları, terminler ve sonuçlar.",
+        "icon": "bi-chat-square-text",
+        "tone": "blue",
+        "module_key": "meetings",
+        "required_permission": "meetings.view",
+        "required_export_permission": "meetings.export",
+        "builder": report_meetings_data,
+    },
+    {
         "key": "personnel_contacts",
         "title": "Personel İletişim Raporu",
         "description": "Aktif ve silinmiş personel iletişim kayıtlarının güncel çıktısı.",
@@ -8955,6 +8980,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "meetings": {"date_headers": ("Toplantı Tarihi",)},
     "energy_consumption": {"date_headers": ("Dönem / Termin",)},
     "management_due_summary": {"date_headers": ("Termin",)},
     "actions_master": {"date_headers": ("Termin", "Etkinlik Termin")},
@@ -9019,6 +9045,7 @@ MODULE_ACTIVITY_ENTITY_TYPES = {
     "training": ("TrainingRecord", "TrainingParticipant"),
     "internal_audit": ("InternalAudit", "InternalAuditQuestion", "InternalAuditAnswer"),
     "management_review": ("ManagementReview",),
+    "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision"),
     "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
     "report_center": ("ReportDefinition", "ReportCenter"),
     "integration_management": (
@@ -9074,13 +9101,20 @@ def apply_standard_report_period(definition, data, period):
         date_headers=policy.get("date_headers", ()),
         mode=policy.get("mode", "activity"),
     )
-    report["rows"] = custom_report_rows_for_current_role(
-        report["headers"], report["rows"]
-    )
+    # Meeting membership is checked by ID in its builder, not by display names.
+    if definition["key"] != "meetings":
+        report["rows"] = custom_report_rows_for_current_role(
+            report["headers"], report["rows"]
+        )
     return report
 
 
 def module_activity_definition(module_key):
+    if module_key == "meetings" and not (
+        current_user_can("meetings.export")
+        and (current_user_can("meetings.view_all") or current_user_can("meetings.manage"))
+    ):
+        return None
     module = next((item for item in COMPANY_MODULE_CATALOG if item["key"] == module_key), None)
     if module is None or not company_module_enabled(module_key):
         return None
@@ -9476,10 +9510,9 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
     if not selected_headers:
         selected_headers = source_headers[:20]
 
-    source_rows = custom_report_rows_for_current_role(
-        source_headers,
-        [tuple(row) for row in source["rows"]],
-    )
+    source_rows = [tuple(row) for row in source["rows"]]
+    if report.source_key != "meetings":
+        source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
         row for row in source_rows if custom_report_row_matches(row, header_indexes, filters)
@@ -18253,6 +18286,7 @@ def assigned_all_tasks(scope):
     from .problem_solving import assigned_task_rows as assigned_problem_solving_task_rows
     from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
+    from .meetings import assigned_task_rows as assigned_meeting_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18292,6 +18326,7 @@ def assigned_all_tasks(scope):
         + assigned_problem_solving_task_rows(scope, assigned_task_row)
         + assigned_lessons_task_rows(scope, assigned_task_row)
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
+        + assigned_meeting_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -18344,7 +18379,7 @@ ASSIGNED_TAB_MODULES = {
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
-    "management": {"management_review"},
+    "management": {"management_review", "meetings"},
 }
 
 
@@ -18386,6 +18421,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("quality_test", "Beton Deneyi"),
     ("supplier", "Tedarikçi"),
     ("management_review", "YGG"),
+    ("meetings", "Toplantı Kararı"),
 ]
 
 

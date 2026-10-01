@@ -376,6 +376,11 @@
           <span>{{ _("İç Denetim Yönetimi") }}</span>
         </a>
         {% endif %}
+        {% if g.current_company and g.company_module_enabled('meetings') and (g.current_user.has_permission('meetings.view') or g.current_user.has_permission('meetings.view_all') or g.current_user.has_permission('meetings.manage')) %}
+        <a class="dashboard-nav-item {% if request.blueprint == 'meetings' %}active{% endif %}" href="{{ url_for('meetings.dashboard') }}">
+          <i class="bi bi-chat-square-text"></i><span>Toplantı Notları</span>
+        </a>
+        {% endif %}
         {% if g.company_module_enabled('management_review') and (g.current_user.has_permission('management_review.view') or g.current_user.has_permission('management_review.manage')) %}
         <a class="dashboard-nav-item {% if management_review_active %}active{% endif %}" href="{{ url_for('main.management_review_dashboard') }}">
           <i class="bi bi-clipboard-data"></i>

@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "meetings.view", "label": "Katıldığı toplantıları görüntüleme", "group": "Toplantı Notları", "description": "Oluşturduğu, katıldığı veya karar sorumlusu olduğu toplantıları görüntüler."},
+    {"key": "meetings.view_all", "label": "Şirket toplantılarını görüntüleme", "group": "Toplantı Notları", "description": "Şirket içindeki tüm toplantıları görüntüler."},
+    {"key": "meetings.create", "label": "Toplantı oluşturma", "group": "Toplantı Notları", "description": "Toplantı oluşturur ve kendi toplantısının tutanağını yönetir."},
+    {"key": "meetings.manage", "label": "Toplantı süreç yönetimi", "group": "Toplantı Notları", "description": "Şirketin toplantılarını, kararlarını ve arşivini yönetir."},
+    {"key": "meetings.decide", "label": "Atanan kararı sonuçlandırma", "group": "Toplantı Notları", "description": "Sorumlusu olduğu toplantı kararına sonuç girer."},
+    {"key": "meetings.export", "label": "Toplantı raporu indirme", "group": "Toplantı Notları", "description": "Görüntüleyebildiği toplantıların raporunu indirir."},
     {
         "key": "iso_dashboard.view",
         "label": "ISO 9001 yönetici özetini görüntüleme",
@@ -1588,6 +1594,20 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in HELP_DESK_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+
+MEETING_ROLE_PERMISSIONS = {
+    "management_representative": ("meetings.view", "meetings.view_all", "meetings.create", "meetings.manage", "meetings.decide", "meetings.export"),
+    "management": ("meetings.view", "meetings.view_all", "meetings.create", "meetings.decide", "meetings.export"),
+    "department_manager": ("meetings.view", "meetings.create", "meetings.decide", "meetings.export"),
+    "department_staff": ("meetings.view", "meetings.decide"),
+    "viewer": ("meetings.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in MEETING_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3933,6 +3953,11 @@ def ensure_runtime_schema():
         IntegrationApiRequest,
         ReportDefinition,
     ):
+        model.__table__.create(bind=db.engine, checkfirst=True)
+
+    from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision
+
+    for model in (MeetingRecord, MeetingParticipant, MeetingDecision):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
     from .customer_portal import ensure_customer_portal_schema

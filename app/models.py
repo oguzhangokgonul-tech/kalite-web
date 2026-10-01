@@ -4,6 +4,7 @@ from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
+from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision
 
 
 user_roles = db.Table(
@@ -380,6 +381,9 @@ COMPANY_MODULE_CATALOG = (
         "sort_order": 82,
         "parent_key": None,
     },
+)
+COMPANY_MODULE_CATALOG += (
+    {"key": "meetings", "name": "Toplantı Notları", "description": "Toplantı tutanaklarını, katılımcıları ve sorumlu/termin bazlı kararları izler.", "icon": "bi-chat-square-text", "sort_order": 83, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (

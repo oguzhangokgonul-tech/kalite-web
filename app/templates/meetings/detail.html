@@ -1,0 +1,159 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ meeting.meeting_no }}{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/meetings.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block content_extra_class %}meetings-page{% endblock %}
+{% block app_content %}
+  {% set definitions_editable = can_edit and meeting.status in ['draft', 'open'] %}
+  {% set decisions_active = meeting.status in ['open', 'completed'] %}
+  {% set pending_decisions = meeting.decisions|rejectattr('status', 'equalto', 'completed')|list %}
+  {% call ui.page_header(meeting.title, meeting.meeting_no, icon='bi-calendar-event', heading_level=1) %}
+    {{ ui.action_link(url_for('meetings.dashboard'), 'Toplantılara dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+    {% if can_export %}
+      {{ ui.action_link(url_for('meetings.export', meeting_id=meeting.id), 'Excel', icon='bi-file-earmark-excel', tone='secondary') }}
+    {% endif %}
+    {% if definitions_editable %}
+      {{ ui.action_link(url_for('meetings.edit', meeting_id=meeting.id), 'Toplantıyı düzenle', icon='bi-pencil-square', tone='secondary', icon_only=True) }}
+    {% endif %}
+  {% endcall %}
+
+  <div class="meetings-status-bar border-bottom pb-3 mb-3">
+    {{ ui.status_badge('Tutanak Kesinleşti' if meeting.status == 'completed' else statuses.get(meeting.status, meeting.status), tone={'draft': 'muted', 'open': 'info', 'completed': 'success', 'archived': 'muted'}.get(meeting.status)) }}
+    {% if can_edit and meeting.status != 'archived' %}
+      <div class="d-flex flex-wrap gap-2">
+        {% if meeting.status in ['draft', 'open', 'completed'] %}
+          <form method="post" action="{{ url_for('meetings.transition', meeting_id=meeting.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="version_id" value="{{ meeting.version_id }}">
+            {% if meeting.status == 'draft' %}
+              <input type="hidden" name="action" value="publish">
+              {{ ui.action_button('Yayımla', icon='bi-send') }}
+            {% elif meeting.status == 'open' %}
+              <input type="hidden" name="action" value="complete">
+              {{ ui.action_button('Tutanağı Kesinleştir', icon='bi-check2-circle') }}
+            {% else %}
+              <input type="hidden" name="action" value="reopen">
+              {{ ui.action_button('Yeniden Aç', icon='bi-arrow-counterclockwise', tone='secondary') }}
+            {% endif %}
+          </form>
+        {% endif %}
+        {% if meeting.status == 'completed' %}
+          <form method="post" action="{{ url_for('meetings.transition', meeting_id=meeting.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="version_id" value="{{ meeting.version_id }}">
+            <input type="hidden" name="action" value="archive">
+            <button class="btn btn-outline-secondary" type="submit" {% if pending_decisions %}disabled aria-describedby="archive-blocked"{% endif %}><i class="bi bi-archive" aria-hidden="true"></i> Arşivle</button>
+          </form>
+        {% endif %}
+      </div>
+      {% if meeting.status == 'completed' and pending_decisions %}
+        <p class="small text-secondary mb-0 w-100" id="archive-blocked">Arşiv için bekleyen karar: {{ pending_decisions|length }}</p>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <dl class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-lg-4"><dt>Tarih / Saat</dt><dd>{% if meeting.meeting_at %}<time datetime="{{ meeting.meeting_at.isoformat() }}">{{ meeting.meeting_at.strftime('%d.%m.%Y %H:%M') }}</time>{% else %}-{% endif %}</dd></div>
+    <div class="col-12 col-sm-6 col-lg-4"><dt>Yer</dt><dd>{{ meeting.location or '-' }}</dd></div>
+    <div class="col-12 col-sm-6 col-lg-4"><dt>Düzenleyen</dt><dd>{{ meeting.creator.full_name if meeting.creator else '-' }}</dd></div>
+    <div class="col-12"><dt>Katılımcılar</dt><dd class="mb-0">
+      <ul class="meetings-participant-list">
+        {% for participant in meeting.participants %}<li>{{ participant.user.full_name if participant.user else '-' }}</li>{% else %}<li>Katılımcı yok</li>{% endfor %}
+      </ul>
+    </dd></div>
+  </dl>
+
+  <div class="row g-4 border-top pt-3 mb-4">
+    <section class="col-12 col-lg-6" aria-labelledby="agenda-heading"><h2 class="h6" id="agenda-heading">Gündem</h2><div class="meetings-note">{{ meeting.agenda or '-' }}</div></section>
+    <section class="col-12 col-lg-6" aria-labelledby="minutes-heading"><h2 class="h6" id="minutes-heading">Tutanak</h2><div class="meetings-note">{{ meeting.minutes or '-' }}</div></section>
+  </div>
+
+  <section class="border-top pt-3" aria-labelledby="decisions-heading">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+      <h2 class="h5 mb-0" id="decisions-heading">Kararlar <span class="text-secondary small">({{ meeting.decisions|length }})</span></h2>
+      {% if meeting.decisions %}<span class="small text-secondary">{{ pending_decisions|length }} açık / {{ meeting.decisions|length - pending_decisions|length }} tamamlandı</span>{% endif %}
+    </div>
+    {% for decision in meeting.decisions %}
+      <article class="meetings-decision border-bottom py-3" aria-labelledby="decision-title-{{ decision.id }}">
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-2">
+          <h3 class="h6 mb-0 meetings-decision-title" id="decision-title-{{ decision.id }}">{{ loop.index }}. {{ decision.title }}</h3>
+          <div class="d-flex flex-wrap gap-2">
+            {{ ui.status_badge('Tamamlandı' if decision.status == 'completed' else 'Açık') }}
+            {% if decision.status == 'open' and decision.due_date and decision.due_date < today %}{{ ui.status_badge('Gecikti') }}{% endif %}
+          </div>
+        </div>
+        <dl class="row g-2 mb-2">
+          <div class="col-12 col-sm-6"><dt>Sorumlu</dt><dd>{{ decision.owner.full_name if decision.owner else '-' }}</dd></div>
+          <div class="col-12 col-sm-6"><dt>Termin</dt><dd>{% if decision.due_date %}<time datetime="{{ decision.due_date.isoformat() }}">{{ decision.due_date.strftime('%d.%m.%Y') }}</time>{% else %}-{% endif %}</dd></div>
+        </dl>
+        {% if decision.completion_note %}<div class="mb-3"><h4 class="small text-secondary">Tamamlanma Notu</h4><div class="meetings-note">{{ decision.completion_note }}</div></div>{% endif %}
+
+        {% if decisions_active and can_decide(decision) %}
+          {% if decision.status == 'open' %}
+            <details class="meetings-disclosure mb-2">
+              <summary><i class="bi bi-check2-circle" aria-hidden="true"></i> Kararı Tamamla</summary>
+              <form class="pt-3" method="post" action="{{ url_for('meetings.update_decision', meeting_id=meeting.id, decision_id=decision.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="version_id" value="{{ decision.version_id }}">
+                <input type="hidden" name="action" value="complete">
+                <label class="form-label" for="completion-note-{{ decision.id }}">Tamamlanma Notu <span class="text-danger" aria-hidden="true">*</span></label>
+                <textarea class="form-control mb-3" id="completion-note-{{ decision.id }}" name="completion_note" rows="3" required>{{ decision.completion_note or '' }}</textarea>
+                {{ ui.action_button('Tamamla', icon='bi-check2-circle') }}
+              </form>
+            </details>
+          {% elif decision.status == 'completed' %}
+            <form class="mb-2" method="post" action="{{ url_for('meetings.update_decision', meeting_id=meeting.id, decision_id=decision.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version_id" value="{{ decision.version_id }}">
+              <input type="hidden" name="action" value="reopen">
+              {{ ui.action_button('Kararı Yeniden Aç', icon='bi-arrow-counterclockwise', tone='secondary') }}
+            </form>
+          {% endif %}
+        {% endif %}
+
+        {% if definitions_editable and decision.status == 'open' %}
+          <details class="meetings-disclosure">
+            <summary><i class="bi bi-pencil-square" aria-hidden="true"></i> Kararı Düzenle</summary>
+            <form class="row g-3 pt-1" method="post" action="{{ url_for('meetings.update_decision', meeting_id=meeting.id, decision_id=decision.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version_id" value="{{ decision.version_id }}">
+              <input type="hidden" name="action" value="edit">
+              <div class="col-12"><label class="form-label" for="decision-title-input-{{ decision.id }}">Karar <span class="text-danger" aria-hidden="true">*</span></label><textarea class="form-control" id="decision-title-input-{{ decision.id }}" name="title" rows="2" required>{{ decision.title }}</textarea></div>
+              <div class="col-12 col-md-7">
+                <label class="form-label" for="decision-owner-{{ decision.id }}">Sorumlu <span class="text-danger" aria-hidden="true">*</span></label>
+                <select class="form-select" id="decision-owner-{{ decision.id }}" name="owner_user_id" required>
+                  <option value="">Seçin</option>
+                  {% for user in users %}<option value="{{ user.id }}" {% if decision.owner and decision.owner.id == user.id %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-5"><label class="form-label" for="decision-due-{{ decision.id }}">Termin <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control" id="decision-due-{{ decision.id }}" name="due_date" type="date" required value="{{ decision.due_date.isoformat() if decision.due_date else '' }}"></div>
+              <div class="col-12">{{ ui.action_button('Kararı Kaydet', icon='bi-save') }}</div>
+            </form>
+          </details>
+        {% endif %}
+      </article>
+    {% else %}
+      {{ ui.empty_state('Henüz karar yok', icon='bi-list-check') }}
+    {% endfor %}
+  </section>
+
+  {% if definitions_editable %}
+    <section class="border-top pt-3 mt-4" aria-labelledby="add-decision-heading">
+      <h2 class="h6 mb-3" id="add-decision-heading">Yeni Karar</h2>
+      <form class="row g-3" method="post" action="{{ url_for('meetings.add_decision', meeting_id=meeting.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="version_id" value="{{ meeting.version_id }}">
+        <div class="col-12"><label class="form-label" for="new-decision-title">Karar <span class="text-danger" aria-hidden="true">*</span></label><textarea class="form-control" id="new-decision-title" name="title" rows="2" required></textarea></div>
+        <div class="col-12 col-md-7">
+          <label class="form-label" for="new-decision-owner">Sorumlu <span class="text-danger" aria-hidden="true">*</span></label>
+          <select class="form-select" id="new-decision-owner" name="owner_user_id" required><option value="">Seçin</option>{% for user in users %}<option value="{{ user.id }}">{{ user.full_name }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-12 col-md-5"><label class="form-label" for="new-decision-due">Termin <span class="text-danger" aria-hidden="true">*</span></label><input class="form-control" id="new-decision-due" name="due_date" type="date" required></div>
+        <div class="col-12">{{ ui.action_button('Karar Ekle', icon='bi-plus-lg') }}</div>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}
