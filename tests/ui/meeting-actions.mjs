@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import fs from 'node:fs/promises';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const base = process.env.UI_BASE_URL || 'http://127.0.0.1:5096';
+const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+const results = [];
+await fs.mkdir('.tmp-ui-audit/meeting-actions', { recursive: true });
+try {
+  for (const width of [390, 768, 1440]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 }, hasTouch: width < 1200 });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const login = async role => { await page.waitForLoadState('networkidle'); await context.request.get(base + '/__ui/login/' + role); };
+    const layout = async name => {
+      await page.waitForLoadState('networkidle');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, name + ' overflow');
+      await page.screenshot({ path: `.tmp-ui-audit/meeting-actions/${width}-${name}.png`, fullPage: true });
+    };
+    await login('department_manager');
+    await page.goto(base + '/toplantilar/yeni');
+    await page.getByLabel('Başlık').fill(`Aksiyonlu toplantı ${width}`);
+    await page.getByLabel('Tarih / Saat').fill('2026-10-01T10:30');
+    await page.getByLabel('Gündem').fill('Kalite kararları');
+    await page.getByLabel('Tutanak', { exact: true }).fill('Kontroller tamamlanacak.');
+    await page.getByLabel('department_staff', { exact: true }).check();
+    await page.getByRole('button', { name: 'Taslağı Kaydet' }).click();
+    await page.waitForURL(/\/toplantilar\/\d+$/);
+    const meetingUrl = page.url();
+    await page.locator('#new-decision-title').fill('Üretim kontrol listesinin gözden geçirilmesi');
+    await page.locator('#new-decision-owner').selectOption({ label: 'department_staff' });
+    await page.locator('#new-decision-due').fill('2026-10-15');
+    await page.getByRole('button', { name: 'Karar Ekle' }).click();
+    await page.getByRole('button', { name: 'Yayımla', exact: true }).click();
+    await page.getByText('Aksiyon Oluştur', { exact: true }).first().click();
+    await page.getByLabel('Aksiyon Departmanı').selectOption({ index: 1 });
+    await layout('generate');
+    await page.getByRole('button', { name: 'Aksiyon Oluştur', exact: true }).click();
+    await page.getByText('Karardan aksiyon oluşturuldu.', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Kararı Tamamla', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Tutanağı Kesinleştir' }).click();
+    assert.equal(await page.getByRole('button', { name: 'Arşivle' }).isDisabled(), true);
+    await login('department_staff');
+    await page.goto(meetingUrl);
+    await layout('linked');
+    const actionLink = page.getByRole('link', { name: /^Aksiyon #/ });
+    await actionLink.click();
+    await page.waitForURL(/\/actions\/\d+$/);
+    const actionUrl = page.url();
+    await page.locator('#closure_evidence_note').fill('Kontrol listesi güncellendi, doğrulandı.');
+    await page.getByRole('button', { name: 'Kapatma Onayı Gönder', exact: true }).click();
+    await login('management_representative');
+    await page.goto(actionUrl);
+    await page.getByRole('button', { name: 'Kapatma Onayını Ver' }).first().click();
+    await page.waitForLoadState('networkidle');
+    await page.goto(meetingUrl);
+    assert.equal(await page.getByRole('button', { name: 'Arşivle' }).isEnabled(), true);
+    await layout('completed');
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('link', { name: 'Excel', exact: true }).click();
+    assert.equal(await (await downloadEvent).failure(), null);
+    await page.getByRole('button', { name: 'Arşivle' }).click();
+    await page.getByText('Arşiv', { exact: true }).waitFor();
+    assert.deepEqual(errors, []);
+    results.push({ width, conversion: 'passed', closureApproval: 'passed', archive: 'passed', layout: 'passed', excel: 'passed' });
+    await context.close();
+  }
+} finally {
+  await browser.close();
+  await fs.writeFile('.tmp-ui-audit/meeting-actions/results.json', JSON.stringify(results, null, 2));
+}
+console.log(JSON.stringify(results, null, 2));

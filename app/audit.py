@@ -74,6 +74,7 @@ TRACKED_MODEL_NAMES = {
     "MeetingRecord",
     "MeetingParticipant",
     "MeetingDecision",
+    "MeetingDecisionAction",
     "OrientationNode",
     "PersonnelContact",
     "ProcessRecord",

@@ -4,7 +4,7 @@ from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
-from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision
+from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction
 
 
 user_roles = db.Table(

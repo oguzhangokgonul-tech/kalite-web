@@ -56,6 +56,12 @@
     </a>
   {% endcall %}
 
+  {% if source_meeting %}
+    <div class="mb-3">
+      {{ ui.action_link(url_for('meetings.detail', meeting_id=source_meeting.id), source_meeting.meeting_no ~ ' · Kaynak Toplantı', icon='bi-chat-square-text', tone='secondary') }}
+    </div>
+  {% endif %}
+
   <div class="detail-metrics">
     <div class="detail-metric-card">
       <span>Departman</span>

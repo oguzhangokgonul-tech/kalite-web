@@ -2696,6 +2696,7 @@ MODULE_ENDPOINTS = {
     "meetings.dashboard": "meetings",
     "meetings.create": "meetings",
     "meetings.detail": "meetings",
+    "meetings.create_decision_action": "meetings",
     "meetings.edit": "meetings",
     "meetings.transition": "meetings",
     "meetings.add_decision": "meetings",
@@ -9045,7 +9046,7 @@ MODULE_ACTIVITY_ENTITY_TYPES = {
     "training": ("TrainingRecord", "TrainingParticipant"),
     "internal_audit": ("InternalAudit", "InternalAuditQuestion", "InternalAuditAnswer"),
     "management_review": ("ManagementReview",),
-    "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision"),
+    "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision", "MeetingDecisionAction"),
     "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
     "report_center": ("ReportDefinition", "ReportCenter"),
     "integration_management": (
@@ -14662,7 +14663,9 @@ def save_closure_evidence_files(action):
         if not allowed_file(uploaded_file.filename):
             raise ValueError("invalid_file_type")
 
-    delete_closure_evidence_file(action)
+    from .meeting_actions import link_for_action
+    if not link_for_action(action):
+        delete_closure_evidence_file(action)
     for uploaded_file in uploaded_files:
         safe_name, stored_name, mime_type = store_uploaded_file(
             uploaded_file,
@@ -27642,9 +27645,11 @@ def action_detail(action_id):
     if not can_view_action(action):
         abort(403)
 
+    from .meeting_actions import visible_source
     return render_template(
         "action_detail.html",
         action=action,
+        source_meeting=visible_source(action),
         users=active_users(),
         can_complete=can_complete_action(action),
         can_request_closure=can_request_closure_action(action),
@@ -27824,6 +27829,8 @@ def edit_action(action_id):
         try:
             before = action_snapshot(action)
             parse_action_form(action)
+            from .meeting_actions import sync_decision
+            sync_decision(action)
             changes = describe_action_changes(before, action)
             if changes:
                 add_action_history(
@@ -28217,6 +28224,8 @@ def complete_action(action_id):
         action.effectiveness_note = None
         action.effectiveness_checked_by_user_id = None
         action.effectiveness_checked_at = None
+    from .meeting_actions import sync_decision
+    sync_decision(action)
     add_action_history(
         action,
         "completed",
@@ -28304,6 +28313,8 @@ def review_action_effectiveness(action_id):
         )
         flash_message = "Aksiyon etkinlik kontrolü kaydedildi."
         flash_category = "success"
+    from .meeting_actions import sync_decision
+    sync_decision(action)
     add_action_history(
         action,
         "effectiveness_reviewed",
@@ -28375,6 +28386,8 @@ def reject_action_closure(action_id):
 def delete_action(action_id):
     action = Action.query.get_or_404(action_id)
     ensure_same_company(action)
+    from .meeting_actions import require_unlinked_for_delete
+    require_unlinked_for_delete(action)
 
     if request.method == "POST":
         for sub_action in list(action.sub_actions):

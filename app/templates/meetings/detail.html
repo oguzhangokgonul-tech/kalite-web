@@ -86,12 +86,45 @@
           </div>
         </div>
         <dl class="row g-2 mb-2">
-          <div class="col-12 col-sm-6"><dt>Sorumlu</dt><dd>{{ decision.owner.full_name if decision.owner else '-' }}</dd></div>
-          <div class="col-12 col-sm-6"><dt>Termin</dt><dd>{% if decision.due_date %}<time datetime="{{ decision.due_date.isoformat() }}">{{ decision.due_date.strftime('%d.%m.%Y') }}</time>{% else %}-{% endif %}</dd></div>
+          <div class="col-12 col-sm-6"><dt>{{ 'Karar Sorumlusu' if decision.action_link else 'Sorumlu' }}</dt><dd>{{ decision.owner.full_name if decision.owner else '-' }}</dd></div>
+          <div class="col-12 col-sm-6"><dt>{{ 'Karar Termini' if decision.action_link else 'Termin' }}</dt><dd>{% if decision.due_date %}<time datetime="{{ decision.due_date.isoformat() }}">{{ decision.due_date.strftime('%d.%m.%Y') }}</time>{% else %}-{% endif %}</dd></div>
         </dl>
         {% if decision.completion_note %}<div class="mb-3"><h4 class="small text-secondary">Tamamlanma Notu</h4><div class="meetings-note">{{ decision.completion_note }}</div></div>{% endif %}
 
-        {% if decisions_active and can_decide(decision) %}
+        {% if decision.action_link %}
+          {% set linked = action_info(decision) %}
+          {% if linked and not linked.restricted %}
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+              {{ ui.action_link(linked.url, 'Aksiyon ' ~ linked.number, icon='bi-box-arrow-up-right', tone='secondary') }}
+              {{ ui.status_badge(linked.status) }}
+            </div>
+            <dl class="row g-2 mb-2">
+              <div class="col-12 col-sm-6"><dt>Güncel Aksiyon Sorumlusu</dt><dd>{{ linked.owner }}</dd></div>
+              <div class="col-12 col-sm-6"><dt>Güncel Aksiyon Termini</dt><dd>{{ linked.due_date.strftime('%d.%m.%Y') if linked.due_date else '-' }}</dd></div>
+            </dl>
+          {% else %}
+            <p class="text-secondary small">Bağlı aksiyon için görüntüleme yetkiniz yok.</p>
+          {% endif %}
+        {% elif can_generate_action and decisions_active and decision.status == 'open' %}
+          <details class="meetings-disclosure mb-2">
+            <summary><i class="bi bi-clipboard-plus" aria-hidden="true"></i> Aksiyon Oluştur</summary>
+            <form class="row g-3 pt-1" method="post" action="{{ url_for('meetings.create_decision_action', meeting_id=meeting.id, decision_id=decision.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="version_id" value="{{ decision.version_id }}">
+              <input type="hidden" name="meeting_version_id" value="{{ meeting.version_id }}">
+              <div class="col-12 col-md-7">
+                <label class="form-label" for="action-department-{{ decision.id }}">Aksiyon Departmanı</label>
+                <select class="form-select" id="action-department-{{ decision.id }}" name="department" required>
+                  <option value="">Seçin</option>
+                  {% for department in departments %}<option value="{{ department }}" {% if decision.owner and decision.owner.department == department %}selected{% endif %}>{{ department }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="col-12">{{ ui.action_button('Aksiyon Oluştur', icon='bi-clipboard-plus') }}</div>
+            </form>
+          </details>
+        {% endif %}
+
+        {% if not decision.action_link and decisions_active and can_decide(decision) %}
           {% if decision.status == 'open' %}
             <details class="meetings-disclosure mb-2">
               <summary><i class="bi bi-check2-circle" aria-hidden="true"></i> Kararı Tamamla</summary>
@@ -114,7 +147,7 @@
           {% endif %}
         {% endif %}
 
-        {% if definitions_editable and decision.status == 'open' %}
+        {% if not decision.action_link and definitions_editable and decision.status == 'open' %}
           <details class="meetings-disclosure">
             <summary><i class="bi bi-pencil-square" aria-hidden="true"></i> Kararı Düzenle</summary>
             <form class="row g-3 pt-1" method="post" action="{{ url_for('meetings.update_decision', meeting_id=meeting.id, decision_id=decision.id) }}">

@@ -3955,9 +3955,9 @@ def ensure_runtime_schema():
     ):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
-    from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision
+    from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction
 
-    for model in (MeetingRecord, MeetingParticipant, MeetingDecision):
+    for model in (MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
     from .customer_portal import ensure_customer_portal_schema

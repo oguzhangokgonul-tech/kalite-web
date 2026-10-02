@@ -9,8 +9,8 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from .audit import TRACKED_MODEL_NAMES, record_audit_event
 from .extensions import db
-from .meeting_models import MeetingDecision, MeetingParticipant, MeetingRecord
-from .models import User
+from .meeting_models import MeetingDecision, MeetingParticipant, MeetingRecord, MeetingDecisionAction
+from .models import User, Action
 from .notifications import add_user_notification
 from .tenant import assign_current_company, current_company_id, scoped_query
 
@@ -79,6 +79,7 @@ def visible_meetings():
         joinedload(MeetingRecord.creator),
         selectinload(MeetingRecord.participants).joinedload(MeetingParticipant.user),
         selectinload(MeetingRecord.decisions).joinedload(MeetingDecision.owner),
+        selectinload(MeetingRecord.decisions).joinedload(MeetingDecision.action_link).joinedload(MeetingDecisionAction.action),
     )
     if has_permission("meetings.view_all") or has_permission("meetings.manage"):
         return query
@@ -331,10 +332,14 @@ def create():
 @bp.get("/<int:meeting_id>")
 def detail(meeting_id):
     meeting = get_meeting(meeting_id)
+    from .meeting_actions import action_info, can_generate
+    from .routes import company_department_choices
     return render_template(
         "meetings/detail.html", meeting=meeting, users=active_users(),
         can_edit=can_edit(meeting), can_export=has_permission("meetings.export"),
         can_decide=lambda decision: can_decide(meeting, decision), statuses=STATUSES, today=date.today(),
+        can_generate_action=can_generate(meeting), action_info=action_info,
+        departments=company_department_choices(),
     )
 
 
@@ -389,6 +394,10 @@ def transition(meeting_id):
         raise ValueError("Toplant\u0131y\u0131 tamamlamak i\u00e7in tutanak zorunludur.")
     if action == "archive" and company_query(MeetingDecision).filter_by(meeting_id=meeting.id, status="open").first():
         raise ValueError("Ar\u015fivlemek i\u00e7in t\u00fcm kararlar tamamlanmal\u0131d\u0131r.")
+    if action == "archive":
+        from .routes import action_is_finally_completed
+        if any(item.action_link and (not item.action_link.action or not action_is_finally_completed(item.action_link.action)) for item in meeting.decisions):
+            raise ValueError("Arşivlemek için bağlı aksiyonların kapanış ve etkinlik kontrolleri tamamlanmalıdır.")
     old = snapshot(meeting)
     meeting.status = target
     touch(meeting)
@@ -426,6 +435,8 @@ def add_decision(meeting_id):
 def update_decision(meeting_id, decision_id):
     meeting = get_meeting(meeting_id)
     decision = company_query(MeetingDecision).filter_by(id=decision_id, meeting_id=meeting.id).first_or_404()
+    if decision.action_link:
+        abort(409, description="Bu karar bağlı aksiyon üzerinden takip edilir.")
     action = request.form.get("action")
     if action == "edit":
         require_editor(meeting)
@@ -464,6 +475,60 @@ def update_decision(meeting_id, decision_id):
     return detail_redirect(meeting)
 
 
+@bp.post("/<int:meeting_id>/kararlar/<int:decision_id>/aksiyon")
+@atomic
+def create_decision_action(meeting_id, decision_id):
+    from .meeting_actions import can_generate
+    from .routes import add_action_history, company_department_choices, reserve_action_number
+
+    meeting = get_meeting(meeting_id)
+    if not can_generate(meeting):
+        abort(403)
+    decision = company_query(MeetingDecision).filter_by(id=decision_id, meeting_id=meeting.id).first_or_404()
+    if decision.action_link:
+        return detail_redirect(meeting)
+    check_version(meeting, "meeting_version_id")
+    check_version(decision)
+    if meeting.status not in {"open", "completed"} or decision.status != "open":
+        abort(409)
+    validate_users({decision.owner_user_id})
+    owner = company_query(User).filter_by(id=decision.owner_user_id).one()
+    if (not owner.has_permission("actions.request_close_assigned")
+            or owner.has_role("management_representative") or owner.has_permission("roles.manage")):
+        raise ValueError("Karar sorumlusu mevcut aksiyon sürecinde kapanış talebi gönderemiyor. Aksiyon açmadan önce uygun bir karar sorumlusu seçin.")
+    department = text_field("department", 80, required=True)
+    if department not in company_department_choices():
+        raise ValueError("Bu firmaya ait aktif bir departman seçin.")
+    touch(meeting)
+    action = assign_current_company(Action(
+        action_number=reserve_action_number(company_id=meeting.company_id),
+        title=decision.title if len(decision.title) <= 160 else decision.title[:157] + "...",
+        description=f"{meeting.meeting_no} / Karar {decision.id}\n{decision.title}",
+        responsible_user_id=owner.id, responsible_owner=owner.full_name,
+        department=department, termin_date=decision.due_date,
+    ))
+    action.refresh_delay()
+    db.session.add(action)
+    db.session.flush()
+    link = assign_current_company(MeetingDecisionAction(
+        decision=decision, action=action, created_by_user_id=g.current_user.id,
+    ))
+    db.session.add(link)
+    decision.version_id += 1
+    db.session.flush()
+    add_action_history(action, "meeting_linked", f"{meeting.meeting_no} / Karar {decision.id} üzerinden oluşturuldu.", actor=g.current_user)
+    record_audit_event("MeetingDecision", "linked_action_created", decision.title,
+                       entity_id=decision.id, company_id=meeting.company_id,
+                       new_values={"action_id": action.id, "action_no": action.number_label}, commit=False)
+    # Persist only transactional in-app notifications; ordinary Action reminders use the existing scheduler.
+    add_user_notification(owner, f"{action.number_label} {action.title} toplantı aksiyonu size atandı.",
+                          action=action, company_id=meeting.company_id,
+                          source_key=f"meeting-decision:{decision.id}:action", due_date=action.termin_date)
+    db.session.commit()
+    flash("Karardan aksiyon oluşturuldu.", "success")
+    return detail_redirect(meeting)
+
+
 @bp.get("/<int:meeting_id>/rapor")
 @atomic
 def export(meeting_id):
@@ -471,14 +536,17 @@ def export(meeting_id):
     meeting = get_meeting(meeting_id)
     from .routes import build_simple_xlsx
 
-    decisions = company_query(MeetingDecision).filter_by(meeting_id=meeting.id).order_by(MeetingDecision.id).all()
+    from .meeting_actions import action_info
+    decisions = meeting.decisions
     rows = [(
         item.title, item.owner.full_name if item.owner else "", item.due_date.isoformat(),
         DECISION_STATUSES[item.status], item.completion_note or "",
         item.completed_at.isoformat(sep=" ", timespec="minutes") if item.completed_at else "",
+        (action_info(item) or {}).get("number", "Bağlı aksiyon" if item.action_link else ""),
+        (action_info(item) or {}).get("status", ""),
     ) for item in decisions]
     workbook = build_simple_xlsx(
-        ("Karar", "Sorumlu", "Termin", "Durum", "Tamamlama Notu", "Tamamlanma Tarihi"),
+        ("Karar", "Sorumlu", "Termin", "Durum", "Tamamlama Notu", "Tamamlanma Tarihi", "Aksiyon", "Aksiyon Durumu"),
         rows, sheet_name="Toplant\u0131 Kararlar\u0131", metadata=[
             ("Toplant\u0131 No", meeting.meeting_no), ("Ba\u015fl\u0131k", meeting.title),
             ("Tarih", meeting.meeting_at.isoformat(sep=" ", timespec="minutes")),
@@ -509,6 +577,7 @@ def assigned_task_rows(scope, row_builder):
         MeetingRecord.status.in_(("open", "completed")),
         MeetingDecision.owner_user_id == user.id,
         MeetingDecision.status == "open",
+        ~MeetingDecision.action_link.has(),
     ).options(joinedload(MeetingDecision.meeting)).order_by(MeetingDecision.due_date, MeetingDecision.id).all()
     return [row_builder(
         module_key="meetings", module_label="Toplant\u0131lar", module_icon="people", module_tone="quality",

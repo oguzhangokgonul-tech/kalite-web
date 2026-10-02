@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 import json
 from pathlib import Path
@@ -85,7 +85,7 @@ def add_actions(company, user):
                 department="Kalite",
                 responsible_owner=user.full_name,
                 responsible_user_id=user.id,
-                termin_date=date(2026, 10, 1),
+                termin_date=date.today() + timedelta(days=1),
             ),
             Action(
                 company_id=company.id,
@@ -94,7 +94,7 @@ def add_actions(company, user):
                 department="Kalite",
                 responsible_owner=user.full_name,
                 responsible_user_id=user.id,
-                termin_date=date(2026, 10, 2),
+                termin_date=date.today() + timedelta(days=2),
             ),
             Action(
                 company_id=company.id,
@@ -103,7 +103,7 @@ def add_actions(company, user):
                 department="Bakım",
                 responsible_owner=user.full_name,
                 responsible_user_id=user.id,
-                termin_date=date(2026, 10, 3),
+                termin_date=date.today() + timedelta(days=3),
             ),
         ]
     )

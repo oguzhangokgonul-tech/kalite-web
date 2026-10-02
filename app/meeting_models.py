@@ -88,3 +88,25 @@ class MeetingDecision(db.Model):
         "User", foreign_keys=[owner_user_id],
         primaryjoin="and_(MeetingDecision.owner_user_id == User.id, MeetingDecision.company_id == User.company_id)",
     )
+    action_link = db.relationship("MeetingDecisionAction", back_populates="decision", uselist=False)
+
+
+class MeetingDecisionAction(db.Model):
+    __tablename__ = "meeting_decision_actions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    decision_id = db.Column(
+        db.Integer, db.ForeignKey("meeting_decisions.id", ondelete="RESTRICT"), nullable=False, unique=True,
+    )
+    action_id = db.Column(
+        db.Integer, db.ForeignKey("actions.id", ondelete="RESTRICT"), nullable=False, unique=True,
+    )
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    decision = db.relationship("MeetingDecision", back_populates="action_link")
+    action = db.relationship(
+        "Action", foreign_keys=[action_id],
+        primaryjoin="and_(MeetingDecisionAction.action_id == Action.id, MeetingDecisionAction.company_id == Action.company_id)",
+    )

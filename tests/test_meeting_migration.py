@@ -170,7 +170,7 @@ class MeetingMigrationTests(unittest.TestCase):
         sys.modules[package_name] = package
         sys.modules[extensions.__name__] = extensions
         try:
-            for name in ("companies", "users"):
+            for name in ("companies", "users", "actions"):
                 sa.Table(name, db.metadata, sa.Column("id", sa.Integer, primary_key=True))
             spec = importlib.util.spec_from_file_location(package_name + ".meeting_models", ROOT / "app/meeting_models.py")
             module = importlib.util.module_from_spec(spec)
