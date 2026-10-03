@@ -6,7 +6,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import current_app
 
 from .extensions import db
-from .mail import send_generic_notification_email
+from .notification_policy import collect_reminder, reminder_collection, dispatch_collection, local_now
+from .reminder_sources import (
+    collect_additional_sources, eligible_recipients,
+    strict_recipients, linked_action_duplicates,
+)
 from .models import (
     Action,
     ActionSubTask,
@@ -43,8 +47,6 @@ from .models import (
     WorkflowInstanceStep,
 )
 from .notifications import (
-    add_user_notification,
-    mark_notifications_email_sent,
     unique_users,
     users_by_ids,
     users_with_permissions,
@@ -85,7 +87,12 @@ def _status_text(value):
 
 def _is_completed_text(value):
     status = _status_text(value)
-    return "tamam" in status or "iptal" in status or "kapand" in status or "arşiv" in status
+    if "onay" in status or "bekli" in status:
+        return False
+    return any(word in status for word in (
+        "tamam", "iptal", "kapand", "kapat", "kapali", "arsiv", "redded", "sonucland", "taslak", "draft",
+        "completed", "cancelled", "archived", "closed", "rejected",
+    ))
 
 
 def _company_query(model, company_id):
@@ -134,17 +141,14 @@ def _date_in_window(target_date, run_date, days_before):
 
 
 def _due_state(target_date, run_date):
+    if target_date is None:
+        return "warning", "İşlem bekliyor"
     days = (target_date - run_date).days
     if days < 0:
         return "danger", f"{abs(days)} gün geçti"
     if days == 0:
         return "warning", "Bugün"
     return "warning", f"{days} gün kaldı"
-
-
-def _source_key(kind, record_id, target_date, user_id, run_date):
-    date_part = target_date.isoformat() if target_date else "no-date"
-    return f"{kind}:{record_id}:{date_part}:u{user_id}:{run_date.isoformat()}"
 
 
 def _send_record_reminders(
@@ -161,6 +165,7 @@ def _send_record_reminders(
     run_date=None,
     email_message=None,
     email_details=None,
+    created_at=None,
 ):
     run_date = run_date or date.today()
     details = list(email_details or ())
@@ -168,43 +173,17 @@ def _send_record_reminders(
         due_label = (f"{(run_date - due_date).days} gün gecikti"
                      if due_date < run_date else _due_state(due_date, run_date)[1])
         details.append(("Termin durumu", due_label))
-    created = []
-    emails_sent = 0
-    for user in unique_users(users):
-        notification = add_user_notification(
-            user,
-            message,
-            company_id=company_id,
-            notification_type=notification_type,
-            source_key=_source_key(kind, record_id, due_date, user.id, run_date),
-            target_url=target_url,
-            due_date=due_date,
-        )
-        if notification is None:
-            continue
-        created.append(notification)
-        if send_generic_notification_email(
-            [user],
-            email_message or message,
-            title=title,
-            target_url=target_url,
-            due_date=due_date,
-            source_label=kind,
-            company_id=company_id,
-            details=details,
-        ):
-            mark_notifications_email_sent([notification])
-            emails_sent += 1
-    return len(created), emails_sent
+    return collect_reminder(
+        eligible_recipients(users, company_id, kind),
+        company_id=company_id, kind=kind, record_id=record_id, title=title,
+        message=message, target_url=target_url, due_date=due_date,
+        notification_type=notification_type, run_date=run_date,
+        email_message=email_message, email_details=details, created_at=created_at,
+    )
 
 
 def _merge_users(company_id, user_ids=(), permission_keys=()):
-    return unique_users(
-        [
-            *users_by_ids(user_ids, company_id=company_id),
-            *users_with_permissions(company_id, permission_keys),
-        ]
-    )
+    return strict_recipients(company_id, user_ids, permission_keys)
 
 
 def _action_reminders(company_id, run_date, days_before):
@@ -213,20 +192,19 @@ def _action_reminders(company_id, run_date, days_before):
     actions = (
         _company_query(Action, company_id)
         .filter(Action.is_completed.is_(False))
-        .filter(Action.termin_date <= limit_date)
         .all()
     )
     for action in actions:
         severity, label = _due_state(action.termin_date, run_date)
         users = _merge_users(
             company_id,
-            action.participant_user_ids(),
-            ACTION_REMINDER_PERMISSIONS if severity == "danger" else (),
+            () if action.closure_approval_requested else [action.responsible_user_id],
+            ("actions.approve_closure",) if action.closure_approval_requested else ACTION_REMINDER_PERMISSIONS,
         )
         created, emails = _send_record_reminders(
             users,
             company_id=company_id,
-            kind="action",
+            kind="action-approval" if action.closure_approval_requested else "action",
             record_id=action.id,
             title=f"Aksiyon hatırlatması {action.number_label}",
             message=f"{action.number_label} {action.title} için termin durumu: {label}.",
@@ -234,6 +212,7 @@ def _action_reminders(company_id, run_date, days_before):
             due_date=action.termin_date,
             notification_type=severity,
             run_date=run_date,
+            created_at=action.closure_requested_at if action.closure_approval_requested else action.created_at,
             email_details=[("Kayıt", action.number_label), ("Konu", action.title),
                            ("Sorumlu", action.responsible_owner), ("Birim", action.department)],
         )
@@ -247,8 +226,6 @@ def _sub_action_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     sub_actions = (
         _company_query(ActionSubTask, company_id)
-        .filter(ActionSubTask.due_date.isnot(None))
-        .filter(ActionSubTask.due_date <= limit_date)
         .all()
     )
     for sub_action in sub_actions:
@@ -256,9 +233,9 @@ def _sub_action_reminders(company_id, run_date, days_before):
             continue
         severity, label = _due_state(sub_action.due_date, run_date)
         parent = sub_action.parent_action
-        user_ids = set(sub_action.participant_user_ids())
-        if parent and parent.responsible_user_id:
-            user_ids.add(parent.responsible_user_id)
+        if not parent or parent.company_id != company_id or parent.is_completed:
+            continue
+        user_ids = [sub_action.responsible_id]
         users = _merge_users(
             company_id,
             user_ids,
@@ -289,18 +266,26 @@ def _dof_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     dofs = (
         _company_query(Dof, company_id)
-        .filter(Dof.due_date.isnot(None))
-        .filter(Dof.due_date <= limit_date)
         .all()
     )
     for dof in dofs:
         if _is_completed_text(dof.status) or dof.approval_step == "completed":
             continue
         severity, label = _due_state(dof.due_date, run_date)
-        user_ids = [dof.responsible_id, dof.created_by_user_id]
-        permission_keys = DOF_REMINDER_PERMISSIONS if severity == "danger" else ()
-        if dof.approval_step in {"management_representative", "general_manager_deputy"}:
-            permission_keys = DOF_REMINDER_PERMISSIONS
+        if dof.approval_step in {"draft", "effectiveness_review"}:
+            continue
+        user_ids = [dof.responsible_id]
+        permission_keys = DOF_REMINDER_PERMISSIONS
+        approval_permissions = {
+            "management_representative": "if.approve_management",
+            "general_manager_deputy": "if.approve_deputy",
+        }
+        if dof.approval_step in approval_permissions:
+            user_ids = []
+            permission_keys = (approval_permissions[dof.approval_step],)
+        elif any(linked_action_duplicates(action, company_id, dof.responsible_id, dof.due_date)
+                 for action in dof.linked_actions):
+            continue
         users = _merge_users(company_id, user_ids, permission_keys)
         created, emails = _send_record_reminders(
             users,
@@ -328,6 +313,8 @@ def _document_revision_reminders(company_id, run_date):
         if "bekleniyor" not in _status_text(revision_request.status):
             continue
         document = revision_request.document
+        if not document or document.company_id != company_id or document.archived_at or _is_completed_text(document.status):
+            continue
         users = _merge_users(company_id, (), DOCUMENT_REMINDER_PERMISSIONS)
         document_label = (
             f"{document.document_code} {document.title}" if document else "Doküman"
@@ -343,6 +330,7 @@ def _document_revision_reminders(company_id, run_date):
             due_date=None,
             notification_type="warning",
             run_date=run_date,
+            created_at=revision_request.created_at,
         )
         stats["notifications"] += created
         stats["emails"] += emails
@@ -354,15 +342,15 @@ def _internal_audit_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     audits = (
         _company_query(InternalAudit, company_id)
-        .filter(InternalAudit.planned_date.isnot(None))
-        .filter(InternalAudit.planned_date <= limit_date)
         .all()
     )
     for audit in audits:
         if _is_completed_text(audit.status):
             continue
         severity, label = _due_state(audit.planned_date, run_date)
-        if audit.planned_date < run_date:
+        if audit.planned_date is None:
+            email_message = "İç denetim göreviniz işlem bekliyor."
+        elif audit.planned_date < run_date:
             email_message = "Planlanan iç denetim tarihi geçti. Denetim durumunu kontrol edip gerekli güncellemeyi yapın."
         elif audit.planned_date == run_date:
             email_message = "İç denetim bugün planlandı. Denetimi tamamlayıp sonucunu kaydedin."
@@ -401,8 +389,6 @@ def _maintenance_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     faults = (
         _company_query(MaintenanceFault, company_id)
-        .filter(MaintenanceFault.due_date.isnot(None))
-        .filter(MaintenanceFault.due_date <= limit_date)
         .all()
     )
     for fault in faults:
@@ -411,7 +397,7 @@ def _maintenance_reminders(company_id, run_date, days_before):
         severity, label = _due_state(fault.due_date, run_date)
         users = _merge_users(
             company_id,
-            [fault.responsible_user_id, fault.reported_by_user_id],
+            [fault.responsible_user_id],
             MAINTENANCE_REMINDER_PERMISSIONS if severity == "danger" else (),
         )
         created, emails = _send_record_reminders(
@@ -436,8 +422,6 @@ def _risk_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     risks = (
         _company_query(RiskRecord, company_id)
-        .filter(RiskRecord.due_date.isnot(None))
-        .filter(RiskRecord.due_date <= limit_date)
         .all()
     )
     ohs_mirror_ids = {
@@ -451,10 +435,12 @@ def _risk_reminders(company_id, run_date, days_before):
             continue
         if _is_completed_text(risk.status):
             continue
+        if linked_action_duplicates(risk.action, company_id, risk.owner_user_id, risk.due_date):
+            continue
         severity, label = _due_state(risk.due_date, run_date)
         users = _merge_users(
             company_id,
-            [risk.owner_user_id, risk.created_by_user_id],
+            [risk.owner_user_id],
             RISK_REMINDER_PERMISSIONS if severity == "danger" else (),
         )
         created, emails = _send_record_reminders(
@@ -480,7 +466,6 @@ def _ohs_risk_reminders(company_id, run_date, days_before):
     rows = (
         _company_query(OhsRiskAssessment, company_id)
         .filter(OhsRiskAssessment.status.notin_(("Tamamlandı", "Arşiv")))
-        .filter(OhsRiskAssessment.due_date <= limit_date)
         .all()
     )
     for row in rows:
@@ -520,18 +505,18 @@ def _training_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     trainings = (
         _company_query(TrainingRecord, company_id)
-        .filter(TrainingRecord.due_date.isnot(None))
-        .filter(TrainingRecord.due_date <= limit_date)
         .all()
     )
     for training in trainings:
-        if _is_completed_text(training.status):
+        if _is_completed_text(training.status) or training.training_type == "Doküman Okuma Onayı":
             continue
         incomplete_participant_ids = [
             participant.user_id
             for participant in training.participants
-            if participant.user_id and not participant.is_completed
+            if participant.company_id == company_id and participant.user_id and not participant.is_completed
         ]
+        if training.participants and not incomplete_participant_ids:
+            continue
         severity, label = _due_state(training.due_date, run_date)
         users = _merge_users(
             company_id,
@@ -560,17 +545,16 @@ def _complaint_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     complaints = (
         _company_query(ComplaintRecord, company_id)
-        .filter(ComplaintRecord.due_date.isnot(None))
-        .filter(ComplaintRecord.due_date <= limit_date)
         .all()
     )
     for complaint in complaints:
-        if complaint.is_closed or _is_completed_text(complaint.status):
+        if (complaint.source == "Müşteri Portalı" or complaint.is_archived
+                or complaint.is_closed or _is_completed_text(complaint.status)):
             continue
         severity, label = _due_state(complaint.due_date, run_date)
         users = _merge_users(
             company_id,
-            [complaint.responsible_user_id, complaint.created_by_user_id],
+            [complaint.responsible_user_id],
             COMPLAINT_REMINDER_PERMISSIONS if severity == "danger" else (),
         )
         created, emails = _send_record_reminders(
@@ -595,8 +579,6 @@ def _management_review_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     reviews = (
         _company_query(ManagementReview, company_id)
-        .filter(ManagementReview.meeting_date.isnot(None))
-        .filter(ManagementReview.meeting_date <= limit_date)
         .all()
     )
     for review in reviews:
@@ -605,7 +587,7 @@ def _management_review_reminders(company_id, run_date, days_before):
         severity, label = _due_state(review.meeting_date, run_date)
         users = _merge_users(
             company_id,
-            [review.chair_user_id, review.recorder_user_id, review.created_by_user_id],
+            [review.chair_user_id, review.recorder_user_id],
             MANAGEMENT_REVIEW_REMINDER_PERMISSIONS if severity == "danger" else (),
         )
         created, emails = _send_record_reminders(
@@ -630,8 +612,6 @@ def _supplier_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     suppliers = (
         _company_query(SupplierRecord, company_id)
-        .filter(SupplierRecord.next_evaluation_date.isnot(None))
-        .filter(SupplierRecord.next_evaluation_date <= limit_date)
         .all()
     )
     for supplier in suppliers:
@@ -640,7 +620,7 @@ def _supplier_reminders(company_id, run_date, days_before):
         severity, label = _due_state(supplier.next_evaluation_date, run_date)
         users = _merge_users(
             company_id,
-            [supplier.created_by_user_id],
+            [],
             SUPPLIER_REMINDER_PERMISSIONS,
         )
         created, emails = _send_record_reminders(
@@ -666,13 +646,11 @@ def _calibration_reminders(company_id, run_date, days_before):
     records = (
         _company_query(CalibrationRecord, company_id)
         .filter(CalibrationRecord.is_active.is_(True))
-        .filter(CalibrationRecord.next_calibration_date.isnot(None))
-        .filter(CalibrationRecord.next_calibration_date <= limit_date)
         .all()
     )
     for record in records:
         severity, label = _due_state(record.next_calibration_date, run_date)
-        users = _merge_users(company_id, [record.created_by_user_id], CALIBRATION_REMINDER_PERMISSIONS)
+        users = _merge_users(company_id, (), CALIBRATION_REMINDER_PERMISSIONS)
         created, emails = _send_record_reminders(
             users,
             company_id=company_id,
@@ -696,8 +674,6 @@ def _quality_objective_reminders(company_id, run_date, days_before):
     objectives = (
         _company_query(QualityObjective, company_id)
         .filter(QualityObjective.status == QUALITY_OBJECTIVE_STATUS_ACTIVE)
-        .filter(QualityObjective.next_measurement_date.isnot(None))
-        .filter(QualityObjective.next_measurement_date <= limit_date)
         .all()
     )
     for objective in objectives:
@@ -733,7 +709,6 @@ def _stakeholder_reminders(company_id, run_date, days_before):
     parties = (
         _company_query(StakeholderParty, company_id)
         .filter(StakeholderParty.status == "active")
-        .filter(StakeholderParty.next_review_date <= limit_date)
         .all()
     )
     for party in parties:
@@ -764,8 +739,6 @@ def _stakeholder_reminders(company_id, run_date, days_before):
         .filter(
             StakeholderRequirement.is_active.is_(True),
             StakeholderRequirement.fulfillment_status != "met",
-            StakeholderRequirement.due_date.isnot(None),
-            StakeholderRequirement.due_date <= limit_date,
             StakeholderParty.status == "active",
         )
         .all()
@@ -829,13 +802,9 @@ def _compliance_reminders(company_id, run_date):
     obligations = (
         _company_query(ComplianceObligation, company_id)
         .filter(ComplianceObligation.status == "active")
-        .filter(ComplianceObligation.next_review_date <= limit_date)
         .all()
     )
     for obligation in obligations:
-        days = (obligation.next_review_date - run_date).days
-        if days > 0 and days not in {30, 7}:
-            continue
         severity, label = _due_state(obligation.next_review_date, run_date)
         users = _merge_users(
             company_id,
@@ -908,7 +877,7 @@ def _hazardous_substance_reminders(company_id, run_date, days_before=30):
     for row in rows:
         users = _merge_users(
             company_id,
-            [row.responsible_user_id, row.reviewer_user_id],
+            [row.responsible_user_id],
             HAZARDOUS_SUBSTANCE_REMINDER_PERMISSIONS,
         )
         due_items = (
@@ -916,7 +885,7 @@ def _hazardous_substance_reminders(company_id, run_date, days_before=30):
             ("hazardous-expiry", "son kullanma", row.expiry_date),
         )
         for kind, label, target_date in due_items:
-            if not target_date or target_date > limit_date:
+            if not target_date:
                 continue
             severity, due_label = _due_state(target_date, run_date)
             created, emails = _send_record_reminders(
@@ -962,12 +931,11 @@ def _environmental_reminders(company_id, run_date, days_before=30):
     aspects = (
         _company_query(EnvironmentalAspect, company_id)
         .filter(EnvironmentalAspect.status == "Aktif")
-        .filter(EnvironmentalAspect.review_due_date <= limit_date)
         .all()
     )
     for row in aspects:
         severity, label = _due_state(row.review_due_date, run_date)
-        users = _merge_users(company_id, [row.responsible_user_id, row.reviewer_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
+        users = _merge_users(company_id, [row.responsible_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
         created, emails = _send_record_reminders(
             users, company_id=company_id, kind="environmental-aspect", record_id=row.id,
             title=f"Çevresel boyut hatırlatması {row.aspect_no}",
@@ -980,12 +948,11 @@ def _environmental_reminders(company_id, run_date, days_before=30):
     batches = (
         _company_query(WasteBatch, company_id)
         .filter(WasteBatch.status.notin_(("Tamamlandı", "İptal", "Arşiv")))
-        .filter(WasteBatch.storage_due_date <= limit_date)
         .all()
     )
     for row in batches:
         severity, label = _due_state(row.storage_due_date, run_date)
-        users = _merge_users(company_id, [row.responsible_user_id, row.reviewer_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
+        users = _merge_users(company_id, [row.reviewer_user_id if row.status in {"Taşıyıcıya Teslim", "Mutabakat Bekliyor"} else row.responsible_user_id], ENVIRONMENTAL_REMINDER_PERMISSIONS)
         created, emails = _send_record_reminders(
             users, company_id=company_id, kind="environmental-waste", record_id=row.id,
             title=f"Atık depolama hatırlatması {row.batch_no}",
@@ -1010,7 +977,7 @@ def _energy_reminders(company_id, run_date, days_before=30):
             EnergyReading.is_current.is_(True),
             EnergyReading.status.in_(("Onay Bekliyor", "Onaylandı")),
         ).first()
-        if due_date > run_date or valid_reading:
+        if valid_reading:
             continue
         users = _merge_users(company_id, [meter.responsible_user_id], ENERGY_REMINDER_PERMISSIONS if due_date < run_date else ())
         severity, label = _due_state(due_date, run_date)
@@ -1026,11 +993,10 @@ def _energy_reminders(company_id, run_date, days_before=30):
     limit_date = run_date + timedelta(days=days_before)
     projects = _company_query(EnergySavingProject, company_id).filter(
         EnergySavingProject.status.in_(("Planlandı", "Devam Ediyor", "Doğrulama Bekliyor")),
-        EnergySavingProject.due_date <= limit_date,
     ).all()
     for project in projects:
         severity, label = _due_state(project.due_date, run_date)
-        users = _merge_users(company_id, [project.responsible_user_id, project.approver_user_id], ENERGY_REMINDER_PERMISSIONS if severity == "danger" else ())
+        users = _merge_users(company_id, [project.approver_user_id if project.status == "Doğrulama Bekliyor" else project.responsible_user_id], ENERGY_REMINDER_PERMISSIONS)
         created, emails = _send_record_reminders(
             users, company_id=company_id, kind="energy-project", record_id=project.id,
             title=f"Enerji tasarruf projesi {project.project_no}",
@@ -1042,11 +1008,10 @@ def _energy_reminders(company_id, run_date, days_before=30):
         stats["notifications"] += created; stats["emails"] += emails
     targets = _company_query(EnergyTarget, company_id).filter(
         EnergyTarget.status.in_(("Aktif", "Tamamlama Onayı")),
-        EnergyTarget.target_date <= limit_date,
     ).all()
     for target in targets:
         severity, label = _due_state(target.target_date, run_date)
-        users = _merge_users(company_id, [target.responsible_user_id, target.approver_user_id], ENERGY_REMINDER_PERMISSIONS if severity == "danger" else ())
+        users = _merge_users(company_id, [target.approver_user_id if target.status == "Tamamlama Onayı" else target.responsible_user_id], ENERGY_REMINDER_PERMISSIONS)
         created, emails = _send_record_reminders(
             users, company_id=company_id, kind="energy-target", record_id=target.id,
             title=f"Enerji azaltım hedefi {target.target_no}",
@@ -1064,10 +1029,10 @@ def _workflow_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     steps = _company_query(WorkflowInstanceStep, company_id).filter(
         WorkflowInstanceStep.status == "active",
-        WorkflowInstanceStep.due_date.isnot(None),
-        WorkflowInstanceStep.due_date <= limit_date,
     ).all()
     for step in steps:
+        if not step.instance or step.instance.company_id != company_id or step.instance.status != "in_progress":
+            continue
         user_ids = [recipient.user_id for recipient in step.recipients if recipient.status == "pending"]
         if not user_ids:
             continue
@@ -1099,8 +1064,6 @@ def _dynamic_form_reminders(company_id, run_date, days_before):
     limit_date = run_date + timedelta(days=days_before)
     assignments = _company_query(DynamicFormAssignment, company_id).filter(
         DynamicFormAssignment.status == "assigned",
-        DynamicFormAssignment.due_date.isnot(None),
-        DynamicFormAssignment.due_date <= limit_date,
     ).all()
     for assignment in assignments:
         completed_user_ids = {
@@ -1141,40 +1104,45 @@ def _dynamic_form_reminders(company_id, run_date, days_before):
     return stats
 
 
-def generate_due_reminders(company_id=None, run_date=None):
-    run_date = run_date or date.today()
-    days_before = int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7))
-    calibration_days = int(
+def generate_due_reminders(company_id=None, run_date=None, *, kinds=None, persist_notifications=True):
+    run_date = run_date or local_now().date()
+    days_before = max(90, int(current_app.config.get("NOTIFICATION_REMINDER_DAYS_BEFORE", 7)))
+    calibration_days = max(90, int(
         current_app.config.get("NOTIFICATION_CALIBRATION_REMINDER_DAYS_BEFORE", 30)
-    )
+    ))
     stats = {"notifications": 0, "emails": 0}
     builders = (
-        lambda: _action_reminders(company_id, run_date, days_before),
-        lambda: _sub_action_reminders(company_id, run_date, days_before),
-        lambda: _dof_reminders(company_id, run_date, days_before),
-        lambda: _document_revision_reminders(company_id, run_date),
-        lambda: _internal_audit_reminders(company_id, run_date, days_before),
-        lambda: _maintenance_reminders(company_id, run_date, days_before),
-        lambda: _risk_reminders(company_id, run_date, days_before),
-        lambda: _ohs_risk_reminders(company_id, run_date, days_before),
-        lambda: _training_reminders(company_id, run_date, days_before),
-        lambda: _complaint_reminders(company_id, run_date, days_before),
-        lambda: _management_review_reminders(company_id, run_date, days_before),
-        lambda: _supplier_reminders(company_id, run_date, calibration_days),
-        lambda: _calibration_reminders(company_id, run_date, calibration_days),
-        lambda: _quality_objective_reminders(company_id, run_date, days_before),
-        lambda: _stakeholder_reminders(company_id, run_date, 30),
-        lambda: _compliance_reminders(company_id, run_date),
-        lambda: _hazardous_substance_reminders(company_id, run_date, 30),
-        lambda: _environmental_reminders(company_id, run_date, 30),
-        lambda: _energy_reminders(company_id, run_date, 30),
-        lambda: _workflow_reminders(company_id, run_date, days_before),
-        lambda: _dynamic_form_reminders(company_id, run_date, days_before),
+        ({"action", "action-approval"}, _action_reminders, (days_before,)),
+        ({"sub-action"}, _sub_action_reminders, (days_before,)),
+        ({"dof"}, _dof_reminders, (days_before,)),
+        ({"document-revision"}, _document_revision_reminders, ()),
+        ({"internal-audit"}, _internal_audit_reminders, (days_before,)),
+        ({"maintenance"}, _maintenance_reminders, (days_before,)),
+        ({"risk"}, _risk_reminders, (days_before,)),
+        ({"ohs-risk"}, _ohs_risk_reminders, (days_before,)),
+        ({"training"}, _training_reminders, (days_before,)),
+        ({"complaint"}, _complaint_reminders, (days_before,)),
+        ({"management-review"}, _management_review_reminders, (days_before,)),
+        ({"supplier"}, _supplier_reminders, (calibration_days,)),
+        ({"calibration"}, _calibration_reminders, (calibration_days,)),
+        ({"quality-objective"}, _quality_objective_reminders, (days_before,)),
+        ({"stakeholder-review", "stakeholder-requirement-due"}, _stakeholder_reminders, (days_before,)),
+        ({"compliance-review", "compliance-verification"}, _compliance_reminders, ()),
+        ({"hazardous-sds", "hazardous-expiry", "hazardous-low-stock"}, _hazardous_substance_reminders, (days_before,)),
+        ({"environmental-aspect", "environmental-waste"}, _environmental_reminders, (days_before,)),
+        ({"energy-reading", "energy-project", "energy-target"}, _energy_reminders, (days_before,)),
+        ({"workflow"}, _workflow_reminders, (days_before,)),
+        ({"dynamic-form"}, _dynamic_form_reminders, (days_before,)),
     )
-    for build_stats in builders:
-        item_stats = build_stats()
-        stats["notifications"] += item_stats["notifications"]
-        stats["emails"] += item_stats["emails"]
+    with reminder_collection(company_id, run_date, persist_notifications=persist_notifications) as collection:
+        for source_kinds, build_stats, args in builders:
+            if kinds is not None and source_kinds.isdisjoint(kinds):
+                continue
+            item_stats = build_stats(company_id, run_date, *args)
+            stats["notifications"] += item_stats["notifications"]
+        stats["notifications"] += collect_additional_sources(company_id, run_date, kinds=kinds)["notifications"]
+    stats["_collection"] = collection
+    collection["refresh_sources"] = True
     return stats
 
 
@@ -1196,19 +1164,13 @@ def run_due_reminders_once_for_company(
     force=False,
     run_date=None,
 ):
-    run_date = run_date or date.today()
+    run_date = run_date or local_now().date()
     setting_key = _run_key(company_id)
     setting = db.session.get(AppSetting, setting_key)
-    if setting is not None and setting.value == run_date.isoformat() and not force:
+    if setting is not None and setting.value == run_date.isoformat():
         return {"notifications": 0, "emails": 0, "skipped": True}
 
     stats = generate_due_reminders(company_id=company_id, run_date=run_date)
-    if setting is None:
-        setting = AppSetting(key=setting_key, value=run_date.isoformat())
-        db.session.add(setting)
-    else:
-        setting.value = run_date.isoformat()
-
     if stats["notifications"]:
         db.session.add(
             AuditLog(
@@ -1230,11 +1192,22 @@ def run_due_reminders_once_for_company(
             )
         )
     db.session.commit()
+    collection = stats.pop("_collection")
+    # Both CLI and request entry points obey the same delivery window. A preview
+    # outside that window must not consume today's run marker.
+    if reminder_delivery_window_open() and run_date == local_now().date():
+        stats["emails"] = dispatch_collection(collection)
+        if setting is None:
+            setting = AppSetting(key=setting_key, value=run_date.isoformat())
+            db.session.add(setting)
+        else:
+            setting.value = run_date.isoformat()
+        db.session.commit()
     return {**stats, "skipped": False}
 
 
 def run_due_reminders_for_all_companies(force=False, run_date=None):
-    run_date = run_date or date.today()
+    run_date = run_date or local_now().date()
     totals = {"companies": 0, "notifications": 0, "emails": 0, "skipped": 0}
     company_ids = [None]
     company_ids.extend(

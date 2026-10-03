@@ -50,6 +50,7 @@ from .integration_api import bp as integration_api_bp
 from .record_analysis import bp as record_analysis_bp
 from .import_center import bp as import_center_bp
 from .meetings import bp as meetings_bp
+from .notification_settings import bp as notification_settings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -114,6 +115,7 @@ def create_app(config_class=Config):
     app.register_blueprint(record_analysis_bp)
     app.register_blueprint(import_center_bp)
     app.register_blueprint(meetings_bp)
+    app.register_blueprint(notification_settings_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):
@@ -245,7 +247,7 @@ def create_app(config_class=Config):
     @click.option(
         "--force",
         is_flag=True,
-        help="Ayni gun daha once calismis olsa bile yeniden uret.",
+        help="Uyumluluk secenegi; saat ve tekrar korumasini atlamaz.",
     )
     @with_appcontext
     def send_reminders_command(company_id, force):
@@ -274,6 +276,52 @@ def create_app(config_class=Config):
             f"{stats['emails']} e-posta, "
             f"{stats['skipped']} atlanan."
         )
+
+    @app.cli.command("preview-notifications")
+    @click.option("--company-id", type=int, default=None)
+    @click.option("--on-date", type=click.DateTime(formats=["%Y-%m-%d"]), default=None)
+    @with_appcontext
+    def preview_notifications_command(company_id, on_date):
+        """Calculate planned digest counts without SMTP or persistent writes."""
+        from .models import Company
+        from .notification_policy import _phase, get_company_policy, get_user_preference, local_now
+        from .reminders import generate_due_reminders
+
+        run_date = on_date.date() if on_date else local_now().date()
+        query = Company.query.filter_by(is_active=True)
+        if company_id is not None:
+            query = query.filter_by(id=company_id)
+        ids = [row.id for row in query.all()]
+        for selected_id in ids:
+            try:
+                collection = generate_due_reminders(selected_id, run_date, persist_notifications=False)["_collection"]
+                policy = get_company_policy(selected_id)
+                selected = [item for item in collection["items"].values() if policy["enabled"] and _phase(
+                    item, policy, run_date, get_user_preference(selected_id, item["user_id"]),
+                )]
+                click.echo(f"company={selected_id} date={run_date} candidates={len(collection['items'])} "
+                           f"scheduled_items={len(selected)} digests={len({item['user_id'] for item in selected})}")
+            finally:
+                db.session.rollback()
+
+    @app.cli.command("notification-delivery-status")
+    @click.option("--company-id", type=int, required=True)
+    @with_appcontext
+    def notification_delivery_status_command(company_id):
+        """Show delivery counts and unresolved batch IDs without personal content."""
+        from .notification_models import NotificationEmailBatch, NotificationEmailEvent
+
+        for model, label in ((NotificationEmailEvent, "events"), (NotificationEmailBatch, "batches")):
+            counts = db.session.query(model.status, db.func.count(model.id)).filter(
+                model.company_id == company_id,
+            ).group_by(model.status).all()
+            click.echo(f"company={company_id} {label}: " + ", ".join(f"{state}={count}" for state, count in counts))
+        unresolved = NotificationEmailBatch.query.filter(
+            NotificationEmailBatch.company_id == company_id,
+            NotificationEmailBatch.status.in_(("claimed", "sending", "uncertain", "failed", "cancelled")),
+        ).order_by(NotificationEmailBatch.id.desc()).limit(30).all()
+        for batch in unresolved:
+            click.echo(f"batch={batch.id} date={batch.send_date} status={batch.status} error={batch.error_code or '-'}")
 
     @app.cli.command("reopen-completed-dofs")
     @click.option(

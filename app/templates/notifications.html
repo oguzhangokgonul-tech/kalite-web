@@ -6,6 +6,12 @@
 
 {% block app_content %}
   {% call ui.page_header("Bildirimler", "Termin, gecikme, onay ve görev hareketleri burada toplanır.", icon="bi-bell") %}
+    {% if notification_settings_available|default(false) %}
+      <a class="btn btn-outline-primary" href="{{ url_for('notification_settings.index') }}">
+        <i class="bi bi-gear" aria-hidden="true"></i>
+        <span>Bildirim Ayarları</span>
+      </a>
+    {% endif %}
     {% if unread_count %}
       <form method="post" action="{{ url_for('main.mark_all_notifications_read') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

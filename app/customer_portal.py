@@ -27,7 +27,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from .audit import record_audit_event
 from .company_packages import get_package_module_keys
 from .extensions import db
-from .mail import send_generic_notification_email, send_recipient_email
+from .mail import send_recipient_email
 from .models import (
     Action,
     AppSetting,
@@ -44,7 +44,7 @@ from .models import (
     Dof,
     User,
 )
-from .notifications import add_notifications, mark_notifications_email_sent
+from .notifications import add_notifications
 from .request_security import request_client_ip
 from .tenant import tenant_url_for_company
 
@@ -227,13 +227,15 @@ def _user_matches_department(user, department):
     )
 
 
-def _can_access(record):
-    user = g.current_user
+def _can_access(record, user=None):
+    user = user if user is not None else getattr(g, "current_user", None)
+    if not user or not user.is_active or not user.has_permission("customer_portal.view"):
+        return False
     if (
-        _has_permission("customer_portal.assign")
+        user.has_permission("customer_portal.assign")
         or user.has_role("management")
         or (
-            _has_permission("customer_portal.triage")
+            user.has_permission("customer_portal.triage")
             and not user.has_role("department_manager")
         )
     ):
@@ -392,15 +394,11 @@ def _audit(record, action, details=None):
     )
 
 
-def _notification_users(company_id):
-    return [
-        user for user in User.query.filter_by(company_id=company_id, is_active=True).all()
-        if user.has_permission("customer_portal.triage") or user.has_permission("customer_portal.assign")
-    ]
+def _notify_internal(record, message, source_suffix, *, event_type):
+    from .notification_policy import queue_notification_event
+    from .reminder_sources import customer_portal_recipients
 
-
-def _notify_internal(record, message, source_suffix):
-    users = _notification_users(record.company_id)
+    users = customer_portal_recipients(record)
     notifications = add_notifications(
         users,
         message,
@@ -410,13 +408,8 @@ def _notify_internal(record, message, source_suffix):
         target_url=url_for("customer_portal.detail", record_id=record.id),
         due_date=record.due_date,
     )
-    if notifications and send_generic_notification_email(
-        users,
-        message,
-        target_url=url_for("customer_portal.detail", record_id=record.id),
-        company=db.session.get(Company, record.company_id),
-    ):
-        mark_notifications_email_sent(notifications)
+    for notification in notifications:
+        queue_notification_event(notification, "customer-portal", record.id, event_type)
 
 
 def _extension(filename):
@@ -645,7 +638,7 @@ def verify(raw_token):
     tracking_raw, _tracking_token = _new_token(record, "tracking", timedelta(days=max(1, setting.tracking_days)))
     _status_history(record, "customer", "E-posta doğrulandı")
     _audit(record, "verified", {"verification": "completed"})
-    _notify_internal(record, f"{record.complaint_no} numaralı yeni müşteri geri bildirimi ön inceleme bekliyor.", "verified")
+    _notify_internal(record, f"{record.complaint_no} numaralı yeni müşteri geri bildirimi ön inceleme bekliyor.", "verified", event_type="approval")
     db.session.commit()
     _send_tracking(record, tracking_raw, f"{record.complaint_no} takip bağlantısı", "Geri bildiriminiz doğrulandı ve incelemeye alındı.")
     return redirect(url_for("customer_portal.track", raw_token=tracking_raw))
@@ -689,7 +682,7 @@ def track(raw_token):
                     _status_history(record, "customer", "Müşteri yanıt verdi")
                 attempt.success = True
                 _audit(record, "customer_message", {"attachment": bool(request.files.get("attachment"))})
-                _notify_internal(record, f"{record.complaint_no} kaydına müşteri yanıt verdi.", f"customer-message:{message.id}")
+                _notify_internal(record, f"{record.complaint_no} kaydına müşteri yanıt verdi.", f"customer-message:{message.id}", event_type="rescheduled")
                 db.session.commit()
                 flash("Mesajınız kaydedildi.", "success")
                 return redirect(url_for("customer_portal.track", raw_token=raw_token))

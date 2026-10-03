@@ -164,6 +164,7 @@ def add_user_notification(
     source_key=None,
     target_url=None,
     due_date=None,
+    email_event=None,
 ):
     if user is None or not getattr(user, "is_active", True):
         return None
@@ -174,6 +175,18 @@ def add_user_notification(
             or getattr(document_revision_request, "company_id", None)
             or getattr(user, "company_id", None)
         )
+    if getattr(user, "company_id", None) != company_id:
+        return None
+    records = (action, dof, document_revision_request)
+    if any(record is not None and record.company_id != company_id for record in records):
+        return None
+
+    event_record = next((record for record in records if record is not None), None)
+    if email_event is not None:
+        if email_event not in {"assignment", "approval", "rejected", "rescheduled", "result"}:
+            raise ValueError("Unsupported notification email event")
+        if event_record is None:
+            raise ValueError("Notification email events require a record")
 
     resolved_target_url = notification_target_url(
         action=action,
@@ -208,6 +221,20 @@ def add_user_notification(
         message=message,
     )
     db.session.add(notification)
+    if email_event is not None:
+        # Results are addressed to the original requester, not every participant.
+        result_user_id = (
+            getattr(event_record, "requested_by_user_id", None)
+            if document_revision_request is not None
+            else getattr(event_record, "created_by_user_id", None)
+        )
+        if email_event != "result" or user.id == result_user_id:
+            from .notification_policy import queue_notification_event
+
+            kind = "action" if action is not None else "dof" if dof is not None else "document-revision"
+            if event_record.id is None:
+                db.session.flush()
+            queue_notification_event(notification, kind, event_record.id, email_event)
     return notification
 
 

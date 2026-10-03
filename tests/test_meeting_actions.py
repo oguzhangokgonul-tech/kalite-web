@@ -115,7 +115,7 @@ def test_generation_preserves_source_and_notifies_only_owner(client, action_scen
     db.session.commit()
     before_meeting_version, before_decision_version = s.meeting.version_id, s.decision.version_id
     mail = Mock(side_effect=AssertionError("Generation must not send email"))
-    monkeypatch.setattr(routes, "send_action_notification_email", mail)
+    monkeypatch.setattr("app.mail.send_mail_now", mail)
     action = linked_action(client, s)
     link = MeetingDecisionAction.query.one()
     assert link.decision == s.decision

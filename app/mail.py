@@ -376,45 +376,13 @@ def _send_mail_safely(settings, recipients, subject, body, logger):
 
 
 def send_action_notification_email(users, action, message):
-    recipients = sorted({user.email for user in users if user.email})
-    if not recipients:
-        return False
-
-    settings = _mail_settings()
-    if not _mail_enabled(settings):
-        return False
-
-    subject, body = build_action_email(action, message)
-    _mail_executor.submit(
-        _send_mail_safely,
-        settings,
-        recipients,
-        subject,
-        body,
-        current_app.logger,
-    )
-    return True
+    """Compatibility entry point; explicit site events drive scheduled delivery."""
+    return False
 
 
 def send_dof_notification_email(users, dof, message):
-    recipients = sorted({user.email for user in users if user.email})
-    if not recipients:
-        return False
-
-    settings = _mail_settings()
-    if not _mail_enabled(settings):
-        return False
-
-    subject, body = build_dof_email(dof, message)
-    _mail_executor.submit(
-        _send_mail_safely,
-        settings,
-        recipients,
-        subject,
-        body,
-        current_app.logger,
-    )
-    return True
+    """Compatibility entry point; explicit site events drive scheduled delivery."""
+    return False
 
 
 def send_vehicle_reminder_email(
@@ -425,51 +393,13 @@ def send_vehicle_reminder_email(
     day_label,
     days_before=7,
 ):
-    recipients = sorted({user.email for user in users if user.email})
-    if not recipients:
-        return False
-
-    settings = _mail_settings()
-    if not _mail_enabled(settings):
-        return False
-
-    subject, body = build_vehicle_reminder_email(
-        vehicle,
-        reminder_title,
-        due_date,
-        day_label,
-        days_before,
-    )
-    _mail_executor.submit(
-        _send_mail_safely,
-        settings,
-        recipients,
-        subject,
-        body,
-        current_app.logger,
-    )
-    return True
+    """Vehicle deadlines are collected by the central scheduled source."""
+    return False
 
 
 def send_document_revision_request_email(users, revision_request, message):
-    recipients = sorted({user.email for user in users if user.email})
-    if not recipients:
-        return False
-
-    settings = _mail_settings()
-    if not _mail_enabled(settings):
-        return False
-
-    subject, body = build_document_revision_request_email(revision_request, message)
-    _mail_executor.submit(
-        _send_mail_safely,
-        settings,
-        recipients,
-        subject,
-        body,
-        current_app.logger,
-    )
-    return True
+    """Compatibility entry point; explicit site events drive scheduled delivery."""
+    return False
 
 
 def send_generic_notification_email(
@@ -483,33 +413,8 @@ def send_generic_notification_email(
     company=None,
     details=None,
 ):
-    recipients = sorted({user.email for user in users if user.email})
-    if not recipients:
-        return False
-
-    settings = _mail_settings()
-    if not _mail_enabled(settings):
-        return False
-
-    subject, body = build_generic_notification_email(
-        message,
-        title=title,
-        target_url=target_url,
-        due_date=due_date,
-        source_label=source_label,
-        company_id=company_id,
-        company=company,
-        details=details,
-    )
-    _mail_executor.submit(
-        _send_mail_safely,
-        settings,
-        recipients,
-        subject,
-        body,
-        current_app.logger,
-    )
-    return True
+    """Legacy generic calls stay site-only, never report queued mail as sent."""
+    return False
 
 
 def send_test_email(to_address):

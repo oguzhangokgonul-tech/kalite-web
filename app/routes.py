@@ -46,17 +46,10 @@ from .i18n import (
     tenant_locale_session_key,
 )
 from .internal_audit_data import INTERNAL_AUDIT_RESULTS
-from .mail import (
-    send_action_notification_email,
-    send_dof_notification_email,
-    send_document_revision_request_email,
-    send_vehicle_reminder_email,
-)
 from .notifications import (
     add_user_notification,
     add_notifications,
     ensure_notification_schema,
-    mark_notifications_email_sent,
     safe_notification_target_url,
 )
 from .reminders import maybe_run_due_reminders_for_request
@@ -5933,22 +5926,21 @@ def delete_document_revision_request_file(request_file):
         delete_stored_upload(request_file.file_path)
 
 
-def notify_document_revision_request(users, revision_request, message, exclude_user_id=None):
+def notify_document_revision_request(users, revision_request, message, exclude_user_id=None, email_event=None):
     target_users = [
         user
         for user in unique_users(users)
         if not (exclude_user_id and user.id == exclude_user_id)
     ]
-    created_notifications = add_notifications(
+    add_notifications(
         target_users,
         message,
         company_id=revision_request.company_id,
         document_revision_request=revision_request,
         notification_type="warning",
         exclude_user_id=exclude_user_id,
+        email_event=email_event,
     )
-    if send_document_revision_request_email(target_users, revision_request, message):
-        mark_notifications_email_sent(created_notifications)
 
 
 def archive_current_document_version(document, actor=None):
@@ -9810,44 +9802,8 @@ def vehicle_maintenance_users():
 
 
 def send_vehicle_due_reminders(vehicle):
-    reminder_users = list(vehicle.reminder_recipients) or vehicle_maintenance_users()
-    if not reminder_users:
-        return False
-
-    sent_any = False
-    days_before = vehicle.reminder_days_before or 7
-    reminder_fields = (
-        (
-            "traffic_insurance_due_date",
-            "traffic_insurance_reminder_sent_at",
-            "Trafik Sigortası",
-        ),
-        (
-            "casco_insurance_due_date",
-            "casco_insurance_reminder_sent_at",
-            "Kasko Sigorta",
-        ),
-        (
-            "next_inspection_due_date",
-            "next_inspection_reminder_sent_at",
-            "Sonraki Muayene",
-        ),
-    )
-    for date_field, sent_field, title in reminder_fields:
-        due_date = getattr(vehicle, date_field)
-        status = vehicle_day_status(due_date, days_before)
-        if status["is_due_window"] and getattr(vehicle, sent_field) is None:
-            if send_vehicle_reminder_email(
-                reminder_users,
-                vehicle,
-                title,
-                due_date,
-                status["label"],
-                days_before,
-            ):
-                setattr(vehicle, sent_field, datetime.utcnow())
-                sent_any = True
-    return sent_any
+    """Compatibility shim; only the central reminder source schedules delivery."""
+    return False
 
 
 def reset_vehicle_reminder_flags(vehicle, previous_dates):
@@ -9867,9 +9823,6 @@ def reset_vehicle_reminder_flags(vehicle, previous_dates):
 
 def vehicle_dashboard_context():
     vehicles = vehicle_query().all()
-    for vehicle in vehicles:
-        send_vehicle_due_reminders(vehicle)
-    db.session.commit()
     due_soon_count = 0
     for vehicle in vehicles:
         if any(
@@ -10374,34 +10327,44 @@ def add_action_history(action, event_type, message, actor=None):
     return history
 
 
-def notify_users(user_ids, action, message, exclude_user_id=None):
+def notify_users(user_ids, action, message, exclude_user_id=None, email_event=None):
     target_user_ids = {user_id for user_id in user_ids if user_id}
     if exclude_user_id:
         target_user_ids.discard(exclude_user_id)
 
     users = (
-        User.query.filter(User.id.in_(target_user_ids), User.is_active.is_(True)).all()
+        User.query.filter(
+            User.id.in_(target_user_ids), User.is_active.is_(True),
+            User.company_id == action.company_id,
+        ).all()
         if target_user_ids
         else []
     )
 
-    created_notifications = add_notifications(
+    add_notifications(
         users,
         message,
         company_id=action.company_id,
         action=action,
         notification_type="info",
+        due_date=(
+            action.effectiveness_due_date
+            if action.is_completed and action.effectiveness_required
+            else action.termin_date
+        ),
         exclude_user_id=exclude_user_id,
+        email_event=email_event,
     )
-    if send_action_notification_email(users, action, message):
-        mark_notifications_email_sent(created_notifications)
 
 
-def notify_action_participants(action, message, exclude_user_id=None, extra_user_ids=None):
+def notify_action_participants(action, message, exclude_user_id=None, extra_user_ids=None, email_event=None):
     user_ids = set(action.participant_user_ids())
+    event_user_ids = user_ids & {action.responsible_user_id} if email_event else set()
+    if event_user_ids:
+        notify_users(event_user_ids, action, message, exclude_user_id=exclude_user_id, email_event=email_event)
     if extra_user_ids:
         user_ids.update(extra_user_ids)
-    notify_users(user_ids, action, message, exclude_user_id=exclude_user_id)
+    notify_users(user_ids - event_user_ids, action, message, exclude_user_id=exclude_user_id)
 
 
 def notify_sub_action_participants(
@@ -10409,17 +10372,32 @@ def notify_sub_action_participants(
     message,
     exclude_user_id=None,
     extra_user_ids=None,
+    email_event=None,
 ):
     user_ids = set(sub_action.participant_user_ids())
     user_ids.add(sub_action.parent_action.responsible_user_id)
     if extra_user_ids:
         user_ids.update(extra_user_ids)
-    notify_users(
-        user_ids,
-        sub_action.parent_action,
+    users = User.query.filter(
+        User.id.in_(user_ids), User.is_active.is_(True),
+        User.company_id == sub_action.company_id,
+    ).all()
+    created = add_notifications(
+        users,
         message,
+        company_id=sub_action.company_id,
+        action=sub_action.parent_action,
+        due_date=sub_action.due_date,
         exclude_user_id=exclude_user_id,
     )
+    if email_event:
+        from .notification_policy import queue_notification_event
+
+        if sub_action.id is None:
+            db.session.flush()
+        for notification in created:
+            if notification.user_id == sub_action.responsible_id:
+                queue_notification_event(notification, "sub-action", sub_action.id, email_event)
 
 
 def unique_users(users):
@@ -10480,7 +10458,7 @@ def dof_label(dof):
     return dof.dof_no or "İF kaydı"
 
 
-def notify_dof_users(users, dof, message, exclude_user_id=None):
+def notify_dof_users(users, dof, message, exclude_user_id=None, email_event=None):
     users = [
         user
         for user in unique_users(users)
@@ -10488,16 +10466,16 @@ def notify_dof_users(users, dof, message, exclude_user_id=None):
         and not (exclude_user_id and user.id == exclude_user_id)
     ]
 
-    created_notifications = add_notifications(
+    add_notifications(
         users,
         message,
         company_id=dof.company_id,
         dof=dof,
         notification_type="warning",
+        due_date=dof.effectiveness_due_date if dof.approval_step == "effectiveness_review" else dof.due_date,
         exclude_user_id=exclude_user_id,
+        email_event=email_event,
     )
-    if send_dof_notification_email(users, dof, message):
-        mark_notifications_email_sent(created_notifications)
 
 
 def notify_dof_waiting_approvers(dof):
@@ -10506,12 +10484,14 @@ def notify_dof_waiting_approvers(dof):
             dof_management_approver_users(),
             dof,
             f"{dof_label(dof)} için Yönetim Temsilcisi onayınız bekleniyor.",
+            email_event="approval",
         )
     elif dof.approval_step == "general_manager_deputy":
         notify_dof_users(
             dof_deputy_approver_users(),
             dof,
             f"{dof_label(dof)} için Genel Müdür Yardımcısı onayınız bekleniyor.",
+            email_event="approval",
         )
 
 
@@ -24402,6 +24382,7 @@ def request_document_revision(document_id):
                 revision_request,
                 message,
                 exclude_user_id=g.current_user.id,
+                email_event="approval",
             )
             db.session.commit()
             flash("Revizyon talebiniz Yönetim Temsilcisi onayına gönderildi.", "success")
@@ -24525,6 +24506,7 @@ def approve_document_revision_request(request_id):
             revision_request,
             message,
             exclude_user_id=g.current_user.id,
+            email_event="result",
         )
         db.session.commit()
         success_message = "Revizyon onaylandı, eski dosya arşive alındı ve yeni doküman yayınlandı."
@@ -24765,7 +24747,6 @@ def edit_vehicle(vehicle_id):
                 if reminder_user_ids
                 else []
             )
-            send_vehicle_due_reminders(vehicle)
             db.session.commit()
             flash("Araç takip tarihleri güncellendi.", "success")
             return redirect(url_for("main.edit_vehicle", vehicle_id=vehicle.id))
@@ -26787,6 +26768,7 @@ def create_dof():
                     [dof.responsible],
                     dof,
                     f"{dof_label(dof)} size atandı.",
+                    email_event="assignment",
                 )
                 notify_dof_waiting_approvers(dof)
             db.session.commit()
@@ -26909,15 +26891,28 @@ def edit_dof_draft(dof_id):
                     )
                     if old_responsible:
                         notification_users.append(old_responsible)
-                    notify_dof_users(
-                        notification_users,
-                        dof,
-                        (
-                            f"{dof_label(dof)} kaydında düzenleme yapıldı: "
-                            f"{short_text(', '.join(changes), 180)}"
-                        ),
-                        exclude_user_id=g.current_user.id,
-                    )
+                    for user in unique_users(notification_users + [dof.effectiveness_owner]):
+                        email_event = None
+                        if user.id == dof.responsible_id:
+                            if before["responsible_id"] != dof.responsible_id:
+                                email_event = "assignment"
+                            elif before["due_date"] != dof.due_date:
+                                email_event = "rescheduled"
+                        if dof.approval_step == "effectiveness_review" and user.id == dof.effectiveness_owner_user_id:
+                            if before["effectiveness_owner_user_id"] != dof.effectiveness_owner_user_id:
+                                email_event = "approval"
+                            elif before["effectiveness_due_date"] != dof.effectiveness_due_date:
+                                email_event = "rescheduled"
+                        notify_dof_users(
+                            [user],
+                            dof,
+                            (
+                                f"{dof_label(dof)} kaydında düzenleme yapıldı: "
+                                f"{short_text(', '.join(changes), 180)}"
+                            ),
+                            exclude_user_id=g.current_user.id,
+                            email_event=email_event,
+                        )
                     flash("İF düzenlemeleri kaydedildi ve ilgililere bildirim gönderildi.", "success")
                 else:
                     flash("Kaydedilecek yeni bir düzenleme bulunamadı.", "info")
@@ -26932,6 +26927,7 @@ def edit_dof_draft(dof_id):
                     [dof.responsible],
                     dof,
                     f"{dof_label(dof)} size atandı.",
+                    email_event="assignment",
                 )
                 notify_dof_waiting_approvers(dof)
                 flash(f"{dof.dof_no} numaralı İF kaydı onay akışına alındı.", "success")
@@ -26953,6 +26949,7 @@ def edit_dof_draft(dof_id):
                         [dof.responsible],
                         dof,
                         f"{dof_label(dof)} sorumluluğu size atandı.",
+                        email_event="assignment",
                     )
                 notify_dof_waiting_approvers(dof)
                 flash(f"{dof.dof_no} numaralı İF kaydı onaya gönderildi.", "success")
@@ -27110,6 +27107,7 @@ def approve_dof_deputy(dof_id):
             [dof.effectiveness_owner],
             dof,
             f"{dof_label(dof)} için etkinlik kontrolünüz bekleniyor.",
+            email_event="approval",
         )
         flash("İF onaylandı ve etkinlik kontrolü beklemeye alındı.", "success")
     else:
@@ -27126,6 +27124,7 @@ def approve_dof_deputy(dof_id):
             dof_primary_users(dof),
             dof,
             f"{dof_label(dof)} kapatıldı.",
+            email_event="result",
         )
         flash("İF kaydı Genel Müdür Yardımcısı onayıyla tamamlandı.", "success")
     db.session.commit()
@@ -27178,6 +27177,7 @@ def review_dof_effectiveness(dof_id):
             dof,
             f"{dof_label(dof)} etkinlik kontrolü tamamlandı.",
             exclude_user_id=g.current_user.id,
+            email_event="result",
         )
         flash("Etkinlik kontrolü tamamlandı ve İF kapatıldı.", "success")
     else:
@@ -27202,6 +27202,7 @@ def review_dof_effectiveness(dof_id):
             dof,
             f"{dof_label(dof)} etkinlik kontrolü etkin değil. Revizyon bekleniyor.",
             exclude_user_id=g.current_user.id,
+            email_event="rejected",
         )
         flash("Etkinlik kontrolü etkin değil olarak kaydedildi; İF revizyon bekliyor.", "warning")
 
@@ -27266,6 +27267,7 @@ def reject_dof(dof_id):
             f"{dof_label(dof)} {dof_approver_label(rejected_step)} tarafından "
             f"reddedildi. Sebep: {short_text(rejection_reason)}"
         ),
+        email_event="rejected",
         exclude_user_id=g.current_user.id,
     )
     db.session.commit()
@@ -27347,6 +27349,11 @@ def revise_dof(dof_id):
         comment_type="revision",
         actor=g.current_user,
     )
+    if before["responsible_id"] != dof.responsible_id:
+        notify_dof_users(
+            [dof.responsible], dof, f"{dof_label(dof)} sorumluluğu size atandı.",
+            exclude_user_id=g.current_user.id, email_event="assignment",
+        )
     notify_dof_waiting_approvers(dof)
     db.session.commit()
     flash("İF revizyonu kaydedildi ve tekrar onaya gönderildi.", "success")
@@ -27518,6 +27525,7 @@ def create_action():
                 action,
                 f"{action.number_label} {action.title} aksiyonu size atandı.",
                 exclude_user_id=g.current_user.id,
+                email_event="assignment",
             )
             for sub_action in created_sub_actions:
                 notify_sub_action_participants(
@@ -27527,6 +27535,7 @@ def create_action():
                         f"'{sub_action.title}' alt aksiyonunda sorumlu/ilgili olarak atandınız."
                     ),
                     exclude_user_id=g.current_user.id,
+                    email_event="assignment",
                 )
             if linked_dof is not None:
                 notify_dof_users(
@@ -27726,6 +27735,7 @@ def reassign_action(action_id):
             "sorumlu/ilgili bilgileri güncellendi."
         ),
         exclude_user_id=g.current_user.id,
+        email_event="assignment" if before["responsible_user_id"] != action.responsible_user_id else None,
         extra_user_ids={
             before["responsible_user_id"],
             before["related_user_1_id"],
@@ -27776,6 +27786,7 @@ def revise_action_termin(action_id):
         action,
         f"{action.number_label} {action.title} aksiyonunda termin revize edildi.",
         exclude_user_id=g.current_user.id,
+        email_event="rescheduled",
     )
     db.session.commit()
     flash("Termin tarihi revize edildi.", "success")
@@ -27846,6 +27857,10 @@ def edit_action(action_id):
                     action,
                     f"{action.number_label} {action.title} aksiyonunda revizyon yapıldı.",
                     exclude_user_id=g.current_user.id,
+                    email_event=(
+                        "assignment" if before["responsible_user_id"] != action.responsible_user_id
+                        else "rescheduled" if before["termin_date"] != action.termin_date else None
+                    ),
                     extra_user_ids={
                         before["responsible_user_id"],
                         before["related_user_1_id"],
@@ -27924,6 +27939,7 @@ def create_sub_action(action_id):
                 f"'{sub_action.title}' alt aksiyonunda sorumlu/ilgili olarak atandınız."
             ),
             exclude_user_id=g.current_user.id,
+            email_event="assignment",
         )
         db.session.commit()
         flash("Alt aksiyon eklendi.", "success")
@@ -28000,6 +28016,10 @@ def edit_sub_action(sub_action_id):
                     f"'{sub_action.title}' alt aksiyonu güncellendi."
                 ),
                 exclude_user_id=g.current_user.id,
+                email_event=(
+                    "assignment" if before["responsible_id"] != sub_action.responsible_id
+                    else "rescheduled" if before["due_date"] != sub_action.due_date else None
+                ),
                 extra_user_ids={
                     before["responsible_id"],
                     before["related_user_1_id"],
@@ -28192,6 +28212,7 @@ def request_action_closure(action_id):
             action,
             f"{action.number_label} {action.title} aksiyonu için kapatma onayı bekliyor.",
             exclude_user_id=g.current_user.id,
+            email_event="approval",
         )
     db.session.commit()
     flash("Kapatma talebi onay yetkililerinin incelemesine açıldı.", "success")
@@ -28250,6 +28271,7 @@ def complete_action(action_id):
             action,
             f"{action.number_label} {action.title} için etkinlik kontrolünüz bekleniyor.",
             exclude_user_id=g.current_user.id,
+            email_event="approval",
         )
     db.session.commit()
     flash("Kapatma onayı verildi ve aksiyon tamamlandı.", "success")
@@ -28325,6 +28347,7 @@ def review_action_effectiveness(action_id):
         action,
         notification_message,
         exclude_user_id=g.current_user.id,
+        email_event="rejected" if result == "Etkin Değil" else None,
     )
     record_audit_event(
         "Action",
@@ -28374,6 +28397,7 @@ def reject_action_closure(action_id):
         ),
         exclude_user_id=g.current_user.id,
         extra_user_ids={action.closure_requested_by_user_id},
+        email_event="rejected",
     )
     db.session.commit()
     flash("Kapatma onayı reddedildi.", "success")

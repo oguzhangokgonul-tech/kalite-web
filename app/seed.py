@@ -3960,6 +3960,11 @@ def ensure_runtime_schema():
     for model in (MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
+    from .notification_models import NotificationEmailBatch, NotificationEmailEvent
+
+    for model in (NotificationEmailBatch, NotificationEmailEvent):
+        model.__table__.create(bind=db.engine, checkfirst=True)
+
     from .customer_portal import ensure_customer_portal_schema
 
     ensure_customer_portal_schema()

@@ -5,6 +5,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
 from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction
+from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 
 user_roles = db.Table(
