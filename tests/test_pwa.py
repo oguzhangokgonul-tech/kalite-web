@@ -151,11 +151,16 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     assert "Yeni Öneri" in page
     assert "Yeni Şikayet" in page
     assert "Yeni İç Talep" in page
+    assert 'href="/bakim/ariza/yeni"' in page
+    assert "Bakım İşlemleri" in page
+    assert client.get("/bakim/ariza/yeni", base_url=f"https://{company.primary_domain}").status_code == 200
+    assert client.get("/bakim", base_url=f"https://{company.primary_domain}").status_code == 200
 
     db.session.add_all(
         [
             CompanyModule(company_id=company.id, module_key="suggestions", is_enabled=False),
             CompanyModule(company_id=company.id, module_key="help_desk", is_enabled=False),
+            CompanyModule(company_id=company.id, module_key="maintenance", is_enabled=False),
         ]
     )
     db.session.commit()
@@ -166,6 +171,10 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     assert "Yeni Öneri" not in page
     assert "Yeni Şikayet" not in page
     assert "Yeni İç Talep" not in page
+    assert 'href="/bakim/ariza/yeni"' not in page
+    assert "Bakım İşlemleri" not in page
+    assert client.get("/bakim/ariza/yeni", base_url=f"https://{company.primary_domain}").status_code == 403
+    assert client.get("/bakim", base_url=f"https://{company.primary_domain}").status_code == 403
 
 
 def test_runtime_schema_marks_mobile_pwa_checklist_done(app):

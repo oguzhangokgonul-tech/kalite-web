@@ -2908,6 +2908,7 @@ MODULE_ENDPOINTS = {
     "main.create_maintenance_fault": "maintenance",
     "main.maintenance_fault_detail": "maintenance",
     "main.edit_maintenance_fault": "maintenance",
+    "main.complete_maintenance_fault": "maintenance",
     "main.delete_maintenance_fault": "maintenance",
     "main.vehicle_dashboard": "vehicles",
     "main.create_vehicle": "vehicles",
