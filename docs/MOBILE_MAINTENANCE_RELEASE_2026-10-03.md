@@ -24,7 +24,24 @@
   backup-verify, restore dry-run ve sunucu disi SHA256 eslesmesi zorunlu.
 - Temiz canli hedefe fast-forward; servis, tenant-health, HTTPS ve salt-okunur
   Mobil Merkez kontrolleri tamamlandiktan sonra timer'lar tekrar acilacak.
-- Geri donus: bu degisikligin normal revert commit'i ile onceki uygulama
-  davranisina donulur. DB downgrade veya veri restore'u gerekmez.
-  Modul kapatma korumasi geri alinacaksa bakim modulu kapali tenant'larda
-  onceki dogrudan POST aciginin yeniden olusacagi dikkate alinmalidir.
+- Geri donus: normal commit ile pwa.py kisayollari geri alinabilir;
+  routes.py modul kapatma korumasi korunmalidir. DB downgrade veya veri
+  restore'u gerekmez.
+
+## Canli Sonuc
+- Uygulama surumu: `3090f21`; GitHub ve canli HEAD eslesmesi dogrulandi.
+- Web, reminder ve webhook yazarlari durdurularak tam yedek alindi.
+  Arsiv: `/var/data/aksiyon-takip/backups/mobile-maintenance-20261003/volkaportal-backup-20261003-064707.zip`.
+- 204 upload; checksum, quick_check, integrity_check ve restore dry-run
+  basarili. Dry-run gercek geri yukleme degil, arsiv dogrulamasidir.
+- Sunucu disi kopya: `C:/Users/Asus/VolkaPortalBackups/20261003-mobile-maintenance/`.
+  Her iki kopyanin SHA256 degeri:
+  `05ca3c4b9f53eede8c4e5b5f6bff8e9587a96aa41bf678ebc68b8d37d460230f`.
+- Tenant-health basarili; migration head `202610020002` degismedi.
+- Ana alan adi ve iki musteri alan adinin HTTPS girisleri 200.
+- Mail ve otomatik hatirlatma kapali izole test process'inde iki musteri icin
+  oturumlu /mobil, /bakim ve /bakim/ariza/yeni kontrolleri 200. Canliya test
+  ariza kaydi eklenmedi. Ilk kontrol script'indeki slug varsayimi primary_domain
+  sorgusuyla duzeltildi; bu uygulama hatasi degildi.
+- Uygulama ve daha once aktif iki timer yeniden aktif; yayin sonrasi uygulama
+  hata logunda kayit yok. Bagimsiz QA ve release/veri incelemesi tamamlandi.
