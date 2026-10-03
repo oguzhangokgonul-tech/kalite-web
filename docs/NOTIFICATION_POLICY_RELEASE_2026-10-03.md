@@ -2,7 +2,8 @@
 
 ## Durum
 
-Yayın öncesi doğrulama sürüyor. Bu kayıt tek başına canlıya alındığı anlamına gelmez.
+03.10.2026 tarihinde temel politika canlıya alındı. Uygulama sürümü `89b4745`,
+geri dönüş için önceki sürüm `9453a9c`; migration head `202610020002`.
 Ürün sahibi temel politika için uygulama ve yayın onayı verdi. Saat dışı kritik
 e-posta istisnası açılmadı.
 
@@ -78,10 +79,25 @@ checksum + restore dry-run, sunucu dışı kopya ve kopya üzerinde migration pr
 Web uygulaması ve diğer DB/upload yazarları tutarlı yedek ve yükseltme sırasında durdurulur.
 Yayın sonrası servis, tenant sağlık, giriş sayfaları ve göndermesiz önizleme kontrol edilir.
 
+Bu kurulumda önce `volkaportal-reminders.timer` ve `volkaportal-webhooks.timer`,
+sonra `volkaportal-reminders.service`, `volkaportal-webhooks.service` ve
+`aksiyon-takip.service` durdurulur. `systemctl is-active` ile beş birimin pasifliği
+doğrulanır; yalnız zamanlayıcıyı durdurmak çalışan işi durdurmaz. Önceden aktif olan
+zamanlayıcılar ancak uygulama sağlık kontrolleri geçtikten sonra tekrar başlatılır.
+
 Geri dönüşte önce mail zamanlayıcısını durdurun ve operasyonel maili kapatın.
 Kod-only geri dönüş kullanın; yeni kuyruk tablolarını koruyun. Eski kod günlük/anlık
 gönderimi geri getirebileceği için maili otomatik yeniden açmayın. Canlıda downgrade
 çalıştırmayın: bu, olayları ve tekrar korumasını siler. Veri restore'u ayrıca lider onayı ister.
+
+Maili kapatmak için sunucuda `sudoedit /etc/aksiyon-takip/integrations.env` ile
+`MAIL_ENABLED=false` ve `NOTIFICATION_AUTO_REMINDERS_ENABLED=false` değerlerini
+tekil olarak ayarlayın; dosyadaki diğer anahtarları ve gizli değerleri koruyun.
+Web ve zamanlayıcı servisleri bu ortak EnvironmentFile'ı kullanır. Çalışan eski
+worker'ları durdurun; eski kod açılmadan önce gerçek servis ortamındaki Flask
+config'inde her iki değerin de `False` olduğunu doğrulayın. Yeni şirket politikası
+ayarına güvenmeyin: eski kod bunu okumaz. Bu acil global kapatma şifre sıfırlama ve
+müşteri doğrulama dahil işlem maillerini de geçici olarak durdurur; lider bilgilendirilir.
 
 ## Kanıtlar
 
@@ -97,4 +113,28 @@ gönderimi geri getirebileceği için maili otomatik yeniden açmayın. Canlıda
 - Playwright 390/768/1440 px: Yönetim Temsilcisi ve Personel için toplam 6 senaryo;
   tercih/şirket formu CSRF ile kaydedildi, taşma ve tarayıcı JS hatası bulunmadı.
 - Canlı ön kontrol: `9453a9c`, uygulama aktif, zamanlayıcı 08:30 Europe/Istanbul.
-- Güncel yedek, yayın commit'i ve canlı sonrası doğrulama: bekliyor.
+- Güncel tam yedek: `volkaportal-backup-20261003-050653.zip`, 204 upload.
+  Sunucu: `/var/data/aksiyon-takip/backups/notification-policy-release-20261003/`.
+  Sunucu dışı kopya: `C:/Users/Asus/VolkaPortalBackups/20261003-notification-policy/`.
+  SHA256 her iki tarafta:
+  `c1ab822827d66148a08cb25025bd7ec20e8b9e66b8219ba089173144426c3c62`.
+- Güncel yedekte checksum, quick_check, integrity_check ve restore dry-run başarılı.
+  Kopyada 154 tablo (SQLite dahili tablo dahil), 13.808 satır korunarak 8 aşama,
+  29 kısıt ve 4 model/şema karşılaştırması geçti. Factory/seed çalıştırılmadı.
+  Kanıt: `.tmp-notification-policy-migration-94gjeyiw/evidence.json`.
+- Bağımsız QA, migration kanıtı ve açıklığa kavuşturulmuş geri dönüş prosedürü
+  incelemesinde kalan yayın engeli bildirilmedi. Canlı işlemler ana ajan tarafından yapıldı.
+- Tüm web/hatırlatma/webhook yazarları yedek öncesi durduruldu ve pasifliği doğrulandı.
+  Temiz hedefte pinned Git bundle ile fast-forward yapıldı; kaynak GitHub'a da push edildi.
+  Migration ve `tenant-health` başarılı; temel verilerde temizleme/silme yapılmadı.
+- Ana alan adı, erprefabrik ve sagiroglucelik giriş sayfaları HTTPS 200.
+  Canlı veriyle izole test client'ta temsilci/personel ayar sayfaları 200; şirket
+  politikasını düzenleme bölümü yalnız yönetim yetkili rollerinde görünür.
+- 03-09 Ekim için SMTP kapalı tarih simülasyonu: Er Prefabrik pazartesi 250 aday
+  satır/17 özet, cuma 4 termin/4 özet; diğer tarihlerde sıfır. Diğer şirketlerde
+  uygun iş yok. Bu gerçek yedi günlük gözlem veya gönderim sayısı değildir.
+  Önizleme ve smoke sırasında bildirim/kuyruk/paket sayıları değişmedi.
+- Uygulama ve önceki aktif reminder/webhook timer'ları geri açıldı. Hatırlatma
+  08:30 Europe/Istanbul, `Persistent=false`; saat dışı deneme maili gönderilmedi.
+  Uygulama logunda yayın sonrası hata bulunmadı. Gerçek SMTP teslimi ilk planlı
+  çalışmadan sonra `notification-delivery-status` ile izlenmelidir.

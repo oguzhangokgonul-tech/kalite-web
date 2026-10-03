@@ -1,7 +1,7 @@
 # VolkaPortal Bildirim Politikası Araştırması
 
 Tarih: 02.10.2026
-Durum: Temel politika ürün sahibi tarafından onaylandı. Uygulama ve yayın doğrulaması sürüyor; saat dışı kritik e-posta istisnası kapalı. Güncel uygulama kapsamı ve kanıtlar: `NOTIFICATION_POLICY_RELEASE_2026-10-03.md`.
+Durum: Temel politika ürün sahibi onayıyla 03.10.2026 tarihinde canlıya alındı; saat dışı kritik e-posta istisnası kapalı. Güncel uygulama kapsamı ve kanıtlar: `NOTIFICATION_POLICY_RELEASE_2026-10-03.md`. Aşağıdaki gelişmiş kapsam ve uzun süreli ölçümler ayrıca izlenir.
 
 ## 1. Karar özeti
 
@@ -163,16 +163,16 @@ Her satırda yalnızca kayıt kodu, kısa konu, gereken işlem, termin ve doğru
 - [ ] Doküman, aksiyon, DÖF, araç ve diğer bağımsız yollar aynı politikaya bağlandı.
 - [x] Aynı eski gecikme salı, çarşamba ve perşembe yeniden mail üretmiyor; pazartesi özette görünüyor.
 - [x] Tarih eşikleri ve haftalık özet aynı güne gelince kayıt yalnızca bir kez görünüyor.
-- [ ] Kapanan, iptal edilen, yeniden atanan veya yetkisi kaldırılan iş gönderimden çıkıyor.
-- [ ] Onay bekleyen iş yanlış kişiyi değil mevcut onaycıyı uyarıyor.
-- [ ] Bir öneriyi değerlendiren kullanıcıya değerlendirme hatırlatması gitmiyor; bekleyen kullanıcıya gidiyor.
+- [x] Kapanan, iptal edilen, yeniden atanan veya yetkisi kaldırılan iş gönderimden çıkıyor.
+- [x] Onay bekleyen iş yanlış kişiyi değil mevcut onaycıyı uyarıyor.
+- [x] Bir öneriyi değerlendiren kullanıcıya değerlendirme hatırlatması gitmiyor; bekleyen kullanıcıya gidiyor.
 - [ ] Aynı bağlı aksiyon toplantı/risk/DÖF üzerinden mükerrer e-posta üretmiyor.
-- [ ] Şirket izolasyonu, doğru alan adı, devre dışı modül ve pasif kullanıcı testleri başarılı.
+- [x] Şirket izolasyonu, doğru alan adı, devre dışı modül ve pasif kullanıcı testleri başarılı.
 - [ ] Europe/Istanbul 08:30, hafta sınırı, tarih değişikliği ve servis kesintisi senaryoları başarılı.
 - [ ] Eşzamanlı çalışanlar, rollback ve başarısız SMTP senaryoları test edildi.
 - [ ] Mobilde özet okunuyor; bağlantı login sonrası doğru şirkette doğru kaydı açıyor.
 - [ ] 7 günlük göndermesiz önizleme ve ardından 2 haftalık pilot ölçüldü.
 - [ ] Kritik olay kapsaması kaybolmadan rutin mail hacmini en az %70 azaltma hedefi ölçüldü; bu hedef ölçüm öncesi garanti değildir.
-- [ ] Doğrulanmış yedek, migration provası, bağımsız QA ve canlıya alma onayı tamamlandı.
+- [x] Doğrulanmış yedek, migration provası, bağımsız QA ve canlıya alma onayı tamamlandı.
 
 Öncelik: önce günlük tekrarın ve gereksiz alıcıların azaltılması; ardından gelişmiş istisnalar. Araştırma tarihi ile uygulama/yayın kanıtları birbirinden ayrıdır. İşaretlenmeyen ölçüm ve gelişmiş kapsam maddeleri tamamlandı sayılmaz.
