@@ -152,7 +152,7 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     assert "Yeni Şikayet" in page
     assert "Yeni İç Talep" in page
     assert 'href="/bakim/ariza/yeni"' in page
-    assert "Bakım İşlemleri" in page
+    assert "Bakım İşlemleri" not in page
     assert client.get("/bakim/ariza/yeni", base_url=f"https://{company.primary_domain}").status_code == 200
     assert client.get("/bakim", base_url=f"https://{company.primary_domain}").status_code == 200
 

@@ -23,6 +23,7 @@ try {
       await context.request.get(`${base}/__ui/login/department_staff`);
       await page.goto(`${base}/mobil`, { waitUntil: 'networkidle' });
       await check('hub');
+      assert.equal(await page.locator('.pwa-action-card[href="/bakim"]').count(), 0);
       const shortcut = page.locator('.pwa-action-card[href="/bakim/ariza/yeni"]');
       assert.ok((await shortcut.boundingBox()).height >= 44);
       await shortcut.click();
@@ -43,8 +44,7 @@ try {
       await closeForm.locator('button[type="submit"]').click();
       await page.waitForLoadState('networkidle');
       assert.equal(await page.locator('form[action$="/kapat"]').count(), 0);
-      await page.goto(`${base}/mobil`);
-      await page.locator('.pwa-action-card[href="/bakim"]').click();
+      await page.goto(`${base}/bakim`);
       await page.waitForLoadState('networkidle');
       await check('dashboard');
       assert.ok((await page.locator('body').innerText()).includes(`Mobil bakım testi ${width}`));

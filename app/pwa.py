@@ -49,21 +49,13 @@ def _module_enabled(module_key):
 def _quick_actions():
     actions = []
     if _module_enabled("maintenance"):
-        actions.extend(
-            [
-                {
-                    "label": _("Arıza Aç"),
-                    "description": _("Makine arızası veya plansız bakım talebi"),
-                    "icon": "bi-wrench-adjustable",
-                    "url": url_for("main.create_maintenance_fault"),
-                },
-                {
-                    "label": _("Bakım İşlemleri"),
-                    "description": _("Arıza takibi ve makine envanteri"),
-                    "icon": "bi-tools",
-                    "url": url_for("main.maintenance_dashboard"),
-                },
-            ]
+        actions.append(
+            {
+                "label": _("Arıza Aç"),
+                "description": _("Makine arızası veya plansız bakım talebi"),
+                "icon": "bi-wrench-adjustable",
+                "url": url_for("main.create_maintenance_fault"),
+            }
         )
     if _has_permission("actions.create"):
         actions.append(

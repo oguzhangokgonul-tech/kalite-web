@@ -119,7 +119,7 @@ def test_mobile_maintenance_creation_permissions_and_module_closure_guard(client
     login(client, reporter)
     hub = client.get("/mobil").get_data(as_text=True)
     assert 'href="/bakim/ariza/yeni"' in hub
-    assert "Bakım İşlemleri" in hub
+    assert "Bakım İşlemleri" not in hub
     response = client.post("/bakim/ariza/yeni", data={
         "machine_id": "__unplanned__", "title": "Mobil bakım talebi",
         "reporting_department": "Kalite", "description": "Üretim alanı kontrolü",
