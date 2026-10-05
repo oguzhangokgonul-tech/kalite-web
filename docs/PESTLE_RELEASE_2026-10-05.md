@@ -25,9 +25,21 @@
 - [x] Existing SWOT, reporting, tenant, package, task and navigation regressions
 - [x] Browser workflow at 390, 768 and 1440 px
 - [x] Fresh verified full backup, off-host checksum match and migration rehearsal
-- [ ] Commit/push and production deployment
-- [ ] Tenant/role/HTTP/log smoke checks
-- [ ] Mark only `module_pestle_analysis` after successful verification
+- [x] Commit/push and production deployment
+- [x] Tenant/role/HTTP/log smoke checks
+- [x] Mark only `module_pestle_analysis` after successful verification
+
+## Production Evidence
+
+- Application commit: `3615009a56f1a641f1be36b35898e673aca2805a`; pushed to origin/main and deployed by fast-forward.
+- Database revision: `202610050003`; integrity check `ok`; tenant-health passed.
+- Configuration ran twice; second run returned no changes. Explicit package choices preserved: company 1 enabled, custom-package companies 2 and 3 disabled.
+- GET-only role smoke: 11 checks passed. Partial live coverage: company 1 has no management representative, management, department staff or viewer users; company 3 has no department manager, department staff or viewer users. Six-role permissions were tested locally; unavailable live roles are not claimed verified in production.
+- No synthetic PESTLE business records were created in production (record count 0 after smoke).
+- Public login HTTPS checks: `volkaportal.com`, `erprefabrik.volkaportal.com`, `sagiroglucelik.volkaportal.com` all returned 200.
+- Application service and reminder/webhook timers active; post-start error-priority journal empty and worker boot logs clean.
+- Checklist `sales_readiness:module_pestle_analysis=1` verified after health checks; audited single-key update. Other checklist entries were not rewritten.
+- Next step: `module_context_stakeholders`, Kurulus baglami ve ilgili taraflar matrisi.
 
 ## Recovery
 
