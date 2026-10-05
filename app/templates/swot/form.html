@@ -1,0 +1,26 @@
+{% extends "swot/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Analizi Düzenle' if analysis else 'Yeni SWOT Analizi' }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Analizi Düzenle' if analysis else 'Yeni SWOT Analizi', icon='bi-grid-1x2') %}
+{{ ui.action_link(url_for('swot.detail', analysis_id=analysis.id) if analysis else url_for('swot.dashboard'), 'Geri', icon='bi-arrow-left', tone='secondary') }}
+{% endcall %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if analysis %}<input type="hidden" name="version_id" value="{{ values.get('version_id', analysis.version_id) }}">{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-8"><label for="title" class="form-label">Analiz Başlığı</label><input class="form-control" id="title" name="title" maxlength="240" value="{{ values.get('title', '') }}" required></div>
+  <div class="col-12 col-lg-4"><label for="owner_user_id" class="form-label">Sorumlu</label><select class="form-select" id="owner_user_id" name="owner_user_id" required><option value="">Seçin</option>{% for user in users %}<option value="{{ user.id }}" {% if values.get('owner_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-6"><label for="analysis_date" class="form-label">Analiz Tarihi</label><input type="date" class="form-control" id="analysis_date" name="analysis_date" value="{{ values.get('analysis_date', '') }}" required></div>
+  <div class="col-12 col-md-6"><label for="review_date" class="form-label">Sonraki Gözden Geçirme</label><input type="date" class="form-control" id="review_date" name="review_date" value="{{ values.get('review_date', '') }}" required></div>
+  <div class="col-12"><label for="scope" class="form-label">Kapsam</label><textarea class="form-control" id="scope" name="scope" rows="2" maxlength="20000" required>{{ values.get('scope', '') or '' }}</textarea></div>
+</div>
+<div class="swot-grid">
+{% for key, label in quadrants.items() %}<section class="swot-quadrant swot-{{ key }}">
+<label for="{{ key }}" class="swot-heading">{{ label }}</label><textarea class="form-control" id="{{ key }}" name="{{ key }}" rows="6" maxlength="20000">{{ values.get(key, '') or '' }}</textarea>
+</section>{% endfor %}
+</div>
+<div class="mt-4"><label for="strategy" class="form-label">Strateji ve Sonuç</label><textarea class="form-control" id="strategy" name="strategy" rows="4" maxlength="20000">{{ values.get('strategy', '') or '' }}</textarea></div>
+<div class="swot-actions mt-4">{{ ui.action_button('Taslağı Kaydet', icon='bi-check-lg') }}</div>
+</form>
+{% endblock %}

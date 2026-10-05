@@ -51,6 +51,7 @@ from .record_analysis import bp as record_analysis_bp
 from .import_center import bp as import_center_bp
 from .meetings import bp as meetings_bp
 from .projects import bp as projects_bp
+from .swot import bp as swot_bp
 from .notification_settings import bp as notification_settings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
@@ -117,6 +118,7 @@ def create_app(config_class=Config):
     app.register_blueprint(import_center_bp)
     app.register_blueprint(meetings_bp)
     app.register_blueprint(projects_bp)
+    app.register_blueprint(swot_bp)
     app.register_blueprint(notification_settings_bp)
 
     @app.errorhandler(CSRFError)

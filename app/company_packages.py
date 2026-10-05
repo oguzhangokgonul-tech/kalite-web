@@ -37,6 +37,7 @@ ISO_CORE_MODULE_KEYS = {
     "management_review",
     "meetings",
     "projects",
+    "swot",
     "supplier_management",
     "report_center",
     "integration_management",

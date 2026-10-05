@@ -6,6 +6,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .extensions import db
 from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction
 from .project_models import ProjectRecord, ProjectTask, ProjectMilestone
+from .swot_models import SwotAnalysis
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 
@@ -387,6 +388,7 @@ COMPANY_MODULE_CATALOG = (
 COMPANY_MODULE_CATALOG += (
     {"key": "meetings", "name": "Toplantı Notları", "description": "Toplantı tutanaklarını, katılımcıları ve sorumlu/termin bazlı kararları izler.", "icon": "bi-chat-square-text", "sort_order": 83, "parent_key": None},
     {"key": "projects", "name": "Proje Yönetimi", "description": "Proje planları, sorumlular, görevler ve ilerleme takibi.", "icon": "bi-kanban", "sort_order": 84, "parent_key": None},
+    {"key": "swot", "name": "SWOT Analizi", "description": "Güçlü ve zayıf yönler, fırsatlar, tehditler ve gözden geçirme kayıtları.", "icon": "bi-grid-1x2", "sort_order": 85, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (

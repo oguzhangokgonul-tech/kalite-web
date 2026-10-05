@@ -1,0 +1,38 @@
+{% extends "swot/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ analysis.record_no }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header(analysis.title, icon='bi-grid-1x2') %}
+{{ ui.action_link(url_for('swot.dashboard'), 'Analizler', icon='bi-arrow-left', tone='secondary') }}
+{% if can_export %}{{ ui.action_link(url_for('swot.export', analysis_id=analysis.id), 'Rapor İndir', icon='bi-download', tone='secondary') }}{% endif %}
+{% if can_edit %}{{ ui.action_link(url_for('swot.edit', analysis_id=analysis.id), 'Düzenle', icon='bi-pencil') }}{% endif %}
+{% endcall %}
+<div class="swot-actions mb-4"><span>{{ analysis.record_no }}</span>{{ ui.status_badge(statuses[analysis.status]) }}</div>
+<dl class="swot-meta">
+<div><dt>Sorumlu</dt><dd>{{ analysis.owner.full_name if analysis.owner else '-' }}</dd></div>
+<div><dt>Analiz Tarihi</dt><dd>{{ analysis.analysis_date.strftime('%d.%m.%Y') }}</dd></div>
+<div><dt>Sonraki Gözden Geçirme</dt><dd>{{ analysis.review_date.strftime('%d.%m.%Y') }}{% if analysis.status != 'archived' and analysis.review_date < today %}<span class="text-danger d-block">{{ (today-analysis.review_date).days }} gün geçti</span>{% endif %}</dd></div>
+</dl>
+<section class="swot-section"><h2>Kapsam</h2><p class="swot-text">{{ analysis.scope }}</p></section>
+<div class="swot-grid">
+{% for key, label in quadrants.items() %}<section class="swot-quadrant swot-{{ key }}"><h2>{{ label }}</h2><p class="swot-text">{{ analysis|attr(key) or 'Henüz girilmedi.' }}</p></section>{% endfor %}
+</div>
+<section class="swot-section"><h2>Strateji ve Sonuç</h2><p class="swot-text">{{ analysis.strategy or 'Henüz girilmedi.' }}</p></section>
+{% if analysis.reviewed_at %}<section class="swot-section"><h2>Gözden Geçirme Kaydı</h2><p>{{ analysis.reviewer.full_name if analysis.reviewer else '-' }} · {{ analysis.reviewed_at.strftime('%d.%m.%Y') }}</p><p class="swot-text">{{ analysis.review_note }}</p></section>{% endif %}
+{% if analysis.archive_note %}<section class="swot-section"><h2>Arşiv Gerekçesi</h2><p class="swot-text">{{ analysis.archive_note }}</p></section>{% endif %}
+{% if can_review and analysis.status == 'draft' %}
+<section class="swot-section"><h2>Gözden Geçirme</h2><form method="post" action="{{ url_for('swot.transition', analysis_id=analysis.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ analysis.version_id }}"><input type="hidden" name="action" value="review">
+<label class="form-label" for="review_note">Değerlendirme Notu</label><textarea class="form-control mb-3" id="review_note" name="note" maxlength="20000" rows="3" required>{{ values.get('note', '') if values.get('action') == 'review' else '' }}</textarea>
+{{ ui.action_button('Gözden Geçirmeyi Tamamla', icon='bi-check2-circle') }}
+</form></section>{% endif %}
+{% if can_reopen or can_archive %}<section class="swot-section"><h2>Kayıt İşlemleri</h2><div class="swot-transitions">
+{% if can_reopen %}<form method="post" action="{{ url_for('swot.transition', analysis_id=analysis.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ analysis.version_id }}"><input type="hidden" name="action" value="reopen">
+<label class="form-label" for="reopen_note">Yeniden Açma Gerekçesi</label><textarea class="form-control mb-3" id="reopen_note" name="note" maxlength="20000" rows="2" required>{{ values.get('note', '') if values.get('action') == 'reopen' else '' }}</textarea>{{ ui.action_button('Yeniden Aç', icon='bi-arrow-counterclockwise', tone='secondary') }}
+</form>{% endif %}
+{% if can_archive %}<form method="post" action="{{ url_for('swot.transition', analysis_id=analysis.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ analysis.version_id }}"><input type="hidden" name="action" value="archive">
+<label class="form-label" for="archive_note">Arşiv Gerekçesi</label><textarea class="form-control mb-3" id="archive_note" name="note" maxlength="20000" rows="2" required>{{ values.get('note', '') if values.get('action') == 'archive' else '' }}</textarea>{{ ui.action_button('Arşive Al', icon='bi-archive', tone='secondary') }}
+</form>{% endif %}</div></section>{% endif %}
+{% endblock %}

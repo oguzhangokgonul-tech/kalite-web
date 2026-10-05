@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "swot.view", "label": "İlgili analizleri görüntüleme", "group": "SWOT Analizi", "description": "Oluşturduğu veya sorumlusu olduğu SWOT kayıtlarını görüntüler."},
+    {"key": "swot.view_all", "label": "Şirket analizlerini görüntüleme", "group": "SWOT Analizi", "description": "Seçili şirketin tüm SWOT kayıtlarını görüntüler."},
+    {"key": "swot.create", "label": "Analiz oluşturma ve düzenleme", "group": "SWOT Analizi", "description": "Analiz oluşturur, kendi taslaklarını düzenler."},
+    {"key": "swot.review", "label": "Analiz gözden geçirme", "group": "SWOT Analizi", "description": "Erişebildiği analizi gözden geçirir ve gerekçeyle yeniden açar."},
+    {"key": "swot.manage", "label": "Analiz süreç yönetimi", "group": "SWOT Analizi", "description": "Şirket analizlerini ve arşivini yönetir."},
+    {"key": "swot.export", "label": "Analiz raporu indirme", "group": "SWOT Analizi", "description": "Erişebildiği SWOT kayıtlarının raporunu indirir."},
     {"key": "projects.view", "label": "İlgili projeleri görüntüleme", "group": "Proje Yönetimi", "description": "Oluşturduğu, yönettiği veya görev aldığı projeleri görüntüler."},
     {"key": "projects.view_all", "label": "Şirket projelerini görüntüleme", "group": "Proje Yönetimi", "description": "Şirketin tüm projelerini görüntüler."},
     {"key": "projects.create", "label": "Proje oluşturma", "group": "Proje Yönetimi", "description": "Proje oluşturur, oluşturduğu veya yönettiği projeyi düzenler."},
@@ -1600,6 +1606,20 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in HELP_DESK_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+
+SWOT_ROLE_PERMISSIONS = {
+    "management_representative": ("swot.view", "swot.view_all", "swot.create", "swot.review", "swot.manage", "swot.export"),
+    "management": ("swot.view", "swot.view_all", "swot.create", "swot.review", "swot.export"),
+    "department_manager": ("swot.view", "swot.create", "swot.export"),
+    "department_staff": ("swot.view",),
+    "viewer": ("swot.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in SWOT_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3992,6 +4012,13 @@ def ensure_runtime_schema():
 
     with db.engine.begin() as project_connection:
         ensure_project_sqlite_guards(project_connection)
+
+    from .swot_models import SwotAnalysis
+    from .swot_schema import ensure_swot_sqlite_guards
+
+    SwotAnalysis.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as swot_connection:
+        ensure_swot_sqlite_guards(swot_connection)
 
     from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 

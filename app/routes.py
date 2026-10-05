@@ -2687,6 +2687,12 @@ QUALITY_TEST_ENDPOINTS = {
 }
 MODULE_ENDPOINTS = {
     "projects.dashboard": "projects",
+    "swot.dashboard": "swot",
+    "swot.create": "swot",
+    "swot.detail": "swot",
+    "swot.edit": "swot",
+    "swot.transition": "swot",
+    "swot.export": "swot",
     "projects.create": "projects",
     "projects.detail": "projects",
     "projects.timeline": "projects",
@@ -8110,6 +8116,11 @@ def report_projects_data():
     return report_data()
 
 
+def report_swot_data():
+    from .swot import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8967,6 +8978,17 @@ REPORT_CENTER_REPORTS = (
         "builder": report_management_reviews_data,
     },
     {
+        "key": "swot",
+        "title": "SWOT Analiz Raporu",
+        "description": "Analizler, stratejiler ve gözden geçirme kayıtları.",
+        "icon": "bi-grid-1x2",
+        "tone": "success",
+        "module_key": "swot",
+        "required_permission": "swot.view",
+        "required_export_permission": "swot.export",
+        "builder": report_swot_data,
+    },
+    {
         "key": "projects",
         "title": "Proje Planlama Raporu",
         "description": "Projeler, sorumlular, terminler ve ilerleme.",
@@ -9001,6 +9023,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "swot": {"date_headers": ("Analiz Tarihi",)},
     "projects": {"date_headers": ("Termin",)},
     "meetings": {"date_headers": ("Toplantı Tarihi",)},
     "energy_consumption": {"date_headers": ("Dönem / Termin",)},
@@ -9069,6 +9092,7 @@ MODULE_ACTIVITY_ENTITY_TYPES = {
     "management_review": ("ManagementReview",),
     "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision", "MeetingDecisionAction"),
     "projects": ("ProjectRecord", "ProjectTask"),
+    "swot": ("SwotAnalysis",),
     "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
     "report_center": ("ReportDefinition", "ReportCenter"),
     "integration_management": (
@@ -9125,7 +9149,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] not in {"meetings", "projects"}:
+    if definition["key"] not in {"meetings", "projects", "swot"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9133,6 +9157,11 @@ def apply_standard_report_period(definition, data, period):
 
 
 def module_activity_definition(module_key):
+    if module_key == "swot" and (not current_company_id() or not (
+        current_user_can("swot.export")
+        and (current_user_can("swot.view_all") or current_user_can("swot.manage"))
+    )):
+        return None
     if module_key == "projects" and (not current_company_id() or not (
         current_user_can("projects.export")
         and (current_user_can("projects.view_all") or current_user_can("projects.manage"))
@@ -9214,7 +9243,12 @@ def report_definition_access_allowed(definition, export=False):
     project_reader = definition.get("key") == "projects" and any(
         current_user_can(key) for key in ("projects.view", "projects.view_all", "projects.manage")
     )
-    if required_permission and not current_user_can(required_permission) and not project_reader:
+    swot_reader = definition.get("key") == "swot" and current_company_id() and any(
+        current_user_can(key) for key in ("swot.view", "swot.view_all", "swot.manage")
+    )
+    if definition.get("key") == "swot" and not swot_reader:
+        return False
+    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader):
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9542,7 +9576,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key not in {"meetings", "projects"}:
+    if report.source_key not in {"meetings", "projects", "swot"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18309,6 +18343,7 @@ def assigned_all_tasks(scope):
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
     from .meetings import assigned_task_rows as assigned_meeting_task_rows
     from .projects import assigned_task_rows as assigned_project_task_rows
+    from .swot import assigned_task_rows as assigned_swot_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18350,6 +18385,7 @@ def assigned_all_tasks(scope):
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
         + assigned_meeting_task_rows(scope, assigned_task_row)
         + assigned_project_task_rows(scope, assigned_task_row)
+        + assigned_swot_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -18402,7 +18438,7 @@ ASSIGNED_TAB_MODULES = {
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
-    "management": {"management_review", "meetings", "projects"},
+    "management": {"management_review", "meetings", "projects", "swot"},
 }
 
 
@@ -18446,6 +18482,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("management_review", "YGG"),
     ("meetings", "Toplantı Kararı"),
     ("projects", "Proje Görevi"),
+    ("swot", "SWOT Gözden Geçirme"),
 ]
 
 
