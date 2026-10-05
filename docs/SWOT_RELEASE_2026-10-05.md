@@ -35,9 +35,21 @@
 - [x] Final SWOT tests
 - [x] Fresh full backup verified and off-host hash matched
 - [x] Backup-copy migration rehearsal
-- [ ] Commit/push and production fast-forward
-- [ ] Migration, tenant health, role smoke and public HTTPS checks
-- [ ] Mark only `module_swot_analysis` after verification
+- [x] Commit/push and production fast-forward
+- [x] Migration, tenant health, role smoke and public HTTPS checks
+- [x] Mark only `module_swot_analysis` after verification
+
+## Production Evidence
+
+- Application commit: `d7529e5038f3c1ed2a122b07df0d9b058acf5d1d`; pushed to origin/main and deployed by fast-forward.
+- Database revision: `202610050002`; integrity check: `ok`; tenant-health: passed.
+- GET-only role smoke: 8 checks passed with no SWOT business records created. Missing live roles were reported; six-role matrix was tested locally.
+- Active company 1 (ISO core) has SWOT enabled. Custom-package companies 2 and 3 retain disabled new-module defaults; enable SWOT explicitly in Company Edit when desired.
+- `volkaportal.com/login`, `erprefabrik.volkaportal.com/login` and `sagiroglucelik.volkaportal.com/login`: HTTP 200.
+- Application service and reminder/webhook timers: active. Post-deploy error-priority journal check: no entries.
+- Checklist `sales_readiness:module_swot_analysis=1`, set after health checks by a single-key audited transaction.
+- Combined focused regressions: 142 passed; standalone migration rehearsals: 2 passed. Full suite was not rerun.
+- Next checklist item: `module_pestle_analysis`.
 
 ## Recovery
 
