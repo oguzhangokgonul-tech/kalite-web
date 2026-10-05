@@ -2693,6 +2693,12 @@ MODULE_ENDPOINTS = {
     "swot.edit": "swot",
     "swot.transition": "swot",
     "swot.export": "swot",
+    "pestle.dashboard": "pestle",
+    "pestle.create": "pestle",
+    "pestle.detail": "pestle",
+    "pestle.edit": "pestle",
+    "pestle.transition": "pestle",
+    "pestle.export": "pestle",
     "projects.create": "projects",
     "projects.detail": "projects",
     "projects.timeline": "projects",
@@ -8121,6 +8127,11 @@ def report_swot_data():
     return report_data()
 
 
+def report_pestle_data():
+    from .pestle import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8978,6 +8989,17 @@ REPORT_CENTER_REPORTS = (
         "builder": report_management_reviews_data,
     },
     {
+        "key": "pestle",
+        "title": "PESTLE Dış Bağlam Raporu",
+        "description": "Dış bağlam faktörleri, dayanaklar ve gözden geçirme kayıtları.",
+        "icon": "bi-globe2",
+        "tone": "success",
+        "module_key": "pestle",
+        "required_permission": "pestle.view",
+        "required_export_permission": "pestle.export",
+        "builder": report_pestle_data,
+    },
+    {
         "key": "swot",
         "title": "SWOT Analiz Raporu",
         "description": "Analizler, stratejiler ve gözden geçirme kayıtları.",
@@ -9023,6 +9045,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "pestle": {"date_headers": ("Analiz Tarihi",)},
     "swot": {"date_headers": ("Analiz Tarihi",)},
     "projects": {"date_headers": ("Termin",)},
     "meetings": {"date_headers": ("Toplantı Tarihi",)},
@@ -9093,6 +9116,7 @@ MODULE_ACTIVITY_ENTITY_TYPES = {
     "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision", "MeetingDecisionAction"),
     "projects": ("ProjectRecord", "ProjectTask"),
     "swot": ("SwotAnalysis",),
+    "pestle": ("PestleAnalysis",),
     "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
     "report_center": ("ReportDefinition", "ReportCenter"),
     "integration_management": (
@@ -9149,7 +9173,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] not in {"meetings", "projects", "swot"}:
+    if definition["key"] not in {"meetings", "projects", "swot", "pestle"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9157,6 +9181,11 @@ def apply_standard_report_period(definition, data, period):
 
 
 def module_activity_definition(module_key):
+    if module_key == "pestle" and (not current_company_id() or not (
+        current_user_can("pestle.export")
+        and (current_user_can("pestle.view_all") or current_user_can("pestle.manage"))
+    )):
+        return None
     if module_key == "swot" and (not current_company_id() or not (
         current_user_can("swot.export")
         and (current_user_can("swot.view_all") or current_user_can("swot.manage"))
@@ -9248,7 +9277,12 @@ def report_definition_access_allowed(definition, export=False):
     )
     if definition.get("key") == "swot" and not swot_reader:
         return False
-    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader):
+    pestle_reader = definition.get("key") == "pestle" and current_company_id() and any(
+        current_user_can(key) for key in ("pestle.view", "pestle.view_all", "pestle.manage")
+    )
+    if definition.get("key") == "pestle" and not pestle_reader:
+        return False
+    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader):
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9576,7 +9610,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key not in {"meetings", "projects", "swot"}:
+    if report.source_key not in {"meetings", "projects", "swot", "pestle"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18344,6 +18378,7 @@ def assigned_all_tasks(scope):
     from .meetings import assigned_task_rows as assigned_meeting_task_rows
     from .projects import assigned_task_rows as assigned_project_task_rows
     from .swot import assigned_task_rows as assigned_swot_task_rows
+    from .pestle import assigned_task_rows as assigned_pestle_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18386,6 +18421,7 @@ def assigned_all_tasks(scope):
         + assigned_meeting_task_rows(scope, assigned_task_row)
         + assigned_project_task_rows(scope, assigned_task_row)
         + assigned_swot_task_rows(scope, assigned_task_row)
+        + assigned_pestle_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -18438,7 +18474,7 @@ ASSIGNED_TAB_MODULES = {
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
-    "management": {"management_review", "meetings", "projects", "swot"},
+    "management": {"management_review", "meetings", "projects", "swot", "pestle"},
 }
 
 
@@ -18483,6 +18519,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("meetings", "Toplantı Kararı"),
     ("projects", "Proje Görevi"),
     ("swot", "SWOT Gözden Geçirme"),
+    ("pestle", "PESTLE Gözden Geçirme"),
 ]
 
 

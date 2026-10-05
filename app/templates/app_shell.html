@@ -376,6 +376,11 @@
           <span>{{ _("İç Denetim Yönetimi") }}</span>
         </a>
         {% endif %}
+        {% if g.current_company and g.company_module_enabled('pestle') and (g.current_user.has_permission('pestle.view') or g.current_user.has_permission('pestle.view_all') or g.current_user.has_permission('pestle.manage')) %}
+        <a class="dashboard-nav-item {% if request.blueprint == 'pestle' %}active{% endif %}" href="{{ url_for('pestle.dashboard') }}">
+          <i class="bi bi-globe2"></i><span>PESTLE Analizi</span>
+        </a>
+        {% endif %}
         {% if g.current_company and g.company_module_enabled('swot') and (g.current_user.has_permission('swot.view') or g.current_user.has_permission('swot.view_all') or g.current_user.has_permission('swot.manage')) %}
         <a class="dashboard-nav-item {% if request.blueprint == 'swot' %}active{% endif %}" href="{{ url_for('swot.dashboard') }}">
           <i class="bi bi-grid-1x2"></i><span>SWOT Analizi</span>

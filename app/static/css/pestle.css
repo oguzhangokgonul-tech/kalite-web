@@ -1,0 +1,25 @@
+.pestle-page { min-width: 0; }
+.pestle-page .pestle-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pestle-page .pestle-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.pestle-page .pestle-factor { min-width: 0; padding: 20px 0 12px 16px; border-left: 3px solid var(--pestle-accent); border-top: 1px solid #dee2e6; }
+.pestle-page .pestle-political { --pestle-accent: #16826b; }
+.pestle-page .pestle-economic { --pestle-accent: #b95c29; }
+.pestle-page .pestle-social { --pestle-accent: #2866cd; }
+.pestle-page .pestle-technological { --pestle-accent: #b23859; }
+.pestle-page h2, .pestle-page .pestle-heading { display: block; margin-bottom: 12px; font-size: 1rem; font-weight: 600; letter-spacing: 0; }
+.pestle-page .pestle-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
+.pestle-page .pestle-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-block: 1px solid #dee2e6; }
+.pestle-page dt { font-size: .8rem; font-weight: 400; color: #566477; margin-bottom: 4px; }
+.pestle-page dd { margin: 0; overflow-wrap: anywhere; }
+.pestle-page .pestle-section { padding-block: 20px; }
+.pestle-page .pestle-transitions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.pestle-page textarea { min-height: 88px; }
+@media (max-width: 767px) {
+  .pestle-page .pestle-grid, .pestle-page .pestle-meta, .pestle-page .pestle-transitions { grid-template-columns: minmax(0, 1fr); }
+  .pestle-page .btn { min-height: 44px; white-space: normal; }
+  .pestle-page input, .pestle-page select { min-height: 44px; }
+}
+
+
+.pestle-page .pestle-legal { --pestle-accent: #726334; }
+.pestle-page .pestle-environmental { --pestle-accent: #277e3c; }

@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "pestle.view", "label": "İlgili analizleri görüntüleme", "group": "PESTLE Analizi", "description": "Oluşturduğu veya sorumlusu olduğu PESTLE kayıtlarını görüntüler."},
+    {"key": "pestle.view_all", "label": "Şirket analizlerini görüntüleme", "group": "PESTLE Analizi", "description": "Seçili şirketin tüm PESTLE kayıtlarını görüntüler."},
+    {"key": "pestle.create", "label": "Analiz oluşturma ve düzenleme", "group": "PESTLE Analizi", "description": "Analiz oluşturur, kendi taslaklarını düzenler."},
+    {"key": "pestle.review", "label": "Analiz gözden geçirme", "group": "PESTLE Analizi", "description": "Erişebildiği analizi gözden geçirir ve gerekçeyle yeniden açar."},
+    {"key": "pestle.manage", "label": "Analiz süreç yönetimi", "group": "PESTLE Analizi", "description": "Şirket analizlerini ve arşivini yönetir."},
+    {"key": "pestle.export", "label": "Analiz raporu indirme", "group": "PESTLE Analizi", "description": "Erişebildiği PESTLE kayıtlarının raporunu indirir."},
     {"key": "swot.view", "label": "İlgili analizleri görüntüleme", "group": "SWOT Analizi", "description": "Oluşturduğu veya sorumlusu olduğu SWOT kayıtlarını görüntüler."},
     {"key": "swot.view_all", "label": "Şirket analizlerini görüntüleme", "group": "SWOT Analizi", "description": "Seçili şirketin tüm SWOT kayıtlarını görüntüler."},
     {"key": "swot.create", "label": "Analiz oluşturma ve düzenleme", "group": "SWOT Analizi", "description": "Analiz oluşturur, kendi taslaklarını düzenler."},
@@ -1617,6 +1623,19 @@ SWOT_ROLE_PERMISSIONS = {
     "department_staff": ("swot.view",),
     "viewer": ("swot.view",),
 }
+PESTLE_ROLE_PERMISSIONS = {
+    "management_representative": ("pestle.view", "pestle.view_all", "pestle.create", "pestle.review", "pestle.manage", "pestle.export"),
+    "management": ("pestle.view", "pestle.view_all", "pestle.create", "pestle.review", "pestle.export"),
+    "department_manager": ("pestle.view", "pestle.create", "pestle.export"),
+    "department_staff": ("pestle.view",),
+    "viewer": ("pestle.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in PESTLE_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
 for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission for permission in SWOT_ROLE_PERMISSIONS.get(role_definition["key"], ())
@@ -4019,6 +4038,13 @@ def ensure_runtime_schema():
     SwotAnalysis.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as swot_connection:
         ensure_swot_sqlite_guards(swot_connection)
+
+    from .pestle_models import PestleAnalysis
+    from .pestle_schema import ensure_pestle_sqlite_guards
+
+    PestleAnalysis.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as pestle_connection:
+        ensure_pestle_sqlite_guards(pestle_connection)
 
     from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
