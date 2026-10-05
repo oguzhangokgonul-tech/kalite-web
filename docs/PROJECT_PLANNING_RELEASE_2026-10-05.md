@@ -55,5 +55,34 @@ korunur. Canli veritabaninda downgrade veya yedek restore uygulanmaz.
 - Ilk genis regresyonda 81 test, son degisikliklerden sonra 82 test gecti.
   Proje ve minimal migration testleri 26/26; eski yedek provasi ayrica gecti.
 - 390, 768 ve 1440 px tarayici akisi gecti; tablette liste islemi gorunur.
-- Nihai regresyon, tarayici, yedek ve canli sonuc bilgileri yayin sonunda
-  eklenecektir.
+
+## Canli Sonuc
+
+- Uygulama kodu `f2674f6`; checklist komutunun HTTPS/CSRF duzeltmesi
+  `786eafd`. Ilk isaretleme denemesi guvenli HTTPS oturumu olmadigi icin
+  kayit degistirmeden durdu; duzeltilen komut basariyla calisti.
+- Son genis regresyon 82/82; yayin komutunun son degisikliginden sonra
+  proje, rapor merkezi, rapor tasarimcisi ve tenant testleri 44/44 gecti.
+  HTTPS CSRF checklist testi ayrica gecti.
+- Taze tam yedek:
+  `/var/data/aksiyon-takip/backups/project-planning-20261005/volkaportal-backup-20261005-062542.zip`.
+  204 upload; checksum, quick_check, integrity_check ve restore dry-run OK.
+- Sunucu disi kopya: `C:/Users/Asus/VolkaPortalBackups/20261005-project-planning/`.
+  SHA256 iki tarafta da
+  `98a8b414e58e0ac634d3a659adb8272d4dee7229c5eb509077491411aef06379`.
+- Taze yedekte iki migration testi gecti; 156 eski tablo korundu.
+  Canli migration head `202610030001`, tenant-health OK, 10 yeni SQLite
+  koruma tetikleyicisi yerinde. Proje ve gorev sayisi sifir; test verisi eklenmedi.
+- Uygulama ici sirket/rol smoke: 6 kontrol gecti. Canli hesap bulunmadigi
+  icin Deneme firmasinda temsilci/personel/goruntuleyici, Sagiroglu Celik'te
+  departman yoneticisi/personel/goruntuleyici rolleri gercek hesapla
+  denenemedi. Bu roller otomatik testlerde sinandi.
+- Ana alan ve Er Prefabrik ile Sagiroglu Celik alanlarinin HTTPS girisleri
+  200. `deneme.volkaportal.com` dis DNS'te cozulmuyor; mevcut test firmasina
+  dis erisim sorunu bu yayindan bagimsizdir.
+- Paket kurali korundu: ISO cekirdek firmada proje modulu acik; iki `custom`
+  paket firmada yeni modul varsayilan olarak kapali. Super Admin, sirket
+  modulu ayarindan bunlari ayri ayri acabilir.
+- `module_project_planning=1` olarak dogrulandi. `module_project_gantt`
+  isaretlenmedi. Uygulama ve iki timer aktif; yayin sonrasi hata seviyesi
+  servis gunlugu bos.
