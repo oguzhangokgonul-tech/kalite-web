@@ -13,7 +13,7 @@ from app.extensions import db
 from app.models import AppSetting, Company, CompanyModule, ProjectRecord, ProjectTask, Role, RolePermission, User
 from app.routes import sales_readiness_completed_ids
 from app.seed import PROJECT_ROLE_PERMISSIONS
-from app.tenant import company_primary_domain, normalize_link_domain, tenant_company_from_host
+from app.tenant import company_primary_domain, normalize_link_domain, tenant_base_domain, tenant_company_from_host
 
 
 def configure_defaults():
@@ -109,19 +109,22 @@ def mark(app):
     assert admin.has_role("super_admin")
     before = {row.key: row.value for row in AppSetting.query.filter(AppSetting.key.like("sales_readiness:%"))}
     client = app.test_client()
-    with client.session_transaction() as session:
+    base = "https://" + (tenant_base_domain() or "localhost")
+    with client.session_transaction(base_url=base) as session:
         session["user_id"] = admin.id
     with app.test_request_context():
         from flask import url_for
         path = url_for("main.sales_readiness")
         selected = sales_readiness_completed_ids() | {"module_project_planning"}
-    response = client.get(path)
+    response = client.get(path, base_url=base)
     assert response.status_code == 200
     parser = CsrfParser()
     parser.feed(response.get_data(as_text=True))
     assert parser.token
-    response = client.post(path, data={"csrf_token": parser.token, "completed_items": sorted(selected)})
-    assert response.status_code == 302
+    response = client.post(path, base_url=base, headers={"Referer": base + path},
+        data={"csrf_token": parser.token, "completed_items": sorted(selected)})
+    assert response.status_code == 302 and response.location.endswith(path), (
+        response.status_code, response.location)
     db.session.expire_all()
     assert db.session.get(AppSetting,"sales_readiness:module_project_planning").value == "1"
     for key,value in before.items():
