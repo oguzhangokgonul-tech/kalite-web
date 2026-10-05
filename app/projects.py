@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from functools import wraps
 
 from flask import Blueprint, abort, flash, g, redirect, render_template, request, send_file, url_for
@@ -11,12 +12,14 @@ from .audit import record_audit_event
 from .extensions import db
 from .models import Notification, User
 from .notifications import add_user_notification
-from .project_models import ProjectRecord, ProjectTask
+from .project_models import ProjectMilestone, ProjectRecord, ProjectTask
+from .project_timeline import axis_ticks, resource_rows, schedule_rows, timeline_window
 from .tenant import assign_current_company, current_company_id, scoped_query
 
 bp = Blueprint("projects", __name__, url_prefix="/projeler")
 STATUSES = {"draft": "Taslak", "active": "Devam Ediyor", "completed": "Tamamlandı", "archived": "Arşiv"}
 TASK_STATUSES = {"pending": "Bekliyor", "in_progress": "Devam Ediyor", "completed": "Tamamlandı", "cancelled": "İptal"}
+MILESTONE_STATUSES = {"pending": "Bekliyor", "completed": "Tamamlandı"}
 READ_PERMISSIONS = ("projects.view", "projects.view_all", "projects.manage")
 EDITABLE = {"draft", "active"}
 
@@ -68,7 +71,8 @@ def atomic(view):
 
 def visible_projects():
     query = company_query(ProjectRecord).options(
-        joinedload(ProjectRecord.owner), selectinload(ProjectRecord.tasks).joinedload(ProjectTask.owner))
+        joinedload(ProjectRecord.owner), selectinload(ProjectRecord.tasks).joinedload(ProjectTask.owner),
+        selectinload(ProjectRecord.milestones))
     if has_permission("projects.view_all") or has_permission("projects.manage"):
         return query
     user_id = g.current_user.id
@@ -143,11 +147,35 @@ def plan_values(project=None, task=False):
     if project and not task and any(t.start_date < start or t.due_date > due for t in project.tasks if t.status != "cancelled"):
         raise ValueError("Proje tarihleri mevcut görevleri kapsamalıdır.")
     result = dict(title=title, owner_user_id=owner_id, start_date=start, due_date=due)
-    if not task:
+    if task:
+        raw_hours = request.form.get("estimated_hours", "").strip()
+        if raw_hours:
+            try:
+                hours = Decimal(raw_hours)
+            except InvalidOperation:
+                raise ValueError("Tahmini efor için geçerli bir saat girin.") from None
+            if not hours.is_finite() or hours < Decimal("0.1") or hours > Decimal("10000") or hours != hours.quantize(Decimal("0.1")):
+                raise ValueError("Tahmini efor 0,1 ile 10000 saat arasında, bir ondalık basamakla girilmelidir.")
+            result["estimated_hours"] = hours
+        else:
+            result["estimated_hours"] = None
+    else:
         result["description"] = text_field("description")
         if project and project.status == "active" and not result["description"]:
             raise ValueError("Devam eden projenin amacı boş bırakılamaz.")
     return result
+
+
+def milestone_values(project):
+    title = text_field("title", required=True, limit=240)
+    criteria = text_field("acceptance_criteria", required=True)
+    try:
+        target = date.fromisoformat(request.form.get("target_date", ""))
+    except (TypeError, ValueError):
+        raise ValueError("Geçerli bir hedef tarihi girin.") from None
+    if not project.start_date <= target <= project.due_date:
+        raise ValueError("Kilometre taşı hedefi proje tarihleri içinde olmalıdır.")
+    return {"title": title, "acceptance_criteria": criteria, "target_date": target}
 
 
 def snapshot(row):
@@ -233,7 +261,26 @@ def detail(project_id):
              and (u.has_permission("projects.update") or u.has_permission("projects.manage"))]
     return render_template("projects/detail.html", project=project, users=users,
         can_edit=can_edit(project), can_update_task=lambda task: can_update_task(project, task),
-        can_export=has_permission("projects.export"), statuses=STATUSES, task_statuses=TASK_STATUSES, today=date.today())
+        can_export=has_permission("projects.export"), statuses=STATUSES, task_statuses=TASK_STATUSES,
+        milestone_statuses=MILESTONE_STATUSES, today=date.today())
+
+
+@bp.get("/<int:project_id>/zaman-cizelgesi")
+def timeline(project_id):
+    project = get_project(project_id)
+    try:
+        start, end, year = timeline_window(project, request.args.get("year"))
+    except ValueError as error:
+        abort(400, description=str(error))
+    today = date.today()
+    span = (end - start).days + 1
+    today_position = 100 * ((today - start).days + 0.5) / span if start <= today <= end else None
+    return render_template("projects/timeline.html", project=project,
+        rows=schedule_rows(project, start, end), ticks=axis_ticks(start, end),
+        resources=resource_rows(project), start=start, end=end, selected_year=year,
+        years=range(project.start_date.year, project.due_date.year + 1),
+        today_position=today_position, task_statuses=TASK_STATUSES,
+        milestone_statuses=MILESTONE_STATUSES, statuses=STATUSES)
 
 
 @bp.route("/<int:project_id>/duzenle", methods=["GET", "POST"])
@@ -251,6 +298,8 @@ def edit(project_id):
         except ValueError as error:
             flash(str(error), "danger")
             return render_template("projects/form.html", **form_context(project)), 400
+        if any(not values["start_date"] <= item.target_date <= values["due_date"] for item in project.milestones):
+            raise ValueError("Proje tarihleri kilometre taşlarını da kapsamalıdır.")
         old = snapshot(project)
         for key, value in values.items():
             setattr(project, key, value)
@@ -265,6 +314,60 @@ def edit(project_id):
         db.session.commit()
         return detail_redirect(project)
     return render_template("projects/form.html", **form_context(project))
+
+
+@bp.post("/<int:project_id>/kilometre-tasi")
+@atomic
+def add_milestone(project_id):
+    project = get_project(project_id)
+    if not can_edit(project):
+        abort(403)
+    if project.status not in EDITABLE:
+        abort(409)
+    check_version(project)
+    milestone = assign_current_company(ProjectMilestone(project=project, **milestone_values(project)))
+    db.session.add(milestone)
+    touch(project)
+    db.session.flush()
+    audit(milestone, "created")
+    db.session.commit()
+    return detail_redirect(project)
+
+
+@bp.post("/<int:project_id>/kilometre-tasi/<int:milestone_id>")
+@atomic
+def update_milestone(project_id, milestone_id):
+    project = get_project(project_id)
+    milestone = company_query(ProjectMilestone).filter_by(id=milestone_id, project_id=project.id).first_or_404()
+    if not can_edit(project):
+        abort(403)
+    if project.status not in EDITABLE:
+        abort(409)
+    check_version(milestone)
+    check_version(project, "project_version_id")
+    old = snapshot(milestone)
+    action = request.form.get("action")
+    if action == "edit" and milestone.status == "pending":
+        for key, value in milestone_values(project).items():
+            setattr(milestone, key, value)
+    elif action == "complete" and milestone.status == "pending" and project.status == "active":
+        milestone.completion_note = text_field("completion_note", required=True)
+        milestone.status = "completed"
+        milestone.completed_at = datetime.now(UTC).replace(tzinfo=None)
+    elif action == "reopen" and milestone.status == "completed" and project.status == "active":
+        reason = text_field("completion_note", required=True)
+        record_audit_event("ProjectMilestone", "reopen_reason", milestone.title,
+            entity_id=milestone.id, company_id=milestone.company_id,
+            details={"reason": reason}, commit=False)
+        milestone.status, milestone.completion_note, milestone.completed_at = "pending", None, None
+    else:
+        abort(409)
+    touch(project)
+    milestone.version_id += 1
+    db.session.flush()
+    audit(milestone, action, old)
+    db.session.commit()
+    return detail_redirect(project)
 
 
 @bp.post("/<int:project_id>/durum")
@@ -400,9 +503,17 @@ def export(project_id):
     require_permission("projects.export")
     project = get_project(project_id)
     from .routes import build_simple_xlsx
+    rows = [(t.due_date, "Görev", t.title, t.owner.full_name if t.owner else "",
+        str(t.start_date), str(t.due_date), TASK_STATUSES[t.status],
+        str(t.estimated_hours) if t.estimated_hours is not None else "", "", t.completion_note or "")
+        for t in project.tasks]
+    rows += [(m.target_date, "Kilometre Taşı", m.title, "", str(m.target_date),
+        str(m.target_date), MILESTONE_STATUSES[m.status], "", m.acceptance_criteria,
+        m.completion_note or "") for m in project.milestones]
+    rows.sort(key=lambda row: (row[0], row[1], row[2]))
     workbook = build_simple_xlsx(
-        ("Görev", "Sorumlu", "Başlangıç", "Termin", "Durum", "Sonuç"),
-        [(t.title, t.owner.full_name if t.owner else "", str(t.start_date), str(t.due_date), TASK_STATUSES[t.status], t.completion_note or "") for t in project.tasks],
+        ("Tür", "Kayıt", "Sorumlu", "Başlangıç", "Termin", "Durum", "Tahmini Efor (saat)", "Kabul Ölçütü", "Sonuç"),
+        [row[1:] for row in rows],
         sheet_name="Proje Planı", metadata=[("Proje", project.project_no), ("Başlık", project.title),
             ("Amaç", project.description or ""), ("Durum", STATUSES[project.status]),
             ("İlerleme", f"%{project.progress}"), ("Sonuç", project.completion_note or ""),

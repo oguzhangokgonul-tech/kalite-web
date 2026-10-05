@@ -133,9 +133,41 @@ def mark(app):
     return "module_project_planning"
 
 
+def mark_gantt(app):
+    """Mark Gantt only after the planning foundation and Gantt gates pass."""
+    admin = User.query.filter_by(username="superadmin", company_id=None, is_active=True).one()
+    assert admin.has_role("super_admin")
+    before = {row.key: row.value for row in AppSetting.query.filter(AppSetting.key.like("sales_readiness:%"))}
+    client = app.test_client()
+    base = "https://" + (tenant_base_domain() or "localhost")
+    with client.session_transaction(base_url=base) as session:
+        session["user_id"] = admin.id
+    with app.test_request_context():
+        from flask import url_for
+        path = url_for("main.sales_readiness")
+        selected = sales_readiness_completed_ids() | {"module_project_gantt"}
+        assert "module_project_planning" in selected, "Project planning prerequisite is not marked complete"
+    response = client.get(path, base_url=base)
+    assert response.status_code == 200
+    parser = CsrfParser()
+    parser.feed(response.get_data(as_text=True))
+    assert parser.token
+    response = client.post(path, base_url=base, headers={"Referer": base + path},
+        data={"csrf_token": parser.token, "completed_items": sorted(selected)})
+    assert response.status_code == 302 and response.location.endswith(path), (
+        response.status_code, response.location)
+    db.session.expire_all()
+    assert db.session.get(AppSetting, "sales_readiness:module_project_planning").value == "1"
+    assert db.session.get(AppSetting, "sales_readiness:module_project_gantt").value == "1"
+    for key, value in before.items():
+        if key not in {"sales_readiness:module_project_planning", "sales_readiness:module_project_gantt"}:
+            assert db.session.get(AppSetting, key).value == value, key
+    return "module_project_gantt"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("step", choices=("configure", "smoke", "mark"))
+    parser.add_argument("step", choices=("configure", "smoke", "mark", "mark-gantt"))
     args = parser.parse_args()
     app = create_app()
     app.config.update(MAIL_ENABLED=False, NOTIFICATION_AUTO_REMINDERS_ENABLED=False)
@@ -144,8 +176,10 @@ def main():
             print("Project configuration changes:", len(configure_defaults()))
         elif args.step == "smoke":
             print("Project tenant/role smoke checks:", smoke(app))
-        else:
+        elif args.step == "mark":
             print("Checklist marked:", mark(app))
+        else:
+            print("Checklist marked:", mark_gantt(app))
 
 
 if __name__ == "__main__":

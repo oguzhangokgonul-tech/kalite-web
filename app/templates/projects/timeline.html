@@ -1,0 +1,43 @@
+{% extends "projects/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ project.project_no }} · Zaman Çizelgesi{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Proje Zaman Çizelgesi', icon='bi-bar-chart-steps') %}
+{{ ui.action_link(url_for('projects.detail', project_id=project.id), project.project_no, icon='bi-arrow-left', tone='secondary') }}
+{% if g.current_user.has_permission('projects.export') %}{{ ui.action_link(url_for('projects.export', project_id=project.id), 'Rapor İndir', icon='bi-download', tone='secondary') }}{% endif %}
+{% endcall %}
+
+<section class="project-timeline-summary" aria-labelledby="timeline-project-title">
+  <div><h2 id="timeline-project-title">{{ project.title }}</h2><p class="mb-0">{{ start.strftime('%d.%m.%Y') }} – {{ end.strftime('%d.%m.%Y') }}</p></div>
+  <div class="project-actions">
+    {% if years|length > 1 %}<form method="get" class="timeline-year-filter"><label for="timeline-year">Gösterilen dönem</label><select class="form-select" id="timeline-year" name="year"><option value="all" {{ 'selected' if selected_year is none }}>Tüm proje</option>{% for year in years %}<option value="{{ year }}" {{ 'selected' if selected_year == year }}>{{ year }}</option>{% endfor %}</select><button class="btn btn-outline-primary" type="submit">Göster</button></form>{% endif %}
+    {{ ui.status_badge(statuses[project.status]) }}
+  </div>
+</section>
+
+<section class="project-timeline-section" aria-labelledby="schedule-title">
+  <div class="project-task-heading"><h2 id="schedule-title">Görevler ve kilometre taşları</h2><span class="text-secondary">{{ rows|length }} plan öğesi</span></div>
+  {% if rows %}
+  <div class="timeline-chart" role="table" aria-label="Proje görevlerinin ve kilometre taşlarının zaman çizelgesi">
+    <div class="timeline-axis" role="row"><div role="columnheader">Plan öğesi</div><div class="timeline-track-axis" role="columnheader" aria-label="Tarih ölçeği">{% for position, label in ticks %}<span class="timeline-tick" style="left:{{ position }}%">{{ label }}</span>{% endfor %}</div><div class="timeline-dates" role="columnheader">Tarihler</div></div>
+    <div role="rowgroup">{% for row in rows %}
+    <div class="timeline-row {{ 'is-milestone' if row.kind == 'milestone' }}" role="row">
+      <div class="timeline-label" role="cell"><span class="timeline-kind-icon" aria-hidden="true"><i class="bi {{ 'bi-diamond-fill' if row.kind == 'milestone' else 'bi-list-task' }}"></i></span><div><strong>{{ row.title }}</strong><span>{{ row.owner.full_name if row.owner else ('Kilometre taşı' if row.kind == 'milestone' else 'Sorumlu atanmadı') }}</span><span class="timeline-status status-text-{{ row.status }}">{{ milestone_statuses[row.status] if row.kind == 'milestone' else task_statuses[row.status] }}</span></div></div>
+      <div class="timeline-track" role="cell" aria-label="{{ row.title }}: {{ row.start.strftime('%d.%m.%Y') }} - {{ row.due.strftime('%d.%m.%Y') }}; {{ milestone_statuses[row.status] if row.kind == 'milestone' else task_statuses[row.status] }}">
+        {% for position, label in ticks %}<span class="timeline-gridline" style="left:{{ position }}%" aria-hidden="true"></span>{% endfor %}
+        {% if row.kind == 'milestone' %}<span class="timeline-milestone {{ 'is-complete' if row.status == 'completed' }}" style="left:{{ row.left }}%" title="{{ row.title }} · {{ row.start.strftime('%d.%m.%Y') }}"></span>{% else %}<span class="timeline-bar status-{{ row.status }}" style="left:{{ row.left }}%;width:{{ row.width }}%" title="{{ row.title }} · {{ row.start.strftime('%d.%m.%Y') }} – {{ row.due.strftime('%d.%m.%Y') }}"></span>{% endif %}
+        {% if today_position is not none %}<span class="timeline-today" style="left:{{ today_position }}%" aria-hidden="true"></span>{% endif %}
+      </div>
+      <div class="timeline-dates" role="cell"><span><time datetime="{{ row.start.isoformat() }}">{{ row.start.strftime('%d.%m.%Y') }}</time>{% if row.due != row.start %}<span> – {{ row.due.strftime('%d.%m.%Y') }}</span>{% endif %}</span>{% if row.clipped %}<small>Seçili dönemde kısmen gösteriliyor</small>{% endif %}{% if row.kind == 'task' and row.estimated_hours is not none %}<small>{{ row.estimated_hours }} saat tahmini</small>{% endif %}</div>
+    </div>
+    {% endfor %}</div>
+  </div>
+  {% else %}<p class="project-empty-state">Bu dönemde planlanmış görev veya kilometre taşı yok.</p>{% endif %}
+  <ul class="timeline-legend" aria-label="Zaman çizelgesi açıklaması"><li><span class="legend-bar"></span>Bekleyen görev</li><li><span class="legend-progress"></span>Devam ediyor</li><li><span class="legend-complete"></span>Tamamlandı</li><li><span class="legend-cancelled"></span>İptal edildi</li><li><span class="legend-diamond"></span>Kilometre taşı</li><li><span class="legend-today"></span>Bugün</li></ul>
+</section>
+
+<section class="project-timeline-section" aria-labelledby="resources-title">
+  <div class="project-task-heading"><div><h2 id="resources-title">Sorumlu ve tahmini efor</h2><p class="text-secondary mb-0">Özet tüm proje dönemini kapsar. Yalnızca görevlerde girilmiş tahmini saatler toplanır; kapasite hesabı yapılmaz.</p></div></div>
+  {% if resources %}<div class="table-responsive"><table class="table project-resource-table"><thead><tr><th scope="col">Sorumlu</th><th scope="col">Görev sayısı</th><th scope="col">Tahmini efor</th><th scope="col">Açık görev çakışması</th><th scope="col">Eksik efor</th></tr></thead><tbody>{% for resource in resources %}<tr><th scope="row">{{ resource.owner.full_name if resource.owner else 'Sorumlu atanmamış' }}</th><td>{{ resource.tasks|length }}</td><td>{{ resource.hours }} saat</td><td>{{ resource.overlaps }} eşzamanlı görev çifti</td><td>{{ resource.unestimated }} görev</td></tr>{% endfor %}</tbody></table></div>{% else %}<p class="project-empty-state">Henüz görev sorumlusu atanmadı.</p>{% endif %}
+</section>
+{% endblock %}

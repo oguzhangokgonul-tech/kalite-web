@@ -36,6 +36,11 @@ try {
       await page.locator('#new-task-title').fill('Üretim kontrol planını güncelle');
       await page.locator('#new-task-owner').selectOption({label:'department_staff'});
       await page.locator('#add-project-task button[type="submit"]').click();
+      await page.locator('details:has(#add-project-milestone) > summary').click();
+      await page.locator('#new-milestone-title').fill(`Acceptance gate ${width}`);
+      await page.locator('#new-milestone-date').fill('2026-10-20');
+      await page.locator('#new-milestone-criteria').fill('Evidence reviewed');
+      await page.locator('#add-project-milestone button[type="submit"]').click();
       await page.getByRole('button',{name:'Projeyi Başlat',exact:true}).click();
       await layout('active');
       await login('department_staff');
@@ -46,7 +51,15 @@ try {
       await layout('staff-completed');
       await login('department_manager');
       await page.goto(detail);
-      await page.locator('#project-result').fill('Planlanan çıktı elde edildi.');
+      const milestoneResult=page.locator('textarea[id^="milestone-result-"]').first();
+      const milestoneId=(await milestoneResult.getAttribute('id')).replace('milestone-result-','');
+      const milestoneRow=page.locator(`#milestone-${milestoneId}`);
+      await milestoneResult.locator('xpath=ancestor::details[1]').locator('summary').click();
+      await milestoneResult.fill('Evidence accepted');
+      await milestoneRow.locator('button[value="complete"]').click();
+      await page.locator('a[href*="/zaman-cizelgesi"]').click();
+      await layout('timeline');
+      await page.goto(detail);      await page.locator('#project-result').fill('Planlanan çıktı elde edildi.');
       await page.getByRole('button',{name:'Projeyi Tamamla',exact:true}).click();
       const download=page.waitForEvent('download');
       await page.getByRole('link',{name:'Rapor İndir',exact:true}).click();
@@ -59,7 +72,7 @@ try {
       const actionBox=await page.locator('.project-table td[data-label="İşlem"] a').first().boundingBox();
       assert.ok(actionBox && actionBox.x>=0 && actionBox.x+actionBox.width<=width+1,`${width} list action clipped`);
       assert.deepEqual(errors,[]);
-      results.push({width,result:'passed',csrf:'enabled',workflow:'create/assign/activate/complete/export/archive'});
+      results.push({width,result:'passed',csrf:'enabled',workflow:'create/assign/milestone/activate/gantt/complete/export/archive'});
     } finally {await context.close();}
   }
 } finally {

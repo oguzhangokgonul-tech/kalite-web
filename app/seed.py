@@ -3980,10 +3980,14 @@ def ensure_runtime_schema():
     for model in (MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction):
         model.__table__.create(bind=db.engine, checkfirst=True)
 
-    from .project_models import ProjectRecord, ProjectTask
+    from .project_models import ProjectRecord, ProjectTask, ProjectMilestone
 
     for model in (ProjectRecord, ProjectTask):
         model.__table__.create(bind=db.engine, checkfirst=True)
+    if "estimated_hours" not in {column["name"] for column in inspect(db.engine).get_columns("project_tasks")}:
+        with db.engine.begin() as project_connection:
+            project_connection.execute(text("ALTER TABLE project_tasks ADD COLUMN estimated_hours NUMERIC(8, 1)"))
+    ProjectMilestone.__table__.create(bind=db.engine, checkfirst=True)
     from .project_schema import ensure_project_sqlite_guards
 
     with db.engine.begin() as project_connection:

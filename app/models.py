@@ -5,7 +5,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
 from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction
-from .project_models import ProjectRecord, ProjectTask
+from .project_models import ProjectRecord, ProjectTask, ProjectMilestone
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 

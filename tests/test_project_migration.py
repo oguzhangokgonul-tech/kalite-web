@@ -23,8 +23,8 @@ from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy as sa
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE, HEAD = "202610020002", "202610030001"
-TABLES = {"project_records", "project_tasks"}
+BASE, HEAD = "202610020002", "202610050001"
+TABLES = {"project_records", "project_tasks", "project_milestones"}
 
 
 def digest(path):
@@ -40,6 +40,18 @@ def snapshot(connection):
         quoted = '"' + name.replace('"', '""') + '"'
         rows = sorted(hashlib.sha256(repr(row).encode()).hexdigest() for row in connection.execute(f"SELECT * FROM {quoted}"))
         result[name] = {"schema": sql, "rows": len(rows), "sha256": hashlib.sha256(''.join(rows).encode()).hexdigest()}
+    return result
+
+
+def project_data(connection):
+    result = {}
+    for name in ("project_records", "project_tasks"):
+        if not connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone():
+            continue
+        columns = [row[1] for row in connection.execute(f'PRAGMA table_info("{name}")')
+                   if row[1] != "estimated_hours"]
+        selected = ",".join('"' + column.replace('"', '""') + '"' for column in columns)
+        result[name] = (columns, connection.execute(f'SELECT {selected} FROM "{name}" ORDER BY id').fetchall())
     return result
 
 
@@ -59,22 +71,44 @@ class ProjectMigrationTests(unittest.TestCase):
             baseline = snapshot(connection)
             original_fk = connection.execute('PRAGMA foreign_key_check').fetchall()
             stages = []
-            for direction, revision in (("upgrade", HEAD), ("upgrade", HEAD), ("downgrade", BASE), ("upgrade", HEAD)):
+            starting_revision = connection.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+            if starting_revision not in {BASE, "202610030001"}:
+                raise AssertionError(f"Unexpected starting revision: {starting_revision}")
+            expected_project_data = project_data(connection) if starting_revision == "202610030001" else None
+            preservation_pending = expected_project_data is not None
+            steps = (([("upgrade", "202610030001")] if starting_revision == BASE else []) +
+                [("upgrade", HEAD), ("upgrade", HEAD), ("downgrade", BASE), ("upgrade", HEAD)])
+            for direction, revision in steps:
                 result = runner.invoke(args=['db', direction, revision])
                 self.assertEqual(result.exit_code, 0, result.output + repr(result.exception))
+                if direction == "upgrade" and revision == "202610030001" and expected_project_data is None:
+                    company, user = connection.execute('SELECT company_id,id FROM users WHERE company_id IS NOT NULL LIMIT 1').fetchone()
+                    connection.execute("INSERT INTO project_records(id,company_id,title,owner_user_id,created_by_user_id,start_date,due_date) VALUES(1,?,'Preserved Project',?,?,'2026-10-01','2026-10-31')", (company,user,user))
+                    connection.execute("INSERT INTO project_tasks(id,company_id,project_id,title,owner_user_id,start_date,due_date) VALUES(1,?,1,'Preserved Task',?,'2026-10-02','2026-10-03')", (company,user))
+                    expected_project_data = project_data(connection)
+                    preservation_pending = True
+                    connection.commit()
+                if direction == "upgrade" and revision == HEAD and preservation_pending:
+                    self.assertEqual(project_data(connection), expected_project_data)
+                    preservation_pending = False
                 self.assertEqual(snapshot(connection), baseline)
                 self.assertEqual(connection.execute('PRAGMA integrity_check').fetchone(), ('ok',))
                 self.assertEqual(connection.execute('PRAGMA foreign_key_check').fetchall(), original_fk)
                 self.assertEqual(connection.execute('SELECT version_num FROM alembic_version').fetchone(), (revision,))
                 tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-                self.assertEqual(bool(TABLES & tables), revision == HEAD)
+                expected_tables = set() if revision == BASE else {"project_records", "project_tasks"}
+                if revision == HEAD:
+                    expected_tables = TABLES
+                self.assertEqual(TABLES & tables, expected_tables)
                 stages.append(f"{direction}:{revision}")
             company, user = connection.execute('SELECT company_id,id FROM users WHERE company_id IS NOT NULL LIMIT 1').fetchone()
             other_company = connection.execute('SELECT id FROM companies WHERE id != ? LIMIT 1',(company,)).fetchone()[0]
             connection.execute("INSERT INTO project_records(id,company_id,title,owner_user_id,created_by_user_id,start_date,due_date) VALUES(1,?,'Probe',?,?,'2026-10-01','2026-10-31')", (company,user,user))
             connection.execute("INSERT INTO project_tasks(company_id,project_id,title,owner_user_id,start_date,due_date) VALUES(?,1,'Task',?,'2026-10-01','2026-10-02')", (company,user))
+            connection.execute("INSERT INTO project_milestones(company_id,project_id,title,target_date,acceptance_criteria) VALUES(?,1,'Gate','2026-10-20','Evidence checked')", (company,))
             for sql in ("UPDATE project_records SET status='bad'", "UPDATE project_tasks SET status='bad'",
                         "UPDATE project_records SET due_date='2026-09-01'", "UPDATE project_tasks SET due_date='2026-09-01'",
+                        "UPDATE project_milestones SET target_date='2026-11-01'",
                         "UPDATE project_tasks SET project_id=999999999", "UPDATE project_tasks SET company_id=999999999"):
                 with self.assertRaises(sqlite3.IntegrityError):
                     connection.execute(sql)
@@ -84,14 +118,17 @@ class ProjectMigrationTests(unittest.TestCase):
             for sql, params in (
                 ("UPDATE project_tasks SET company_id=?", (other_company,)),
                 ("UPDATE project_tasks SET project_id=999999999", ()),
-                ("UPDATE project_records SET company_id=?", (other_company,)),
+                ("UPDATE project_milestones SET company_id=?", (other_company,)),
+                ("UPDATE project_milestones SET target_date='2026-11-01'", ()),
                 ("DELETE FROM project_records WHERE id=1", ()),
+                ("UPDATE project_records SET company_id=?", (other_company,)),
                 ("UPDATE users SET company_id=? WHERE id=?", (other_company,user)),
                 ("DELETE FROM users WHERE id=?", (user,)),
                 ("DELETE FROM companies WHERE id=?", (company,)),
             ):
                 with self.assertRaises(sqlite3.IntegrityError):
                     connection.execute(sql, params)
+            connection.execute('DELETE FROM project_milestones')
             connection.execute('DELETE FROM project_tasks')
             connection.execute('DELETE FROM project_records')
             connection.commit()

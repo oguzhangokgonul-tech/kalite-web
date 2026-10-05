@@ -14,7 +14,7 @@
 <td data-label="Sorumlu">{{ project.owner.full_name if project.owner else '-' }}</td>
 <td data-label="Başlangıç">{{ project.start_date.strftime('%d.%m.%Y') }}</td>
 <td data-label="Termin">{{ project.due_date.strftime('%d.%m.%Y') }}{% if project.status == 'active' and project.due_date < today %}<span class="text-danger d-block small">{{ (today-project.due_date).days }} gün geçti</span>{% endif %}</td>
-<td data-label="Durum">{{ ui.status_badge(statuses[project.status]) }}</td><td data-label="İlerleme"><progress max="100" value="{{ project.progress }}" aria-label="Tamamlanan görev oranı"></progress> %{{ project.progress }}</td>
+<td data-label="Durum">{{ ui.status_badge(statuses[project.status]) }}</td><td data-label="İlerleme"><progress max="100" value="{{ project.progress }}" aria-label="Görev ve kilometre taşı tamamlama oranı"></progress> %{{ project.progress }}</td>
 <td data-label="İşlem">{{ ui.action_link(url_for('projects.detail', project_id=project.id), 'Projeyi Aç', icon='bi-arrow-right', tone='secondary', icon_only=True) }}</td>
 </tr>{% else %}<tr><td colspan="7">{{ ui.empty_state('Proje bulunamadı', icon='bi-kanban') }}</td></tr>{% endfor %}
 </tbody></table></div>

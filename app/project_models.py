@@ -29,6 +29,7 @@ class ProjectRecord(db.Model):
         primaryjoin="and_(ProjectRecord.owner_user_id == User.id, ProjectRecord.company_id == User.company_id)")
     creator = db.relationship("User", foreign_keys=[created_by_user_id])
     tasks = db.relationship("ProjectTask", back_populates="project", order_by="ProjectTask.due_date, ProjectTask.id")
+    milestones = db.relationship("ProjectMilestone", back_populates="project", order_by="ProjectMilestone.target_date, ProjectMilestone.id")
 
     @property
     def project_no(self):
@@ -37,12 +38,14 @@ class ProjectRecord(db.Model):
     @property
     def progress(self):
         tasks = [item for item in self.tasks if item.status != "cancelled"]
-        return round(100 * sum(item.status == "completed" for item in tasks) / len(tasks)) if tasks else 0
+        items = tasks + list(self.milestones)
+        return round(100 * sum(item.status == "completed" for item in items) / len(items)) if items else 0
 
     @property
     def completion_ready(self):
         tasks = [item for item in self.tasks if item.status != "cancelled"]
-        return bool(tasks) and all(item.status == "completed" for item in tasks)
+        return (bool(tasks) and all(item.status == "completed" for item in tasks)
+                and all(item.status == "completed" for item in self.milestones))
 
     @property
     def activation_ready(self):
@@ -70,6 +73,7 @@ class ProjectTask(db.Model):
     owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     start_date = db.Column(db.Date, nullable=False)
     due_date = db.Column(db.Date, nullable=False, index=True)
+    estimated_hours = db.Column(db.Numeric(8, 1))
     status = db.Column(db.String(20), nullable=False, default="pending", server_default="pending", index=True)
     completion_note = db.Column(db.Text)
     completed_at = db.Column(db.DateTime)
@@ -78,6 +82,27 @@ class ProjectTask(db.Model):
     project = db.relationship("ProjectRecord", back_populates="tasks")
     owner = db.relationship("User", foreign_keys=[owner_user_id],
         primaryjoin="and_(ProjectTask.owner_user_id == User.id, ProjectTask.company_id == User.company_id)")
+
+
+class ProjectMilestone(db.Model):
+    __tablename__ = "project_milestones"
+    __table_args__ = (
+        db.ForeignKeyConstraint(["company_id", "project_id"], ["project_records.company_id", "project_records.id"], name="fk_project_milestones_company_project"),
+        db.CheckConstraint("status IN ('pending', 'completed')", name="ck_project_milestones_status"),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    project_id = db.Column(db.Integer, nullable=False, index=True)
+    title = db.Column(db.String(240), nullable=False)
+    target_date = db.Column(db.Date, nullable=False, index=True)
+    acceptance_criteria = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), nullable=False, default="pending", server_default="pending", index=True)
+    completion_note = db.Column(db.Text)
+    completed_at = db.Column(db.DateTime)
+    version_id = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    __mapper_args__ = {"version_id_col": version_id}
+    project = db.relationship("ProjectRecord", back_populates="milestones")
 
 
 @event.listens_for(ProjectTask.__table__, "after_create")
@@ -90,3 +115,15 @@ def install_project_guards(table, connection, **kwargs):
 def remove_project_parent_guards(table, connection, **kwargs):
     from .project_schema import drop_project_sqlite_guards
     drop_project_sqlite_guards(connection)
+
+
+@event.listens_for(ProjectMilestone.__table__, "after_create")
+def install_project_milestone_guards(table, connection, **kwargs):
+    from .project_schema import ensure_project_sqlite_guards
+    ensure_project_sqlite_guards(connection)
+
+
+@event.listens_for(ProjectMilestone.__table__, "before_drop")
+def remove_project_milestone_parent_guards(table, connection, **kwargs):
+    from .project_schema import drop_project_sqlite_milestone_parent_guards
+    drop_project_sqlite_milestone_parent_guards(connection)

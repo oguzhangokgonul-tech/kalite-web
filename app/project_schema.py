@@ -1,5 +1,5 @@
 """Project-only SQLite guards for installations with legacy FK enforcement off."""
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 
 def ensure_project_sqlite_guards(connection):
@@ -41,9 +41,39 @@ def ensure_project_sqlite_guards(connection):
     for name, event, predicate in guards:
         connection.execute(text(f"CREATE TRIGGER IF NOT EXISTS trg_{name} {event} WHEN {predicate} "
                                 "BEGIN SELECT RAISE(ABORT, 'project referenced record'); END"))
+    if not inspect(connection).has_table("project_milestones"):
+        return
+    milestone_predicate = (
+        "EXISTS (SELECT 1 FROM project_records p WHERE p.id=NEW.project_id "
+        "AND p.company_id=NEW.company_id AND NEW.target_date BETWEEN p.start_date AND p.due_date)"
+    )
+    for operation in ("INSERT", "UPDATE"):
+        connection.execute(text(
+            f"CREATE TRIGGER IF NOT EXISTS trg_project_milestones_tenant_{operation.lower()} "
+            f"BEFORE {operation} ON project_milestones WHEN NOT ({milestone_predicate}) "
+            "BEGIN SELECT RAISE(ABORT, 'project milestone tenant or date mismatch'); END"
+        ))
+    milestone_guards = (
+        ("project_milestone_parent_update", "BEFORE UPDATE OF id,company_id,start_date,due_date ON project_records",
+         "EXISTS (SELECT 1 FROM project_milestones m WHERE m.project_id=OLD.id "
+         "AND ((NEW.id IS NOT OLD.id OR NEW.company_id IS NOT OLD.company_id) "
+         "OR m.target_date < NEW.start_date OR m.target_date > NEW.due_date))"),
+        ("project_milestone_parent_delete", "BEFORE DELETE ON project_records",
+         "EXISTS (SELECT 1 FROM project_milestones m WHERE m.project_id=OLD.id)"),
+    )
+    for name, event, predicate in milestone_guards:
+        connection.execute(text(f"CREATE TRIGGER IF NOT EXISTS trg_{name} {event} WHEN {predicate} "
+                                "BEGIN SELECT RAISE(ABORT, 'project referenced milestone'); END"))
+
+
+def drop_project_sqlite_milestone_parent_guards(connection):
+    if connection.dialect.name == "sqlite":
+        for name in ("project_milestone_parent_update", "project_milestone_parent_delete"):
+            connection.execute(text(f"DROP TRIGGER IF EXISTS trg_{name}"))
 
 
 def drop_project_sqlite_guards(connection):
     if connection.dialect.name == "sqlite":
+        drop_project_sqlite_milestone_parent_guards(connection)
         for name in ("project_user_delete", "project_user_update", "project_company_delete", "project_company_update"):
             connection.execute(text(f"DROP TRIGGER IF EXISTS trg_{name}"))

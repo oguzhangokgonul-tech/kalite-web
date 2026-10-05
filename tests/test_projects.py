@@ -6,7 +6,7 @@ import pytest
 from flask import g
 
 from app.extensions import db
-from app.models import AppSetting, AuditLog, CompanyModule, Notification, ProjectRecord, ProjectTask, UserPermission, ReportDefinition
+from app.models import AppSetting, AuditLog, CompanyModule, Notification, ProjectMilestone, ProjectRecord, ProjectTask, UserPermission, ReportDefinition
 from tests.helpers import create_company, create_user, login
 
 
@@ -95,6 +95,73 @@ def test_end_to_end_audit_tasks_notifications_report_archive(client, scenario):
     assert AuditLog.query.filter_by(entity_type="ProjectTask", action="complete").count() == 1
     assert db.session.get(AppSetting, "sales_readiness:module_project_planning") is None
     assert db.session.get(AppSetting, "sales_readiness:module_project_gantt") is None
+
+
+def test_timeline_milestone_lifecycle_progress_and_export(client, scenario):
+    company, manager, staff = scenario
+    project = create_project(client, manager)
+    assert add_task(client, project, staff, estimated_hours="12.5").status_code == 302
+    task = ProjectTask.query.one()
+    assert task.estimated_hours == 12.5
+    assert transition(client, project, "activate").status_code == 302
+    milestone_response = client.post(f"/projeler/{project.id}/kilometre-tasi", data={
+        "version_id": project.version_id, "title": "Inspection gate", "target_date": "2026-10-20",
+        "acceptance_criteria": "Signed checklist is attached."})
+    assert milestone_response.status_code == 302
+    milestone = ProjectMilestone.query.one()
+    assert project.progress == 0
+    assert transition(client, project, "complete").status_code == 400
+    timeline = client.get(f"/projeler/{project.id}/zaman-cizelgesi")
+    assert timeline.status_code == 200
+    html = timeline.get_data(as_text=True)
+    assert "Inspection gate" in html and "12.5 saat tahmini" in html
+    assert "Açık görev çakışması" in html
+    report = client.get(f"/projeler/{project.id}/rapor")
+    with ZipFile(BytesIO(report.data)) as archive:
+        sheet = archive.read("xl/worksheets/sheet1.xml").decode()
+        assert "Inspection gate" in sheet and "Signed checklist is attached." in sheet
+
+    assert update_task(client, project, task, "complete").status_code == 302
+    db.session.refresh(project)
+    assert project.progress == 50
+    assert transition(client, project, "complete").status_code == 400
+    response = client.post(f"/projeler/{project.id}/kilometre-tasi/{milestone.id}", data={
+        "action": "complete", "version_id": milestone.version_id, "project_version_id": project.version_id,
+        "completion_note": "Inspection evidence verified."})
+    assert response.status_code == 302
+    db.session.refresh(project)
+    db.session.refresh(milestone)
+    assert project.progress == 100 and milestone.status == "completed"
+    assert transition(client, project, "complete").status_code == 302
+    assert AuditLog.query.filter_by(entity_type="ProjectMilestone", action="created").count() == 1
+    assert AuditLog.query.filter_by(entity_type="ProjectMilestone", action="complete").count() == 1
+
+
+def test_milestone_validation_authorization_and_stale_versions(client, scenario):
+    company, manager, staff = scenario
+    project = create_project(client, manager)
+    assert add_task(client, project, staff).status_code == 302
+    assert transition(client, project, "activate").status_code == 302
+    add_url = f"/projeler/{project.id}/kilometre-tasi"
+    common = {"version_id": project.version_id, "title": "Out of range", "target_date": "2026-11-01",
+              "acceptance_criteria": "Must remain inside the project."}
+    assert client.post(add_url, data=common).status_code == 400
+    assert ProjectMilestone.query.count() == 0
+    common["target_date"] = "2026-10-20"
+    assert client.post(add_url, data=common).status_code == 302
+    milestone = ProjectMilestone.query.one()
+    stale = client.post(f"/projeler/{project.id}/kilometre-tasi/{milestone.id}", data={
+        "action": "edit", "version_id": milestone.version_id, "project_version_id": project.version_id-1,
+        "title": "Changed", "target_date": "2026-10-21", "acceptance_criteria": "New criteria"})
+    assert stale.status_code == 409
+    login(client, staff, company)
+    assert client.get(f"/projeler/{project.id}/zaman-cizelgesi").status_code == 200
+    denied = client.post(add_url, data={**common, "version_id": project.version_id})
+    assert denied.status_code == 403
+    other_company = create_company("foreign-milestone")
+    outsider = create_user("foreign-milestone-viewer", company=other_company, role_key="department_manager")
+    login(client, outsider, other_company)
+    assert client.get(f"/projeler/{project.id}/zaman-cizelgesi").status_code == 404
 
 
 def test_unrelated_and_foreign_access_and_report_scoping(client, scenario):
@@ -369,6 +436,20 @@ def test_release_mark_only_project_checklist(client, scenario):
     assert mark(client.application)=='module_project_planning'
     assert db.session.get(AppSetting,'sales_readiness:module_project_gantt').value=='0'
     assert db.session.get(AppSetting,'sales_readiness:module_meeting_notes').value=='1'
+
+
+def test_release_mark_gantt_requires_planning_and_preserves_other_flags(client, scenario):
+    from scripts.project_planning_release import mark_gantt
+    create_user("superadmin", role_key="super_admin")
+    db.session.add_all([AppSetting(key="sales_readiness:module_project_planning", value="1"),
+        AppSetting(key="sales_readiness:module_project_gantt", value="0"),
+        AppSetting(key="sales_readiness:module_meeting_notes", value="1")])
+    db.session.commit()
+    client.application.config["WTF_CSRF_ENABLED"] = True
+    assert mark_gantt(client.application) == "module_project_gantt"
+    assert db.session.get(AppSetting, "sales_readiness:module_project_gantt").value == "1"
+    assert db.session.get(AppSetting, "sales_readiness:module_project_planning").value == "1"
+    assert db.session.get(AppSetting, "sales_readiness:module_meeting_notes").value == "1"
 
 
 def test_release_smoke_checks_domains_roles_and_cross_tenant_host(client, scenario):
