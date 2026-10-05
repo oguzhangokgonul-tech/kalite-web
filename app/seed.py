@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "projects.view", "label": "İlgili projeleri görüntüleme", "group": "Proje Yönetimi", "description": "Oluşturduğu, yönettiği veya görev aldığı projeleri görüntüler."},
+    {"key": "projects.view_all", "label": "Şirket projelerini görüntüleme", "group": "Proje Yönetimi", "description": "Şirketin tüm projelerini görüntüler."},
+    {"key": "projects.create", "label": "Proje oluşturma", "group": "Proje Yönetimi", "description": "Proje oluşturur, oluşturduğu veya yönettiği projeyi düzenler."},
+    {"key": "projects.manage", "label": "Proje süreç yönetimi", "group": "Proje Yönetimi", "description": "Şirket projelerini ve görevlerini yönetir."},
+    {"key": "projects.update", "label": "Atanan proje görevini güncelleme", "group": "Proje Yönetimi", "description": "Kendi görevini başlatır ve sonuçlandırır."},
+    {"key": "projects.export", "label": "Proje raporu indirme", "group": "Proje Yönetimi", "description": "Erişebildiği projelerin raporunu indirir."},
     {"key": "meetings.view", "label": "Katıldığı toplantıları görüntüleme", "group": "Toplantı Notları", "description": "Oluşturduğu, katıldığı veya karar sorumlusu olduğu toplantıları görüntüler."},
     {"key": "meetings.view_all", "label": "Şirket toplantılarını görüntüleme", "group": "Toplantı Notları", "description": "Şirket içindeki tüm toplantıları görüntüler."},
     {"key": "meetings.create", "label": "Toplantı oluşturma", "group": "Toplantı Notları", "description": "Toplantı oluşturur ve kendi toplantısının tutanağını yönetir."},
@@ -1594,6 +1600,20 @@ for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission
         for permission in HELP_DESK_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
+
+
+PROJECT_ROLE_PERMISSIONS = {
+    "management_representative": ("projects.view", "projects.view_all", "projects.create", "projects.manage", "projects.update", "projects.export"),
+    "management": ("projects.view", "projects.view_all", "projects.create", "projects.update", "projects.export"),
+    "department_manager": ("projects.view", "projects.create", "projects.update", "projects.export"),
+    "department_staff": ("projects.view", "projects.update"),
+    "viewer": ("projects.view", "projects.view_all"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in PROJECT_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
 
@@ -3959,6 +3979,15 @@ def ensure_runtime_schema():
 
     for model in (MeetingRecord, MeetingParticipant, MeetingDecision, MeetingDecisionAction):
         model.__table__.create(bind=db.engine, checkfirst=True)
+
+    from .project_models import ProjectRecord, ProjectTask
+
+    for model in (ProjectRecord, ProjectTask):
+        model.__table__.create(bind=db.engine, checkfirst=True)
+    from .project_schema import ensure_project_sqlite_guards
+
+    with db.engine.begin() as project_connection:
+        ensure_project_sqlite_guards(project_connection)
 
     from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 

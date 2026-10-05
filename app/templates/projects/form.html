@@ -1,0 +1,15 @@
+{% extends "projects/base.html" %}
+{% import "components/ui.html" as ui %}
+{% from "projects/_fields.html" import plan_fields %}
+{% block title %}{{ 'Projeyi Düzenle' if project else 'Yeni Proje' }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Projeyi Düzenle' if project else 'Yeni Proje', icon='bi-kanban') %}
+{{ ui.action_link(url_for('projects.detail', project_id=project.id) if project else url_for('projects.dashboard'), 'Geri', icon='bi-arrow-left', tone='secondary') }}
+{% endcall %}
+<form method="post" class="project-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if project %}<input type="hidden" name="version_id" value="{{ values.get('version_id', project.version_id) }}">{% endif %}
+{{ plan_fields(values, users, description=True) }}
+<div class="project-actions mt-4">{{ ui.action_button('Kaydet', icon='bi-check-lg') }}</div>
+</form>
+{% endblock %}

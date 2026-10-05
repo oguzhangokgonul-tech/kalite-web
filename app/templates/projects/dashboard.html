@@ -1,0 +1,26 @@
+{% extends "projects/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Proje Yönetimi{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Proje Yönetimi', icon='bi-kanban') %}{% if can_create %}{{ ui.action_link(url_for('projects.create'), 'Yeni Proje', icon='bi-plus-lg') }}{% endif %}{% endcall %}
+<form method="get" class="row g-3 align-items-end mb-4" role="search" aria-label="Proje filtreleri">
+<div class="col-12 col-md-6"><label class="form-label" for="project-search">Proje Ara</label><input class="form-control" type="search" name="q" id="project-search" value="{{ search }}"></div>
+<div class="col-12 col-md-3"><label class="form-label" for="project-status">Durum</label><select class="form-select" id="project-status" name="status"><option value="">Tümü</option>{% for key, label in statuses.items() %}<option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div class="col-12 col-md-3 project-actions">{{ ui.action_button('Filtrele', icon='bi-search') }}{{ ui.action_link(url_for('projects.dashboard'), 'Temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}</div>
+</form>
+<div class="table-responsive"><table class="table align-middle project-table" data-tablet-records><thead><tr><th>Proje</th><th>Sorumlu</th><th>Başlangıç</th><th>Termin</th><th>Durum</th><th>İlerleme</th><th>İşlem</th></tr></thead><tbody>
+{% for project in projects %}<tr>
+<td data-label="Proje"><span class="small text-secondary d-block">{{ project.project_no }}</span><a href="{{ url_for('projects.detail', project_id=project.id) }}">{{ project.title }}</a></td>
+<td data-label="Sorumlu">{{ project.owner.full_name if project.owner else '-' }}</td>
+<td data-label="Başlangıç">{{ project.start_date.strftime('%d.%m.%Y') }}</td>
+<td data-label="Termin">{{ project.due_date.strftime('%d.%m.%Y') }}{% if project.status == 'active' and project.due_date < today %}<span class="text-danger d-block small">{{ (today-project.due_date).days }} gün geçti</span>{% endif %}</td>
+<td data-label="Durum">{{ ui.status_badge(statuses[project.status]) }}</td><td data-label="İlerleme"><progress max="100" value="{{ project.progress }}" aria-label="Tamamlanan görev oranı"></progress> %{{ project.progress }}</td>
+<td data-label="İşlem">{{ ui.action_link(url_for('projects.detail', project_id=project.id), 'Projeyi Aç', icon='bi-arrow-right', tone='secondary', icon_only=True) }}</td>
+</tr>{% else %}<tr><td colspan="7">{{ ui.empty_state('Proje bulunamadı', icon='bi-kanban') }}</td></tr>{% endfor %}
+</tbody></table></div>
+<nav class="project-actions mt-3" aria-label="Proje sayfaları">
+{% if pagination.has_prev %}{{ ui.action_link(url_for('projects.dashboard', page=pagination.prev_num, q=search, status=selected_status), 'Önceki', icon='bi-chevron-left', tone='secondary') }}{% endif %}
+<span>{{ pagination.total }} kayıt · {{ pagination.page }} / {{ pagination.pages or 1 }}</span>
+{% if pagination.has_next %}{{ ui.action_link(url_for('projects.dashboard', page=pagination.next_num, q=search, status=selected_status), 'Sonraki', icon='bi-chevron-right', tone='secondary') }}{% endif %}
+</nav>
+{% endblock %}

@@ -1,0 +1,21 @@
+.projects-page { min-width: 0; }
+.projects-page h2 { font-size: 20px; }
+.projects-page h3 { font-size: 16px; margin: 0; }
+.projects-page :is(h2,h3,p,td,dd) { overflow-wrap: anywhere; }
+.project-actions, .project-task-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.project-task-heading { justify-content: space-between; margin-bottom: 8px; }
+.project-text { white-space: pre-wrap; }
+.projects-page :is(.btn,summary) { min-height: 44px; }
+.projects-page summary { cursor: pointer; padding: 10px 0; }
+.projects-page progress { width: 100px; height: 10px; accent-color: #008a67; }
+.project-table td:first-child { min-width: 160px; max-width: 380px; }
+.project-form { max-width: 1000px; }
+.projects-page input[type=date] { min-width: 0; width: 100%; }
+@media (max-width: 991.98px) {
+  .project-table thead { display: none; }
+  .project-table, .project-table tbody, .project-table tr, .project-table td { display: block; width: 100%; }
+  .project-table tr { padding: 12px 0; border-bottom: 1px solid #dce6f4; }
+  .project-table td { border: 0; min-width: 0; max-width: none; padding: 6px 0; }
+  .project-table td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: #657797; }
+  .projects-page .project-actions > .btn { flex: 1 1 auto; }
+}

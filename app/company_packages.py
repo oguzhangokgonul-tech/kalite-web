@@ -36,6 +36,7 @@ ISO_CORE_MODULE_KEYS = {
     "internal_audit",
     "management_review",
     "meetings",
+    "projects",
     "supplier_management",
     "report_center",
     "integration_management",

@@ -2686,6 +2686,14 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "projects.dashboard": "projects",
+    "projects.create": "projects",
+    "projects.detail": "projects",
+    "projects.edit": "projects",
+    "projects.transition": "projects",
+    "projects.add_task": "projects",
+    "projects.update_task": "projects",
+    "projects.export": "projects",
     "meetings.dashboard": "meetings",
     "meetings.create": "meetings",
     "meetings.detail": "meetings",
@@ -8094,6 +8102,11 @@ def report_meetings_data():
     return report_data()
 
 
+def report_projects_data():
+    from .projects import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8951,6 +8964,17 @@ REPORT_CENTER_REPORTS = (
         "builder": report_management_reviews_data,
     },
     {
+        "key": "projects",
+        "title": "Proje Planlama Raporu",
+        "description": "Projeler, sorumlular, terminler ve ilerleme.",
+        "icon": "bi-kanban",
+        "tone": "blue",
+        "module_key": "projects",
+        "required_permission": "projects.view",
+        "required_export_permission": "projects.export",
+        "builder": report_projects_data,
+    },
+    {
         "key": "meetings",
         "title": "Toplantı ve Karar Raporu",
         "description": "Toplantı tutanakları, karar sorumluları, terminler ve sonuçlar.",
@@ -8974,6 +8998,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "projects": {"date_headers": ("Termin",)},
     "meetings": {"date_headers": ("Toplantı Tarihi",)},
     "energy_consumption": {"date_headers": ("Dönem / Termin",)},
     "management_due_summary": {"date_headers": ("Termin",)},
@@ -9040,6 +9065,7 @@ MODULE_ACTIVITY_ENTITY_TYPES = {
     "internal_audit": ("InternalAudit", "InternalAuditQuestion", "InternalAuditAnswer"),
     "management_review": ("ManagementReview",),
     "meetings": ("MeetingRecord", "MeetingParticipant", "MeetingDecision", "MeetingDecisionAction"),
+    "projects": ("ProjectRecord", "ProjectTask"),
     "supplier_management": ("SupplierRecord", "SupplierEvaluation", "SupplierQualityAudit", "SupplierSurvey"),
     "report_center": ("ReportDefinition", "ReportCenter"),
     "integration_management": (
@@ -9096,7 +9122,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] != "meetings":
+    if definition["key"] not in {"meetings", "projects"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9104,6 +9130,11 @@ def apply_standard_report_period(definition, data, period):
 
 
 def module_activity_definition(module_key):
+    if module_key == "projects" and (not current_company_id() or not (
+        current_user_can("projects.export")
+        and (current_user_can("projects.view_all") or current_user_can("projects.manage"))
+    )):
+        return None
     if module_key == "meetings" and not (
         current_user_can("meetings.export")
         and (current_user_can("meetings.view_all") or current_user_can("meetings.manage"))
@@ -9177,7 +9208,10 @@ def report_definition_access_allowed(definition, export=False):
     if module_key and not company_module_enabled(module_key):
         return False
     required_permission = definition.get("required_permission")
-    if required_permission and not current_user_can(required_permission):
+    project_reader = definition.get("key") == "projects" and any(
+        current_user_can(key) for key in ("projects.view", "projects.view_all", "projects.manage")
+    )
+    if required_permission and not current_user_can(required_permission) and not project_reader:
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9505,7 +9539,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key != "meetings":
+    if report.source_key not in {"meetings", "projects"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18271,6 +18305,7 @@ def assigned_all_tasks(scope):
     from .lessons_learned import assigned_task_rows as assigned_lessons_task_rows
     from .help_desk import assigned_task_rows as assigned_helpdesk_task_rows
     from .meetings import assigned_task_rows as assigned_meeting_task_rows
+    from .projects import assigned_task_rows as assigned_project_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18311,6 +18346,7 @@ def assigned_all_tasks(scope):
         + assigned_lessons_task_rows(scope, assigned_task_row)
         + assigned_helpdesk_task_rows(scope, assigned_task_row)
         + assigned_meeting_task_rows(scope, assigned_task_row)
+        + assigned_project_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -18363,7 +18399,7 @@ ASSIGNED_TAB_MODULES = {
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
-    "management": {"management_review", "meetings"},
+    "management": {"management_review", "meetings", "projects"},
 }
 
 
@@ -18406,6 +18442,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("supplier", "Tedarikçi"),
     ("management_review", "YGG"),
     ("meetings", "Toplantı Kararı"),
+    ("projects", "Proje Görevi"),
 ]
 
 

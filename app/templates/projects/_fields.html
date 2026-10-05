@@ -1,0 +1,14 @@
+{% macro plan_fields(values, users, prefix='project', description=False) %}
+<div class="row g-3">
+  <div class="col-12"><label class="form-label" for="{{ prefix }}-title">Başlık</label><input id="{{ prefix }}-title" class="form-control" name="title" value="{{ values.get('title', '') }}" required maxlength="240"></div>
+  <div class="col-12 col-md-6"><label class="form-label" for="{{ prefix }}-owner">Sorumlu</label><select class="form-select" name="owner_user_id" id="{{ prefix }}-owner" required><option value="">Seçin</option>{% for user in users %}<option value="{{ user.id }}" {% if values.get('owner_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+  <div class="col-6 col-md-3"><label class="form-label" for="{{ prefix }}-start">Başlangıç</label><input class="form-control" type="date" name="start_date" id="{{ prefix }}-start" value="{{ values.get('start_date', '') }}" required></div>
+  <div class="col-6 col-md-3"><label class="form-label" for="{{ prefix }}-due">Termin</label><input class="form-control" type="date" name="due_date" id="{{ prefix }}-due" value="{{ values.get('due_date', '') }}" required></div>
+  {% if description %}<div class="col-12"><label class="form-label" for="{{ prefix }}-description">Amaç / Beklenen Çıktı</label><textarea class="form-control" id="{{ prefix }}-description" name="description" rows="4" maxlength="20000">{{ values.get('description', '') or '' }}</textarea></div>{% endif %}
+</div>
+{% endmacro %}
+{% macro tokens(project, task=None) %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="version_id" value="{{ task.version_id if task else project.version_id }}">
+{% if task %}<input type="hidden" name="project_version_id" value="{{ project.version_id }}">{% endif %}
+{% endmacro %}
