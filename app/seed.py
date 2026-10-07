@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "context.view", "label": "İlgili bağlam kayıtlarını görüntüleme", "group": "Kuruluş Bağlamı", "description": "Oluşturduğu veya sorumlusu olduğu bağlam kayıtlarını görüntüler."},
+    {"key": "context.view_all", "label": "Şirket bağlam kayıtlarını görüntüleme", "group": "Kuruluş Bağlamı", "description": "Seçili şirketin tüm bağlam kayıtlarını görüntüler."},
+    {"key": "context.create", "label": "Bağlam oluşturma ve düzenleme", "group": "Kuruluş Bağlamı", "description": "Bağlam oluşturur, kendi taslaklarını düzenler."},
+    {"key": "context.review", "label": "Bağlam gözden geçirme", "group": "Kuruluş Bağlamı", "description": "Erişebildiği bağlamı gözden geçirir ve gerekçeyle yeniden açar."},
+    {"key": "context.manage", "label": "Bağlam süreç yönetimi", "group": "Kuruluş Bağlamı", "description": "Şirket bağlam kayıtlarını ve arşivini yönetir."},
+    {"key": "context.export", "label": "Bağlam raporu indirme", "group": "Kuruluş Bağlamı", "description": "Erişebildiği bağlam kayıtlarının raporunu indirir."},
     {"key": "pestle.view", "label": "İlgili analizleri görüntüleme", "group": "PESTLE Analizi", "description": "Oluşturduğu veya sorumlusu olduğu PESTLE kayıtlarını görüntüler."},
     {"key": "pestle.view_all", "label": "Şirket analizlerini görüntüleme", "group": "PESTLE Analizi", "description": "Seçili şirketin tüm PESTLE kayıtlarını görüntüler."},
     {"key": "pestle.create", "label": "Analiz oluşturma ve düzenleme", "group": "PESTLE Analizi", "description": "Analiz oluşturur, kendi taslaklarını düzenler."},
@@ -1630,6 +1636,18 @@ PESTLE_ROLE_PERMISSIONS = {
     "department_staff": ("pestle.view",),
     "viewer": ("pestle.view",),
 }
+CONTEXT_ROLE_PERMISSIONS = {
+    "management_representative": ("context.view", "context.view_all", "context.create", "context.review", "context.manage", "context.export"),
+    "management": ("context.view", "context.view_all", "context.create", "context.review", "context.export"),
+    "department_manager": ("context.view", "context.create", "context.export"),
+    "department_staff": ("context.view",),
+    "viewer": ("context.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in CONTEXT_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
 for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission for permission in PESTLE_ROLE_PERMISSIONS.get(role_definition["key"], ())
@@ -4047,6 +4065,13 @@ def ensure_runtime_schema():
         ensure_pestle_sqlite_guards(pestle_connection)
 
     from .notification_models import NotificationEmailBatch, NotificationEmailEvent
+
+    from .context_models import OrganizationContext
+    from .context_schema import ensure_context_sqlite_guards
+
+    OrganizationContext.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as context_connection:
+        ensure_context_sqlite_guards(context_connection)
 
     for model in (NotificationEmailBatch, NotificationEmailEvent):
         model.__table__.create(bind=db.engine, checkfirst=True)

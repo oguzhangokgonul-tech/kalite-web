@@ -8,6 +8,7 @@ from .meeting_models import MeetingRecord, MeetingParticipant, MeetingDecision, 
 from .project_models import ProjectRecord, ProjectTask, ProjectMilestone
 from .swot_models import SwotAnalysis
 from .pestle_models import PestleAnalysis
+from .context_models import OrganizationContext
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 

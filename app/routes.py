@@ -2686,6 +2686,12 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "context.dashboard": "stakeholder_management",
+    "context.create": "stakeholder_management",
+    "context.detail": "stakeholder_management",
+    "context.edit": "stakeholder_management",
+    "context.transition": "stakeholder_management",
+    "context.export": "stakeholder_management",
     "projects.dashboard": "projects",
     "swot.dashboard": "swot",
     "swot.create": "swot",
@@ -8132,6 +8138,11 @@ def report_pestle_data():
     return report_data()
 
 
+def report_context_data():
+    from .org_context import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8747,6 +8758,17 @@ def report_energy_consumption_data():
 
 REPORT_CENTER_REPORTS = (
     {
+        "key": "context",
+        "title": "Kuruluş Bağlamı Raporu",
+        "description": "İç ve dış hususlar, iklim değerlendirmesi ve gözden geçirme kayıtları.",
+        "icon": "bi-building",
+        "tone": "success",
+        "module_key": "stakeholder_management",
+        "required_permission": "context.view",
+        "required_export_permission": "context.export",
+        "builder": report_context_data,
+    },
+    {
         "key": "energy_consumption",
         "title": "Enerji Tüketim ve Tasarruf Raporu",
         "description": "Sayaç bazında tüketim, yoğunluk, maliyet ve karbon emisyonu özeti.",
@@ -9045,6 +9067,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "context": {"date_headers": ("Analiz Tarihi",)},
     "pestle": {"date_headers": ("Analiz Tarihi",)},
     "swot": {"date_headers": ("Analiz Tarihi",)},
     "projects": {"date_headers": ("Termin",)},
@@ -9173,7 +9196,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] not in {"meetings", "projects", "swot", "pestle"}:
+    if definition["key"] not in {"meetings", "projects", "swot", "pestle", "context"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9212,6 +9235,12 @@ def module_activity_report_data(module_key, period):
     if module is None:
         return None
     entity_types = MODULE_ACTIVITY_ENTITY_TYPES.get(module_key, ())
+    if module_key == "stakeholder_management" and current_company_id() and (
+        current_user_can("context.export") and (
+            current_user_can("context.view_all") or current_user_can("context.manage")
+        )
+    ):
+        entity_types = (*entity_types, "OrganizationContext")
     query = scoped_query(AuditLog.query, AuditLog)
     if not entity_types:
         query = query.filter(text("1 = 0"))
@@ -9282,7 +9311,12 @@ def report_definition_access_allowed(definition, export=False):
     )
     if definition.get("key") == "pestle" and not pestle_reader:
         return False
-    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader):
+    context_reader = definition.get("key") == "context" and current_company_id() and any(
+        current_user_can(key) for key in ("context.view", "context.view_all", "context.manage")
+    )
+    if definition.get("key") == "context" and not context_reader:
+        return False
+    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader or context_reader):
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9610,7 +9644,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key not in {"meetings", "projects", "swot", "pestle"}:
+    if report.source_key not in {"meetings", "projects", "swot", "pestle", "context"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18379,6 +18413,7 @@ def assigned_all_tasks(scope):
     from .projects import assigned_task_rows as assigned_project_task_rows
     from .swot import assigned_task_rows as assigned_swot_task_rows
     from .pestle import assigned_task_rows as assigned_pestle_task_rows
+    from .org_context import assigned_task_rows as assigned_context_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18422,6 +18457,7 @@ def assigned_all_tasks(scope):
         + assigned_project_task_rows(scope, assigned_task_row)
         + assigned_swot_task_rows(scope, assigned_task_row)
         + assigned_pestle_task_rows(scope, assigned_task_row)
+        + assigned_context_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -18474,7 +18510,7 @@ ASSIGNED_TAB_MODULES = {
     },
     "operations": {"maintenance", "calibration", "quality_test"},
     "feedback": {"suggestion", "complaint", "customer_feedback", "supplier"},
-    "management": {"management_review", "meetings", "projects", "swot", "pestle"},
+    "management": {"management_review", "meetings", "projects", "swot", "pestle", "context"},
 }
 
 
@@ -18520,6 +18556,7 @@ ASSIGNED_MODULE_OPTIONS = [
     ("projects", "Proje Görevi"),
     ("swot", "SWOT Gözden Geçirme"),
     ("pestle", "PESTLE Gözden Geçirme"),
+    ("context", "Bağlam Gözden Geçirme"),
 ]
 
 

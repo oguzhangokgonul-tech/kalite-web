@@ -334,10 +334,11 @@
           <span>{{ _("Saha Kontrol ve Muayene") }}</span>
         </a>
         {% endif %}
-        {% if g.company_module_enabled('stakeholder_management') and (g.current_user.has_permission('stakeholder.view') or g.current_user.has_permission('stakeholder.manage') or g.current_user.has_permission('stakeholder.review')) %}
-        <a class="dashboard-nav-item {% if stakeholders_active %}active{% endif %}" href="{{ url_for('stakeholders.dashboard') }}">
+        {% set can_context = g.current_user.has_permission('context.view') or g.current_user.has_permission('context.view_all') or g.current_user.has_permission('context.manage') %}
+        {% if g.current_company and g.company_module_enabled('stakeholder_management') and (can_context or g.current_user.has_permission('stakeholder.view') or g.current_user.has_permission('stakeholder.manage') or g.current_user.has_permission('stakeholder.review')) %}
+        <a class="dashboard-nav-item {% if stakeholders_active or request.blueprint == 'context' %}active{% endif %}" href="{{ url_for('context.dashboard') if can_context else url_for('stakeholders.dashboard') }}">
           <i class="bi bi-people"></i>
-          <span>{{ _("İlgili Taraflar") }}</span>
+          <span>Bağlam ve İlgili Taraflar</span>
         </a>
         {% endif %}
         {% if g.company_module_enabled('compliance_management') and (g.current_user.has_permission('compliance.view') or g.current_user.has_permission('compliance.manage') or g.current_user.has_permission('compliance.verify') or g.current_user.has_permission('compliance.evaluate')) %}

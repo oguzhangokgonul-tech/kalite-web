@@ -2,6 +2,7 @@
 {% import "components/ui.html" as ui %}
 {% block title %}İlgili Taraflar ve Beklentiler{% endblock %}
 {% block app_content %}
+  {% include 'stakeholders/workspace_tabs.html' %}
   {% call ui.page_header("İlgili Taraflar ve Beklentiler", "ISO 9001 ilgili taraflarını, ihtiyaçlarını ve gözden geçirmelerini yönetin.", icon="bi-people") %}
     {% if can_export %}<a class="btn btn-outline-primary btn-lg" href="{{ url_for('stakeholders.export_excel') }}"><i class="bi bi-file-earmark-excel"></i><span>Excel Matrisi</span></a>{% endif %}
     {% if can_create %}<a class="btn btn-primary btn-lg" href="{{ url_for('stakeholders.create_party') }}"><i class="bi bi-plus-lg"></i><span>Yeni İlgili Taraf</span></a>{% endif %}

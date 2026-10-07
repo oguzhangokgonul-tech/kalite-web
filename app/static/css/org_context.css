@@ -1,0 +1,19 @@
+.org-context-page { min-width: 0; }
+.org-context-page .org-context-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.org-context-page .org-context-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.org-context-page .org-context-factor { min-width: 0; padding: 20px 0 12px 16px; border-left: 3px solid var(--org-context-accent); border-top: 1px solid #dee2e6; }
+.org-context-page .org-context-internal_issues { --org-context-accent: #16826b; }
+.org-context-page .org-context-external_issues { --org-context-accent: #b95c29; }
+.org-context-page h2, .org-context-page .org-context-heading { display: block; margin-bottom: 12px; font-size: 1rem; font-weight: 600; letter-spacing: 0; }
+.org-context-page .org-context-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
+.org-context-page .org-context-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-block: 1px solid #dee2e6; }
+.org-context-page dt { font-size: .8rem; font-weight: 400; color: #566477; margin-bottom: 4px; }
+.org-context-page dd { margin: 0; overflow-wrap: anywhere; }
+.org-context-page .org-context-section { padding-block: 20px; }
+.org-context-page .org-context-transitions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.org-context-page textarea { min-height: 88px; }
+@media (max-width: 767px) {
+  .org-context-page .org-context-grid, .org-context-page .org-context-meta, .org-context-page .org-context-transitions { grid-template-columns: minmax(0, 1fr); }
+  .org-context-page .btn { min-height: 44px; white-space: normal; }
+  .org-context-page input, .org-context-page select { min-height: 44px; }
+}

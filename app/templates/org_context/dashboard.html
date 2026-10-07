@@ -1,0 +1,30 @@
+{% extends "org_context/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Kuruluş Bağlamı{% endblock %}
+{% block app_content %}
+{% include 'stakeholders/workspace_tabs.html' %}
+{% call ui.page_header('Kuruluş Bağlamı', icon='bi-building') %}
+{% if can_create %}{{ ui.action_link(url_for('context.create'), 'Yeni Analiz', icon='bi-plus-lg') }}{% endif %}
+{% endcall %}
+<form method="get" class="row g-3 align-items-end mb-4" role="search" aria-label="Analiz filtreleri">
+  <div class="col-12 col-md-6"><label for="org-context-search" class="form-label">Analiz Ara</label><input id="org-context-search" type="search" name="q" class="form-control" value="{{ search }}"></div>
+  <div class="col-12 col-md-3"><label for="org-context-status" class="form-label">Durum</label><select id="org-context-status" class="form-select" name="status"><option value="">Tümü</option>{% for key, label in statuses.items() %}<option value="{{ key }}" {% if key == selected_status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-3 org-context-actions">{{ ui.action_button('Filtrele', icon='bi-search') }}{{ ui.action_link(url_for('context.dashboard'), 'Temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}</div>
+</form>
+<div class="table-responsive"><table class="table align-middle" data-tablet-records>
+  <thead><tr><th>Analiz</th><th>Sorumlu</th><th>Analiz Tarihi</th><th>Sonraki Gözden Geçirme</th><th>Durum</th><th>İşlem</th></tr></thead>
+  <tbody>{% for analysis in analyses %}<tr>
+    <td data-label="Analiz"><small class="text-secondary d-block">{{ analysis.record_no }}</small><a href="{{ url_for('context.detail', analysis_id=analysis.id) }}">{{ analysis.title }}</a></td>
+    <td data-label="Sorumlu">{{ analysis.owner.full_name if analysis.owner else '-' }}</td>
+    <td data-label="Analiz Tarihi">{{ analysis.analysis_date.strftime('%d.%m.%Y') }}</td>
+    <td data-label="Sonraki Gözden Geçirme">{{ analysis.review_date.strftime('%d.%m.%Y') }}{% if analysis.status != 'archived' and analysis.review_date < today %}<span class="d-block small text-danger">{{ (today-analysis.review_date).days }} gün geçti</span>{% endif %}</td>
+    <td data-label="Durum">{{ ui.status_badge(statuses[analysis.status]) }}</td>
+    <td data-label="İşlem">{{ ui.action_link(url_for('context.detail', analysis_id=analysis.id), 'Analizi Aç', icon='bi-arrow-right', tone='secondary', icon_only=True) }}</td>
+  </tr>{% else %}<tr><td colspan="6">{{ ui.empty_state('Analiz bulunamadı', icon='bi-building') }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<nav class="org-context-actions mt-3" aria-label="Analiz sayfaları">
+{% if pagination.has_prev %}{{ ui.action_link(url_for('context.dashboard', page=pagination.prev_num, q=search, status=selected_status), 'Önceki', icon='bi-chevron-left', tone='secondary') }}{% endif %}
+<span>{{ pagination.total }} kayıt · {{ pagination.page }} / {{ pagination.pages or 1 }}</span>
+{% if pagination.has_next %}{{ ui.action_link(url_for('context.dashboard', page=pagination.next_num, q=search, status=selected_status), 'Sonraki', icon='bi-chevron-right', tone='secondary') }}{% endif %}
+</nav>
+{% endblock %}

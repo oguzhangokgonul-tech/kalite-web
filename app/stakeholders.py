@@ -107,11 +107,11 @@ def module_enabled():
 
 
 def party_query():
-    return scoped_query(StakeholderParty.query, StakeholderParty)
+    return scoped_query(StakeholderParty.query, StakeholderParty).filter_by(company_id=current_company_id())
 
 
 def requirement_query():
-    return scoped_query(StakeholderRequirement.query, StakeholderRequirement)
+    return scoped_query(StakeholderRequirement.query, StakeholderRequirement).filter_by(company_id=current_company_id())
 
 
 def can_manage():
@@ -389,6 +389,9 @@ def mark_readiness_complete():
 @bp.before_request
 @login_required
 def before_request():
+    company = getattr(g, "current_company", None)
+    if company is None or company.id != current_company_id():
+        abort(403, description="Lütfen bir firma seçin.")
     if not module_enabled():
         abort(404)
 

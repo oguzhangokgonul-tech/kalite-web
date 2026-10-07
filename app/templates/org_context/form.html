@@ -1,0 +1,32 @@
+{% extends "org_context/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Analizi Düzenle' if analysis else 'Yeni Kuruluş Bağlamı' }}{% endblock %}
+{% block app_content %}
+{% include 'stakeholders/workspace_tabs.html' %}
+{% call ui.page_header('Analizi Düzenle' if analysis else 'Yeni Kuruluş Bağlamı', icon='bi-building') %}
+{{ ui.action_link(url_for('context.detail', analysis_id=analysis.id) if analysis else url_for('context.dashboard'), 'Geri', icon='bi-arrow-left', tone='secondary') }}
+{% endcall %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if analysis %}<input type="hidden" name="version_id" value="{{ values.get('version_id', analysis.version_id) }}">{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-8"><label for="title" class="form-label">Analiz Başlığı</label><input class="form-control" id="title" name="title" maxlength="240" value="{{ values.get('title', '') }}" required></div>
+  <div class="col-12 col-lg-4"><label for="owner_user_id" class="form-label">Sorumlu</label><select class="form-select" id="owner_user_id" name="owner_user_id" required><option value="">Seçin</option>{% for user in users %}<option value="{{ user.id }}" {% if values.get('owner_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+  <div class="col-12 col-md-6"><label for="analysis_date" class="form-label">Analiz Tarihi</label><input type="date" class="form-control" id="analysis_date" name="analysis_date" value="{{ values.get('analysis_date', '') }}" required></div>
+  <div class="col-12 col-md-6"><label for="review_date" class="form-label">Sonraki Gözden Geçirme</label><input type="date" class="form-control" id="review_date" name="review_date" value="{{ values.get('review_date', '') }}" required></div>
+  <div class="col-12"><label for="scope" class="form-label">Kapsam</label><textarea class="form-control" id="scope" name="scope" rows="2" maxlength="20000">{{ values.get('scope', '') or '' }}</textarea></div>
+</div>
+<div class="org-context-grid">
+{% for key, label in factors.items() %}<section class="org-context-factor org-context-{{ key }}">
+<label for="{{ key }}" class="org-context-heading">{{ label }}</label><textarea class="form-control" id="{{ key }}" name="{{ key }}" rows="6" maxlength="20000">{{ values.get(key, '') or '' }}</textarea>
+</section>{% endfor %}
+</div>
+<div class="row g-3 mt-3">
+<div class="col-12 col-md-4"><label for="climate_relevance" class="form-label">İklim Değişikliğinin İlgililiği</label><select class="form-select" name="climate_relevance" id="climate_relevance" required>{% for key, label in climate_labels.items() %}<option value="{{ key }}" {% if values.get('climate_relevance', 'under_review') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div class="col-12 col-md-8"><label for="climate_reason" class="form-label">İklim Değerlendirmesi Gerekçesi</label><textarea class="form-control" name="climate_reason" id="climate_reason" rows="3" maxlength="20000">{{ values.get('climate_reason', '') or '' }}</textarea></div>
+</div>
+<div class="mt-4"><label for="evidence_sources" class="form-label">Kaynaklar ve Dayanaklar</label><textarea class="form-control" id="evidence_sources" name="evidence_sources" rows="3" maxlength="20000">{{ values.get('evidence_sources', '') or '' }}</textarea></div>
+<div class="mt-4"><label for="strategy" class="form-label">Strateji ve Sonuç</label><textarea class="form-control" id="strategy" name="strategy" rows="4" maxlength="20000">{{ values.get('strategy', '') or '' }}</textarea></div>
+<div class="org-context-actions mt-4">{{ ui.action_button('Taslağı Kaydet', icon='bi-check-lg') }}</div>
+</form>
+{% endblock %}

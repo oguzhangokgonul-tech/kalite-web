@@ -1,0 +1,10 @@
+{% if g.current_company and g.company_module_enabled('stakeholder_management') %}
+<nav class="nav nav-tabs flex-wrap gap-1 mb-4" aria-label="Bağlam ve ilgili taraflar">
+  {% if g.current_company and (g.current_user.has_permission('context.view') or g.current_user.has_permission('context.view_all') or g.current_user.has_permission('context.manage')) %}
+  <a class="nav-link {% if request.blueprint == 'context' %}active{% endif %}" {% if request.blueprint == 'context' %}aria-current="page"{% endif %} href="{{ url_for('context.dashboard') }}">Kuruluş Bağlamı</a>
+  {% endif %}
+  {% if g.current_company and (g.current_user.has_permission('stakeholder.view') or g.current_user.has_permission('stakeholder.manage') or g.current_user.has_permission('stakeholder.review')) %}
+  <a class="nav-link {% if request.blueprint == 'stakeholders' %}active{% endif %}" {% if request.blueprint == 'stakeholders' %}aria-current="page"{% endif %} href="{{ url_for('stakeholders.dashboard') }}">İlgili Taraflar Matrisi</a>
+  {% endif %}
+</nav>
+{% endif %}
