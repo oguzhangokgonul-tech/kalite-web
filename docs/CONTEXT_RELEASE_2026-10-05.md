@@ -28,9 +28,9 @@ Work started October 5; final release verification continued October 7, 2026 (Eu
 - [x] Browser flows and inspected screenshots at 390/768/1440 px
 - [x] Fresh full backup, verify, restore dry-run and off-host checksum match
 - [x] Migration rehearsal: minimal, populated runtime table and production backup (3 passed)
-- [ ] Commit/push and verified production migration
-- [ ] Tenant/role, public HTTPS/static asset and service/log checks
-- [ ] Audited single-key checklist completion
+- [x] Commit/push and verified production migration
+- [x] Tenant/role, public HTTPS/static asset and service/log checks
+- [x] Audited single-key checklist completion
 
 ## Backup And Recovery
 
@@ -54,3 +54,16 @@ Final focused run: 143 passed and two stale trigger-count assertions failed. Tho
 Production smoke initially reached its final unscoped-access check but returned login redirects: its default localhost client did not send the configured `.volkaportal.com` session cookie. The release script now uses the tenant base HTTPS host for both session and requests, confirms that host does not select a company, and still requires strict HTTP 403. Added host-only/shared-domain cookie regression cases; the updated integration suite passed 19 tests. Application authentication settings were not weakened.
 
 Only focused and shared regressions are claimed. A full-repository green run is not claimed; earlier release notes list unresolved failures outside this scope. Live test-client smoke is separate from real HTTPS/service checks. Missing live-role users are reported as partial coverage; no fake production users are created.
+
+## Production Proof (October 7)
+
+- Feature commit `674e6ff`; release-script cookie correction `f74e881`. Both pushed and deployed by verified fast-forward; tracked live files clean.
+- Verified backup above was copied off-host and rehearsed successfully: 3/3 migration tests, including populated production-copy preservation.
+- Production revision `202610050004`, SQLite integrity `ok`, all nine context triggers present. No synthetic business records created (context table: zero rows).
+- Default role grants configured idempotently (second run: no changes); tenant-health passed.
+- Live smoke passed 11 role/company checks, cross-company session rejection and unscoped global-admin denials. Live role coverage is partial: company 1 lacks management representative, management, staff and viewer users; company 3 lacks department manager, staff and viewer users. Local role tests cover the six-role matrix independently.
+- HTTPS login returned 200 on `volkaportal.com`, `erprefabrik.volkaportal.com` and `sagiroglucelik.volkaportal.com`. New CSS response checksums matched the deployed file on all three hosts.
+- App and reminder/webhook timers active. Post-start application log has no errors; earlier SIGTERM messages correspond to deliberate service stops for backup/deployment.
+- `sales_readiness:module_context_stakeholders=1`, with one `ContextRelease/checklist_completed` audit record. No other checklist item marked.
+- Existing module switches preserved: company 1 enabled, companies 2 and 3 disabled. For those companies the stakeholder package must be deliberately enabled before this workspace is offered.
+- Next uncompleted planned item: `module_risk_opportunity_portfolio` (Riskler ve Firsatlar Portfoyu).
