@@ -51,4 +51,6 @@ Independent recheck verified the whitespace fix, runtime/migration parity and FK
 
 Final focused run: 143 passed and two stale trigger-count assertions failed. Those assertions were corrected, and their targeted rerun passed (2 tests). Subsequent combined rerun of migration compatibility, integration and whitespace guards passed all 27 tests. Final independent staged-diff review found no new critical regression; it did not replace the production release gates.
 
+Production smoke initially reached its final unscoped-access check but returned login redirects: its default localhost client did not send the configured `.volkaportal.com` session cookie. The release script now uses the tenant base HTTPS host for both session and requests, confirms that host does not select a company, and still requires strict HTTP 403. Added host-only/shared-domain cookie regression cases; the updated integration suite passed 19 tests. Application authentication settings were not weakened.
+
 Only focused and shared regressions are claimed. A full-repository green run is not claimed; earlier release notes list unresolved failures outside this scope. Live test-client smoke is separate from real HTTPS/service checks. Missing live-role users are reported as partial coverage; no fake production users are created.

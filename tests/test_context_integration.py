@@ -61,6 +61,16 @@ def test_admin_without_company_can_open_report_center_but_not_context(client):
     assert client.get('/rapor-merkezi').status_code == 200
 
 
+@pytest.mark.parametrize('cookie_domain', [None, '.volkaportal.com'])
+def test_release_unscoped_smoke_uses_matching_cookie_host(app, monkeypatch, cookie_domain):
+    from scripts.context_release import check_unscoped_access
+    monkeypatch.setitem(app.config, 'TENANT_BASE_DOMAIN', 'volkaportal.com')
+    monkeypatch.setitem(app.config, 'SESSION_COOKIE_DOMAIN', cookie_domain)
+    monkeypatch.setitem(app.config, 'SESSION_COOKIE_SECURE', True)
+    admin = create_user('superadmin', role_key='super_admin')
+    check_unscoped_access(app, admin)
+
+
 def test_release_mark_only_updates_context_flag_and_is_idempotent(app):
     from app.models import AppSetting, AuditLog
     from scripts.context_release import mark

@@ -12,7 +12,7 @@ from app.audit import record_audit_event
 from app.extensions import db
 from app.models import AppSetting, Company, CompanyModule, Role, RolePermission, OrganizationContext, User
 from app.seed import CONTEXT_ROLE_PERMISSIONS
-from app.tenant import company_primary_domain, tenant_company_from_host
+from app.tenant import company_primary_domain, tenant_company_from_host, tenant_base_domain
 
 
 def configure():
@@ -31,6 +31,17 @@ def configure():
         record_audit_event('ContextRelease', 'configured', 'Kuruluş bağlamı varsayılanları', details={'changes': changes}, commit=False)
     db.session.commit()
     return changes
+
+
+def check_unscoped_access(app, admin):
+    base = 'https://' + (tenant_base_domain() or 'localhost')
+    assert tenant_company_from_host(tenant_base_domain()) is None, 'Base host must not select a tenant'
+    client = app.test_client()
+    with client.session_transaction(base_url=base) as session:
+        session['user_id'] = admin.id
+    for path in ('/kurulus-baglami', '/ilgili-taraflar', '/ilgili-taraflar/excel'):
+        response = client.get(path, base_url=base)
+        assert response.status_code == 403, (path, response.status_code)
 
 
 def smoke(app):
@@ -91,11 +102,7 @@ def smoke(app):
             denied = client.get('/kurulus-baglami', base_url='https://' + domain)
             assert denied.status_code == 302 and '/login' in denied.location
     admin = User.query.filter_by(username='superadmin', company_id=None, is_active=True).one()
-    unscoped = app.test_client()
-    with unscoped.session_transaction() as session:
-        session['user_id'] = admin.id
-    for path in ('/kurulus-baglami', '/ilgili-taraflar', '/ilgili-taraflar/excel'):
-        assert unscoped.get(path).status_code == 403
+    check_unscoped_access(app, admin)
     assert checks and before == OrganizationContext.query.count()
     return {'checks': checks, 'roles_without_live_users': missing,
             'live_role_coverage': 'partial' if missing else 'complete'}
