@@ -27,9 +27,9 @@
 - [x] Focused and shared regression tests (scope and reruns below)
 - [x] Populated-copy upgrade/downgrade/upgrade rehearsal (3 passed; never downgrade live)
 - [x] Verified full backup and off-host checksum
-- [ ] Clean scoped diff, commit and push
-- [ ] Production migration, tenant/role smoke and HTTPS/service health
-- [ ] Audited single-key checklist completion
+- [x] Clean scoped diff, commit and push
+- [x] Production migration, tenant/role smoke and HTTPS/service health
+- [x] Audited single-key checklist completion
 
 ## Recovery
 
@@ -88,3 +88,34 @@ requires a separate decision; never downgrade production as a rollback shortcut.
 - DevOps review corrected release abort conditions and failure handling: active
   workers cause an explicit abort; failed post-mutation verification leaves
   writers stopped. Module/checklist baseline is captured after writers stop.
+
+## Production Proof (October 8)
+
+- Feature commit `2c3ab38` pushed to GitHub and deployed by pinned fast-forward
+  bundle. Live tracked worktree clean. No generated graph or local logs deployed.
+- Stopped-service backup: `/var/data/aksiyon-takip/backups/opportunity-20261008-deploy/volkaportal-backup-20261008-065918.zip`,
+  59,339,672 bytes, 204 uploads. Verify and restore dry-run passed; off-host
+  SHA-256 matched `036e89d78ff40b6abd62107d423ca450ab50aa6c01351d483d2fbe8384af6854`.
+- Production migration `202610070001`; SQLite integrity OK, 11 opportunity
+  guards present, zero synthetic opportunity records. All company module rows
+  unchanged. Role configuration was idempotent (second run made no changes).
+- Tenant health passed. Eleven existing role/company live test-client checks
+  passed, including tenant session rejection and unscoped admin denial.
+  Coverage is partial: company 1 has no management-representative, management,
+  staff or viewer user; company 3 has no department-manager, staff or viewer.
+  Local six-role tests cover those roles without creating fake production users.
+- Login returned HTTPS 200 on `volkaportal.com`, `erprefabrik.volkaportal.com`
+  and `sagiroglucelik.volkaportal.com`. Portfolio requests without authentication
+  redirected to login. New stylesheet returned 200 and matched deployed SHA-256
+  on every host. Application and both timers individually active; post-start
+  application journal contained startup INFO only, no application error.
+- After these checks, `sales_readiness:module_risk_opportunity_portfolio=1`
+  was recorded with one `OpportunityRelease/checklist_completed` audit entry.
+  Verified that no other checklist setting changed from the pre-deploy snapshot.
+- Next unfinished item: `module_quality_objective_projects`.
+- Menu: Risk Yonetimi > Riskler ve Firsatlar, subject to existing company module
+  switches and user permissions. Company 1 remains enabled by default; companies
+  2 and 3 retain their explicitly disabled risk-management setting.
+- Technical review clearance was supplied by independent QA/security and
+  data/migration/DevOps reviewers after correction. The earlier data agent hit a
+  usage limit; a replacement independently checked its saved migration evidence.
