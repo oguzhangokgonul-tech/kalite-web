@@ -1,0 +1,3 @@
+{% extends "app_shell.html" %}
+{% block head_extra %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/opportunities.css', v=config.ASSET_VERSION) }}">{% endblock %}
+{% block content_extra_class %}opportunity-page{% endblock %}

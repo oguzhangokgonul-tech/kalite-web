@@ -1,0 +1,33 @@
+{% extends "opportunities/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Fırsatı Düzenle' if opportunity else 'Yeni Fırsat' }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Fırsatı Düzenle' if opportunity else 'Yeni Fırsat', icon='bi-lightbulb') %}
+{{ ui.action_link(url_for('opportunities.detail', opportunity_id=opportunity.id) if opportunity else url_for('opportunities.dashboard'), 'Geri', icon='bi-arrow-left', tone='secondary') }}
+{% endcall %}
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{% if opportunity %}<input type="hidden" name="version_id" value="{{ values.get('version_id', opportunity.version_id) }}">{% endif %}
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-8"><label for="title" class="form-label">Fırsat Başlığı</label><input class="form-control" id="title" name="title" maxlength="240" value="{{ values.get('title', '') }}" required></div>
+  <div class="col-12 col-lg-4"><label for="owner_user_id" class="form-label">Sorumlu</label><select class="form-select" id="owner_user_id" name="owner_user_id" required><option value="">Seçin</option>{% for user in users %}<option value="{{ user.id }}" {% if values.get('owner_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+  {% for key, label in [('analysis_date', 'Analiz Tarihi'), ('due_date', 'Termin Tarihi'), ('review_date', 'Gözden Geçirme Tarihi')] %}
+  <div class="col-12 col-md-4"><label for="{{ key }}" class="form-label">{{ label }}</label><input type="date" class="form-control" id="{{ key }}" name="{{ key }}" value="{{ values.get(key, '') or '' }}" {% if key != 'review_date' or (opportunity and opportunity.status == 'active') %}required{% endif %}></div>
+  {% endfor %}
+  {% for key, label in [('likelihood', 'Olasılık'), ('benefit', 'Fayda')] %}
+  <div class="col-12 col-md-6"><label for="{{ key }}" class="form-label">{{ label }}</label><select id="{{ key }}" name="{{ key }}" class="form-select" required>{% for score in range(1, 6) %}<option value="{{ score }}" {% if values.get(key, 1)|string == score|string %}selected{% endif %}>{{ score }}</option>{% endfor %}</select></div>
+  {% endfor %}
+</div>
+<div class="opportunity-grid">
+{% for key, label in text_fields.items() %}
+<section class="opportunity-section"><label for="{{ key }}" class="form-label">{{ label }}</label><textarea class="form-control" id="{{ key }}" name="{{ key }}" rows="4" maxlength="20000" {% if opportunity and opportunity.status == 'active' and key != 'source_reference' %}required{% endif %}>{{ values.get(key, '') or '' }}</textarea></section>
+{% endfor %}
+<section class="opportunity-section"><label for="action_id" class="form-label">Bağlı Aksiyon</label><select class="form-select" id="action_id" name="action_id">
+<option value="">Bağlantı yok</option>
+{% if hidden_action %}<option value="__keep__" {% if values.get('action_id') == '__keep__' %}selected{% endif %}>Mevcut bağlantıyı koru</option>{% endif %}
+{% for action in actions %}<option value="{{ action.id }}" {% if values.get('action_id', '')|string == action.id|string %}selected{% endif %}>{{ action.number_label }} - {{ action.title }}</option>{% endfor %}
+</select></section>
+</div>
+<div class="opportunity-actions mt-4">{{ ui.action_button('Kaydet', icon='bi-check-lg') }}</div>
+</form>
+{% endblock %}

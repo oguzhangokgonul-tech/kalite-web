@@ -1,0 +1,27 @@
+.opportunity-page { min-width: 0; letter-spacing: 0; }
+.opportunity-page .opportunity-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.opportunity-page .opportunity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.opportunity-page .opportunity-section { min-width: 0; padding-block: 20px; border-top: 1px solid #dee2e6; overflow-wrap: anywhere; }
+.opportunity-page h2, .opportunity-page h3 { font-size: 1rem; font-weight: 600; letter-spacing: 0; margin-bottom: 12px; }
+.opportunity-page h3 { margin-top: 16px; }
+.opportunity-page .opportunity-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0; }
+.opportunity-page .opportunity-meta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-block: 16px; }
+.opportunity-page dt { font-size: .85rem; font-weight: 400; margin-bottom: 4px; }
+.opportunity-page dd { margin: 0; overflow-wrap: anywhere; }
+.opportunity-page .opportunity-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; padding-block: 20px; border-block: 1px solid #dee2e6; }
+.opportunity-page .opportunity-summary dd { font-size: 1.5rem; font-weight: 600; }
+.opportunity-page .portfolio-risk { color: #aa3245; }
+.opportunity-page .portfolio-benefit { color: #13735b; }
+.opportunity-page table { table-layout: fixed; width: 100%; }
+.opportunity-page th:nth-child(2) { width: 35%; }
+.opportunity-page td, .opportunity-page th, .opportunity-page .page-title { overflow-wrap: anywhere; }
+.opportunity-page .form-select { max-width: 100%; }
+.opportunity-page textarea { min-height: 88px; }
+@media (max-width: 991px) {
+  .opportunity-page .opportunity-meta, .opportunity-page .opportunity-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .opportunity-page .opportunity-grid, .opportunity-page .opportunity-meta { grid-template-columns: minmax(0, 1fr); }
+  .opportunity-page .btn { min-height: 44px; white-space: normal; }
+  .opportunity-page input, .opportunity-page select { min-height: 44px; }
+}

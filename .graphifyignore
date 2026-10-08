@@ -1,0 +1,14 @@
+# Keep graph extraction scoped to source, not runtime or customer data.
+.tmp*
+tmp-*
+venv/
+.venv/
+backups/
+uploads/
+instance/
+*.log
+*.db
+*.sqlite*
+*.bundle
+.env*
+graphify-out/

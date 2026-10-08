@@ -2686,6 +2686,12 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "opportunities.dashboard": "risk_management",
+    "opportunities.create": "risk_management",
+    "opportunities.detail": "risk_management",
+    "opportunities.edit": "risk_management",
+    "opportunities.transition": "risk_management",
+    "opportunities.export": "risk_management",
     "context.dashboard": "stakeholder_management",
     "context.create": "stakeholder_management",
     "context.detail": "stakeholder_management",
@@ -8143,6 +8149,11 @@ def report_context_data():
     return report_data()
 
 
+def report_opportunity_data():
+    from .opportunities import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8758,6 +8769,17 @@ def report_energy_consumption_data():
 
 REPORT_CENTER_REPORTS = (
     {
+        "key": "opportunities",
+        "title": "Fırsat Portföyü Raporu",
+        "description": "Fayda puanları, uygulama planları ve sonuç değerlendirmeleri.",
+        "icon": "bi-lightbulb",
+        "tone": "success",
+        "module_key": "risk_management",
+        "required_permission": "opportunity.view",
+        "required_export_permission": "opportunity.export",
+        "builder": report_opportunity_data,
+    },
+    {
         "key": "context",
         "title": "Kuruluş Bağlamı Raporu",
         "description": "İç ve dış hususlar, iklim değerlendirmesi ve gözden geçirme kayıtları.",
@@ -9067,6 +9089,7 @@ REPORT_CENTER_REPORTS = (
 
 
 REPORT_PERIOD_POLICIES = {
+    "opportunities": {"date_headers": ("Analiz Tarihi",)},
     "context": {"date_headers": ("Analiz Tarihi",)},
     "pestle": {"date_headers": ("Analiz Tarihi",)},
     "swot": {"date_headers": ("Analiz Tarihi",)},
@@ -9196,7 +9219,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] not in {"meetings", "projects", "swot", "pestle", "context"}:
+    if definition["key"] not in {"meetings", "projects", "swot", "pestle", "context", "opportunities"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9235,6 +9258,12 @@ def module_activity_report_data(module_key, period):
     if module is None:
         return None
     entity_types = MODULE_ACTIVITY_ENTITY_TYPES.get(module_key, ())
+    if module_key == "risk_management" and current_company_id() and (
+        current_user_can("opportunity.export") and (
+            current_user_can("opportunity.view_all") or current_user_can("opportunity.manage")
+        )
+    ):
+        entity_types = (*entity_types, "Opportunity")
     if module_key == "stakeholder_management" and current_company_id() and (
         current_user_can("context.export") and (
             current_user_can("context.view_all") or current_user_can("context.manage")
@@ -9316,7 +9345,12 @@ def report_definition_access_allowed(definition, export=False):
     )
     if definition.get("key") == "context" and not context_reader:
         return False
-    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader or context_reader):
+    opportunity_reader = definition.get("key") == "opportunities" and current_company_id() and any(
+        current_user_can(key) for key in ("opportunity.view", "opportunity.view_all", "opportunity.manage")
+    )
+    if definition.get("key") == "opportunities" and not opportunity_reader:
+        return False
+    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader or context_reader or opportunity_reader):
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9644,7 +9678,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key not in {"meetings", "projects", "swot", "pestle", "context"}:
+    if report.source_key not in {"meetings", "projects", "swot", "pestle", "context", "opportunities"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18414,6 +18448,7 @@ def assigned_all_tasks(scope):
     from .swot import assigned_task_rows as assigned_swot_task_rows
     from .pestle import assigned_task_rows as assigned_pestle_task_rows
     from .org_context import assigned_task_rows as assigned_context_task_rows
+    from .opportunities import assigned_task_rows as assigned_opportunity_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18458,6 +18493,7 @@ def assigned_all_tasks(scope):
         + assigned_swot_task_rows(scope, assigned_task_row)
         + assigned_pestle_task_rows(scope, assigned_task_row)
         + assigned_context_task_rows(scope, assigned_task_row)
+        + assigned_opportunity_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
@@ -28564,14 +28600,33 @@ def delete_action(action_id):
     ensure_same_company(action)
     from .meeting_actions import require_unlinked_for_delete
     require_unlinked_for_delete(action)
+    from .opportunity_models import Opportunity
+    if Opportunity.query.filter_by(action_id=action.id).first() is not None:
+        abort(409, description="Bu aksiyon bir fırsata bağlıdır; silmeden önce bağlantıyı kaldırın.")
 
     if request.method == "POST":
-        for sub_action in list(action.sub_actions):
-            delete_sub_action_evidence_file(sub_action)
-        delete_uploaded_file(action)
-        delete_closure_evidence_file(action)
-        db.session.delete(action)
-        db.session.commit()
+        # A concurrent link can reject DELETE; retain evidence until the transaction commits.
+        paths = {action.file_stored_name, action.closure_file_stored_name}
+        paths.update(item.evidence_stored_name for item in action.sub_actions)
+        paths.update(item.stored_name for item in action.closure_files)
+        try:
+            db.session.delete(action)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            abort(409, description="Aksiyonun bağlantıları değişti. Sayfayı yenileyip tekrar deneyin.")
+        except Exception:
+            db.session.rollback()
+            raise
+        cleanup_failed = False
+        for path in paths - {None, ""}:
+            try:
+                delete_stored_upload(path)
+            except OSError:
+                cleanup_failed = True
+                current_app.logger.exception("Deleted action upload cleanup failed")
+        if cleanup_failed:
+            flash("Kayıt silindi; bazı dosyaların temizlenmesi için sistem yöneticisine bilgi verin.", "warning")
         flash("Aksiyon kaydı silindi.", "success")
         return redirect(url_for("main.dashboard"))
 

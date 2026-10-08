@@ -8,3 +8,4 @@ instance/
 .flaskenv
 *.log
 backups/
+graphify-out/

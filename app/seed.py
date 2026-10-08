@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "opportunity.view", "label": "İlgili fırsatları görüntüleme", "group": "Riskler ve Fırsatlar", "description": "Oluşturduğu veya sorumlusu olduğu fırsatları görüntüler."},
+    {"key": "opportunity.view_all", "label": "Şirket fırsatlarını görüntüleme", "group": "Riskler ve Fırsatlar", "description": "Seçili şirketin tüm fırsatlarını görüntüler."},
+    {"key": "opportunity.create", "label": "Fırsat oluşturma ve düzenleme", "group": "Riskler ve Fırsatlar", "description": "Fırsat oluşturur ve kendi açık kayıtlarını yönetir."},
+    {"key": "opportunity.review", "label": "Fırsat sonuç değerlendirmesi", "group": "Riskler ve Fırsatlar", "description": "Erişebildiği fırsatların sonuçlarını değerlendirir."},
+    {"key": "opportunity.manage", "label": "Fırsat süreç yönetimi", "group": "Riskler ve Fırsatlar", "description": "Şirket fırsatlarının sürecini ve arşivini yönetir."},
+    {"key": "opportunity.export", "label": "Fırsat raporu indirme", "group": "Riskler ve Fırsatlar", "description": "Erişebildiği fırsatların raporunu indirir."},
     {"key": "context.view", "label": "İlgili bağlam kayıtlarını görüntüleme", "group": "Kuruluş Bağlamı", "description": "Oluşturduğu veya sorumlusu olduğu bağlam kayıtlarını görüntüler."},
     {"key": "context.view_all", "label": "Şirket bağlam kayıtlarını görüntüleme", "group": "Kuruluş Bağlamı", "description": "Seçili şirketin tüm bağlam kayıtlarını görüntüler."},
     {"key": "context.create", "label": "Bağlam oluşturma ve düzenleme", "group": "Kuruluş Bağlamı", "description": "Bağlam oluşturur, kendi taslaklarını düzenler."},
@@ -1643,6 +1649,18 @@ CONTEXT_ROLE_PERMISSIONS = {
     "department_staff": ("context.view",),
     "viewer": ("context.view",),
 }
+OPPORTUNITY_ROLE_PERMISSIONS = {
+    "management_representative": ("opportunity.view", "opportunity.view_all", "opportunity.create", "opportunity.review", "opportunity.manage", "opportunity.export"),
+    "management": ("opportunity.view", "opportunity.view_all", "opportunity.create", "opportunity.review", "opportunity.export"),
+    "department_manager": ("opportunity.view", "opportunity.create", "opportunity.export"),
+    "department_staff": ("opportunity.view",),
+    "viewer": ("opportunity.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        permission for permission in OPPORTUNITY_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if permission not in role_definition["permissions"]
+    )
 for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission for permission in CONTEXT_ROLE_PERMISSIONS.get(role_definition["key"], ())
@@ -4072,6 +4090,13 @@ def ensure_runtime_schema():
     OrganizationContext.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as context_connection:
         ensure_context_sqlite_guards(context_connection)
+
+    from .opportunity_models import Opportunity
+    from .opportunity_schema import ensure_opportunity_sqlite_guards
+
+    Opportunity.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as opportunity_connection:
+        ensure_opportunity_sqlite_guards(opportunity_connection)
 
     for model in (NotificationEmailBatch, NotificationEmailEvent):
         model.__table__.create(bind=db.engine, checkfirst=True)

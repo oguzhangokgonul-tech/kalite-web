@@ -54,6 +54,7 @@ from .projects import bp as projects_bp
 from .swot import bp as swot_bp
 from .pestle import bp as pestle_bp
 from .org_context import bp as context_bp
+from .opportunities import bp as opportunities_bp
 from .notification_settings import bp as notification_settings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
@@ -123,6 +124,7 @@ def create_app(config_class=Config):
     app.register_blueprint(swot_bp)
     app.register_blueprint(pestle_bp)
     app.register_blueprint(context_bp)
+    app.register_blueprint(opportunities_bp)
     app.register_blueprint(notification_settings_bp)
 
     @app.errorhandler(CSRFError)

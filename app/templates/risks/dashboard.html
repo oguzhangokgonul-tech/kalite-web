@@ -6,6 +6,7 @@
 {% block app_content %}
   {% set show_actions = can_manage_risks or can_delete_risks or can_create_actions %}
   {% call ui.page_header("Risk Yönetimi", "ISO 9001 risklerini RPN puanı, termin ve aksiyon bağlantılarıyla takip edin.", icon="bi-exclamation-diamond") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('opportunities.dashboard') }}"><i class="bi bi-arrow-left"></i><span>Riskler ve Fırsatlar</span></a>
     {% if g.current_user.has_permission('risk.ohs_view') or g.current_user.has_permission('risk.ohs_create') or g.current_user.has_permission('risk.ohs_manage') or g.current_user.has_permission('risk.manage') %}
       <a class="btn btn-outline-primary btn-lg" href="{{ url_for('ohs_risk.dashboard') }}">
         <i class="bi bi-shield-exclamation"></i>

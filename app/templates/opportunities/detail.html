@@ -1,0 +1,37 @@
+{% extends "opportunities/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ opportunity.record_no }}{% endblock %}
+{% block app_content %}
+{% call ui.page_header(opportunity.title, icon='bi-lightbulb') %}
+{{ ui.action_link(url_for('opportunities.dashboard'), 'Portföy', icon='bi-arrow-left', tone='secondary') }}
+{% if can_export %}{{ ui.action_link(url_for('opportunities.export', opportunity_id=opportunity.id), 'Rapor İndir', icon='bi-download', tone='secondary') }}{% endif %}
+{% if can_edit %}{{ ui.action_link(url_for('opportunities.edit', opportunity_id=opportunity.id), 'Düzenle', icon='bi-pencil') }}{% endif %}
+{% endcall %}
+<div class="opportunity-actions mb-4"><span>{{ opportunity.record_no }}</span>{{ ui.status_badge(statuses[opportunity.status]) }}</div>
+<dl class="opportunity-meta">
+<div><dt>Sorumlu</dt><dd>{{ opportunity.owner.full_name if opportunity.owner else '-' }}</dd></div>
+<div><dt>Analiz Tarihi</dt><dd>{{ opportunity.analysis_date.strftime('%d.%m.%Y') }}</dd></div>
+<div><dt>Termin Tarihi</dt><dd>{{ opportunity.due_date.strftime('%d.%m.%Y') }}</dd></div>
+<div><dt>Gözden Geçirme Tarihi</dt><dd>{{ opportunity.review_date.strftime('%d.%m.%Y') if opportunity.review_date else '-' }}</dd></div>
+<div><dt>Olasılık / Fayda</dt><dd>{{ opportunity.likelihood }} / {{ opportunity.benefit }}</dd></div>
+<div><dt>Öncelik Puanı</dt><dd>{{ opportunity.priority_score }}</dd></div>
+</dl>
+<div class="opportunity-grid">{% for key, label in text_fields.items() %}<section class="opportunity-section"><h2>{{ label }}</h2><p class="opportunity-text">{{ opportunity|attr(key) or '-' }}</p></section>{% endfor %}
+<section class="opportunity-section"><h2>Bağlı Aksiyon</h2>{% if linked_action %}<a href="{{ url_for('main.action_detail', action_id=linked_action.id) }}">{{ linked_action.number_label }} - {{ linked_action.title }}</a>{% else %}<p>-</p>{% endif %}</section></div>
+{% if opportunity.reviewed_at %}<section class="opportunity-section"><h2>Sonuç Değerlendirmesi</h2><p>{{ opportunity.reviewer.full_name if opportunity.reviewer else '-' }} / {{ opportunity.reviewed_at.strftime('%d.%m.%Y %H:%M') }} UTC</p><h3>Sonuç Notu</h3><p class="opportunity-text">{{ opportunity.result_note }}</p><h3>Kanıt Kaynakları</h3><p class="opportunity-text">{{ opportunity.evidence_sources }}</p></section>{% endif %}
+{% if opportunity.archive_note %}<section class="opportunity-section"><h2>Arşiv Gerekçesi</h2><p class="opportunity-text">{{ opportunity.archive_note }}</p></section>{% endif %}
+{% macro tokens(action) %}<input type="hidden" name="version_id" value="{{ values.get('version_id', opportunity.version_id) }}"><input type="hidden" name="action" value="{{ action }}">{% endmacro %}
+{% if can_activate %}<section class="opportunity-section"><form method="post" action="{{ url_for('opportunities.transition', opportunity_id=opportunity.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{{ tokens('activate') }}{{ ui.action_button('Aktifleştir', icon='bi-play-circle') }}</form></section>{% endif %}
+{% if can_review and opportunity.status == 'active' %}<section class="opportunity-section"><h2>Sonuç Değerlendirmesi</h2>
+<form method="post" action="{{ url_for('opportunities.transition', opportunity_id=opportunity.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ values.get('version_id', opportunity.version_id) }}">
+<label for="result_status" class="form-label">Sonuç</label><select class="form-select mb-3" id="result_status" name="action" required><option value="realized" {% if values.get('action') == 'realized' %}selected{% endif %}>Gerçekleşti</option><option value="not_realized" {% if values.get('action') == 'not_realized' %}selected{% endif %}>Gerçekleşmedi</option></select>
+<label for="result_note" class="form-label">Sonuç Notu</label><textarea class="form-control mb-3" name="result_note" id="result_note" rows="3" maxlength="20000" required>{{ values.get('result_note', '') }}</textarea>
+<label for="evidence_sources" class="form-label">Kanıt Kaynakları</label><textarea class="form-control mb-3" name="evidence_sources" id="evidence_sources" rows="3" maxlength="20000" required>{{ values.get('evidence_sources', '') }}</textarea>
+{{ ui.action_button('Değerlendirmeyi Kaydet', icon='bi-check2-circle') }}</form></section>{% endif %}
+{% if can_reopen or can_archive or can_recover %}<section class="opportunity-section"><h2>Kayıt İşlemleri</h2><div class="opportunity-grid">
+{% for enabled, action, label, command, icon in [(can_reopen, 'reopen', 'Yeniden Açma Gerekçesi', 'Yeniden Aç', 'bi-arrow-counterclockwise'), (can_archive, 'archive', 'Arşiv Gerekçesi', 'Arşive Al', 'bi-archive'), (can_recover, 'recover', 'Taslağa Dönüş Gerekçesi', 'Taslağa Al', 'bi-arrow-counterclockwise')] %}
+{% if enabled %}<form method="post" action="{{ url_for('opportunities.transition', opportunity_id=opportunity.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{{ tokens(action) }}
+<label for="{{ action }}_note" class="form-label">{{ label }}</label><textarea class="form-control mb-3" id="{{ action }}_note" name="note" rows="2" maxlength="20000" required>{{ values.get('note', '') if values.get('action') == action else '' }}</textarea>{{ ui.action_button(command, icon=icon, tone='secondary') }}</form>{% endif %}
+{% endfor %}</div></section>{% endif %}
+{% endblock %}

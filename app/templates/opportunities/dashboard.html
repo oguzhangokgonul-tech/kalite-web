@@ -1,0 +1,34 @@
+{% extends "opportunities/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Riskler ve Fırsatlar{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Riskler ve Fırsatlar', icon='bi-grid-1x2') %}
+{% if can_create_risk %}{{ ui.action_link(url_for('main.create_risk'), 'Yeni Risk', icon='bi-plus-lg', tone='secondary') }}{% endif %}
+{% if can_create_opportunity %}{{ ui.action_link(url_for('opportunities.create'), 'Yeni Fırsat', icon='bi-plus-lg') }}{% endif %}
+{% endcall %}
+<dl class="opportunity-summary">
+{% if risk_visible %}<div class="portfolio-risk"><dt>Açık Riskler</dt><dd>{{ counts.open_risks }}</dd></div><div class="portfolio-risk"><dt>Yüksek Riskler</dt><dd>{{ counts.high_risks }}</dd></div>{% endif %}
+{% if opportunity_visible %}<div class="portfolio-benefit"><dt>Açık Fırsatlar</dt><dd>{{ counts.open_opportunities }}</dd></div><div class="portfolio-benefit"><dt>Yüksek Faydalı Fırsatlar</dt><dd>{{ counts.high_benefit }}</dd></div>{% endif %}
+</dl>
+<form method="get" class="row g-3 align-items-end mb-4" role="search" aria-label="Portföy filtreleri">
+<div class="col-12 col-md-4"><label for="portfolio-search" class="form-label">Ara</label><input type="search" name="q" id="portfolio-search" class="form-control" value="{{ search }}" maxlength="240"></div>
+<div class="col-12 col-md-3"><label for="portfolio-type" class="form-label">Tür</label><select class="form-select" id="portfolio-type" name="type"><option value="">Tümü</option>{% if risk_visible %}<option value="risk" {% if selected_type == 'risk' %}selected{% endif %}>Risk</option>{% endif %}{% if opportunity_visible %}<option value="opportunity" {% if selected_type == 'opportunity' %}selected{% endif %}>Fırsat</option>{% endif %}</select></div>
+<div class="col-12 col-md-3"><label for="portfolio-status" class="form-label">Durum</label><select class="form-select" id="portfolio-status" name="status"><option value="">Tümü</option>{% for key, label in statuses.items() %}<option value="{{ key }}" {% if selected_status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div class="col-12 col-md-2 opportunity-actions">{{ ui.action_button('Filtrele', icon='bi-search') }}{{ ui.action_link(url_for('opportunities.dashboard'), 'Temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}</div>
+</form>
+<div class="table-responsive"><table class="table align-middle" data-tablet-records>
+<thead><tr><th>Tür</th><th>Kayıt</th><th>Durum</th><th>Termin</th><th>Puan</th><th>İşlem</th></tr></thead>
+<tbody>{% for row in rows %}<tr>
+<td data-label="Tür"><span class="{{ 'portfolio-risk' if row.kind == 'risk' else 'portfolio-benefit' }}"><i class="bi {{ 'bi-exclamation-triangle' if row.kind == 'risk' else 'bi-lightbulb' }}" aria-hidden="true"></i> {{ 'Risk' if row.kind == 'risk' else 'Fırsat' }}</span></td>
+<td data-label="Kayıt"><small class="text-secondary d-block">{{ row.reference }}</small><a href="{{ row.url }}">{{ row.title }}</a></td>
+<td data-label="Durum">{{ ui.status_badge(row.status) }}</td><td data-label="Termin">{{ row.due_date.strftime('%d.%m.%Y') if row.due_date else '-' }}</td>
+<td data-label="Puan">{{ row.score }}<small class="d-block text-secondary">{{ 'Risk Puanı' if row.kind == 'risk' else 'Öncelik Puanı' }}</small></td>
+<td data-label="İşlem">{{ ui.action_link(row.url, 'Kaydı Aç', icon='bi-arrow-right', tone='secondary', icon_only=True) }}</td>
+</tr>{% else %}<tr><td colspan="6">{{ ui.empty_state('Kayıt bulunamadı', icon='bi-grid-1x2') }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<nav class="opportunity-actions mt-3" aria-label="Portföy sayfaları">
+{% if page > 1 %}{{ ui.action_link(url_for('opportunities.dashboard', page=page-1, q=search, type=selected_type, status=selected_status), 'Önceki', icon='bi-chevron-left', tone='secondary', icon_only=True) }}{% endif %}
+<span>{{ total }} kayıt / {{ page }} / {{ pages }}</span>
+{% if page < pages %}{{ ui.action_link(url_for('opportunities.dashboard', page=page+1, q=search, type=selected_type, status=selected_status), 'Sonraki', icon='bi-chevron-right', tone='secondary', icon_only=True) }}{% endif %}
+</nav>
+{% endblock %}

@@ -1,0 +1,15 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Graphify: Watch code",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/watch-graphify.ps1"],
+      "isBackground": true,
+      "runOptions": {"runOn": "folderOpen", "instanceLimit": 1},
+      "presentation": {"reveal": "silent", "panel": "dedicated", "close": false},
+      "problemMatcher": []
+    }
+  ]
+}

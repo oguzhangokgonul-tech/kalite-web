@@ -90,6 +90,8 @@ Bu dosya, Codex ve ona bagli ajanlarin VolkaPortal reposunda nasil calisacagini 
 
 ## Kodcu Ajan Kurallari
 
+- Yerel kod haritasi `graphify-out/graph.json` altindadir. Graphify izleyicisi kayitlardan sonra yerel AST haritasini yeniler; calismiyorsa kod degisikliginden sonra `graphify update .` kullan. Harita bir test veya guvenlik kaniti degildir.
+- Graphify icin yalnizca yerel kod analizi kullan; musteri dosyalarini, yedekleri ve gizli ayarlari `.graphifyignore` ile disarida tut. `graphify-out/` commit veya deploy edilmez.
 - Kod yazmadan once ilgili dosyalari oku; aramalarda once `rg` veya `rg --files` kullan.
 - Manuel dosya duzenlemelerinde `apply_patch` kullan.
 - Kullaniciya ait veya ilgisiz yerel degisiklikleri geri alma.
