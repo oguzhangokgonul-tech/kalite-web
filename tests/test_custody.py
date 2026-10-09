@@ -53,6 +53,40 @@ def test_full_mobile_workflow_audit_duplicate_edit_return_report(client):
     assert EquipmentAsset.query.count() == 0
 
 
+def test_default_list_and_export_include_returns_with_explicit_status_filters(client):
+    company, manager, person = setup_people()
+    login(client, manager)
+    assert client.post('/zimmet-yonetimi/yeni', data=payload(person, item_name='Returned laptop')).status_code == 302
+    record = CustodyRecord.query.one()
+    assert client.post(f'/zimmet-yonetimi/{record.id}/iade', data={
+        'version_id': record.version_id, 'returned_date': custody_today().isoformat()
+    }).status_code == 302
+    assert client.post('/zimmet-yonetimi/yeni', data=payload(person, item_name='Active laptop', serial_no='PC-002')).status_code == 302
+
+    response = client.get('/zimmet-yonetimi')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert 'Returned laptop' in html and 'Active laptop' in html
+    assert '<option value="all" selected>' in html
+    assert 'İade edildi' in html and 'İade tarihi' in html
+    assert 'Filtreleri temizle' not in html
+    for status, visible, hidden in (
+        ('active', 'Active laptop', 'Returned laptop'),
+        ('returned', 'Returned laptop', 'Active laptop'),
+    ):
+        html = client.get('/zimmet-yonetimi', query_string={'status': status}).get_data(as_text=True)
+        assert visible in html and hidden not in html
+        assert 'Filtreleri temizle' in html
+    html = client.get('/zimmet-yonetimi?q=Returned').get_data(as_text=True)
+    assert 'Returned laptop' in html and 'Active laptop' not in html
+    report = client.get('/zimmet-yonetimi/rapor')
+    assert report.status_code == 200
+    rows = sheet_values(report.data)
+    assert len(rows) == 3
+    assert {'Returned laptop', 'Active laptop'} == {row[1] for row in rows[1:]}
+    assert client.get('/zimmet-yonetimi?status=invalid').status_code == 400
+
+
 def test_person_link_visibility_tenant_forgery_and_inactive(client):
     company, manager, person = setup_people()
     other_company = create_company('OTHER')

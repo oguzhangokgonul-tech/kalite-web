@@ -24,14 +24,14 @@
     <div>
       <label class="form-label" for="custody-status">Durum</label>
       <select class="form-select" id="custody-status" name="status">
+        <option value="all" {% if status == 'all' %}selected{% endif %}>Tümü</option>
         <option value="active" {% if status == 'active' %}selected{% endif %}>Zimmette</option>
         <option value="returned" {% if status == 'returned' %}selected{% endif %}>İade edildi</option>
-        <option value="all" {% if status == 'all' %}selected{% endif %}>Tümü</option>
       </select>
     </div>
     <div class="custody-actions">
       {{ ui.action_button('Filtrele', icon='bi-search') }}
-      {% if q or status != 'active' %}
+      {% if q or status != 'all' %}
         {{ ui.action_link(url_for('custody.dashboard'), 'Filtreleri temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}
       {% endif %}
     </div>

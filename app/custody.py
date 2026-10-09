@@ -157,7 +157,7 @@ def notify(record, returned=False):
 
 def filtered():
     query = records()
-    status = request.args.get('status', 'active')
+    status = request.args.get('status', 'all')
     if status not in ('active', 'returned', 'all'):
         abort(400)
     if status != 'all':
@@ -290,12 +290,12 @@ def export():
     if not allowed('custody.export'):
         abort(403)
     from .routes import build_simple_xlsx
-    query, _, _ = filtered()
+    query, _, status = filtered()
     rows = [(r.record_no, r.item_name, r.serial_no or '', r.quantity, r.personnel.full_name,
              r.assigned_date.isoformat(), r.expected_return_date.isoformat() if r.expected_return_date else '',
              r.returned_date.isoformat() if r.returned_date else '', 'İade Edildi' if r.returned_date else 'Zimmette') for r in query.order_by(CustodyRecord.id).all()]
     rows = [tuple(re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]', '\ufffd', value) if isinstance(value, str) else value for value in row) for row in rows]
     workbook = build_simple_xlsx(('Zimmet No', 'Malzeme', 'Seri No', 'Adet', 'Personel', 'Teslim Tarihi', 'Beklenen İade', 'İade Tarihi', 'Durum'), rows, sheet_name='Zimmetler')
     record_audit_event('CustodyRecord', 'exported', 'Zimmet raporu', company_id=current_company_id(),
-                       details={'row_count': len(rows), 'status': request.args.get('status', 'active')})
+                       details={'row_count': len(rows), 'status': status})
     return send_file(workbook, as_attachment=True, download_name=f'zimmetler-{custody_today():%Y%m%d}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
