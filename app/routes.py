@@ -2686,6 +2686,12 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "custody.dashboard": "custody_management",
+    "custody.create": "custody_management",
+    "custody.detail": "custody_management",
+    "custody.edit": "custody_management",
+    "custody.return_record": "custody_management",
+    "custody.export": "custody_management",
     "opportunities.dashboard": "risk_management",
     "opportunities.create": "risk_management",
     "opportunities.detail": "risk_management",

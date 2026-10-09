@@ -6,6 +6,10 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "custody.view", "label": "Zimmetlerini görüntüleme", "group": "Zimmet Yönetimi", "description": "Personel kaydına bağlı zimmetleri görüntüler."},
+    {"key": "custody.view_all", "label": "Şirket zimmetlerini görüntüleme", "group": "Zimmet Yönetimi", "description": "Şirketin tüm zimmetlerini görüntüler."},
+    {"key": "custody.manage", "label": "Zimmet ve iade yönetimi", "group": "Zimmet Yönetimi", "description": "Şirket personeline zimmet verir, açık kayıtları düzenler ve iade alır."},
+    {"key": "custody.export", "label": "Zimmet raporu indirme", "group": "Zimmet Yönetimi", "description": "Görebildiği zimmetlerin Excel raporunu indirir."},
     {"key": "opportunity.view", "label": "İlgili fırsatları görüntüleme", "group": "Riskler ve Fırsatlar", "description": "Oluşturduğu veya sorumlusu olduğu fırsatları görüntüler."},
     {"key": "opportunity.view_all", "label": "Şirket fırsatlarını görüntüleme", "group": "Riskler ve Fırsatlar", "description": "Seçili şirketin tüm fırsatlarını görüntüler."},
     {"key": "opportunity.create", "label": "Fırsat oluşturma ve düzenleme", "group": "Riskler ve Fırsatlar", "description": "Fırsat oluşturur ve kendi açık kayıtlarını yönetir."},
@@ -1656,6 +1660,18 @@ OPPORTUNITY_ROLE_PERMISSIONS = {
     "department_staff": ("opportunity.view",),
     "viewer": ("opportunity.view",),
 }
+CUSTODY_ROLE_PERMISSIONS = {
+    'management_representative': ('custody.view', 'custody.view_all', 'custody.manage', 'custody.export'),
+    'management': ('custody.view', 'custody.view_all', 'custody.export'),
+    'department_manager': ('custody.view',),
+    'department_staff': ('custody.view',),
+    'viewer': ('custody.view',),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition['permissions'].extend(
+        p for p in CUSTODY_ROLE_PERMISSIONS.get(role_definition['key'], ())
+        if p not in role_definition['permissions']
+    )
 for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         permission for permission in OPPORTUNITY_ROLE_PERMISSIONS.get(role_definition["key"], ())
@@ -4097,6 +4113,12 @@ def ensure_runtime_schema():
     Opportunity.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as opportunity_connection:
         ensure_opportunity_sqlite_guards(opportunity_connection)
+
+    from .custody_models import CustodyRecord
+    from .custody_schema import ensure_custody_guards
+    CustodyRecord.__table__.create(bind=db.engine, checkfirst=True)
+    with db.engine.begin() as custody_connection:
+        ensure_custody_guards(custody_connection)
 
     for model in (NotificationEmailBatch, NotificationEmailEvent):
         model.__table__.create(bind=db.engine, checkfirst=True)

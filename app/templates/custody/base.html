@@ -1,0 +1,7 @@
+{% extends "app_shell.html" %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/custody.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block content_extra_class %}custody-page{% endblock %}
+{% block topbar_title %}Zimmet Yönetimi{% endblock %}

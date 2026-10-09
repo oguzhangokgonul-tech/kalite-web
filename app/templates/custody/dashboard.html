@@ -1,0 +1,88 @@
+{% extends "custody/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Zimmet Listesi{% endblock %}
+{% block app_content %}
+  {% call ui.page_header('Zimmet Listesi', icon='bi-box-seam', heading_level=1) %}
+    {% if can_export %}
+      {{ ui.action_link(url_for('custody.export', q=q, status=status), 'Excel indir', icon='bi-download', tone='secondary', icon_only=True) }}
+    {% endif %}
+    {% if can_manage %}
+      {{ ui.action_link(url_for('custody.create'), 'Yeni Zimmet', icon='bi-plus-lg') }}
+    {% endif %}
+  {% endcall %}
+
+  <dl class="custody-stats" aria-label="Zimmet özeti">
+    <div><dt>Zimmette</dt><dd>{{ stats.active }}</dd></div>
+    <div><dt>İade edildi</dt><dd>{{ stats.returned }}</dd></div>
+  </dl>
+
+  <form class="custody-filters" method="get" action="{{ url_for('custody.dashboard') }}" role="search" aria-label="Zimmet filtreleri">
+    <div>
+      <label class="form-label" for="custody-search">Malzeme, seri no veya personel</label>
+      <input class="form-control" id="custody-search" type="search" name="q" value="{{ q }}" maxlength="180">
+    </div>
+    <div>
+      <label class="form-label" for="custody-status">Durum</label>
+      <select class="form-select" id="custody-status" name="status">
+        <option value="active" {% if status == 'active' %}selected{% endif %}>Zimmette</option>
+        <option value="returned" {% if status == 'returned' %}selected{% endif %}>İade edildi</option>
+        <option value="all" {% if status == 'all' %}selected{% endif %}>Tümü</option>
+      </select>
+    </div>
+    <div class="custody-actions">
+      {{ ui.action_button('Filtrele', icon='bi-search') }}
+      {% if q or status != 'active' %}
+        {{ ui.action_link(url_for('custody.dashboard'), 'Filtreleri temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}
+      {% endif %}
+    </div>
+  </form>
+
+  <section class="custody-section" aria-labelledby="custody-results-title">
+    <h2 id="custody-results-title">Kayıtlar <span class="custody-muted">({{ pagination.total }})</span></h2>
+    {% if pagination.items %}
+      <ul class="custody-list">
+        {% for record in pagination.items %}
+          <li class="custody-item">
+            <div class="custody-item-heading">
+              <div>
+                <span class="custody-muted">{{ record.record_no }}</span>
+                <h3><a class="custody-record-link" href="{{ url_for('custody.detail', record_id=record.id) }}">{{ record.item_name }}</a></h3>
+              </div>
+              <div class="custody-statuses">
+                {{ ui.status_badge('İade edildi' if record.returned_date else 'Zimmette', tone='success' if record.returned_date else 'info', icon='bi-check-circle' if record.returned_date else 'bi-box-seam') }}
+                {% if record.is_overdue %}{{ ui.status_badge('İade gecikti', tone='danger', icon='bi-exclamation-circle') }}{% endif %}
+              </div>
+            </div>
+            <dl class="custody-facts custody-list-facts">
+              <div><dt>Personel</dt><dd>{{ record.personnel.full_name if record.personnel else 'Personel bilgisi yok' }}</dd></div>
+              <div><dt>Seri no</dt><dd>{{ record.serial_no or '-' }}</dd></div>
+              <div><dt>Adet</dt><dd>{{ record.quantity }}</dd></div>
+              <div><dt>Teslim tarihi</dt><dd>{{ record.assigned_date.strftime('%d.%m.%Y') }}</dd></div>
+              <div><dt>{{ 'İade tarihi' if record.returned_date else 'Beklenen iade' }}</dt><dd>{{ record.returned_date.strftime('%d.%m.%Y') if record.returned_date else record.expected_return_date.strftime('%d.%m.%Y') if record.expected_return_date else '-' }}</dd></div>
+            </dl>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ ui.empty_state('Bu sayfada zimmet kaydı bulunamadı.', icon='bi-inbox') }}
+      {% if pagination.total %}
+        {{ ui.action_link(url_for('custody.dashboard', q=q, status=status), 'İlk sayfaya dön', icon='bi-arrow-left', tone='secondary') }}
+      {% endif %}
+    {% endif %}
+    {% if pagination.pages > 1 and pagination.items %}
+      <nav class="custody-pagination" aria-label="Zimmet sayfaları">
+        {% if pagination.has_prev %}
+          {{ ui.action_link(url_for('custody.dashboard', page=pagination.prev_num, q=q, status=status), 'Önceki sayfa', icon='bi-chevron-left', tone='secondary', icon_only=True) }}
+        {% else %}
+          {{ ui.action_button('Önceki sayfa', icon='bi-chevron-left', tone='secondary', type='button', icon_only=True, disabled=True) }}
+        {% endif %}
+        <span>Sayfa {{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+          {{ ui.action_link(url_for('custody.dashboard', page=pagination.next_num, q=q, status=status), 'Sonraki sayfa', icon='bi-chevron-right', tone='secondary', icon_only=True) }}
+        {% else %}
+          {{ ui.action_button('Sonraki sayfa', icon='bi-chevron-right', tone='secondary', type='button', icon_only=True, disabled=True) }}
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}

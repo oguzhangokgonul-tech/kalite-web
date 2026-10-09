@@ -428,6 +428,11 @@
           <span>{{ _("Resmî Yazışma ve Arşiv") }}</span>
         </a>
         {% endif %}
+        {% if (g.current_company or g.tenant_company) and g.company_module_enabled('custody_management') and (g.current_user.has_permission('custody.view') or g.current_user.has_permission('custody.view_all') or g.current_user.has_permission('custody.manage')) %}
+        <a class="dashboard-nav-item {% if (request.endpoint or '').startswith('custody.') %}active{% endif %}" href="{{ url_for('custody.dashboard') }}">
+          <i class="bi bi-person-badge"></i><span>{{ _("Zimmet Yönetimi") }}</span>
+        </a>
+        {% endif %}
         {% if g.company_module_enabled('equipment_lifecycle') and (g.current_user.has_permission('equipment.view') or g.current_user.has_permission('equipment.view_all') or g.current_user.has_permission('equipment.manage')) %}
         <a class="dashboard-nav-item {% if equipment_lifecycle_active %}active{% endif %}" href="{{ url_for('equipment.dashboard') }}">
           <i class="bi bi-pc-display-horizontal"></i>

@@ -1,0 +1,83 @@
+{% extends "custody/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Zimmeti Düzenle' if record else 'Yeni Zimmet' }}{% endblock %}
+{% block app_content %}
+  {% set back_url = url_for('custody.detail', record_id=record.id) if record else url_for('custody.dashboard') %}
+  {% call ui.page_header('Zimmeti Düzenle' if record else 'Yeni Zimmet', subtitle=record.record_no if record else none, icon='bi-box-seam', heading_level=1) %}
+    {{ ui.action_link(back_url, 'Geri dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+  {% endcall %}
+
+  {% if not record or not record.returned_date %}
+    <form class="custody-form" method="post" action="{{ url_for('custody.edit', record_id=record.id) if record else url_for('custody.create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="request_token" value="{{ request_token }}">
+      {% if record %}<input type="hidden" name="version_id" value="{{ values.get('version_id', record.version_id) }}">{% endif %}
+      <div class="custody-form-grid">
+        <div class="custody-wide">
+          <label class="form-label" for="custody-personnel">Personel <span aria-hidden="true">*</span></label>
+          {% set selected_person = values.get('personnel_contact_id', record.personnel_contact_id if record else '')|string %}
+          {% set listed_ids = personnel|map(attribute='id')|list %}
+          <select class="form-select" id="custody-personnel" name="personnel_contact_id" required>
+            <option value="" {% if not selected_person %}selected{% endif %}>Personel seçin</option>
+            {% if record and record.personnel and record.personnel_contact_id not in listed_ids %}
+              <option value="{{ record.personnel_contact_id }}" {% if selected_person == record.personnel_contact_id|string %}selected{% endif %}>{{ record.personnel.full_name }} (Pasif)</option>
+            {% endif %}
+            {% for person in personnel %}
+              <option value="{{ person.id }}" {% if selected_person == person.id|string %}selected{% endif %}>{{ person.full_name }}{{ ' (Pasif)' if not person.is_active else '' }}</option>
+            {% endfor %}
+          </select>
+          {% if not personnel and not record %}<p class="custody-notice" role="status">Aktif personel bulunamadı.</p>{% endif %}
+        </div>
+        <div class="custody-wide">
+          <label class="form-label" for="custody-item">Malzeme adı <span aria-hidden="true">*</span></label>
+          <input class="form-control" id="custody-item" name="item_name" maxlength="180" required value="{{ values.get('item_name', '') or '' }}">
+        </div>
+        <div>
+          <label class="form-label" for="custody-serial">Seri no</label>
+          <input class="form-control" id="custody-serial" name="serial_no" maxlength="100" value="{{ values.get('serial_no', '') or '' }}">
+        </div>
+        <div>
+          <label class="form-label" for="custody-quantity">Adet <span aria-hidden="true">*</span></label>
+          <input class="form-control" id="custody-quantity" name="quantity" type="number" inputmode="numeric" min="1" max="9999" step="1" required value="{{ values.get('quantity', 1) }}">
+        </div>
+        <div>
+          <label class="form-label" for="custody-assigned">Teslim tarihi <span aria-hidden="true">*</span></label>
+          <input class="form-control" id="custody-assigned" name="assigned_date" type="date" max="{{ today.isoformat() }}" required value="{{ values.get('assigned_date', today.isoformat()) or '' }}">
+        </div>
+        <div>
+          <label class="form-label" for="custody-expected">Beklenen iade tarihi</label>
+          <input class="form-control" id="custody-expected" name="expected_return_date" type="date" value="{{ values.get('expected_return_date', '') or '' }}">
+        </div>
+        <div class="custody-wide">
+          <label class="form-label" for="custody-notes">Not</label>
+          <textarea class="form-control" id="custody-notes" name="notes" maxlength="2000" rows="4">{{ values.get('notes', '') or '' }}</textarea>
+        </div>
+      </div>
+      <div class="custody-form-actions">
+        {{ ui.action_link(back_url, 'Vazgeç', icon='bi-x-lg', tone='secondary') }}
+        {{ ui.action_button('Değişiklikleri Kaydet' if record else 'Zimmeti Kaydet', icon='bi-check-lg', disabled=not record and not personnel) }}
+      </div>
+    </form>
+  {% else %}
+    {{ ui.status_badge('İade edildi', tone='success', icon='bi-check-circle') }}
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    (() => {
+      const serial = document.getElementById('custody-serial');
+      const quantity = document.getElementById('custody-quantity');
+      const assigned = document.getElementById('custody-assigned');
+      const expected = document.getElementById('custody-expected');
+      if (!serial || !quantity || !assigned || !expected) return;
+      const validate = () => {
+        quantity.setCustomValidity(serial.value.trim() && quantity.valueAsNumber !== 1
+          ? 'Seri numaralı cihazlarda adet 1 olmalıdır.' : '');
+        expected.min = assigned.value;
+      };
+      [serial, quantity, assigned].forEach(input => input.addEventListener('input', validate));
+      validate();
+    })();
+  </script>
+{% endblock %}

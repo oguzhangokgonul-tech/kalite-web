@@ -10,6 +10,7 @@ from .swot_models import SwotAnalysis
 from .pestle_models import PestleAnalysis
 from .context_models import OrganizationContext
 from .opportunity_models import Opportunity
+from .custody_models import CustodyRecord
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 
@@ -346,6 +347,14 @@ COMPANY_MODULE_CATALOG = (
         "description": "Gelen ve giden resmî yazıları, eklerini, dağıtımlarını ve arşiv durumlarını izler.",
         "icon": "bi-envelope-paper",
         "sort_order": 71,
+        "parent_key": None,
+    },
+    {
+        "key": "custody_management",
+        "name": "Zimmet Yönetimi",
+        "description": "Personele teslim edilen malzemelerin zimmet ve iade takibi.",
+        "icon": "bi-person-badge",
+        "sort_order": 72,
         "parent_key": None,
     },
     {

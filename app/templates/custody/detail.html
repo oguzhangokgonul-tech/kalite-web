@@ -1,0 +1,60 @@
+{% extends "custody/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ record.record_no }} | Zimmet{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(record.item_name, subtitle=record.record_no, icon='bi-box-seam', heading_level=1) %}
+    {{ ui.action_link(url_for('custody.dashboard'), 'Zimmet listesine dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+    {% if can_manage and not record.returned_date %}
+      {{ ui.action_link(url_for('custody.edit', record_id=record.id), 'Zimmeti düzenle', icon='bi-pencil', tone='secondary', icon_only=True) }}
+    {% endif %}
+  {% endcall %}
+
+  <div class="custody-statuses">
+    {{ ui.status_badge('İade edildi' if record.returned_date else 'Zimmette', tone='success' if record.returned_date else 'info', icon='bi-check-circle' if record.returned_date else 'bi-box-seam') }}
+    {% if record.is_overdue %}{{ ui.status_badge('İade gecikti', tone='danger', icon='bi-exclamation-circle') }}{% endif %}
+  </div>
+  <section class="custody-section" aria-labelledby="custody-record-title">
+    <h2 id="custody-record-title">Zimmet Bilgileri</h2>
+    <dl class="custody-facts">
+      <div><dt>Personel</dt><dd>{{ record.personnel.full_name if record.personnel else 'Personel bilgisi yok' }}</dd></div>
+      <div><dt>Seri no</dt><dd>{{ record.serial_no or '-' }}</dd></div>
+      <div><dt>Adet</dt><dd>{{ record.quantity }}</dd></div>
+      <div><dt>Teslim tarihi</dt><dd>{{ record.assigned_date.strftime('%d.%m.%Y') }}</dd></div>
+      <div><dt>Beklenen iade tarihi</dt><dd>{{ record.expected_return_date.strftime('%d.%m.%Y') if record.expected_return_date else '-' }}</dd></div>
+      <div class="custody-wide"><dt>Not</dt><dd class="custody-note">{{ record.notes or '-' }}</dd></div>
+    </dl>
+  </section>
+
+  {% if record.returned_date %}
+    <section class="custody-section" aria-labelledby="custody-return-title">
+      <h2 id="custody-return-title">İade Bilgileri</h2>
+      <dl class="custody-facts">
+        <div><dt>İade tarihi</dt><dd>{{ record.returned_date.strftime('%d.%m.%Y') }}</dd></div>
+        <div><dt>İade alınan adet</dt><dd>{{ record.quantity }}</dd></div>
+        <div class="custody-wide"><dt>İade notu</dt><dd class="custody-note">{{ record.return_note or '-' }}</dd></div>
+      </dl>
+    </section>
+  {% elif can_manage %}
+    <section class="custody-section" aria-labelledby="custody-return-title">
+      <h2 id="custody-return-title">İade Al</h2>
+      <p class="custody-return-summary">İade alınacak adet: <strong>{{ record.quantity }} (tamamı)</strong></p>
+      <form class="custody-form" method="post" action="{{ url_for('custody.return_record', record_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="version_id" value="{{ values.get('version_id', record.version_id) }}">
+        <div class="custody-form-grid">
+          <div>
+            <label class="form-label" for="custody-return-date">İade tarihi <span aria-hidden="true">*</span></label>
+            <input class="form-control" id="custody-return-date" name="returned_date" type="date" min="{{ record.assigned_date.isoformat() }}" max="{{ today.isoformat() }}" required value="{{ values.get('returned_date', today.isoformat()) }}">
+          </div>
+          <div class="custody-wide">
+            <label class="form-label" for="custody-return-note">İade notu</label>
+            <textarea class="form-control" id="custody-return-note" name="return_note" maxlength="2000" rows="4">{{ values.get('return_note', '') or '' }}</textarea>
+          </div>
+        </div>
+        <div class="custody-form-actions">
+          {{ ui.action_button('Tamamını İade Al', icon='bi-box-arrow-in-left') }}
+        </div>
+      </form>
+    </section>
+  {% endif %}
+{% endblock %}

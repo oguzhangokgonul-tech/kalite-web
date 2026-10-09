@@ -48,6 +48,15 @@ def _module_enabled(module_key):
 
 def _quick_actions():
     actions = []
+    if _company() and _module_enabled('custody_management') and any(
+        _has_permission(p) for p in ('custody.view', 'custody.view_all', 'custody.manage')
+    ):
+        actions.append({
+            'label': _('Zimmet Yönetimi'),
+            'description': _('Zimmetler ve iadeler'),
+            'icon': 'bi-person-badge',
+            'url': url_for('custody.dashboard'),
+        })
     if _module_enabled("maintenance"):
         actions.append(
             {
