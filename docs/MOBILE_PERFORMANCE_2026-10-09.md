@@ -29,6 +29,16 @@
 
 ## Deployment and recovery
 
-Deployment pending at this commit. Require a fresh stopped-writer backup, restore dry-run, off-host checksum, pinned fast-forward release, nginx configuration backup and nginx -t before reload. Verify service, timers, all three company/public hosts and compressed assets afterwards.
+Deployed application commit `305eee27d67d7d379063fe4de3bb695dc7ba6f7a`, followed by nginx compression scope fix `b69257b08204363cf13967085222886c31292654`. The existing global nginx setting also compressed HTML; the include now explicitly disables inherited compression at server scope, enabling it only in `/static/`.
+
+- Stopped-writer backup: `mobile-performance-release.JjACuRIH/archive/volkaportal-backup-20261009-061804.zip`, 59,349,016 bytes, 204 uploads. Checksum verification, database integrity and restore dry-run passed.
+- Off-host copy SHA-256 matched: `c2c81503fcfafe95cc93dd1dc85a5befd0714d7f5f60c61d020c6ec9853998d1`.
+- Existing migration head `202610080001`, company module flags, sales checklist values and custody row count preserved. Tenant health checks passed.
+- Live authenticated smoke exercised 11 available company/role combinations, including mobile hub and custody access. Seven role/company combinations had no live users; production role coverage is partial, with synthetic role coverage in the Python suite.
+- nginx configuration backed up and validated before reload. Application, nginx and both reminder/webhook timers individually verified active. Warning/error journal check since release start returned no entries.
+- External HTTPS checks passed on `volkaportal.com`, `erprefabrik.volkaportal.com` and `sagiroglucelik.volkaportal.com`: login 200, protected mobile route redirects to login, six local assets 200, five-minute public asset cache, no asset cookies, icon font signature correct. Login remains no-store and uncompressed.
+- Same-server warm CSS probe changed from 58 SELECTs / approximately 48 ms to zero SQL / approximately 2 ms. Manifest and service-worker requests now use two SELECTs / approximately 3-4 ms. These measure server request handling, not complete mobile page rendering.
+- Live gzip transfer: main CSS 286,033 -> 43,837 bytes; Bootstrap CSS 232,803 -> 31,840 bytes; Bootstrap JS 80,721 -> 23,995 bytes; icon CSS 85,875 -> 13,690 bytes; navigation JS 6,923 -> 2,296 bytes. Fonts retain their existing compressed format.
+- Graphify local AST map refreshed; generated graph, private backups, temporary scripts and logs excluded from commits.
 
 No schema rollback is needed. On a regression, restore the saved nginx configuration, validate/reload it, and deploy a reviewed revert commit for the application changes; preserve business data. Static cache freshness is bounded to five minutes.
