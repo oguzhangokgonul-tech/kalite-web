@@ -4,7 +4,7 @@
 
 Standalone, mobile-first personnel custody register at `/zimmet-yonetimi`.
 The existing equipment lifecycle assignments are unchanged and are not copied
-or synchronized into this register. No deployment has been performed for this change.
+or synchronized into this register. Deployed October 9; production proof is below.
 
 - Independent sidebar entry and permission-gated Mobile Center shortcut.
 - Create with personnel, item, quantity, delivery date, optional serial,
@@ -87,7 +87,7 @@ Before an approved production release: take and verify a backup, rehearse the
 migration on a protected copy, rerun the relevant tests, review the exact diff,
 then verify the service and role/company-scoped HTTP workflows. Prefer roll-forward
 after records exist. Downgrade drops custody records and must not be used as a
-routine rollback. No production backup or deployment is claimed here.
+routine rollback. The completed production backup and deployment are recorded below.
 
 ## October 9 Release Preparation
 
@@ -105,3 +105,43 @@ routine rollback. No production backup or deployment is claimed here.
   roles are reported rather than creating synthetic production users.
 - Final stopped-writer backup and external HTTPS checks remain mandatory. No
   checklist item or company module switch is changed by this release.
+
+## Production Proof - October 9
+
+- Feature commit: `880b49d83062b6120467d9a754e1478aaf16c8e1`, pushed to GitHub
+  and deployed by pinned fast-forward bundle. Production tracked worktree clean.
+- Migration: `202610080001`; integrity OK, nine custody guards, zero synthetic
+  custody records. Permission configuration audited and second invocation made
+  no changes. Company module rows and sales checklist values unchanged.
+- Stopped-writer backup:
+  `/var/data/aksiyon-takip/backups/custody-20261009-deploy/volkaportal-backup-20261009-054741.zip`.
+  59,345,841 bytes, 204 uploads, 206 checksums; verification and restore dry-run
+  passed. No live restore was performed.
+- Off-host restricted-access copy: `C:\Users\Asus\VolkaPortalBackups\20261009-custody`.
+  SHA-256: `c99f420a30727132a11c5248c0b9449bcec968fb04dd58cc585e70d8a3940298`.
+  Matching acknowledgment was required before code/database mutation.
+- Application restarted at 08:48:53 Europe/Istanbul; application and reminder/
+  webhook timers individually active. Post-start journal showed INFO startup
+  entries only. SIGTERM worker messages occurred during the intentional stop,
+  not after the new service started.
+- Eleven existing-user/company smoke checks passed: dashboard, create-form
+  permissions, Mobile Center shortcut, foreign-tenant session denial and
+  unscoped-admin denial. No business records created or edited.
+- Live role coverage is partial: company 1 lacks management-representative,
+  management, staff and viewer accounts; company 3 lacks department-manager,
+  staff and viewer accounts. Local six-role tests cover those scenarios.
+- External HTTPS verified on `volkaportal.com`, `erprefabrik.volkaportal.com`
+  and `sagiroglucelik.volkaportal.com`: login 200; unauthenticated custody page
+  redirects to login; custody CSS 200 and exact feature-commit SHA-256 match.
+- Release helper test: 1 passed; independent regression 30 passed; migration
+  tests with production-copy rehearsal 2 passed. Prior browser verification
+  covered 360/768/1440 px. No full-repository or physical-device guarantee.
+- Initial deployment attempt stopped before mutation on Git ownership checks;
+  Git operations were changed to run as the repository owner `aksiyon`. No
+  global safe-directory exemption or force/reset operation was used.
+
+Recovery: retain additive custody schema and data. Prefer forward fixes. If
+containment is needed, explicitly disable `custody_management` only for affected
+companies while recording their previous states; this leaves equipment lifecycle
+unchanged. Database restore or downgrade is not an automatic rollback and can
+discard post-backup business changes. No containment switch was changed here.
