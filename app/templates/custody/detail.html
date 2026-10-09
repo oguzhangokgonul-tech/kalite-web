@@ -16,7 +16,8 @@
   <section class="custody-section" aria-labelledby="custody-record-title">
     <h2 id="custody-record-title">Zimmet Bilgileri</h2>
     <dl class="custody-facts">
-      <div><dt>Personel</dt><dd>{{ record.personnel.full_name if record.personnel else 'Personel bilgisi yok' }}</dd></div>
+      <div><dt>Teslim Eden</dt><dd>{{ record.delivered_by_name }}</dd></div>
+      <div><dt>Teslim Alan</dt><dd>{{ record.personnel.full_name if record.personnel else 'Personel bilgisi yok' }}</dd></div>
       <div><dt>Seri no</dt><dd>{{ record.serial_no or '-' }}</dd></div>
       <div><dt>Adet</dt><dd>{{ record.quantity }}</dd></div>
       <div><dt>Teslim tarihi</dt><dd>{{ record.assigned_date.strftime('%d.%m.%Y') }}</dd></div>

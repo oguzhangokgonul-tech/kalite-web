@@ -41,7 +41,7 @@ def records():
         if person_id and not unambiguous_person_link(current_company_id(), person_id):
             person_id = None
         query = query.filter(CustodyRecord.personnel_contact_id == person_id if person_id else false())
-    return query.options(joinedload(CustodyRecord.personnel))
+    return query.options(joinedload(CustodyRecord.personnel), joinedload(CustodyRecord.created_by))
 
 
 def unambiguous_person_link(company_id, person_id):
@@ -293,9 +293,10 @@ def export():
     query, _, status = filtered()
     rows = [(r.record_no, r.item_name, r.serial_no or '', r.quantity, r.personnel.full_name,
              r.assigned_date.isoformat(), r.expected_return_date.isoformat() if r.expected_return_date else '',
-             r.returned_date.isoformat() if r.returned_date else '', 'İade Edildi' if r.returned_date else 'Zimmette') for r in query.order_by(CustodyRecord.id).all()]
+             r.returned_date.isoformat() if r.returned_date else '', 'İade Edildi' if r.returned_date else 'Zimmette',
+             r.delivered_by_name) for r in query.order_by(CustodyRecord.id).all()]
     rows = [tuple(re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]', '\ufffd', value) if isinstance(value, str) else value for value in row) for row in rows]
-    workbook = build_simple_xlsx(('Zimmet No', 'Malzeme', 'Seri No', 'Adet', 'Personel', 'Teslim Tarihi', 'Beklenen İade', 'İade Tarihi', 'Durum'), rows, sheet_name='Zimmetler')
+    workbook = build_simple_xlsx(('Zimmet No', 'Malzeme', 'Seri No', 'Adet', 'Teslim Alan', 'Teslim Tarihi', 'Beklenen İade', 'İade Tarihi', 'Durum', 'Teslim Eden'), rows, sheet_name='Zimmetler')
     record_audit_event('CustodyRecord', 'exported', 'Zimmet raporu', company_id=current_company_id(),
                        details={'row_count': len(rows), 'status': status})
     return send_file(workbook, as_attachment=True, download_name=f'zimmetler-{custody_today():%Y%m%d}.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

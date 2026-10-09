@@ -42,6 +42,11 @@ class CustodyRecord(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now(), onupdate=db.func.now())
     __mapper_args__ = {'version_id_col': version_id}
     personnel = db.relationship('PersonnelContact', primaryjoin='and_(CustodyRecord.personnel_contact_id == PersonnelContact.id, CustodyRecord.company_id == PersonnelContact.company_id)')
+    created_by = db.relationship('User', foreign_keys=[created_by_user_id], viewonly=True)
+
+    @property
+    def delivered_by_name(self):
+        return (self.created_by.full_name or self.created_by.username) if self.created_by else '-'
 
     @property
     def record_no(self):

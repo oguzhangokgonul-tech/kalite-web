@@ -115,6 +115,48 @@ def test_person_link_visibility_tenant_forgery_and_inactive(client):
     assert client.post(f'/zimmet-yonetimi/{record.id}/iade', data={'version_id': record.version_id, 'returned_date':custody_today().isoformat()}).status_code == 302
 
 
+def test_delivery_people_are_automatic_and_preserve_original_creator(client):
+    company, manager, person = setup_people()
+    editor = create_user('other-cust-manager', company=company, role_key='management_representative')
+    manager.full_name = 'Oğuzhan Gökgönül'
+    editor.full_name = 'Diğer Yönetici'
+    db.session.commit()
+    login(client, manager)
+    html = client.get('/zimmet-yonetimi/yeni').get_data(as_text=True)
+    assert 'id="custody-delivered-by" readonly value="Oğuzhan Gökgönül"' in html
+    assert 'Teslim Alan' in html
+    response = client.post('/zimmet-yonetimi/yeni', data=payload(person, created_by_user_id=editor.id))
+    assert response.status_code == 302
+    record = CustodyRecord.query.one()
+    assert record.created_by_user_id == manager.id
+    login(client, editor)
+    for path in ('/zimmet-yonetimi', f'/zimmet-yonetimi/{record.id}', f'/zimmet-yonetimi/{record.id}/duzenle'):
+        response = client.get(path)
+        assert response.status_code == 200
+        html = response.get_data(as_text=True)
+        assert 'Teslim Eden' in html and 'Teslim Alan' in html
+        assert manager.full_name in html and person.full_name in html
+    assert client.post(f'/zimmet-yonetimi/{record.id}/duzenle', data=payload(
+        person, version_id=record.version_id, created_by_user_id=editor.id, notes='Updated'
+    )).status_code == 302
+    assert record.created_by_user_id == manager.id
+    manager.is_active = False
+    db.session.commit()
+    assert client.post(f'/zimmet-yonetimi/{record.id}/iade', data={
+        'version_id': record.version_id, 'returned_date': custody_today().isoformat()
+    }).status_code == 302
+    assert record.returned_by_user_id == editor.id
+    assert record.delivered_by_name == manager.full_name
+    rows = sheet_values(client.get('/zimmet-yonetimi/rapor').data)
+    assert rows[1][rows[0].index('Teslim Eden')] == manager.full_name
+    assert rows[1][rows[0].index('Teslim Alan')] == person.full_name
+    assert 'İade Edildi' in rows[1]
+    outsider = create_user('foreign-cust-manager', company=create_company('FOREIGN-CUST'), role_key='management_representative')
+    login(client, outsider)
+    assert client.get(f'/zimmet-yonetimi/{record.id}').status_code == 404
+    assert manager.full_name not in client.get('/zimmet-yonetimi').get_data(as_text=True)
+
+
 @pytest.mark.parametrize('role,write', [('super_admin',True),('management_representative',True),('management',False),('department_manager',False),('department_staff',False),('viewer',False)])
 def test_six_role_and_module_controls(client, role, write):
     company = create_company('roles')
@@ -245,6 +287,7 @@ def test_company_bound_superadmin_can_switch_and_historical_role_change(client):
     assert client.post('/zimmet-yonetimi/yeni', data=payload(person)).status_code == 302
     record = CustodyRecord.query.one()
     assert record.company_id == company.id and record.created_by_user_id == admin.id
+    assert record.delivered_by_name == admin.full_name
     assert client.post(f'/zimmet-yonetimi/{record.id}/iade', data={
         'version_id': record.version_id, 'returned_date': custody_today().isoformat()
     }).status_code == 302
@@ -253,6 +296,7 @@ def test_company_bound_superadmin_can_switch_and_historical_role_change(client):
     admin.roles = [Role.query.filter_by(key='department_staff').one()]
     db.session.commit()
     login(client, manager)
+    assert admin.full_name in client.get(f'/zimmet-yonetimi/{record.id}').get_data(as_text=True)
     assert client.post(f'/zimmet-yonetimi/{open_record.id}/iade', data={
         'version_id': open_record.version_id, 'returned_date': custody_today().isoformat()
     }).status_code == 302

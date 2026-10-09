@@ -14,7 +14,11 @@
       {% if record %}<input type="hidden" name="version_id" value="{{ values.get('version_id', record.version_id) }}">{% endif %}
       <div class="custody-form-grid">
         <div class="custody-wide">
-          <label class="form-label" for="custody-personnel">Personel <span aria-hidden="true">*</span></label>
+          <label class="form-label" for="custody-delivered-by">Teslim Eden</label>
+          <input class="form-control" id="custody-delivered-by" readonly value="{{ record.delivered_by_name if record else (g.current_user.full_name or g.current_user.username) }}">
+        </div>
+        <div class="custody-wide">
+          <label class="form-label" for="custody-personnel">Teslim Alan <span aria-hidden="true">*</span></label>
           {% set selected_person = values.get('personnel_contact_id', record.personnel_contact_id if record else '')|string %}
           {% set listed_ids = personnel|map(attribute='id')|list %}
           <select class="form-select" id="custody-personnel" name="personnel_contact_id" required>

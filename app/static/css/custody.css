@@ -241,7 +241,7 @@
   }
 
   .custody-page .custody-list-facts {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) repeat(2, minmax(0, 1.5fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .custody-page .custody-form {
