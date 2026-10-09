@@ -709,6 +709,9 @@ def assigned_tasks_badge_count():
 
 @bp.before_app_request
 def load_logged_in_user():
+    # Public application assets never need tenant, session or task initialization.
+    if request.endpoint == "static":
+        return
     ensure_personnel_identity_columns()
     ensure_company_package_schema()
     from .legal import ensure_legal_schema
@@ -810,23 +813,25 @@ def load_logged_in_user():
             company_id=current_company_id(),
             user=g.current_user,
         )
-        try:
-            notification_query = scoped_query(
-                Notification.query,
-                Notification,
-            ).filter_by(user_id=g.current_user.id)
-            g.unread_notification_count = notification_query.filter_by(
-                is_read=False
-            ).count()
-            g.latest_notifications = (
-                notification_query.order_by(Notification.created_at.desc())
-                .limit(5)
-                .all()
-            )
-            g.assigned_tasks_count = assigned_tasks_badge_count()
-        except OperationalError:
-            db.session.rollback()
-            current_app.logger.exception("Bildirimler yüklenemedi.")
+
+
+@bp.app_context_processor
+def load_navigation_counts():
+    # JSON, file downloads, redirects and PWA metadata do not render the shell.
+    if getattr(g, "current_user", None) is None or request.endpoint == "pwa.offline":
+        return {}
+    if request.environ.get("volkaportal.navigation_counts_loaded"):
+        return {}
+    request.environ["volkaportal.navigation_counts_loaded"] = True
+    try:
+        notification_query = scoped_query(Notification.query, Notification).filter_by(user_id=g.current_user.id)
+        g.unread_notification_count = notification_query.filter_by(is_read=False).count()
+        g.latest_notifications = notification_query.order_by(Notification.created_at.desc()).limit(5).all()
+        g.assigned_tasks_count = assigned_tasks_badge_count()
+    except OperationalError:
+        db.session.rollback()
+        current_app.logger.exception("Bildirimler yüklenemedi.")
+    return {}
 
 
 def ensure_notification_dof_column():

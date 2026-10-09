@@ -12,6 +12,7 @@
   const groups = [...nav.querySelectorAll('.dashboard-nav-group')];
   const links = [...sidebar.querySelectorAll('.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link, .dashboard-logout')];
   const tooltips = [];
+  let visibleTooltip = null;
   let mainAnimation;
   let searchState = null;
   let lastFocusedElement = document.activeElement;
@@ -23,14 +24,15 @@
     if (!label) return;
     if (!link.hasAttribute('aria-label')) link.setAttribute('aria-label', label);
     if (link.matches('a') && link.classList.contains('active')) link.setAttribute('aria-current', 'page');
-    if (window.bootstrap?.Tooltip && !link.classList.contains('dashboard-subnav-item')) {
-      const tooltip = new bootstrap.Tooltip(link, { title: label, placement: 'right', container: 'body', trigger: 'hover focus', delay: { show: 150, hide: 0 }, customClass: 'vp-nav-tooltip' });
-      tooltips.push(tooltip);
-    }
   });
 
   function syncMode() {
     const compact = desktop.matches && root.dataset.navMode === 'compact';
+    if (compact && !tooltips.length && window.bootstrap?.Tooltip) {
+      links.filter(link => !link.classList.contains('dashboard-subnav-item') && link.hasAttribute('aria-label')).forEach(link => {
+        tooltips.push(new bootstrap.Tooltip(link, { title: link.getAttribute('aria-label'), placement: 'right', container: 'body', trigger: 'hover focus', delay: { show: 150, hide: 0 }, customClass: 'vp-nav-tooltip' }));
+      });
+    }
     modeButton.setAttribute('aria-expanded', String(!compact));
     const label = compact ? modeButton.dataset.expandLabel : modeButton.dataset.collapseLabel;
     modeButton.setAttribute('aria-label', label);
@@ -103,7 +105,9 @@
       event.stopPropagation(); search.value = ''; filterMenu();
     }
   });
-  nav.addEventListener('scroll', () => tooltips.forEach(t => t.hide()), { passive: true });
+  sidebar.addEventListener('shown.bs.tooltip', event => { visibleTooltip = bootstrap.Tooltip.getInstance(event.target); });
+  sidebar.addEventListener('hidden.bs.tooltip', () => { visibleTooltip = null; });
+  nav.addEventListener('scroll', () => visibleTooltip?.hide(), { passive: true });
   desktop.addEventListener('change', () => {
     mainAnimation?.cancel();
     // A breakpoint may hide the focused element before the media event arrives.

@@ -152,6 +152,10 @@ def create_app(config_class=Config):
 
     @app.after_request
     def apply_security_headers(response):
+        if request.endpoint == "static" and response.status_code in (200, 304):
+            response.cache_control.public = True
+            response.cache_control.no_cache = False
+            response.cache_control.max_age = 300
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
