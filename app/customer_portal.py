@@ -1,4 +1,5 @@
-from datetime import date, datetime, timedelta, timezone
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta, timezone
 from functools import wraps
 import hashlib
 import hmac
@@ -6,6 +7,7 @@ from io import BytesIO
 from pathlib import Path
 import re
 import secrets
+import warnings
 from uuid import uuid4
 
 from flask import (
@@ -23,6 +25,7 @@ from flask import (
 )
 from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .audit import record_audit_event
 from .company_packages import get_package_module_keys
@@ -38,6 +41,9 @@ from .models import (
     ComplaintMessage,
     ComplaintRecord,
     ComplaintStatusHistory,
+    CUSTOMER_FEEDBACK_SOURCES,
+    CUSTOMER_PORTAL_SOURCE,
+    INTERNAL_FEEDBACK_SOURCE,
     CustomerPortalAttempt,
     CustomerPortalSetting,
     CustomerPortalToken,
@@ -46,7 +52,7 @@ from .models import (
 )
 from .notifications import add_notifications
 from .request_security import request_client_ip
-from .tenant import tenant_url_for_company
+from .tenant import assign_current_company, scoped_query, tenant_url_for_company
 
 
 bp = Blueprint("customer_portal", __name__)
@@ -135,6 +141,13 @@ def ensure_customer_portal_schema():
             CustomerPortalAttempt,
         ):
             model.__table__.create(bind=db.engine, checkfirst=True)
+
+        file_columns = {column["name"] for column in inspect(db.engine).get_columns("complaint_files")}
+        if "evidence_stage" not in file_columns:
+            with db.engine.begin() as connection:
+                connection.execute(text(
+                    "ALTER TABLE complaint_files ADD COLUMN evidence_stage VARCHAR(20) NOT NULL DEFAULT 'general'"
+                ))
 
         with db.engine.begin() as connection:
             if "company_modules" in set(inspect(db.engine).get_table_names()):
@@ -231,6 +244,8 @@ def _can_access(record, user=None):
     user = user if user is not None else getattr(g, "current_user", None)
     if not user or not user.is_active or not user.has_permission("customer_portal.view"):
         return False
+    if user.company_id != record.company_id and not user.has_role("super_admin"):
+        return False
     if (
         user.has_permission("customer_portal.assign")
         or user.has_role("management")
@@ -240,20 +255,26 @@ def _can_access(record, user=None):
         )
     ):
         return True
-    if record.responsible_user_id == user.id:
+    if record.responsible_user_id == user.id or (
+        record.is_internal_feedback and record.created_by_user_id == user.id
+    ):
         return True
     return bool(user.has_role("department_manager") and _user_matches_department(user, record.department))
 
 
 def _visible_query(include_archived=False):
     company = _internal_company()
-    query = ComplaintRecord.query.filter_by(
-        company_id=company.id,
-        source="Müşteri Portalı",
+    query = scoped_query(ComplaintRecord.query, ComplaintRecord).filter(
+        ComplaintRecord.company_id == company.id,
+        ComplaintRecord.source.in_(CUSTOMER_FEEDBACK_SOURCES),
     )
     if not include_archived:
         query = query.filter(ComplaintRecord.is_archived.is_(False))
     user = g.current_user
+    ownership = or_(
+        ComplaintRecord.responsible_user_id == user.id,
+        (ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE) & (ComplaintRecord.created_by_user_id == user.id),
+    )
     if (
         _has_permission("customer_portal.assign")
         or user.has_role("management")
@@ -268,12 +289,16 @@ def _visible_query(include_archived=False):
             row.name for row in CompanyDepartment.query.filter_by(company_id=company.id, is_active=True).all()
             if _user_matches_department(user, row.name)
         ]
-        return query.filter(or_(ComplaintRecord.responsible_user_id == user.id, ComplaintRecord.department.in_(departments)))
-    return query.filter(ComplaintRecord.responsible_user_id == user.id)
+        return query.filter(or_(ownership, ComplaintRecord.department.in_(departments)))
+    return query.filter(ownership)
 
 
 def _record_or_404(record_id):
-    record = ComplaintRecord.query.filter_by(id=record_id, company_id=_internal_company().id, source="Müşteri Portalı").first_or_404()
+    record = scoped_query(ComplaintRecord.query, ComplaintRecord).filter(
+        ComplaintRecord.id == record_id,
+        ComplaintRecord.company_id == _internal_company().id,
+        ComplaintRecord.source.in_(CUSTOMER_FEEDBACK_SOURCES),
+    ).first_or_404()
     if not _can_access(record):
         abort(403)
     return record
@@ -310,7 +335,7 @@ def _valid_token(raw_token, purpose):
         or (purpose == "verification" and token.used_at is not None)
     ):
         abort(404)
-    if token.complaint.company_id != company.id:
+    if token.complaint.company_id != company.id or token.complaint.source != CUSTOMER_PORTAL_SOURCE:
         abort(404)
     return token
 
@@ -444,7 +469,49 @@ def _folder_usage(path):
     return sum(item.stat().st_size for item in path.rglob("*") if item.is_file()) if path.exists() else 0
 
 
-def _store_file(upload, record, message, visibility, by_customer):
+def _image_mimetype(stream, extension):
+    expected = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG"}.get(extension)
+    if expected is None:
+        raise ValueError("invalid_image")
+    try:
+        stream.seek(0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(stream) as picture:
+                if picture.format != expected:
+                    raise ValueError("invalid_image")
+                if picture.width * picture.height > 20_000_000:
+                    raise ValueError("image_dimensions")
+                picture.verify()
+            stream.seek(0)
+            with Image.open(stream) as picture:
+                picture.load()
+    except (OSError, UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning) as error:
+        raise ValueError("invalid_image") from error
+    finally:
+        stream.seek(0)
+    return "image/png" if expected == "PNG" else "image/jpeg"
+
+
+@contextmanager
+def _file_transaction():
+    # Paths survive ORM rollback, including a failed flush or commit.
+    paths = []
+    try:
+        yield paths
+    except Exception:
+        try:
+            db.session.rollback()
+        finally:
+            for path in paths:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    current_app.logger.exception("Geri alınan müşteri portalı eki silinemedi.")
+        raise
+
+
+def _store_file(upload, record, message, visibility, by_customer, *, evidence_stage="general", stored_paths=None):
     if not upload or not upload.filename:
         return None
     extension = _extension(upload.filename)
@@ -456,6 +523,24 @@ def _store_file(upload, record, message, visibility, by_customer):
     setting = _portal_setting(db.session.get(Company, record.company_id))
     if size <= 0 or size > max(1, setting.max_file_mb) * 1024 * 1024:
         raise ValueError("file_size")
+    if evidence_stage not in {"general", "before", "after"}:
+        raise ValueError("invalid_stage")
+    mime_type = upload.mimetype
+    if evidence_stage != "general":
+        if by_customer or visibility != "internal":
+            raise ValueError("invalid_stage")
+        mime_type = _image_mimetype(upload.stream, extension)
+        # Normalize orientation and omit camera metadata and trailing payloads.
+        with Image.open(upload.stream) as picture:
+            normalized = ImageOps.exif_transpose(picture).convert("RGB")
+            clean = BytesIO()
+            normalized.save(clean, format="PNG" if extension == "png" else "JPEG")
+            normalized.close()
+        clean.seek(0)
+        upload.stream = clean
+        size = clean.getbuffer().nbytes
+        if size > max(1, setting.max_file_mb) * 1024 * 1024:
+            raise ValueError("file_size")
     root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
     company_root = (root / f"company-{record.company_id:03d}").resolve()
     company_root.mkdir(parents=True, exist_ok=True)
@@ -465,20 +550,28 @@ def _store_file(upload, record, message, visibility, by_customer):
     relative = Path(f"company-{record.company_id:03d}") / "customer-feedback" / str(record.id) / f"{uuid4().hex}.{extension}"
     absolute = (root / relative).resolve()
     try:
-        absolute.relative_to(root)
+        company_root.relative_to(root)
+        absolute.relative_to(company_root)
     except ValueError:
         raise ValueError("invalid_file") from None
     absolute.parent.mkdir(parents=True, exist_ok=True)
-    upload.save(absolute)
-    digest = hashlib.sha256(absolute.read_bytes()).hexdigest()
+    if stored_paths is not None:
+        stored_paths.append(absolute)
+    try:
+        upload.save(absolute)
+        digest = hashlib.sha256(absolute.read_bytes()).hexdigest()
+    except Exception:
+        absolute.unlink(missing_ok=True)
+        raise
     row = ComplaintFile(
         company_id=record.company_id,
         complaint_id=record.id,
         message_id=message.id if message and message.id else None,
         visibility=visibility,
+        evidence_stage=evidence_stage,
         original_name=_clean_filename(upload.filename),
         stored_path=relative.as_posix(),
-        mime_type=upload.mimetype,
+        mime_type=mime_type,
         file_size=size,
         sha256_hash=digest,
         uploaded_by_user_id=None if by_customer else g.current_user.id,
@@ -486,6 +579,23 @@ def _store_file(upload, record, message, visibility, by_customer):
     )
     db.session.add(row)
     return row
+
+
+def _store_evidence(record, stored_paths):
+    count = sum(bool(upload.filename) for stage in ("before", "after")
+                for upload in request.files.getlist(f"{stage}_images"))
+    if count > 12:
+        raise ValueError("too_many_images")
+    rows = []
+    for stage in ("before", "after"):
+        for upload in request.files.getlist(f"{stage}_images"):
+            row = _store_file(
+                upload, record, None, "internal", False,
+                evidence_stage=stage, stored_paths=stored_paths,
+            )
+            if row is not None:
+                rows.append(row)
+    return rows
 
 
 def _send_verification(record, raw_token):
@@ -501,6 +611,8 @@ def _send_verification(record, raw_token):
 
 
 def _send_tracking(record, raw_token, subject, lead):
+    if record.source != CUSTOMER_PORTAL_SOURCE:
+        return None
     company = db.session.get(Company, record.company_id)
     url = tenant_url_for_company(company, url_for("customer_portal.track", raw_token=raw_token))
     send_recipient_email(
@@ -574,33 +686,29 @@ def public_form():
                 consented_at=now,
             )
             db.session.add(record)
-            stored_file = None
             try:
-                db.session.flush()
-                message = ComplaintMessage(
-                    company_id=company.id,
-                    complaint_id=record.id,
-                    sender_type="customer",
-                    sender_name=record.contact_name,
-                    body=record.description,
-                    visibility="public",
-                )
-                db.session.add(message)
-                db.session.flush()
-                stored_file = _store_file(
-                    request.files.get("attachment"),
-                    record,
-                    message,
-                    "public",
-                    True,
-                )
-                raw_token, _token = _new_token(record, "verification", timedelta(hours=max(1, setting.verification_hours)))
-                attempt.success = True
-                _status_history(record, "public", "E-posta doğrulaması bekleniyor")
-                _audit(record, "submitted", {"record_type": record.record_type, "source": record.source})
-                db.session.commit()
+                with _file_transaction() as paths:
+                    db.session.flush()
+                    message = ComplaintMessage(
+                        company_id=company.id,
+                        complaint_id=record.id,
+                        sender_type="customer",
+                        sender_name=record.contact_name,
+                        body=record.description,
+                        visibility="public",
+                    )
+                    db.session.add(message)
+                    db.session.flush()
+                    _store_file(
+                        request.files.get("attachment"), record, message, "public", True,
+                        stored_paths=paths,
+                    )
+                    raw_token, _token = _new_token(record, "verification", timedelta(hours=max(1, setting.verification_hours)))
+                    attempt.success = True
+                    _status_history(record, "public", "E-posta doğrulaması bekleniyor")
+                    _audit(record, "submitted", {"record_type": record.record_type, "source": record.source})
+                    db.session.commit()
             except (ValueError, IntegrityError) as error:
-                _delete_stored_file(stored_file)
                 db.session.rollback()
                 flash(
                     "Ek dosya türü, boyutu veya depolama kotasını kontrol edin."
@@ -673,17 +781,18 @@ def track(raw_token):
             )
             db.session.add(message)
             try:
-                db.session.flush()
-                _store_file(request.files.get("attachment"), record, message, "public", True)
-                record.last_customer_message_at = _utcnow()
-                if record.status != "Yeni":
-                    record.status = "İncelemede"
-                    record.public_status = "İnceleniyor"
-                    _status_history(record, "customer", "Müşteri yanıt verdi")
-                attempt.success = True
-                _audit(record, "customer_message", {"attachment": bool(request.files.get("attachment"))})
-                _notify_internal(record, f"{record.complaint_no} kaydına müşteri yanıt verdi.", f"customer-message:{message.id}", event_type="rescheduled")
-                db.session.commit()
+                with _file_transaction() as paths:
+                    db.session.flush()
+                    _store_file(request.files.get("attachment"), record, message, "public", True, stored_paths=paths)
+                    record.last_customer_message_at = _utcnow()
+                    if record.status != "Yeni":
+                        record.status = "İncelemede"
+                        record.public_status = "İnceleniyor"
+                        _status_history(record, "customer", "Müşteri yanıt verdi")
+                    attempt.success = True
+                    _audit(record, "customer_message", {"attachment": bool(request.files.get("attachment"))})
+                    _notify_internal(record, f"{record.complaint_no} kaydına müşteri yanıt verdi.", f"customer-message:{message.id}", event_type="rescheduled")
+                    db.session.commit()
                 flash("Mesajınız kaydedildi.", "success")
                 return redirect(url_for("customer_portal.track", raw_token=raw_token))
             except ValueError:
@@ -725,14 +834,23 @@ def rate(raw_token):
 
 def _safe_file_path(row):
     root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    record_root = (root / f"company-{row.company_id:03d}" / "customer-feedback" / str(row.complaint_id)).resolve()
     candidate = (root / row.stored_path).resolve()
     try:
-        candidate.relative_to(root)
+        record_root.relative_to(root)
+        candidate.relative_to(record_root)
     except ValueError:
         abort(404)
     if not candidate.is_file():
         abort(404)
     return candidate
+
+
+def _private_file_response(response):
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    return response
 
 
 def _delete_stored_file(row):
@@ -763,7 +881,85 @@ def public_file(raw_token, file_id):
     path = _safe_file_path(row)
     _audit(token.complaint, "public_file_download", {"file_id": row.id})
     db.session.commit()
-    return send_from_directory(path.parent, path.name, as_attachment=True, download_name=row.original_name)
+    return _private_file_response(send_from_directory(path.parent, path.name, as_attachment=True, download_name=row.original_name))
+
+
+@bp.route("/musteri-geri-bildirimleri/yeni", methods=["GET", "POST"])
+@login_required
+def new_record():
+    if not (_has_permission("customer_portal.create") and _has_permission("customer_portal.view")):
+        abort(403)
+    company = _internal_company()
+    users = scoped_query(User.query, User).filter_by(is_active=True).order_by(User.full_name).all()
+    users = [user for user in users if user.has_permission("customer_portal.view")]
+    departments = scoped_query(CompanyDepartment.query, CompanyDepartment).filter_by(is_active=True).order_by(
+        CompanyDepartment.sort_order, CompanyDepartment.name,
+    ).all()
+    errors = []
+    if request.method == "POST":
+        try:
+            values = {
+                key: request.form.get(key, "").strip()
+                for key in ("customer_name", "customer_reference", "subject", "description", "department", "corrective_action")
+            }
+            limits = {"customer_name": 180, "customer_reference": 120, "subject": 180,
+                      "description": 5000, "department": 80, "corrective_action": 5000}
+            if any(len(values[key]) > limit for key, limit in limits.items()) or any(
+                not values[key] for key in ("customer_name", "subject", "description")
+            ):
+                raise ValueError("required_fields")
+            received = date.fromisoformat(request.form.get("received_date", "").strip())
+            due_value = request.form.get("due_date", "").strip()
+            due = date.fromisoformat(due_value) if due_value else None
+            if received > date.today() or (due and due < received):
+                raise ValueError("invalid_dates")
+            responsible_value = request.form.get("responsible_user_id", "").strip()
+            responsible_id = int(responsible_value) if responsible_value else None
+            if responsible_id is not None and responsible_id not in {user.id for user in users}:
+                raise ValueError("invalid_responsible")
+            if responsible_id not in {None, g.current_user.id} and not _has_permission("customer_portal.assign"):
+                abort(403)
+            if values["department"] and values["department"] not in {row.name for row in departments}:
+                raise ValueError("invalid_department")
+            if values["department"] and not _has_permission("customer_portal.assign"):
+                abort(403)
+            record_type = request.form.get("record_type", "Şikayet").strip()
+            priority = request.form.get("priority", "Orta").strip()
+            if record_type not in RECORD_TYPES or priority not in PRIORITIES:
+                raise ValueError("invalid_options")
+            with _file_transaction() as paths:
+                record = assign_current_company(ComplaintRecord(
+                    complaint_no=_next_record_no(company.id), source=INTERNAL_FEEDBACK_SOURCE,
+                    record_type=record_type, priority=priority,
+                    customer_name=values["customer_name"], customer_reference=values["customer_reference"] or None,
+                    subject=values["subject"], description=values["description"],
+                    department=values["department"] or None, corrective_action=values["corrective_action"] or None,
+                    received_date=received, due_date=due,
+                    resolution_due_at=datetime.combine(due, time.max) if due else None,
+                    responsible_user_id=responsible_id, created_by_user_id=g.current_user.id,
+                    status="Atandı" if responsible_id else "Yeni", public_status="Alındı",
+                ))
+                db.session.add(record)
+                db.session.flush()
+                files = _store_evidence(record, paths)
+                _status_history(record, "internal", "Personel tarafından oluşturuldu")
+                _audit(record, "created", {"source": record.source, "evidence_count": len(files)})
+                _notify_internal(record, f"{record.complaint_no} numaralı müşteri geri bildirimi oluşturuldu.", "created", event_type="approval")
+                db.session.commit()
+        except (ValueError, IntegrityError) as error:
+            db.session.rollback()
+            errors.append("Alanları, tarihleri ve PNG/JPEG dosyalarının tür, boyut ve kotasını kontrol edin."
+                          if isinstance(error, ValueError) else "Kayıt oluşturulamadı; lütfen tekrar deneyin.")
+            flash(errors[-1], "danger")
+        else:
+            flash("Müşteri geri bildirimi kaydedildi.", "success")
+            return redirect(url_for("customer_portal.detail", record_id=record.id))
+    return render_template(
+        "customer_portal/form.html", users=users, departments=departments,
+        record_types=RECORD_TYPES, priorities=PRIORITIES, today=date.today(), errors=errors,
+        form_data=request.form if request.method == "POST" else {},
+        can_assign=_has_permission("customer_portal.assign"),
+    ), (400 if errors else 200)
 
 
 @bp.get("/musteri-geri-bildirimleri")
@@ -773,7 +969,7 @@ def dashboard():
         abort(403)
     show_archived = request.args.get("archived") == "1"
     query = _visible_query(include_archived=show_archived).filter(
-        ComplaintRecord.email_verified_at.isnot(None)
+        or_(ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE, ComplaintRecord.email_verified_at.isnot(None))
     )
     if show_archived:
         query = query.filter(ComplaintRecord.is_archived.is_(True))
@@ -781,10 +977,11 @@ def dashboard():
     status = request.args.get("status", "").strip()
     if search:
         value = f"%{search}%"
-        query = query.filter(or_(ComplaintRecord.complaint_no.ilike(value), ComplaintRecord.customer_name.ilike(value), ComplaintRecord.subject.ilike(value)))
+        query = query.filter(or_(ComplaintRecord.complaint_no.ilike(value), ComplaintRecord.customer_name.ilike(value), ComplaintRecord.subject.ilike(value), ComplaintRecord.customer_reference.ilike(value)))
     if status:
         query = query.filter(ComplaintRecord.status == status)
-    records = query.order_by(ComplaintRecord.resolution_due_at.asc(), ComplaintRecord.id.desc()).all()
+    records = query.all()
+    records.sort(key=lambda row: (row.is_closed, row.due_date is None, row.due_date or date.max, -row.id))
     now = _utcnow()
     return render_template(
         "customer_portal/dashboard.html",
@@ -796,6 +993,7 @@ def dashboard():
         now=now,
         can_export=_has_permission("customer_portal.export"),
         can_settings=_has_permission("customer_portal.settings"),
+        can_create=_has_permission("customer_portal.create"),
     )
 
 
@@ -807,9 +1005,16 @@ def detail(record_id):
     record = _record_or_404(record_id)
     company = _internal_company()
     users = User.query.filter_by(company_id=company.id, is_active=True).order_by(User.full_name).all()
+    users = [user for user in users if user.has_permission("customer_portal.view")]
     departments = CompanyDepartment.query.filter_by(company_id=company.id, is_active=True).order_by(CompanyDepartment.sort_order, CompanyDepartment.name).all()
-    actions = Action.query.filter_by(company_id=company.id).order_by(Action.id.desc()).all()
-    dofs = Dof.query.filter_by(company_id=company.id).order_by(Dof.id.desc()).all()
+    actions = Action.query.filter_by(company_id=company.id).order_by(Action.id.desc()).all() if _has_permission("customer_portal.assign") else ([record.action] if record.action else [])
+    dofs = Dof.query.filter_by(company_id=company.id).order_by(Dof.id.desc()).all() if _has_permission("customer_portal.assign") else ([record.dof] if record.dof else [])
+    can_add_evidence = not record.is_archived and (
+        any(_has_permission(key) for key in (
+            "customer_portal.respond", "customer_portal.triage", "customer_portal.assign",
+        )) or (record.is_internal_feedback and record.created_by_user_id == g.current_user.id
+               and _has_permission("customer_portal.create"))
+    )
     return render_template(
         "customer_portal/detail.html",
         record=record,
@@ -827,10 +1032,13 @@ def detail(record_id):
         can_close=_has_permission("customer_portal.close"),
         can_archive=_has_permission("customer_portal.archive"),
         can_download=_has_permission("customer_portal.file_download"),
+        is_internal=record.is_internal_feedback,
+        can_add_evidence=can_add_evidence,
         can_update=(
             _has_permission("customer_portal.triage")
             or _has_permission("customer_portal.assign")
             or _has_permission("customer_portal.close")
+            or _has_permission("customer_portal.respond")
         ),
     )
 
@@ -841,19 +1049,46 @@ def update(record_id):
     can_triage = _has_permission("customer_portal.triage")
     can_assign = _has_permission("customer_portal.assign")
     can_close = _has_permission("customer_portal.close")
-    if not (can_triage or can_assign or can_close):
+    can_respond = _has_permission("customer_portal.respond")
+    if not (can_triage or can_assign or can_close or can_respond):
         abort(403)
     record = _record_or_404(record_id)
     if record.is_archived:
         abort(400)
+    if not (can_triage or can_assign or can_close):
+        protected_values = {
+            "status": record.status, "priority": record.priority,
+            "department": record.department or "", "responsible_user_id": str(record.responsible_user_id or ""),
+            "action_id": str(record.action_id or ""), "dof_id": str(record.dof_id or ""),
+            "customer_solution_summary": record.customer_solution_summary or "",
+            "due_date": record.due_date.isoformat() if record.due_date else "",
+            "first_response_due_at": record.first_response_due_at.isoformat(timespec="minutes") if record.first_response_due_at else "",
+            "resolution_due_at": record.resolution_due_at.isoformat(timespec="minutes") if record.resolution_due_at else "",
+        }
+        if any(key in request.form and request.form[key].strip() != value for key, value in protected_values.items()):
+            abort(403)
+        work_summary = request.form.get("corrective_action", record.corrective_action or "").strip()
+        if len(work_summary) > 5000:
+            abort(400)
+        record.corrective_action = work_summary or None
+        _audit(record, "work_summary_updated")
+        db.session.commit()
+        flash("Çalışma özeti kaydedildi.", "success")
+        return redirect(url_for("customer_portal.detail", record_id=record.id))
     old_status = record.status
+    old_responsible_id = record.responsible_user_id
+    old_due_date = record.due_date
     status = request.form.get("status", record.status).strip()
     priority = request.form.get("priority", record.priority).strip()
-    department = request.form.get("department", "").strip()
-    responsible_id = request.form.get("responsible_user_id", type=int)
+    department = request.form.get("department", record.department or "").strip()
+    try:
+        responsible_value = request.form.get("responsible_user_id", str(record.responsible_user_id or "")).strip()
+        responsible_id = int(responsible_value) if responsible_value else None
+    except ValueError:
+        abort(400)
     if status not in INTERNAL_STATUSES or priority not in PRIORITIES:
         abort(400)
-    if not can_triage and status not in {"Kapatıldı", "Reddedildi"}:
+    if not can_triage and status != old_status and not (can_close and status in {"Kapatıldı", "Reddedildi"}):
         abort(403)
     if not can_triage:
         priority = record.priority
@@ -862,18 +1097,50 @@ def update(record_id):
     if department and department not in valid_departments:
         abort(400)
     responsible = User.query.filter_by(id=responsible_id, company_id=company.id, is_active=True).first() if responsible_id else None
-    if responsible_id and responsible is None:
+    if responsible_id and (responsible is None or not responsible.has_permission("customer_portal.view")):
         abort(400)
-    if status in {"Kapatıldı", "Reddedildi"} and not can_close:
+    if status != old_status and status in {"Kapatıldı", "Reddedildi"} and not can_close:
         abort(403)
-    action_id = request.form.get("action_id", type=int)
-    dof_id = request.form.get("dof_id", type=int)
+    try:
+        action_value = request.form.get("action_id", str(record.action_id or "")).strip()
+        dof_value = request.form.get("dof_id", str(record.dof_id or "")).strip()
+        action_id = int(action_value) if action_value else None
+        dof_id = int(dof_value) if dof_value else None
+    except ValueError:
+        abort(400)
     action = Action.query.filter_by(id=action_id, company_id=company.id).first() if action_id else None
     dof = Dof.query.filter_by(id=dof_id, company_id=company.id).first() if dof_id else None
     if (action_id and action is None) or (dof_id and dof is None):
         abort(400)
     effective_action = action if can_assign else record.action
     effective_dof = dof if can_assign else record.dof
+    work_summary = request.form.get("corrective_action", record.corrective_action or "").strip()
+    if len(work_summary) > 5000:
+        abort(400)
+    first_due = record.first_response_due_at
+    resolution_due = record.resolution_due_at
+    due_date = record.due_date
+    try:
+        if can_triage:
+            first_value = request.form.get("first_response_due_at", "").strip()
+            resolution_value = request.form.get("resolution_due_at", "").strip()
+            first_due = datetime.fromisoformat(first_value) if first_value else first_due
+            resolution_due = datetime.fromisoformat(resolution_value) if resolution_value else resolution_due
+            if any(value is not None and value.tzinfo is not None for value in (first_due, resolution_due)):
+                raise ValueError("invalid_timezone")
+        if "due_date" in request.form and (can_triage or can_assign):
+            due_value = request.form.get("due_date", "").strip()
+            due_date = date.fromisoformat(due_value) if due_value else None
+            resolution_due = datetime.combine(due_date, time.max) if due_date else None
+        elif resolution_due:
+            due_date = resolution_due.date()
+        if due_date and record.received_date and due_date < record.received_date:
+            raise ValueError("invalid_dates")
+    except ValueError:
+        abort(400)
+    solution = request.form.get("customer_solution_summary", record.customer_solution_summary or "").strip()
+    if len(solution) > 5000:
+        abort(400)
     is_resolution_status = status in {"Çözüm Bildirildi", "Kapatıldı", "Reddedildi"}
     if is_resolution_status:
         if effective_action and not effective_action.is_completed:
@@ -882,40 +1149,26 @@ def update(record_id):
         if effective_dof and effective_dof.status != "Tamamlandı":
             flash("Bağlı IF/DÖF tamamlanmadan kayıt kapatılamaz.", "danger")
             return redirect(url_for("customer_portal.detail", record_id=record.id))
-        solution = request.form.get("customer_solution_summary", "").strip()
         if not solution:
-            flash("Çözüm veya kapanış için müşteriye gösterilecek özet zorunludur.", "danger")
+            flash("Çözüm veya kapanış sonucu zorunludur." if record.is_internal_feedback else
+                  "Çözüm veya kapanış için müşteriye gösterilecek özet zorunludur.", "danger")
             return redirect(url_for("customer_portal.detail", record_id=record.id))
-        record.customer_solution_summary = solution[:5000]
         record.resolved_at = record.resolved_at or _utcnow()
         if status in {"Kapatıldı", "Reddedildi"}:
-            record.closed_at = _utcnow()
+            record.closed_at = record.closed_at or _utcnow()
     record.status = status
     record.public_status = PUBLIC_STATUS_BY_INTERNAL[status]
     record.priority = priority
+    record.corrective_action = work_summary or None
+    record.customer_solution_summary = solution or None
     if can_assign:
         record.department = department or None
         record.responsible_user_id = responsible.id if responsible else None
         record.action_id = action.id if action else None
         record.dof_id = dof.id if dof else None
-    if can_triage:
-        first_due = request.form.get("first_response_due_at", "").strip()
-        resolution_due = request.form.get("resolution_due_at", "").strip()
-        try:
-            record.first_response_due_at = (
-                datetime.fromisoformat(first_due)
-                if first_due
-                else record.first_response_due_at
-            )
-            record.resolution_due_at = (
-                datetime.fromisoformat(resolution_due)
-                if resolution_due
-                else record.resolution_due_at
-            )
-        except ValueError:
-            abort(400)
-    if record.resolution_due_at:
-        record.due_date = record.resolution_due_at.date()
+    record.first_response_due_at = first_due
+    record.resolution_due_at = resolution_due
+    record.due_date = due_date
     if status not in {"Kapatıldı", "Reddedildi"}:
         record.closed_at = None
         if status != "Çözüm Bildirildi":
@@ -923,12 +1176,17 @@ def update(record_id):
     if old_status != record.status:
         _status_history(record, "internal", "İç süreç durumu güncellendi")
     _audit(record, "triaged", {"status": record.status, "priority": record.priority, "department": record.department})
+    if record.is_internal_feedback and not record.is_closed and (
+        old_responsible_id != record.responsible_user_id or old_due_date != record.due_date
+    ):
+        _notify_internal(record, f"{record.complaint_no} kaydının sorumlusu veya termini güncellendi.",
+                         f"updated:{uuid4().hex}", event_type="rescheduled")
     db.session.commit()
     became_resolved = (
         status in {"Çözüm Bildirildi", "Kapatıldı", "Reddedildi"}
         and old_status != status
     )
-    if became_resolved:
+    if became_resolved and record.source == CUSTOMER_PORTAL_SOURCE:
         raw, _ = _new_token(record, "tracking", timedelta(days=max(1, _portal_setting(company).tracking_days)))
         db.session.commit()
         _send_tracking(
@@ -947,10 +1205,14 @@ def add_message(record_id):
     if not _has_permission("customer_portal.respond"):
         abort(403)
     record = _record_or_404(record_id)
+    if record.is_archived:
+        abort(400)
     body = request.form.get("message", "").strip()
     visibility = request.form.get("visibility", "public")
     if not body or len(body) > 3000 or visibility not in {"public", "internal"}:
         abort(400)
+    if record.is_internal_feedback:
+        visibility = "internal"
     message = ComplaintMessage(
         company_id=record.company_id,
         complaint_id=record.id,
@@ -962,20 +1224,21 @@ def add_message(record_id):
     )
     db.session.add(message)
     try:
-        db.session.flush()
-        _store_file(request.files.get("attachment"), record, message, visibility, False)
+        with _file_transaction() as paths:
+            db.session.flush()
+            _store_file(request.files.get("attachment"), record, message, visibility, False, stored_paths=paths)
+            if visibility == "public":
+                now = _utcnow()
+                record.first_response_at = record.first_response_at or now
+                record.public_status = "İnceleniyor" if not record.is_closed else record.public_status
+                _audit(record, "public_response", {"attachment": bool(request.files.get("attachment"))})
+            else:
+                _audit(record, "internal_note", {"attachment": bool(request.files.get("attachment"))})
+            db.session.commit()
     except ValueError:
         db.session.rollback()
         flash("Ek dosya türü, boyutu veya depolama kotasını kontrol edin.", "danger")
         return redirect(url_for("customer_portal.detail", record_id=record.id))
-    if visibility == "public":
-        now = _utcnow()
-        record.first_response_at = record.first_response_at or now
-        record.public_status = "İnceleniyor" if not record.is_closed else record.public_status
-        _audit(record, "public_response", {"attachment": bool(request.files.get("attachment"))})
-    else:
-        _audit(record, "internal_note", {"attachment": bool(request.files.get("attachment"))})
-    db.session.commit()
     if visibility == "public":
         setting = _portal_setting(_internal_company())
         raw, _ = _new_token(record, "tracking", timedelta(days=max(1, setting.tracking_days)))
@@ -1019,7 +1282,57 @@ def internal_file(record_id, file_id):
     path = _safe_file_path(row)
     _audit(record, "internal_file_download", {"file_id": row.id, "visibility": row.visibility})
     db.session.commit()
-    return send_from_directory(path.parent, path.name, as_attachment=True, download_name=row.original_name)
+    return _private_file_response(send_from_directory(path.parent, path.name, as_attachment=True, download_name=row.original_name))
+
+
+@bp.get("/musteri-geri-bildirimleri/<int:record_id>/dosya/<int:file_id>/onizle")
+@login_required
+def preview_file(record_id, file_id):
+    if not _has_permission("customer_portal.file_download"):
+        abort(403)
+    record = _record_or_404(record_id)
+    row = scoped_query(ComplaintFile.query, ComplaintFile).filter_by(
+        id=file_id, complaint_id=record.id, is_active=True,
+    ).first_or_404()
+    path = _safe_file_path(row)
+    try:
+        with path.open("rb") as stream:
+            mime_type = _image_mimetype(stream, path.suffix.lower().lstrip("."))
+    except ValueError:
+        abort(404)
+    _audit(record, "internal_file_preview", {"file_id": row.id, "evidence_stage": row.evidence_stage})
+    db.session.commit()
+    return _private_file_response(send_file(
+        path, mimetype=mime_type, as_attachment=False, download_name=row.original_name,
+    ))
+
+
+@bp.post("/musteri-geri-bildirimleri/<int:record_id>/kanit-yukle")
+@login_required
+def upload_evidence(record_id):
+    record = _record_or_404(record_id)
+    if record.is_archived:
+        abort(400)
+    if not (any(_has_permission(key) for key in (
+        "customer_portal.respond", "customer_portal.triage", "customer_portal.assign",
+    )) or (record.is_internal_feedback and record.created_by_user_id == g.current_user.id
+           and _has_permission("customer_portal.create"))):
+        abort(403)
+    try:
+        with _file_transaction() as paths:
+            rows = _store_evidence(record, paths)
+            if not rows:
+                raise ValueError("missing_images")
+            db.session.flush()
+            _audit(record, "evidence_uploaded", {"files": [
+                {"id": row.id, "stage": row.evidence_stage} for row in rows
+            ]})
+            db.session.commit()
+    except (ValueError, IntegrityError):
+        flash("PNG/JPEG dosyalarını, boyutlarını ve depolama kotasını kontrol edin.", "danger")
+    else:
+        flash("Kanıt görselleri kaydedildi.", "success")
+    return redirect(url_for("customer_portal.detail", record_id=record.id))
 
 
 @bp.route("/musteri-geri-bildirimleri/ayarlar", methods=["GET", "POST"])
@@ -1072,12 +1385,14 @@ def settings():
 @bp.get("/musteri-geri-bildirimleri/rapor.xlsx")
 @login_required
 def export_excel():
-    if not _has_permission("customer_portal.export"):
+    if not (_has_permission("customer_portal.export") and _has_permission("customer_portal.view")):
         abort(403)
     from .routes import build_simple_xlsx
 
     rows = []
-    for record in _visible_query(include_archived=True).order_by(
+    for record in _visible_query(include_archived=True).filter(
+        or_(ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE, ComplaintRecord.email_verified_at.isnot(None))
+    ).order_by(
         ComplaintRecord.received_date.desc(),
         ComplaintRecord.id.desc(),
     ).all():
@@ -1097,9 +1412,16 @@ def export_excel():
             record.first_response_due_at.strftime("%d.%m.%Y %H:%M") if record.first_response_due_at else "",
             record.resolution_due_at.strftime("%d.%m.%Y %H:%M") if record.resolution_due_at else "",
             record.customer_rating or "",
+            record.customer_reference or "",
+            record.created_by.full_name if record.created_by else (record.contact_name or ""),
+            record.corrective_action or "",
+            record.due_date.strftime("%d.%m.%Y") if record.due_date else "",
+            (record.due_date - date.today()).days if record.due_date and not record.is_closed else "",
+            record.closed_at.strftime("%d.%m.%Y") if record.closed_at else "",
+            record.customer_solution_summary or "",
         ))
     workbook = build_simple_xlsx(
-        ("Kayıt No", "Tür", "Müşteri", "İlgili Kişi", "E-posta", "Konu", "Departman", "Sorumlu", "Öncelik", "İç Durum", "Müşteri Durumu", "Alınma Tarihi", "İlk Yanıt Termini", "Çözüm Termini", "Memnuniyet"),
+        ("Kayıt No", "Tür", "Müşteri", "İlgili Kişi", "E-posta", "Konu", "Departman", "Sorumlu", "Öncelik", "İç Durum", "Müşteri Durumu", "Alınma Tarihi", "İlk Yanıt Termini", "Çözüm Termini", "Memnuniyet", "Proje No", "Kaydeden", "Yapılan İşlem Özeti", "Termin", "Kalan Gün", "Sonuçlanma Tarihi", "Sonuç Özeti"),
         rows,
         sheet_name="Müşteri Geri Bildirimleri",
     )

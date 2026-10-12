@@ -2989,6 +2989,9 @@ MODULE_ENDPOINTS = {
     "main.edit_complaint": "suggestions",
     "main.delete_complaint": "suggestions",
     "customer_portal.dashboard": "customer_feedback_portal",
+    "customer_portal.new_record": "customer_feedback_portal",
+    "customer_portal.upload_evidence": "customer_feedback_portal",
+    "customer_portal.preview_file": "customer_feedback_portal",
     "customer_portal.detail": "customer_feedback_portal",
     "customer_portal.update": "customer_feedback_portal",
     "customer_portal.add_message": "customer_feedback_portal",
@@ -7500,7 +7503,7 @@ def management_due_items(all_actions=None, limit=None, visible_scope=True):
     ):
         portal_records = customer_feedback_query(
             visible_scope=visible_scope
-        ).filter(ComplaintRecord.email_verified_at.isnot(None))
+        )
         for complaint in portal_records.all():
             if complaint.is_closed:
                 continue
@@ -13879,17 +13882,20 @@ def can_delete_complaints():
 
 
 def complaint_query():
+    from .models import CUSTOMER_FEEDBACK_SOURCES
     return scoped_query(ComplaintRecord.query, ComplaintRecord).filter(
         or_(
             ComplaintRecord.source.is_(None),
-            ComplaintRecord.source != "Müşteri Portalı",
+            ComplaintRecord.source.notin_(CUSTOMER_FEEDBACK_SOURCES),
         )
     )
 
 
 def customer_feedback_query(include_archived=False, visible_scope=True):
-    query = scoped_query(ComplaintRecord.query, ComplaintRecord).filter_by(
-        source="Müşteri Portalı"
+    from .models import CUSTOMER_FEEDBACK_SOURCES, INTERNAL_FEEDBACK_SOURCE
+    query = scoped_query(ComplaintRecord.query, ComplaintRecord).filter(
+        ComplaintRecord.source.in_(CUSTOMER_FEEDBACK_SOURCES),
+        or_(ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE, ComplaintRecord.email_verified_at.isnot(None)),
     )
     if not include_archived:
         query = query.filter(ComplaintRecord.is_archived.is_(False))
@@ -13919,9 +13925,13 @@ def customer_feedback_query(include_archived=False, visible_scope=True):
             or_(
                 ComplaintRecord.responsible_user_id == g.current_user.id,
                 ComplaintRecord.department.in_(departments),
+                and_(ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE, ComplaintRecord.created_by_user_id == g.current_user.id),
             )
         )
-    return query.filter(ComplaintRecord.responsible_user_id == g.current_user.id)
+    return query.filter(or_(
+        ComplaintRecord.responsible_user_id == g.current_user.id,
+        and_(ComplaintRecord.source == INTERNAL_FEEDBACK_SOURCE, ComplaintRecord.created_by_user_id == g.current_user.id),
+    ))
 
 
 def complaint_filters():
@@ -17715,13 +17725,8 @@ def assigned_customer_feedback_tasks(scope):
         or not current_user_can("customer_portal.view")
     ):
         return []
-    if scope == "created":
-        return []
-
     user_id = g.current_user.id
-    query = customer_feedback_query().filter(
-        ComplaintRecord.email_verified_at.isnot(None)
-    )
+    query = customer_feedback_query()
     ownership_filter = ComplaintRecord.responsible_user_id == user_id
     if current_user_can("customer_portal.triage") or current_user_can(
         "customer_portal.assign"
@@ -17733,7 +17738,7 @@ def assigned_customer_feedback_tasks(scope):
                 ComplaintRecord.status == "Yeni",
             ),
         )
-    query = query.filter(ownership_filter)
+    query = query.filter(ComplaintRecord.created_by_user_id == user_id if scope == "created" else ownership_filter)
 
     rows = []
     now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -17754,8 +17759,13 @@ def assigned_customer_feedback_tasks(scope):
         status = complaint.status
         if status_key == "open" and due_at and due_at < now:
             status, status_key = "SLA Gecikti", "delayed"
-        elif complaint.responsible_user_id is None:
+        elif status_key != "completed" and complaint.responsible_user_id is None:
             status = "Ön İnceleme Bekliyor"
+
+        if complaint.is_internal_feedback:
+            date_label = "Termin"
+            if status_key == "delayed":
+                status = "Termin Geçti"
 
         rows.append(
             assigned_task_row(

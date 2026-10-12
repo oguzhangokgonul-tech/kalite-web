@@ -1,0 +1,41 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Yeni Geri Bildirim{% endblock %}
+{% block head_extra %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/customer-feedback.css') }}">{% endblock %}
+{% block app_content %}
+{% call ui.page_header("Yeni Geri Bildirim", icon="bi-inbox") %}<a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard') }}"><i class="bi bi-arrow-left"></i> Listeye Dön</a>{% endcall %}
+<form method="post" enctype="multipart/form-data" class="feedback-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <section class="feedback-section">
+    <h2>Müşteri ve Kayıt Bilgileri</h2>
+    <div class="row g-3">
+      <div class="col-md-6"><label class="form-label" for="customer_name">Müşteri Adı <span aria-hidden="true">*</span></label><input class="form-control" id="customer_name" name="customer_name" maxlength="180" required value="{{ form_data.get('customer_name', '') }}"></div>
+      <div class="col-md-6"><label class="form-label" for="customer_reference">Proje No</label><input class="form-control" id="customer_reference" name="customer_reference" maxlength="120" value="{{ form_data.get('customer_reference', '') }}"></div>
+      <div class="col-md-4"><label class="form-label" for="received_date">Geri Bildirim Tarihi <span aria-hidden="true">*</span></label><input class="form-control" type="date" id="received_date" name="received_date" required value="{{ form_data.get('received_date', today.isoformat()) }}" max="{{ today.isoformat() }}"></div>
+      <div class="col-md-4"><label class="form-label" for="record_type">Bildirim Türü</label><select class="form-select" id="record_type" name="record_type">{% for item in record_types %}<option value="{{ item }}" {% if form_data.get('record_type', 'Şikayet') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label" for="priority">Öncelik</label><select class="form-select" id="priority" name="priority">{% for item in priorities %}<option value="{{ item }}" {% if form_data.get('priority', 'Orta') == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+      <div class="col-12"><label class="form-label" for="subject">Konu <span aria-hidden="true">*</span></label><input class="form-control" id="subject" name="subject" maxlength="180" required value="{{ form_data.get('subject', '') }}"></div>
+      <div class="col-12"><label class="form-label" for="description">Geri Bildirim İçeriği <span aria-hidden="true">*</span></label><textarea class="form-control" id="description" name="description" rows="4" maxlength="5000" required>{{ form_data.get('description', '') }}</textarea></div>
+    </div>
+  </section>
+  <section class="feedback-section">
+    <h2>İş Takibi</h2>
+    <div class="row g-3">
+      {% if can_assign %}
+      <div class="col-md-4"><label class="form-label" for="department">İlgili Birim</label><select class="form-select" id="department" name="department"><option value="">Atanmadı</option>{% for item in departments %}<option value="{{ item.name }}" {% if form_data.get('department') == item.name %}selected{% endif %}>{{ item.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label" for="responsible_user_id">Aksiyon Sorumlusu</label><select class="form-select" id="responsible_user_id" name="responsible_user_id"><option value="">Atanmadı</option>{% for item in users %}<option value="{{ item.id }}" {% if form_data.get('responsible_user_id') == item.id|string %}selected{% endif %}>{{ item.full_name }}</option>{% endfor %}</select></div>
+      {% endif %}
+      <div class="col-md-4"><label class="form-label" for="due_date">Termin</label><input class="form-control" type="date" id="due_date" name="due_date" value="{{ form_data.get('due_date', '') }}"></div>
+      <div class="col-12"><label class="form-label" for="corrective_action">Yapılan İşlem Özeti</label><textarea class="form-control" id="corrective_action" name="corrective_action" rows="3" maxlength="5000">{{ form_data.get('corrective_action', '') }}</textarea></div>
+    </div>
+  </section>
+  <section class="feedback-section">
+    <h2>Önce / Sonra Görselleri</h2>
+    <div class="feedback-evidence-grid">
+      <div><label class="form-label" for="before_images"><i class="bi bi-image" aria-hidden="true"></i> Önce</label><input class="form-control" id="before_images" name="before_images" type="file" accept="image/jpeg,image/png" multiple></div>
+      <div><label class="form-label" for="after_images"><i class="bi bi-images" aria-hidden="true"></i> Sonra</label><input class="form-control" id="after_images" name="after_images" type="file" accept="image/jpeg,image/png" multiple></div>
+    </div>
+  </section>
+  <div class="feedback-form-actions"><a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Geri Bildirimi Kaydet</button></div>
+</form>
+{% endblock %}

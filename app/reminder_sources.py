@@ -408,7 +408,7 @@ def collect_additional_sources(company_id, run_date, *, kinds=None):
 
 
 def customer_portal_recipients(record):
-    if (record.source != "Müşteri Portalı" or not record.email_verified_at
+    if (not record.is_feedback_ready
             or record.is_archived or _closed(record)):
         return []
     if record.responsible_user_id:
@@ -426,10 +426,11 @@ def customer_portal_recipients(record):
 
 
 def customer_portal_reminders(company_id, run_date):
+    from .models import CUSTOMER_FEEDBACK_SOURCES
     stats = {"notifications": 0, "emails": 0}
     if not source_module_enabled(company_id, "customer-portal"):
         return stats
-    for row in company_query(ComplaintRecord, company_id).filter_by(source="Müşteri Portalı").all():
+    for row in company_query(ComplaintRecord, company_id).filter(ComplaintRecord.source.in_(CUSTOMER_FEEDBACK_SOURCES)).all():
         users = customer_portal_recipients(row)
         if not users:
             continue
@@ -438,5 +439,5 @@ def customer_portal_reminders(company_id, run_date):
         _collect(stats, users, company_id=company_id, run_date=run_date, kind="customer-portal",
                  row=row, title=f"{row.complaint_no}: Müşteri geri bildirimi işlem bekliyor",
                  target_url=f"/musteri-geri-bildirimleri/{row.id}", due_date=due,
-                 created_at=row.email_verified_at)
+                 created_at=row.created_at if row.is_internal_feedback else row.email_verified_at)
     return stats

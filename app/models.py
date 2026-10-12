@@ -2011,6 +2011,11 @@ class TrainingParticipant(db.Model):
         return self.status in {"Okundu", "Katıldı", "Başarılı", "Başarısız", "Muaf"}
 
 
+CUSTOMER_PORTAL_SOURCE = "Müşteri Portalı"
+INTERNAL_FEEDBACK_SOURCE = "İç Geri Bildirim"
+CUSTOMER_FEEDBACK_SOURCES = (CUSTOMER_PORTAL_SOURCE, INTERNAL_FEEDBACK_SOURCE)
+
+
 class ComplaintRecord(db.Model):
     __tablename__ = "complaint_records"
     __table_args__ = (
@@ -2086,7 +2091,17 @@ class ComplaintRecord(db.Model):
 
     @property
     def is_closed(self):
-        return self.status in {"Kapandı", "Kapatıldı", "Reddedildi", "Arşiv"} or self.closed_at is not None
+        return self.is_archived or self.status in {"Kapandı", "Kapatıldı", "Reddedildi", "Arşiv"} or self.closed_at is not None
+
+    @property
+    def is_internal_feedback(self):
+        return self.source == INTERNAL_FEEDBACK_SOURCE
+
+    @property
+    def is_feedback_ready(self):
+        return self.is_internal_feedback or (
+            self.source == CUSTOMER_PORTAL_SOURCE and self.email_verified_at is not None
+        )
 
     @property
     def delay_days(self):
@@ -2157,6 +2172,7 @@ class ComplaintFile(db.Model):
     complaint_id = db.Column(db.Integer, db.ForeignKey("complaint_records.id"), nullable=False, index=True)
     message_id = db.Column(db.Integer, db.ForeignKey("complaint_messages.id"), nullable=True, index=True)
     visibility = db.Column(db.String(20), nullable=False, default="public", index=True)
+    evidence_stage = db.Column(db.String(20), nullable=False, default="general", server_default="general")
     original_name = db.Column(db.String(255), nullable=False)
     stored_path = db.Column(db.String(500), nullable=False)
     mime_type = db.Column(db.String(160), nullable=True)

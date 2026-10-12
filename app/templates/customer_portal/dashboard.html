@@ -1,66 +1,46 @@
 {% extends "app_shell.html" %}
 {% import "components/ui.html" as ui %}
 {% block title %}Müşteri Geri Bildirimleri{% endblock %}
+{% block head_extra %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/customer-feedback.css') }}">{% endblock %}
 {% block app_content %}
-{% call ui.page_header("Müşteri Geri Bildirimleri", "Doğrulanmış müşteri talep ve geri bildirimlerini yönetin.", icon="bi-inboxes") %}
-  <a class="btn btn-outline-primary" href="{{ url_for('customer_portal.public_form') }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Müşteri Portalı</a>
-  <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=0 if show_archived else 1) }}">
-    <i class="bi bi-archive"></i> {{ 'Aktif Kayıtlar' if show_archived else 'Arşiv' }}
-  </a>
-  {% if can_settings %}
-    <a class="btn btn-outline-primary" href="{{ url_for('customer_portal.settings') }}"><i class="bi bi-sliders"></i> Ayarlar</a>
-  {% endif %}
-  {% if can_export %}
-    <a class="btn btn-primary" href="{{ url_for('customer_portal.export_excel') }}"><i class="bi bi-file-earmark-excel"></i> Excel</a>
-  {% endif %}
+<div class="feedback-workspace">
+{% call ui.page_header("Müşteri Geri Bildirimleri", icon="bi-inboxes") %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=0 if show_archived else 1) }}"><i class="bi bi-archive"></i> {{ 'Aktif Kayıtlar' if show_archived else 'Arşiv' }}</a>
+  {% if can_settings %}<a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.settings') }}"><i class="bi bi-sliders"></i> Ayarlar</a>{% endif %}
+  {% if can_export %}<a class="btn btn-outline-primary" href="{{ url_for('customer_portal.export_excel') }}"><i class="bi bi-download"></i> Excel İndir</a>{% endif %}
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('customer_portal.new_record') }}"><i class="bi bi-plus-lg"></i> Yeni Geri Bildirim</a>{% endif %}
 {% endcall %}
-
-<form class="dashboard-filter-card mb-3" method="get">
+<form class="feedback-filters mb-3" method="get">
   <input type="hidden" name="archived" value="{{ 1 if show_archived else 0 }}">
-  <div class="row g-2 align-items-end">
-    <div class="col-md-6">
-      <label class="form-label" for="search">Arama</label>
-      <input class="form-control" id="search" name="search" value="{{ search }}" placeholder="Kayıt no, müşteri veya konu">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label" for="status">Durum</label>
-      <select class="form-select" id="status" name="status">
-        <option value="">Tümü</option>
-        {% for item in statuses %}
-          <option value="{{ item }}" {% if selected_status == item %}selected{% endif %}>{{ item }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-md-3 d-flex gap-2">
-      <button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Filtrele</button>
-      <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=1 if show_archived else 0) }}" aria-label="Filtreleri temizle" title="Filtreleri temizle"><i class="bi bi-arrow-clockwise"></i></a>
-    </div>
-  </div>
+  <div class="feedback-search"><label class="form-label" for="search">Arama</label><input class="form-control" id="search" name="search" value="{{ search }}" placeholder="Müşteri, proje no, kayıt no veya konu"></div>
+  <div><label class="form-label" for="status">Durum</label><select class="form-select" id="status" name="status"><option value="">Tümü</option>{% for item in statuses %}<option value="{{ item }}" {% if selected_status == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+  <div class="d-flex gap-2"><button class="btn btn-primary" type="submit"><i class="bi bi-funnel"></i> Filtrele</button><a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=1 if show_archived else 0) }}" aria-label="Filtreleri temizle" title="Filtreleri temizle"><i class="bi bi-arrow-clockwise"></i></a></div>
 </form>
-
-<section class="document-list-card overflow-hidden">
-  <div class="table-responsive">
-    <table class="table dashboard-table align-middle mb-0">
-      <thead><tr><th>Kayıt</th><th>Müşteri / Konu</th><th>Tür</th><th>Departman / Sorumlu</th><th>SLA</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
-      <tbody>
-        {% for item in records %}
-          <tr>
-            <td><strong>{{ item.complaint_no }}</strong><small class="d-block text-secondary">{{ item.received_date.strftime('%d.%m.%Y') if item.received_date else '-' }}</small></td>
-            <td><strong class="text-primary">{{ item.customer_name }}</strong><small class="d-block text-secondary">{{ item.subject }}</small></td>
-            <td>{{ item.record_type }}</td>
-            <td>{{ item.department or '-' }}<small class="d-block text-secondary">{{ item.responsible.full_name if item.responsible else 'Atama bekliyor' }}</small></td>
-            <td>
-              {% if not item.first_response_at and item.first_response_due_at %}<small class="d-block {% if item.first_response_due_at < now %}text-danger fw-semibold{% endif %}">İlk yanıt: {{ item.first_response_due_at.strftime('%d.%m %H:%M') }}</small>{% endif %}
-              {% if item.resolution_due_at %}<small class="d-block {% if not item.is_closed and item.resolution_due_at < now %}text-danger fw-semibold{% endif %}">Çözüm: {{ item.resolution_due_at.strftime('%d.%m %H:%M') }}</small>{% endif %}
-            </td>
-            <td><span class="badge text-bg-light border">{{ item.status }}</span></td>
-            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_portal.detail', record_id=item.id) }}"><i class="bi bi-eye"></i> Aç</a></td>
-          </tr>
-        {% else %}
-          <tr><td colspan="7" class="dashboard-empty-row"><strong>Kayıt bulunamadı.</strong><span>{{ 'Arşivlenmiş kayıt yok.' if show_archived else 'Doğrulanmış müşteri geri bildirimleri burada görünür.' }}</span></td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</section>
+<div class="d-flex justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">{{ 'Arşivlenen Geri Bildirimler' if show_archived else 'Geri Bildirim Takibi' }}</h2><span class="text-secondary small">{{ records|length }} kayıt</span></div>
+<div class="table-responsive feedback-table-wrap">
+  <table class="table align-middle mb-0 feedback-table">
+    <thead><tr><th scope="col">Müşteri / Proje No</th><th scope="col">Tarih / Kaydeden</th><th scope="col">Geri Bildirim İçeriği</th><th scope="col">İlgili Birim / Sorumlu</th><th scope="col">Yapılan İşlem Özeti</th><th scope="col">Termin</th><th scope="col">Kalan Süre</th><th scope="col">Sonuçlanma</th><th scope="col">Sonuç</th><th scope="col">İşlemler</th></tr></thead>
+    <tbody>
+    {% for item in records %}
+      <tr>
+        <td data-label="Müşteri / Proje No"><strong>{{ item.customer_name }}</strong><span class="feedback-cell-note">{{ item.customer_reference or 'Proje no yok' }}</span><small class="text-secondary">{{ item.complaint_no }}</small></td>
+        <td data-label="Tarih / Kaydeden"><span>{{ item.received_date.strftime('%d.%m.%Y') if item.received_date else '-' }}</span><span class="feedback-cell-note">{{ item.created_by.full_name if item.created_by else (item.contact_name or 'Müşteri Portalı') }}</span></td>
+        <td data-label="İçerik"><a class="feedback-subject" href="{{ url_for('customer_portal.detail', record_id=item.id) }}">{{ item.subject }}</a><span class="feedback-cell-note">{{ item.record_type }}</span></td>
+        <td data-label="Birim / Sorumlu">{{ item.department or 'Birim atanmadı' }}<span class="feedback-cell-note">{{ item.responsible.full_name if item.responsible else 'Sorumlu atanmadı' }}</span></td>
+        <td data-label="Yapılan İşlem"><span class="feedback-summary">{{ item.corrective_action or item.customer_solution_summary or '-' }}</span></td>
+        <td data-label="Termin">{{ item.due_date.strftime('%d.%m.%Y') if item.due_date else '-' }}</td>
+        <td data-label="Kalan Süre">
+          {% if item.is_closed %}<span class="text-secondary">Kapandı</span>
+          {% elif item.due_date %}{% set remaining = (item.due_date - now.date()).days %}<span class="badge {{ 'text-bg-danger' if remaining < 0 else ('text-bg-warning' if remaining == 0 else 'text-bg-light border') }}">{{ (remaining|abs|string) ~ ' gün geçti' if remaining < 0 else ('Bugün' if remaining == 0 else (remaining|string) ~ ' gün kaldı') }}</span>
+          {% else %}<span class="text-secondary">Termin yok</span>{% endif %}
+        </td>
+        <td data-label="Sonuçlanma">{{ item.closed_at.strftime('%d.%m.%Y') if item.closed_at else (item.resolved_at.strftime('%d.%m.%Y') if item.resolved_at else '-') }}</td>
+        <td data-label="Sonuç"><span class="badge {{ 'text-bg-success' if item.is_closed and item.status != 'Reddedildi' else 'text-bg-light border' }}"><i class="bi {{ 'bi-check-circle' if item.is_closed else 'bi-clock' }}" aria-hidden="true"></i> {{ item.status }}</span></td>
+        <td data-label="İşlemler"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_portal.detail', record_id=item.id) }}" aria-label="{{ item.complaint_no }} kaydını aç"><i class="bi bi-arrow-up-right"></i> Aç</a></td>
+      </tr>
+    {% else %}<tr><td colspan="10" class="feedback-empty">Kayıt bulunamadı.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+</div>
 {% endblock %}

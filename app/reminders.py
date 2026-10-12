@@ -18,6 +18,7 @@ from .models import (
     AuditLog,
     CalibrationRecord,
     ComplaintRecord,
+    CUSTOMER_FEEDBACK_SOURCES,
     Company,
     CompanyModule,
     DocumentRevisionRequest,
@@ -548,7 +549,7 @@ def _complaint_reminders(company_id, run_date, days_before):
         .all()
     )
     for complaint in complaints:
-        if (complaint.source == "Müşteri Portalı" or complaint.is_archived
+        if (complaint.source in CUSTOMER_FEEDBACK_SOURCES or complaint.is_archived
                 or complaint.is_closed or _is_completed_text(complaint.status)):
             continue
         severity, label = _due_state(complaint.due_date, run_date)
