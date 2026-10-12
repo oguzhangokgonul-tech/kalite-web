@@ -30,7 +30,17 @@
 
 ## Yayin Durumu
 
-Bu is icin canliya alim yapilmadi. Yerel onizleme ayri, sentetik veritabaninda calisir; gercek musteri verisi kullanmaz.
-Yayin oncesi dogrulanmis yeni yedek alinmali, `202610120001` migration'i uygulanmali ve servis/HTTP kontrolleri yapilmalidir.
+Lider onayiyla 12 Ekim 2026 tarihinde canliya alindi. Ozellik commit'i: `5d5b118e093922d517016ee145e2b2369b1d74dc`.
+Canli migration: `202610120001`. Yayin oncesi birlesik 89 test tekrar basarili.
+- Yeni tam yedek: `volkaportal-backup-20261012-175122.zip`, 59.400.237 bayt, 204 ek dosya.
+- Sunucu klasoru: `/var/data/aksiyon-takip/backups/customer-feedback-release.oxdYuHlC/archive/`.
+- Sunucu disi kopya: `C:\Users\Asus\VolkaPortalBackups\20261012-customer-feedback\`.
+- SHA256: `09ae36c36c834aacf75a54be69ac8272f2e2a05972fcf4256b2d1e300f6b7a6d`.
+- Checksum, SQLite integrity ve restore dry-run basarili. Taze yedek kopyasinda upgrade/downgrade/upgrade ile 165 tablonun onceki kolon degerleri korundu.
+- Canlida eski musteri kayitlari, mesajlar, dosyalar, tokenlar ve kontrol edilen diger is kayitlarinin ozetleri degismedi.
+- Yeni olusturma yetkisi mevcut bes sistem rolune hedefli eklendi; baska rol yetkileri sifirlanmadi.
+- Ana alan adi ve iki sirket giris sayfasi HTTPS 200. Uygulama, nginx, hatirlatma ve webhook zamanlayicilari aktif; son servis hata logunda kayit yok.
+- Canli verinin gecici kopyasinda iki sirket icin kimlikli liste/yeni form ve yetkili Excel GET kontrolleri basarili; canli is verisine test kaydi yazilmadi.
+- Bu yayin turundaki ajan cagrilari kullanim sinirina takildi; onceki bagimsiz QA kanitina ek olarak yayin testleri ve migration provasi ana ajan tarafindan tekrar yurutuldu.
 Downgrade dosyalari silmez fakat once/sonra siniflandirmasini kaybettirir; geri donuste yedek gereklidir.
 Tum repo testleri degil, etkilenen modul ve baglantili akislar test edilmistir.
