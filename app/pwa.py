@@ -48,6 +48,15 @@ def _module_enabled(module_key):
 
 def _quick_actions():
     actions = []
+    if (_company() and _module_enabled("customer_feedback_portal")
+            and _has_permission("customer_portal.view")
+            and _has_permission("customer_portal.create")):
+        actions.append({
+            "label": _("Müşteri Şikayeti"),
+            "description": _("Müşteri, proje ve önce / sonra görselleri"),
+            "icon": "bi-chat-square-text",
+            "url": url_for("customer_portal.new_record"),
+        })
     if _company() and _module_enabled('custody_management') and any(
         _has_permission(p) for p in ('custody.view', 'custody.view_all', 'custody.manage')
     ):

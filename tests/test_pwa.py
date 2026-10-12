@@ -188,6 +188,46 @@ def test_runtime_schema_marks_mobile_pwa_checklist_done(app):
     assert setting.value == "1"
 
 
+@pytest.mark.parametrize("permissions,enabled,visible", [
+    (("customer_portal.view", "customer_portal.create"), True, True),
+    (("customer_portal.view",), True, False),
+    (("customer_portal.create",), True, False),
+    ((), True, False),
+    (("customer_portal.view", "customer_portal.create"), False, False),
+])
+def test_mobile_customer_complaint_card_matches_route_access(app, client, permissions, enabled, visible):
+    company = create_company("PFB", "Feedback Firm", "feedback-firm")
+    user = create_user(company, *permissions)
+    db.session.add(CompanyModule(company_id=company.id, module_key="customer_feedback_portal", is_enabled=enabled))
+    db.session.commit()
+    base = f"https://{company.primary_domain}"
+    login(client, user, base_url=base)
+    response = client.get("/mobil", base_url=base)
+    assert response.status_code == 200
+    assert ('href="/musteri-geri-bildirimleri/yeni"' in response.get_data(as_text=True)) == visible
+    target = client.get("/musteri-geri-bildirimleri/yeni", base_url=base)
+    assert target.status_code == (200 if visible else 403)
+    if visible:
+        assert "Müşteri Şikayeti" in response.get_data(as_text=True)
+        assert 'name="before_images"' in target.get_data(as_text=True)
+        assert 'name="after_images"' in target.get_data(as_text=True)
+
+
+@pytest.mark.parametrize("role_key", ["management_representative", "management", "department_manager", "department_staff"])
+def test_mobile_customer_complaint_available_to_default_employee_roles(app, client, role_key):
+    company = create_company("PFR", "Feedback Roles", "feedback-roles")
+    roles = ensure_default_roles()
+    user = create_user(company)
+    user.roles.append(roles[role_key])
+    db.session.add(CompanyModule(company_id=company.id, module_key="customer_feedback_portal", is_enabled=True))
+    db.session.commit()
+    base = f"https://{company.primary_domain}"
+    login(client, user, base_url=base)
+    body = client.get("/mobil", base_url=base).get_data(as_text=True)
+    assert 'href="/musteri-geri-bildirimleri/yeni"' in body
+    assert client.get("/musteri-geri-bildirimleri/yeni", base_url=base).status_code == 200
+
+
 def test_default_employee_roles_can_create_helpdesk_requests(app, client):
     company = create_company("PHR", "Rol Firması", "rol-firmasi")
     roles = ensure_default_roles()
