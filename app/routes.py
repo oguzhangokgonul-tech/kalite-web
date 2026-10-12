@@ -2691,6 +2691,7 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "objective_plans.create": "quality_objectives",
     "custody.dashboard": "custody_management",
     "custody.create": "custody_management",
     "custody.detail": "custody_management",
@@ -13199,6 +13200,7 @@ def quality_objective_dashboard_context():
 
 
 def quality_objective_detail_context(objective):
+    from .objective_plans import objective_plans_context
     return {
         "objective": objective,
         "can_manage": can_manage_quality_objective(objective),
@@ -13207,6 +13209,9 @@ def quality_objective_detail_context(objective):
         "can_archive": can_delete_quality_objectives()
         and objective.status != QUALITY_OBJECTIVE_STATUS_ARCHIVED,
         "can_edit_measurement": can_edit_quality_objective_measurement,
+        "can_view_linked_action": bool(objective.action and objective.action.company_id == current_company_id()
+                                      and can_view_action(objective.action)),
+        **objective_plans_context(objective),
         "can_delete_measurement": can_delete_quality_objective_measurement,
         "status_tone": quality_objective_status_tone,
         "health_tone": quality_objective_health_tone,
@@ -27854,10 +27859,12 @@ def action_detail(action_id):
         abort(403)
 
     from .meeting_actions import visible_source
+    from .objective_plans import visible_source as visible_objective_source
     return render_template(
         "action_detail.html",
         action=action,
         source_meeting=visible_source(action),
+        source_objective=visible_objective_source(action, 'action'),
         users=active_users(),
         can_complete=can_complete_action(action),
         can_request_closure=can_request_closure_action(action),
@@ -28611,6 +28618,9 @@ def delete_action(action_id):
     ensure_same_company(action)
     from .meeting_actions import require_unlinked_for_delete
     require_unlinked_for_delete(action)
+    from .objective_plan_models import ObjectivePlanLink
+    if ObjectivePlanLink.query.filter_by(action_id=action.id).first() is not None:
+        abort(409, description="Kalite hedefine bağlı aksiyon silinemez; işlem geçmişi korunur.")
     from .opportunity_models import Opportunity
     if Opportunity.query.filter_by(action_id=action.id).first() is not None:
         abort(409, description="Bu aksiyon bir fırsata bağlıdır; silmeden önce bağlantıyı kaldırın.")

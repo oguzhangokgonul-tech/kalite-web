@@ -129,7 +129,7 @@
               <span>{{ objective.process.process_no }} - {{ objective.process.title }}</span>
             </a>
           {% endif %}
-          {% if objective.action %}
+          {% if can_view_linked_action %}
             <a class="btn btn-outline-success justify-content-start text-start" href="{{ url_for('main.action_detail', action_id=objective.action.id) }}">
               <i class="bi bi-check2-circle"></i>
               <span>{{ objective.action.number_label }} - {{ objective.action.title }}</span>
@@ -142,6 +142,8 @@
       </section>
     </div>
   </div>
+
+  {% include "quality_objectives/_plans.html" %}
 
   {% if (can_approve and objective.status in ["Taslak", "Aktif"]) or can_archive %}
     <section class="document-list-card p-4 mt-4">

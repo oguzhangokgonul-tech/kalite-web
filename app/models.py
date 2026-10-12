@@ -11,6 +11,7 @@ from .pestle_models import PestleAnalysis
 from .context_models import OrganizationContext
 from .opportunity_models import Opportunity
 from .custody_models import CustodyRecord
+from .objective_plan_models import ObjectivePlanLink
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
 

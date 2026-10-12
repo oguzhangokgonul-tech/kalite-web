@@ -556,7 +556,8 @@ def test_quality_objective_report_is_scoped_and_requires_export_permission(clien
 
 def test_quality_objective_due_reminder_is_scoped_and_deduplicated(client):
     company = create_company("1209")
-    owner = create_user("quality-objective-reminder-owner", company=company)
+    owner = create_user("quality-objective-reminder-owner", company=company,
+                        permissions=("quality_objective.view",))
     objective = create_objective(
         company,
         owner,

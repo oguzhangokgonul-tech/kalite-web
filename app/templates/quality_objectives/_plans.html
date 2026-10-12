@@ -1,0 +1,16 @@
+<section class="border-top pt-4 mt-4" aria-labelledby="objective-plans-title">
+  <h2 class="h5" id="objective-plans-title">Proje ve Aksiyon Planı</h2>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% for kind, label in plan_commands %}
+    {{ ui.action_link(url_for('objective_plans.create', objective_id=objective.id, kind=kind), label, icon='bi-kanban' if kind == 'project' else 'bi-list-check', tone='secondary') }}
+    {% endfor %}
+  </div>
+  {% for plan in execution_plans %}
+  <div class="border-bottom py-3">
+    {% if plan.url %}
+      <a href="{{ plan.url }}">{{ plan.number }} · {{ plan.title }}</a>
+      <span class="d-block text-secondary">{{ plan.status }}{% if plan.kind == 'project' %} · %{{ plan.progress }}{% endif %}</span>
+    {% else %}<span class="text-secondary">{{ plan.label }} kaydı mevcut; görüntüleme yetkisi gerekli.</span>{% endif %}
+  </div>
+  {% else %}<p class="text-secondary">Henüz proje veya aksiyon planı oluşturulmadı.</p>{% endfor %}
+</section>

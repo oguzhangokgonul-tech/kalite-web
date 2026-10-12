@@ -4120,6 +4120,9 @@ def ensure_runtime_schema():
     with db.engine.begin() as custody_connection:
         ensure_custody_guards(custody_connection)
 
+    from .objective_plan_schema import ensure_objective_plan_schema
+    ensure_objective_plan_schema(db.engine)
+
     for model in (NotificationEmailBatch, NotificationEmailEvent):
         model.__table__.create(bind=db.engine, checkfirst=True)
 

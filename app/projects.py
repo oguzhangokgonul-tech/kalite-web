@@ -257,12 +257,13 @@ def create():
 @bp.get("/<int:project_id>")
 def detail(project_id):
     project = get_project(project_id)
+    from .objective_plans import visible_source
     users = [u for u in active_users() if any(u.has_permission(k) for k in READ_PERMISSIONS)
              and (u.has_permission("projects.update") or u.has_permission("projects.manage"))]
     return render_template("projects/detail.html", project=project, users=users,
         can_edit=can_edit(project), can_update_task=lambda task: can_update_task(project, task),
         can_export=has_permission("projects.export"), statuses=STATUSES, task_statuses=TASK_STATUSES,
-        milestone_statuses=MILESTONE_STATUSES, today=date.today())
+        milestone_statuses=MILESTONE_STATUSES, today=date.today(), source_objective=visible_source(project, 'project'))
 
 
 @bp.get("/<int:project_id>/zaman-cizelgesi")

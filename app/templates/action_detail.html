@@ -61,6 +61,9 @@
       {{ ui.action_link(url_for('meetings.detail', meeting_id=source_meeting.id), source_meeting.meeting_no ~ ' · Kaynak Toplantı', icon='bi-chat-square-text', tone='secondary') }}
     </div>
   {% endif %}
+  {% if source_objective %}
+    <div class="mb-3">{{ ui.action_link(url_for('main.quality_objective_detail', objective_id=source_objective.id), source_objective.objective_no ~ ' · Kaynak Kalite Hedefi', icon='bi-bullseye', tone='secondary') }}</div>
+  {% endif %}
 
   <div class="detail-metrics">
     <div class="detail-metric-card">
