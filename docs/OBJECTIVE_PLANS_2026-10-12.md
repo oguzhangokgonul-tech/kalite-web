@@ -37,8 +37,8 @@
 - [x] Migration ve onceki dogrulanmis yedek kopyasi provasi.
 - [x] Mobil, tablet, masaustu form ve tasma kontrolu.
 - [x] Bagimsiz guvenlik/is akisi incelemesi ve release aracinin otomatik testleri.
-- [ ] Taze yayin yedegi, sunucu disi kopya ve migration provasi.
-- [ ] Canli HTTP/servis kontrolu; yalniz ilgili checklist maddesinin isaretlenmesi.
+- [x] Taze yayin yedegi, sunucu disi kopya ve migration provasi.
+- [x] Canli HTTP/servis kontrolu; yalniz ilgili checklist maddesinin isaretlenmesi.
 
 ## Yerel Dogrulama
 
@@ -51,3 +51,16 @@
 - Planlama/guvenlik incelemesi Zeno, model/migration Meitner, davranis testleri Bernoulli, Playwright Avicenna, release araci Goodall tarafindan baslatildi. Ajan kullanim siniri sonrasi kalan duzeltme, test ve yayin kontrolleri ana ajan tarafindan tamamlanir; tum ajanlarin kesintisiz bitirdigi iddia edilmez.
 
 Siradaki checklist maddesi: `module_management_calendar`.
+
+## Canli Yayin Sonucu
+
+- Uygulama commit: `82506e9fefc1431c9d895b6684ab4cf2f00e4b31`; migration: `202610090001`.
+- Taze yedek: `volkaportal-backup-20261012-061838.zip`, 59.395.589 bayt, 204 yuklenmis dosya.
+- SHA256: `4d9de893a10f0c6beedd333ff05ada5c222e244f19536a6db2edcd6da7632ffe`.
+- Sunucu: `/var/data/aksiyon-takip/backups/objective-plans-release.tUI1mTQb/archive/`; sunucu disi kopya: `C:\Users\Asus\VolkaPortalBackups\20261012-objective-plans\`.
+- Arsiv dogrulamasi, geri yukleme dry-run ve taze kopyada upgrade/downgrade/upgrade basarili.
+- Ilk Git gecisi eski `app/templates/projects` klasorunun root sahipligi nedeniyle durdu. Gelen dosyalar kaynak/hedef commit ile birebir kontrol edildi; yalniz ilgili klasor sahipligi aksiyon'a verildi. Forward-only gecis tamamlandi. Reset, veri geri yukleme veya canli downgrade yapilmadi.
+- Yayin sonrasi butunluk, proje/gorev/aksiyon/hedef/zimmet satir ozetleri ve firma modulleri korundu. Yalitilmis canli kopyada 46 GET kontrolu basarili.
+- `aksiyon-takip`, hatirlatma/webhook zamanlayicilari ve nginx aktif. Uc alan adinda HTTPS giris, oturum yonlendirmesi, statik dosya ve gzip kontrolleri basarili. Son baslatma sonrasinda uygulama hatasi gorulmedi; durdurma sirasindaki SIGTERM kayitlari planli servis durdurmasina aittir.
+- `module_quality_objective_projects` audit kaydiyla isaretlendi. Diger checklist degerleri degismedi; sonuc **78/140**.
+- Kullanim: Kalite Hedefleri > acik hedef detayi > Proje ve Aksiyon Plani. Kapali hedeflerde yeni plan komutu gosterilmez. Proje butonu icin Projeler paketi ve olusturma yetkisi gerekir.
