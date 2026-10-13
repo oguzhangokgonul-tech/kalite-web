@@ -26,6 +26,7 @@
           <tr>
             <th>Ad Soyad</th>
             <th>Kullanıcı Adı</th>
+            {% if g.current_user_is_superadmin_account %}<th>Şirket</th>{% endif %}
             <th>E-posta</th>
             <th>Görev</th>
             <th>Roller</th>
@@ -38,6 +39,7 @@
             <tr>
               <td class="fw-semibold">{{ user.full_name }}</td>
               <td>{{ user.username }}</td>
+              {% if g.current_user_is_superadmin_account %}<td>{{ company_labels.get(user.company_id, 'Platform') }}</td>{% endif %}
               <td>{{ user.email or "-" }}</td>
               <td>{{ user.title or "-" }}</td>
               <td>
@@ -58,6 +60,7 @@
               </td>
               <td>
                 <div class="dashboard-row-actions">
+                  {% if can_manage_user_account(user) %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_user', user_id=user.id) }}">
                     <i class="bi bi-pencil"></i>
                     <span>Düzenle</span>
@@ -71,12 +74,15 @@
                       </button>
                     </form>
                   {% endif %}
+                  {% else %}
+                    <span class="text-muted"><i class="bi bi-shield-lock" aria-hidden="true"></i> Superadmin yönetir</span>
+                  {% endif %}
                 </div>
               </td>
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="7">
+              <td class="dashboard-empty-row" colspan="{{ 8 if g.current_user_is_superadmin_account else 7 }}">
                 <strong>Henüz kullanıcı yok.</strong>
                 <span>Yeni kullanıcı eklendiğinde burada listelenecek.</span>
               </td>

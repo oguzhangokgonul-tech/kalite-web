@@ -108,6 +108,10 @@
               <td>{{ stats.get("documents", 0) }}</td>
               <td class="text-end">
                 {% if g.current_user_is_superadmin_account %}
+                  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.create_user', company_id=company.id) }}">
+                    <i class="bi bi-person-gear" aria-hidden="true"></i>
+                    <span>Admin / Kullanıcı Ekle</span>
+                  </a>
                   <a class="btn btn-outline-info btn-sm" href="{{ url_for('main.company_onboarding_status', company_id=company.id) }}">
                     <i class="bi bi-list-check"></i>
                     <span>Kurulum</span>

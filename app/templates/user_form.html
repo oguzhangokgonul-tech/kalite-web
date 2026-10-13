@@ -24,6 +24,17 @@
     </div>
 
     <div class="app-form-grid">
+      {% if not user and g.current_user_is_superadmin_account %}
+        <div>
+          <label class="form-label" for="company_id">Şirket</label>
+          <select class="form-select" id="company_id" name="company_id" required>
+            <option value="">Şirket seçin</option>
+            {% for company in companies %}
+              <option value="{{ company.id }}" {% if request.form.get('company_id', request.args.get('company_id', g.current_company.id if g.current_company else '') )|string == company.id|string %}selected{% endif %}>{{ company.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endif %}
       <div>
         <label class="form-label" for="full_name">Ad Soyad</label>
         <input class="form-control" id="full_name" name="full_name" value="{{ user.full_name if user else '' }}" required maxlength="160">
@@ -107,7 +118,7 @@
           <span class="app-card-icon"><i class="bi bi-diagram-3"></i></span>
           <div>
             <h3>Hiyerarşik Roller</h3>
-            <p>Merkezi rol sistemi için kullanıcının dahil olduğu rolleri seçin.</p>
+            <p>Superadmin &gt; Şirket Admini &gt; Şirket kullanıcıları</p>
           </div>
         </div>
         <div class="role-user-roles role-user-roles-form">

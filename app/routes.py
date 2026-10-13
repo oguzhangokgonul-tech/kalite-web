@@ -35,6 +35,7 @@ from flask_wtf.csrf import generate_csrf
 from sqlalchemy import and_, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm.exc import StaleDataError
+from werkzeug.exceptions import HTTPException
 
 from .audit import record_audit_event
 from .extensions import db
@@ -742,6 +743,9 @@ def load_logged_in_user():
     if user_id and (g.current_user is None or not g.current_user.is_active):
         session.clear()
         g.current_user = None
+    if g.current_user and g.current_user.has_role("company_admin") and not g.current_user.company_id:
+        session.clear()
+        g.current_user = None
     g.current_company = None
     g.tenant_company = tenant_company_from_host(request.host)
     refresh_locale()
@@ -763,6 +767,7 @@ def load_logged_in_user():
         g.current_user_is_superadmin_account = (
             (g.current_user.username or "").strip().lower() == "superadmin"
             and g.current_user.company_id is None
+            and g.current_user_is_super_admin
         )
         session_company_id = session.get("company_id")
         if (
@@ -2184,6 +2189,10 @@ def sync_user_from_personnel_contact(user, contact=None):
     contact = contact or user.personnel_contact
     if contact is None:
         return False
+    if user.company_id != contact.company_id:
+        return False
+    if user.role_keys & {"super_admin", "company_admin"} and not is_superadmin_account():
+        return False
     changed = False
     if user.full_name != contact.full_name:
         user.full_name = contact.full_name
@@ -2231,8 +2240,10 @@ def sync_personnel_links():
     changed = False
     users_query = User.query.filter_by(is_active=True)
     if company_id is not None:
-        users_query = users_query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
+        users_query = users_query.filter(User.company_id == company_id)
     for user in users_query.all():
+        if user.role_keys & {"super_admin", "company_admin"}:
+            continue
         contact = user.personnel_contact
         if contact is None:
             contact = contact_by_name.get(normalize_personnel_name(user.full_name))
@@ -2263,6 +2274,7 @@ def sync_personnel_links():
 
 
 def sync_personnel_contact_dependents(contact):
+    ensure_personnel_account_manageable(contact)
     changed = False
     for user in User.query.filter_by(personnel_contact_id=contact.id).all():
         changed = sync_user_from_personnel_contact(user, contact) or changed
@@ -2277,11 +2289,17 @@ def sync_personnel_contact_dependents(contact):
     return changed
 
 
+def ensure_personnel_account_manageable(contact):
+    for user in User.query.filter_by(personnel_contact_id=contact.id).all():
+        if not can_manage_user_account(user):
+            abort(403, description="Bu hesaba bağlı personeli yalnız Superadmin yönetebilir.")
+
+
 def matching_personnel_contact_by_name(full_name):
     normalized_name = normalize_personnel_name(full_name)
     if not normalized_name:
         return None
-    for contact in personnel_contact_query().all():
+    for contact in personnel_contact_query().filter_by(company_id=current_company_id()).all():
         if normalize_personnel_name(contact.full_name) == normalized_name:
             return contact
     return None
@@ -2301,6 +2319,7 @@ def linked_personnel_contact_for_user_form(full_name, title=None, email=None):
         db.session.add(contact)
         return contact
 
+    ensure_personnel_account_manageable(contact)
     changed = False
     if title and not contact.title:
         contact.title = title[:160]
@@ -3348,7 +3367,7 @@ def is_related_to_current_user(action):
 
 
 def is_oguzhan_admin():
-    return current_user_can("roles.manage") or has_role(
+    return current_user_can("roles.manage") or has_role(g.current_user, "company_admin") or has_role(
         g.current_user, "management_representative"
     )
 
@@ -3356,6 +3375,55 @@ def is_oguzhan_admin():
 def is_super_admin(user=None):
     user = user or g.current_user
     return has_role(user, "super_admin")
+
+
+def can_manage_user_account(user):
+    if is_superadmin_account():
+        return True
+    if user.company_id != current_company_id() or user.company_id is None:
+        return False
+    return not (user.role_keys & {"super_admin", "company_admin"}) and user.username != "superadmin"
+
+
+def assignable_user_roles(user=None):
+    from .seed import COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS
+    roles = role_hierarchy()
+    if is_superadmin_account():
+        return [role for role in roles if role.key != "super_admin"
+                or (user is not None and user.username == "superadmin" and user.company_id is None)]
+    if is_super_admin():
+        return [role for role in roles if role.key != "company_admin"]
+    if not current_user_can("users.assign_roles"):
+        return []
+    return [role for role in roles
+            if role.hierarchy_level > 5
+            and role.key in COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS
+            and all(current_user_can(key) for key in role.permission_keys)]
+
+
+def validate_user_role_assignment(user, roles):
+    if not can_manage_user_account(user):
+        abort(403)
+    allowed = {role.id for role in assignable_user_roles(user)}
+    if any(role.id not in allowed for role in roles):
+        abort(403)
+    keys = {role.key for role in roles}
+    if "company_admin" in keys and (not is_superadmin_account() or not user.company_id):
+        abort(403, description="Şirket admini yalnız bir şirkete bağlı olarak atanabilir.")
+    if "super_admin" in keys and user.company_id is not None:
+        abort(403, description="Şirket hesabına platform yöneticisi rolü atanamaz.")
+
+
+def audit_user_role_assignment(user, previous_keys):
+    if previous_keys != user.role_keys:
+        db.session.add(user)
+        db.session.flush()
+        record_audit_event(
+            "User", "roles_changed", "Kullanıcı rolleri güncellendi",
+            entity_id=user.id, company_id=user.company_id,
+            old_values={"roles": sorted(previous_keys)},
+            new_values={"roles": sorted(user.role_keys)}, commit=False,
+        )
 
 
 def normalize_for_role(value):
@@ -3389,6 +3457,7 @@ def is_management_representative(user=None):
     user = user or g.current_user
     return user is not None and (
         has_role(user, "super_admin")
+        or has_role(user, "company_admin")
         or has_role(user, "management_representative")
         or user_title_has(user, "Yönetim Temsilcisi")
     )
@@ -15522,10 +15591,26 @@ def describe_dof_revision_changes(before, dof):
 
 def parse_user_form(user=None):
     user = user or User()
+    if user.id is not None and not can_manage_user_account(user):
+        abort(403)
     username = request.form.get("username", "").strip().lower()
     full_name = request.form.get("full_name", "").strip()
     password = request.form.get("password", "")
-    company_id = None if username == "superadmin" else current_company_id()
+    if username == "superadmin" and (not is_superadmin_account() or user.username != "superadmin"):
+        abort(403)
+    if user.username == "superadmin" and username != "superadmin":
+        abort(403)
+    company_id = user.company_id if user.id is not None else current_company_id()
+    if user.id is None and is_superadmin_account() and request.form.get("company_id"):
+        company = db.session.get(Company, request.form.get("company_id", type=int))
+        if company is None or not company.is_active:
+            raise ValueError("invalid_company")
+        if g.tenant_company is not None and company.id != g.tenant_company.id:
+            abort(404)
+        company_id = company.id
+    if company_id is not None:
+        # Keep personnel linking and limit checks in the validated target tenant.
+        g.current_company = db.session.get(Company, company_id)
 
     if not username or not full_name:
         raise ValueError("required_fields")
@@ -15546,7 +15631,13 @@ def parse_user_form(user=None):
     if existing_user:
         raise ValueError("username_exists")
 
+    if not is_super_admin():
+        for field in LEGACY_PERMISSION_ALIASES:
+            if request.form.get(field) == "on" and not current_user_can(field):
+                abort(403)
+
     user.username = username
+    user.company_id = company_id
     user.full_name = full_name
     user.title = request.form.get("title", "").strip()
     user.email = request.form.get("email", "").strip() or None
@@ -15592,7 +15683,7 @@ def sync_user_legacy_permissions(user):
         "can_manage_users": "users.manage",
     }
     for field, permission_key in legacy_map.items():
-        setattr(user, field, has_permission(user, permission_key))
+        setattr(user, field, user.has_permission(permission_key))
 
 
 def user_extra_permission_keys(user):
@@ -15820,6 +15911,7 @@ def flash_company_form_error(error):
 ONBOARDING_CORE_MODULE_KEYS = ISO_CORE_MODULE_KEYS
 ONBOARDING_PRODUCTION_MODULE_KEYS = PRODUCTION_PLUS_MODULE_KEYS
 ONBOARDING_INITIAL_ROLE_KEYS = (
+    "company_admin",
     "management_representative",
     "management",
     "department_manager",
@@ -16242,6 +16334,9 @@ def validate_password_policy(password):
 
 def flash_user_form_error(error):
     error_key = str(error)
+    if error_key == "invalid_company":
+        flash("Aktif bir şirket seçin.", "danger")
+        return
     if error_key == "user_limit_reached":
         flash("Kullanici limiti doldu. Sirket lisans limitini artirin veya pasif kullanici birakin.", "danger")
         return
@@ -26102,6 +26197,7 @@ def edit_personnel_contact(contact_id):
 
     contact = PersonnelContact.query.get_or_404(contact_id)
     ensure_same_company(contact)
+    ensure_personnel_account_manageable(contact)
     if request.method == "POST":
         try:
             for key, value in parse_personnel_contact_form().items():
@@ -28828,7 +28924,7 @@ def download_latest_closure_evidence_file(action_id):
 @login_required
 @permission_required("can_manage_users")
 def users():
-    user_list = active_users()
+    user_list = scoped_query(User.query, User).order_by(User.full_name.asc()).all()
     user_limit_summary = None
     if g.current_company:
         limit = company_user_limit(g.current_company)
@@ -28841,28 +28937,40 @@ def users():
         "users.html",
         users=user_list,
         can_delete_users=current_user_can("users.delete"),
+        can_manage_user_account=can_manage_user_account,
+        company_labels={company.id: company.label for company in Company.query.all()} if is_superadmin_account() else {},
         user_limit_summary=user_limit_summary,
     )
 
 
 def apply_role_form_to_user(user):
-    if not is_super_admin() or request.form.get("role_form_present") != "1":
+    if request.form.get("role_form_present") != "1":
         return
+    if not (is_super_admin() or current_user_can("users.assign_roles")):
+        abort(403)
 
+    if any(not value.isdigit() for value in request.form.getlist("role_ids")):
+        abort(403)
     selected_role_ids = {
         int(role_id)
         for role_id in request.form.getlist("role_ids")
         if role_id.isdigit()
     }
     roles = Role.query.filter(Role.id.in_(selected_role_ids)).all() if selected_role_ids else []
+    if len(roles) != len(selected_role_ids):
+        abort(403)
+    validate_user_role_assignment(user, roles)
     if user.username == "superadmin":
         super_admin_role = Role.query.filter_by(key="super_admin").first()
         if super_admin_role and super_admin_role not in roles:
             roles.append(super_admin_role)
+    previous_keys = user.role_keys
     user.roles = roles
     selected_extra_permissions = set(request.form.getlist("extra_permissions"))
     allowed_extra_permissions = {"quality.create"}
     selected_extra_permissions &= allowed_extra_permissions
+    if not is_super_admin() and any(not current_user_can(key) for key in selected_extra_permissions):
+        abort(403)
     existing_extra_permissions = {
         permission.permission_key: permission for permission in user.extra_permissions
     }
@@ -28875,6 +28983,7 @@ def apply_role_form_to_user(user):
         ):
             user.extra_permissions.remove(permission)
     sync_user_legacy_permissions(user)
+    audit_user_role_assignment(user, previous_keys)
 
 
 @bp.route("/users/new", methods=["GET", "POST"])
@@ -28889,17 +28998,23 @@ def create_user():
             db.session.add(user)
             db.session.commit()
             flash("Kullanıcı oluşturuldu.", "success")
+            if is_superadmin_account() and user.company_id:
+                session["company_id"] = user.company_id
             return redirect(url_for("main.users"))
         except ValueError as error:
             db.session.rollback()
             flash_user_form_error(error)
+        except HTTPException:
+            db.session.rollback()
+            raise
 
     return render_template(
         "user_form.html",
         user=None,
         title="Yeni Kullanıcı",
-        roles=role_hierarchy(),
-        can_manage_roles=is_super_admin(),
+        roles=assignable_user_roles(),
+        can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
+        companies=Company.query.filter_by(is_active=True).order_by(Company.name).all() if is_superadmin_account() else [],
         user_extra_permission_keys=user_extra_permission_keys,
     )
 
@@ -28909,6 +29024,8 @@ def create_user():
 @permission_required("can_manage_users")
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
+    if not can_manage_user_account(user):
+        abort(403 if user.company_id == current_company_id() else 404)
     if user.username == "superadmin" and not getattr(g, "current_user_is_super_admin", False):
         abort(403)
     if user.username != "superadmin":
@@ -28929,13 +29046,16 @@ def edit_user(user_id):
         except ValueError as error:
             db.session.rollback()
             flash_user_form_error(error)
+        except HTTPException:
+            db.session.rollback()
+            raise
 
     return render_template(
         "user_form.html",
         user=user,
         title="Kullanıcı Düzenle",
-        roles=role_hierarchy(),
-        can_manage_roles=is_super_admin(),
+        roles=assignable_user_roles(user),
+        can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
         user_extra_permission_keys=user_extra_permission_keys,
     )
 
@@ -28945,6 +29065,8 @@ def edit_user(user_id):
 @permission_required("users.delete")
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
+    if not can_manage_user_account(user):
+        abort(403 if user.company_id == current_company_id() else 404)
     if user.id == g.current_user.id:
         flash("Kendi kullanıcı hesabınızı silemezsiniz.", "danger")
         return redirect(url_for("main.users"))
@@ -28974,6 +29096,8 @@ def roles():
     if request.method == "POST":
         role_id = request.form.get("role_id", type=int)
         role = Role.query.get_or_404(role_id)
+        if role.key == "company_admin" and not is_superadmin_account():
+            abort(403)
         permission_keys = set(request.form.getlist("permission_keys"))
         if role.key == "super_admin":
             from .seed import PERMISSION_CATALOG
@@ -29086,6 +29210,7 @@ def company_onboarding_wizard():
             initial_user = create_company_onboarding_user(company)
             db.session.add(initial_user)
             db.session.flush()
+            audit_user_role_assignment(initial_user, set())
             db.session.add(
                 AuditLog(
                     company_id=company.id,
@@ -29326,7 +29451,15 @@ def update_user_roles():
     )
     all_roles = role_hierarchy()
     role_by_id = {role.id: role for role in all_roles}
+    # Validate the complete batch before changing any account.
     for user in users:
+        raw_ids = request.form.getlist(f"user_{user.id}_roles")
+        if any(not value.isdigit() or int(value) not in role_by_id for value in raw_ids):
+            abort(403)
+        validate_user_role_assignment(user, [role_by_id[int(value)] for value in raw_ids])
+    for user in users:
+        if not can_manage_user_account(user):
+            abort(403)
         selected_role_ids = {
             int(role_id)
             for role_id in request.form.getlist(f"user_{user.id}_roles")
@@ -29339,11 +29472,14 @@ def update_user_roles():
             )
             if super_admin_role:
                 selected_role_ids.add(super_admin_role.id)
-        user.roles = [
+        selected_roles = [
             role_by_id[role_id]
             for role_id in selected_role_ids
             if role_id in role_by_id
         ]
+        validate_user_role_assignment(user, selected_roles)
+        previous_keys = user.role_keys
+        user.roles = selected_roles
         selected_extra_permissions = set(
             request.form.getlist(f"user_{user.id}_extra_permissions")
         )
@@ -29363,6 +29499,7 @@ def update_user_roles():
             ):
                 user.extra_permissions.remove(permission)
         sync_user_legacy_permissions(user)
+        audit_user_role_assignment(user, previous_keys)
     db.session.commit()
     flash("Kullanıcı rol atamaları güncellendi.", "success")
     return redirect(url_for("main.roles"))

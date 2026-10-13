@@ -78,6 +78,12 @@ PERMISSION_CATALOG = (
         "legacy_field": "can_manage_users",
     },
     {
+        "key": "users.assign_roles",
+        "label": "Şirket içi rol atama",
+        "group": "Sistem",
+        "description": "Kendi şirketindeki alt hesaplara yetkisini aşmayan rolleri atar.",
+    },
+    {
         "key": "users.delete",
         "label": "Kullanıcı silme",
         "group": "Sistem",
@@ -1749,6 +1755,25 @@ for role_definition in ROLE_DEFINITIONS:
         permission for permission in MEETING_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if permission not in role_definition["permissions"]
     )
+
+
+# Include assigned-worker permissions too, so all tenant roles can be delegated.
+COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS = {
+    "management_representative", "management", "department_manager",
+    "department_staff", "viewer",
+}
+ROLE_DEFINITIONS += ({
+    "key": "company_admin",
+    "name": "Şirket Admini",
+    "hierarchy_level": 5,
+    "description": "Kendi şirketinin kullanıcılarını ve süreçlerini yönetir. Superadmin tarafından atanır ve yönetilir.",
+    "permissions": sorted({
+        permission for role in ROLE_DEFINITIONS
+        if role["key"] in COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS
+        for permission in role["permissions"]
+        if permission != "roles.manage"
+    } | {"users.delete", "users.assign_roles"}),
+},)
 
 
 REMOVED_ROLE_MAPPINGS = {
