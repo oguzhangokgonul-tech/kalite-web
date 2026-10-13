@@ -27,7 +27,7 @@ Pasif hesaplar Kullanici listesinde gorunur; Superadmin yeniden etkinlestirebili
 - Personel baglantilarindan dolayli admin degisikligi ve global hesabin firma personeline isimle otomatik baglanmasi engellenir.
 - CSRF ve mevcut aktif kullanici kotasi korunur.
 - Sema degisikligi yoktur. Dagitimda `python -m scripts.company_admin_release` yalniz yeni rolu ekler; mevcut kullanici atamalarina ve diger rollerin ozel izinlerine dokunmaz. Ikinci calistirma etkisizdir; farkli bir mevcut admin tanimi varsa durur.
-- Canliya alma yapilmadi; kod ve testler yereldedir.
+- Lider onayiyla 13 Ekim 2026 tarihinde `81dfc56b51b483f309783db549a314e6840851b7` uygulama surumu canliya alindi.
 
 ## Bilinen Ayrik Bulgular
 
@@ -43,3 +43,18 @@ Pasif hesaplar Kullanici listesinde gorunur; Superadmin yeniden etkinlestirebili
 - Mobil tarayicida CSRF'li formdan admin olusturma, diger adminin duzenleme butonunun kapali olmasi ve Superadmin ile pasife alma basarili.
 - Python derleme kontrolu ve `git diff --check` basarili. Yerel Graphify AST haritasi yenilendi.
 - Tum repo test paketi calistirilmadi; ilgili rol, tenant, kota ve personel regresyonlari calistirildi.
+
+## Canli Dagitim Kaniti
+
+- Izole release worktree testleri: 97 basarili; onboarding rol audit testi ve dar kapsamli kurulum testleri dahil.
+- Dar kapsamli kurulum yalniz `company_admin` rolunu 242 izinle ekledi. Mevcut kullanicilara otomatik atama yapilmadi.
+- Tam yedek: `/var/data/aksiyon-takip/backups/company-admin-release.vJ1cF4H9/archive/volkaportal-backup-20261013-170718.zip`.
+- Sunucu disi kopya: `backups/company-admin-20261013/volkaportal-backup-20261013-170718.zip`.
+- Iki kopyada SHA256: `04d33dd7388398a161c32a231bfeb08c9bf86c8e6a91bea890d1e5704455ad4e`.
+- Gercek geri yukleme yalniz izole gecici ortamda yapildi: 204 dosya, integrity_check OK. Rol kurulumunun iki calistirmasi ve 167 mevcut tablonun korunmasi dogrulandi.
+- Canli kurulumdan sonra sema/revizyon degismedi (`202610120002`); mevcut is verileri ve 204 upload dosyasi hash karsilastirmasiyla korundu.
+- Sunucu verisinin izole kopyasinda 3 sirket icin alt rol atama/audit, platform reddi, diger admini koruma ve tenant sinirlari dogrulandi. Canli is kaydi yazilmadi.
+- `volkaportal.com`, `erprefabrik.volkaportal.com`, `sagiroglucelik.volkaportal.com` HTTPS girisleri 200.
+- Uygulama, nginx, hatirlatma ve webhook zamanlayicilari aktif; yeni worker baslangicinda hata yok. Onceki worker SIGTERM mesajlari planli durdurmaya ait.
+- Musteri geri bildirimi silme degisiklikleri bu dagitima alinmadi.
+- Geri donus gerekirse: once yazicilari durdurup yeni yedek alin. Henuz yeni role hesap atanmamissa onceki kodla uyumlu bos rol korunabilir; atama varsa eski kodun admin korumalarini icermedigi dikkate alinmali ve rol/izin geri donus plani onaylanmali. Canli tam restore ayri acik onay gerektirir.
