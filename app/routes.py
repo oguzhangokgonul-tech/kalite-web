@@ -284,6 +284,26 @@ DEFAULT_COMPANY_ACCENT_COLOR = "#00bbaa"
 DOCUMENT_DEPARTMENTS = ("Tüm Departmanlar", *DEPARTMENTS)
 SALES_READINESS_SETTING_PREFIX = "sales_readiness:"
 SALES_READINESS_DEFERRED = {
+    "module_management_calendar": {
+        "scope": "Yıllık yönetim programı ve toplantı takvimi", "date": "2026-10-12",
+        "reason": "Lider kararıyla vardiya devir teslim notlarına öncelik verildi; bu adım ertelendi.",
+    },
+    "module_communication_plan": {
+        "scope": "İç / dış iletişim planı", "date": "2026-10-12",
+        "reason": "Lider kararıyla vardiya devir teslim notlarına öncelik verildi; bu adım ertelendi.",
+    },
+    "module_business_continuity": {
+        "scope": "İş sürekliliği ve acil durum aksiyon planı", "date": "2026-10-12",
+        "reason": "Lider kararıyla vardiya devir teslim notlarına öncelik verildi; bu adım ertelendi.",
+    },
+    "module_production_planning": {
+        "scope": "Üretim planlama modülü", "date": "2026-10-12",
+        "reason": "Lider kararıyla vardiya devir teslim notlarına öncelik verildi; bu adım ertelendi.",
+    },
+    "module_work_orders": {
+        "scope": "İş emri ve operasyon takip modülü", "date": "2026-10-12",
+        "reason": "Lider kararıyla vardiya devir teslim notlarına öncelik verildi; bu adım ertelendi.",
+    },
     "competitor_esignature": {
         "scope": "E-imza entegrasyonu",
         "date": "2026-09-29",
@@ -2691,6 +2711,15 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "shift_handover.dashboard": "shift_handover",
+    "shift_handover.create": "shift_handover",
+    "shift_handover.detail": "shift_handover",
+    "shift_handover.edit": "shift_handover",
+    "shift_handover.send": "shift_handover",
+    "shift_handover.receive": "shift_handover",
+    "shift_handover.archive": "shift_handover",
+    "shift_handover.cancel": "shift_handover",
+    "shift_handover.export_excel": "shift_handover",
     "objective_plans.create": "quality_objectives",
     "custody.dashboard": "custody_management",
     "custody.create": "custody_management",
@@ -8169,6 +8198,11 @@ def report_opportunity_data():
     return report_data()
 
 
+def report_shift_handover_data():
+    from .shift_handover import report_data
+    return report_data()
+
+
 def report_fmea_data():
     records = sorted(fmea_query().all(), key=fmea_sort_key)
     rows = [
@@ -8784,6 +8818,17 @@ def report_energy_consumption_data():
 
 REPORT_CENTER_REPORTS = (
     {
+        "key": "shift_handover",
+        "title": "Vardiya Devir Teslim Raporu",
+        "description": "Vardiya notları, devreden ve devralan kişiler ile teslim alma kayıtları.",
+        "icon": "bi-arrow-left-right",
+        "tone": "success",
+        "module_key": "shift_handover",
+        "required_permission": "shift_handover.view",
+        "required_export_permission": "shift_handover.export",
+        "builder": report_shift_handover_data,
+    },
+    {
         "key": "opportunities",
         "title": "Fırsat Portföyü Raporu",
         "description": "Fayda puanları, uygulama planları ve sonuç değerlendirmeleri.",
@@ -9105,6 +9150,7 @@ REPORT_CENTER_REPORTS = (
 
 REPORT_PERIOD_POLICIES = {
     "opportunities": {"date_headers": ("Analiz Tarihi",)},
+    "shift_handover": {"date_headers": ("Vardiya Tarihi",)},
     "context": {"date_headers": ("Analiz Tarihi",)},
     "pestle": {"date_headers": ("Analiz Tarihi",)},
     "swot": {"date_headers": ("Analiz Tarihi",)},
@@ -9140,6 +9186,8 @@ REPORT_PERIOD_POLICIES = {
 
 
 MODULE_ACTIVITY_ENTITY_TYPES = {
+    "custody_management": ("CustodyRecord",),
+    "shift_handover": ("ShiftHandover",),
     "iso_executive_summary": ("Action", "Dof", "Document", "InternalAudit", "RiskRecord"),
     "management_due_dashboard": ("Action", "Dof", "InternalAudit", "CalibrationRecord"),
     "organization": ("CompanyDepartment", "OrientationNode", "User"),
@@ -9234,7 +9282,7 @@ def apply_standard_report_period(definition, data, period):
         mode=policy.get("mode", "activity"),
     )
     # Meeting membership is checked by ID in its builder, not by display names.
-    if definition["key"] not in {"meetings", "projects", "swot", "pestle", "context", "opportunities"}:
+    if definition["key"] not in {"meetings", "projects", "swot", "pestle", "context", "opportunities", "shift_handover"}:
         report["rows"] = custom_report_rows_for_current_role(
             report["headers"], report["rows"]
         )
@@ -9242,6 +9290,16 @@ def apply_standard_report_period(definition, data, period):
 
 
 def module_activity_definition(module_key):
+    if module_key == "custody_management" and (not current_company_id() or not (
+        current_user_can("custody.export")
+        and (current_user_can("custody.view_all") or current_user_can("custody.manage"))
+    )):
+        return None
+    if module_key == "shift_handover" and (not current_company_id() or not (
+        current_user_can("shift_handover.export")
+        and (current_user_can("shift_handover.view_all") or current_user_can("shift_handover.manage"))
+    )):
+        return None
     if module_key == "pestle" and (not current_company_id() or not (
         current_user_can("pestle.export")
         and (current_user_can("pestle.view_all") or current_user_can("pestle.manage"))
@@ -9365,7 +9423,12 @@ def report_definition_access_allowed(definition, export=False):
     )
     if definition.get("key") == "opportunities" and not opportunity_reader:
         return False
-    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader or context_reader or opportunity_reader):
+    shift_reader = definition.get("key") == "shift_handover" and current_company_id() and any(
+        current_user_can(key) for key in ("shift_handover.view", "shift_handover.view_all", "shift_handover.manage")
+    )
+    if definition.get("key") == "shift_handover" and not shift_reader:
+        return False
+    if required_permission and not current_user_can(required_permission) and not (project_reader or swot_reader or pestle_reader or context_reader or opportunity_reader or shift_reader):
         return False
     required_export_permission = definition.get("required_export_permission")
     if export and required_export_permission and not current_user_can(required_export_permission):
@@ -9693,7 +9756,7 @@ def build_custom_report_data(report, *, export=False, row_limit=None):
         selected_headers = source_headers[:20]
 
     source_rows = [tuple(row) for row in source["rows"]]
-    if report.source_key not in {"meetings", "projects", "swot", "pestle", "context", "opportunities"}:
+    if report.source_key not in {"meetings", "projects", "swot", "pestle", "context", "opportunities", "shift_handover"}:
         source_rows = custom_report_rows_for_current_role(source_headers, source_rows)
     filters = configuration.get("filters", [])[:10]
     filtered_rows = [
@@ -18475,6 +18538,7 @@ def assigned_all_tasks(scope):
     from .pestle import assigned_task_rows as assigned_pestle_task_rows
     from .org_context import assigned_task_rows as assigned_context_task_rows
     from .opportunities import assigned_task_rows as assigned_opportunity_task_rows
+    from .shift_handover import assigned_task_rows as assigned_shift_handover_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18520,6 +18584,7 @@ def assigned_all_tasks(scope):
         + assigned_pestle_task_rows(scope, assigned_task_row)
         + assigned_context_task_rows(scope, assigned_task_row)
         + assigned_opportunity_task_rows(scope, assigned_task_row)
+        + assigned_shift_handover_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)

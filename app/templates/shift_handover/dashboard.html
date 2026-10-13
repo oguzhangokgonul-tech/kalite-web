@@ -1,0 +1,78 @@
+{% extends "shift_handover/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Vardiya Devir Teslimi{% endblock %}
+{% block app_content %}
+  {% call ui.page_header('Vardiya Devir Teslimi', icon='bi-arrow-left-right', heading_level=1) %}
+    {% if can_export %}{{ ui.action_link(url_for('shift_handover.export_excel', **filters), 'Excel indir', icon='bi-download', tone='secondary', icon_only=True) }}{% endif %}
+    {% if can_create %}{{ ui.action_link(url_for('shift_handover.create'), 'Yeni Kayıt', icon='bi-plus-lg') }}{% endif %}
+  {% endcall %}
+  <form class="sh-filters" method="get" action="{{ url_for('shift_handover.dashboard') }}" role="search" aria-label="Vardiya filtreleri">
+    <div>
+      <label class="form-label" for="sh-search">Başlık, vardiya veya alan</label>
+      <input class="form-control" id="sh-search" name="q" type="search" maxlength="180" value="{{ filters.q }}">
+    </div>
+    <div>
+      <label class="form-label" for="sh-status">Durum</label>
+      <select class="form-select" id="sh-status" name="status">
+        <option value="all" {% if filters.status == 'all' %}selected{% endif %}>Tümü</option>
+        {% for key, label in handover_statuses.items() %}<option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="sh-archive">Arşiv</label>
+      <select class="form-select" id="sh-archive" name="archive">
+        {% for key, label in [('active', 'Arşiv dışı'), ('archived', 'Arşivlenen'), ('all', 'Tümü')] %}<option value="{{ key }}" {% if filters.archive == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="sh-period">Dönem</label>
+      <select class="form-select" id="sh-period" name="period">
+        <option value="">Tüm tarihler</option>
+        {% for key, label in period_choices %}<option value="{{ key }}" {% if filters.period == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="form-label" for="sh-anchor">Dönem tarihi</label>
+      <input class="form-control" id="sh-anchor" name="anchor" type="date" max="{{ today.isoformat() }}" value="{{ filters.anchor or today.isoformat() }}">
+    </div>
+    <div class="sh-actions">
+      {{ ui.action_button('Filtrele', icon='bi-search', icon_only=True) }}
+      {% if filters.q or filters.status != 'all' or filters.archive != 'active' or filters.period %}{{ ui.action_link(url_for('shift_handover.dashboard'), 'Filtreleri temizle', icon='bi-x-lg', tone='secondary', icon_only=True) }}{% endif %}
+    </div>
+  </form>
+  <section class="sh-section" aria-labelledby="sh-results">
+    <h2 id="sh-results">Kayıtlar <span class="sh-muted">({{ pagination.total }})</span></h2>
+    {% if period %}<p class="sh-muted">{{ period.label }}: {{ period.range_label }}</p>{% endif %}
+    {% if pagination.items %}
+      <ul class="sh-list">
+        {% for record in pagination.items %}
+          <li class="sh-item">
+            <div class="sh-item-heading">
+              <div><span class="sh-muted">{{ record.record_no }}</span><h3><a href="{{ url_for('shift_handover.detail', record_id=record.id) }}">{{ record.title }}</a></h3></div>
+              <div class="sh-actions">
+                {{ ui.status_badge(handover_statuses[record.status], tone='success' if record.status == 'received' else 'info' if record.status == 'sent' else 'neutral') }}
+                {% if record.archived_at %}{{ ui.status_badge('Arşiv', tone='neutral', icon='bi-archive') }}{% endif %}
+              </div>
+            </div>
+            <dl class="sh-facts">
+              <div><dt>Tarih / Vardiya</dt><dd>{{ record.handover_date.strftime('%d.%m.%Y') }} / {{ record.shift_name }}</dd></div>
+              <div><dt>Departman / Alan</dt><dd>{{ record.department.name }}{{ ' / ' + record.area if record.area else '' }}</dd></div>
+              <div><dt>Teslim eden</dt><dd>{{ record.sender.full_name or record.sender.username }}</dd></div>
+              <div><dt>Teslim alan</dt><dd>{{ record.receiver.full_name or record.receiver.username }}</dd></div>
+            </dl>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      {{ ui.empty_state('Vardiya devir teslim kaydı bulunamadı.', icon='bi-inbox') }}
+      {% if pagination.total %}{{ ui.action_link(url_for('shift_handover.dashboard', **filters), 'İlk sayfaya dön', icon='bi-arrow-left', tone='secondary') }}{% endif %}
+    {% endif %}
+    {% if pagination.pages > 1 and pagination.items %}
+      <nav class="sh-pagination" aria-label="Kayıt sayfaları">
+        {% if pagination.has_prev %}{{ ui.action_link(url_for('shift_handover.dashboard', page=pagination.prev_num, **filters), 'Önceki sayfa', icon='bi-chevron-left', tone='secondary', icon_only=True) }}{% endif %}
+        <span>Sayfa {{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}{{ ui.action_link(url_for('shift_handover.dashboard', page=pagination.next_num, **filters), 'Sonraki sayfa', icon='bi-chevron-right', tone='secondary', icon_only=True) }}{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}

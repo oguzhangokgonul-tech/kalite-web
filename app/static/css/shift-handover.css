@@ -1,0 +1,43 @@
+.shift-handover-page { min-width: 0; color: var(--bs-body-color, #253128); }
+.shift-handover-page :is(h1, h2, h3, p, dd, a, label, summary) { overflow-wrap: anywhere; letter-spacing: 0; }
+.shift-handover-page :is(.vp-page-header, .vp-page-header__content) { min-width: 0; }
+.shift-handover-page h1 { font-size: 1.5rem; }
+.shift-handover-page h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
+.shift-handover-page h3 { font-size: 1rem; margin: .25rem 0 0; }
+.shift-handover-page .sh-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.25rem; }
+.shift-handover-page .sh-wide { grid-column: 1 / -1; }
+.shift-handover-page :is(.sh-grid, .sh-filters) > div { min-width: 0; }
+.shift-handover-page :is(input, select, textarea) { max-width: 100%; min-width: 0; }
+.shift-handover-page textarea { resize: vertical; }
+.shift-handover-page .sh-filters { display: grid; grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(120px, 1fr)) auto; align-items: end; gap: .85rem; padding: 1rem 0 1.25rem; border-bottom: 1px solid #dce3df; }
+.shift-handover-page .sh-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.shift-handover-page .sh-actions form { margin: 0; max-width: 100%; }
+.shift-handover-page .sh-form-actions { margin-top: 1.25rem; }
+.shift-handover-page .sh-form { max-width: 960px; }
+.shift-handover-page .sh-section { padding: 1.25rem 0; border-bottom: 1px solid #dce3df; }
+.shift-handover-page .sh-list { list-style: none; margin: 0; padding: 0; }
+.shift-handover-page .sh-item { padding: 1rem 0; border-top: 1px solid #dce3df; }
+.shift-handover-page .sh-item-heading { display: flex; justify-content: space-between; align-items: start; gap: 1rem; }
+.shift-handover-page .sh-item-heading > div { min-width: 0; }
+.shift-handover-page .sh-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin: 1rem 0 0; }
+.shift-handover-page .sh-facts dt { color: #53615a; font-size: .8rem; font-weight: 500; }
+.shift-handover-page .sh-facts dd { font-size: .92rem; margin: .25rem 0 0; }
+.shift-handover-page .sh-detail-facts { padding-bottom: 1rem; border-bottom: 1px solid #dce3df; }
+.shift-handover-page .sh-muted { color: #53615a; font-size: .85rem; }
+.shift-handover-page .sh-note { white-space: pre-wrap; line-height: 1.6; margin: 0; }
+.shift-handover-page .sh-state { margin: 1rem 0; }
+.shift-handover-page .sh-notice { color: #9b3131; margin-top: 1rem; }
+.shift-handover-page .sh-pagination { display: flex; justify-content: center; align-items: center; gap: 1rem; margin: 1.25rem 0 0; }
+.shift-handover-page .sh-cancel { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #dce3df; }
+.shift-handover-page .sh-cancel summary { cursor: pointer; color: #9b3131; padding: .6rem 0; min-height: 44px; }
+.shift-handover-page .sh-cancel form { max-width: 680px; padding-top: .8rem; }
+@media (max-width: 1199px) {
+  .shift-handover-page .sh-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .shift-handover-page .sh-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575px) {
+  .shift-handover-page :is(.sh-grid, .sh-filters, .sh-facts) { grid-template-columns: minmax(0, 1fr); }
+  .shift-handover-page .sh-item-heading { flex-direction: column; gap: .7rem; }
+  .shift-handover-page :is(input, select, textarea) { font-size: 16px; }
+  .shift-handover-page .sh-actions { gap: .5rem; }
+}

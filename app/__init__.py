@@ -56,6 +56,7 @@ from .pestle import bp as pestle_bp
 from .org_context import bp as context_bp
 from .opportunities import bp as opportunities_bp
 from .custody import bp as custody_bp
+from .shift_handover import bp as shift_handover_bp
 from .objective_plans import bp as objective_plans_bp
 from .notification_settings import bp as notification_settings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
@@ -128,6 +129,7 @@ def create_app(config_class=Config):
     app.register_blueprint(context_bp)
     app.register_blueprint(opportunities_bp)
     app.register_blueprint(custody_bp)
+    app.register_blueprint(shift_handover_bp)
     app.register_blueprint(objective_plans_bp)
     app.register_blueprint(notification_settings_bp)
 

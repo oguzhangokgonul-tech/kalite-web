@@ -1,0 +1,62 @@
+{% extends "shift_handover/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ 'Taslağı Düzenle' if record else 'Yeni Vardiya Devir Teslimi' }}{% endblock %}
+{% block app_content %}
+  {% set back_url = url_for('shift_handover.detail', record_id=record.id) if record else url_for('shift_handover.dashboard') %}
+  {% call ui.page_header('Taslağı Düzenle' if record else 'Yeni Vardiya Devir Teslimi', subtitle=record.record_no if record else none, icon='bi-arrow-left-right', heading_level=1) %}
+    {{ ui.action_link(back_url, 'Geri dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+  {% endcall %}
+  <form method="post" action="{{ url_for('shift_handover.edit', record_id=record.id) if record else url_for('shift_handover.create') }}" class="sh-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="request_token" value="{{ request_token }}">
+    <input type="hidden" name="version_id" value="{{ values.get('version_id', record.version_id if record else 1) }}">
+    <div class="sh-grid">
+      <div>
+        <label class="form-label" for="sh-date">Vardiya tarihi *</label>
+        <input class="form-control" type="date" id="sh-date" name="handover_date" value="{{ values.get('handover_date', '') }}" required>
+      </div>
+      <div>
+        <label class="form-label" for="sh-shift">Vardiya *</label>
+        <input class="form-control" id="sh-shift" name="shift_name" maxlength="80" value="{{ values.get('shift_name', '') or '' }}" required>
+      </div>
+      <div>
+        <label class="form-label" for="sh-department">Departman *</label>
+        <select class="form-select" id="sh-department" name="department_id" required>
+          <option value="">Departman seçin</option>
+          {% for department in departments %}<option value="{{ department.id }}" {% if values.get('department_id', '')|string == department.id|string %}selected{% endif %}>{{ department.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="sh-area">Alan</label>
+        <input class="form-control" id="sh-area" name="area" maxlength="120" value="{{ values.get('area', '') or '' }}">
+      </div>
+      <div>
+        <label class="form-label" for="sh-sender">Teslim eden</label>
+        {% set sender = record.sender if record else g.current_user %}
+        <input class="form-control" id="sh-sender" readonly value="{{ sender.full_name or sender.username }}">
+      </div>
+      <div>
+        <label class="form-label" for="sh-receiver">Teslim alacak kullanıcı *</label>
+        <select class="form-select" id="sh-receiver" name="receiver_user_id" required>
+          <option value="">Kullanıcı seçin</option>
+          {% for user in receivers %}<option value="{{ user.id }}" {% if values.get('receiver_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name or user.username }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="sh-wide">
+        <label class="form-label" for="sh-title">Başlık *</label>
+        <input class="form-control" id="sh-title" name="title" maxlength="180" value="{{ values.get('title', '') or '' }}" required>
+      </div>
+      {% for name, label in handover_notes %}
+        <div class="sh-wide">
+          <label class="form-label" for="sh-{{ name }}">{{ label }}{{ ' *' if name == 'summary' else '' }}</label>
+          <textarea class="form-control" id="sh-{{ name }}" name="{{ name }}" maxlength="5000" rows="{{ 5 if name == 'summary' else 3 }}" {% if name == 'summary' %}required{% endif %}>{{ values.get(name, '') or '' }}</textarea>
+        </div>
+      {% endfor %}
+    </div>
+    {% if not departments or not receivers %}<p class="sh-notice" role="status">Aktif departman veya teslim alma yetkili kullanıcı bulunamadı.</p>{% endif %}
+    <div class="sh-actions sh-form-actions">
+      {{ ui.action_link(back_url, 'Vazgeç', icon='bi-x-lg', tone='secondary') }}
+      {{ ui.action_button('Taslağı Kaydet', icon='bi-check-lg', disabled=not departments or not receivers) }}
+    </div>
+  </form>
+{% endblock %}

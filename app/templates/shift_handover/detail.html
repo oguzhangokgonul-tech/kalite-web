@@ -1,0 +1,61 @@
+{% extends "shift_handover/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ record.record_no }}{% endblock %}
+{% macro mutation_form(endpoint, label, icon, tone='primary') %}
+  <form method="post" action="{{ url_for(endpoint, record_id=record.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="version_id" value="{{ record.version_id }}">
+    {{ ui.action_button(label, icon=icon, tone=tone) }}
+  </form>
+{% endmacro %}
+{% block app_content %}
+  {% call ui.page_header(record.title, subtitle=record.record_no, icon='bi-arrow-left-right', heading_level=1) %}
+    {{ ui.action_link(url_for('shift_handover.dashboard'), 'Listeye dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+    {% if can_edit %}{{ ui.action_link(url_for('shift_handover.edit', record_id=record.id), 'Düzenle', icon='bi-pencil', tone='secondary', icon_only=True) }}{% endif %}
+  {% endcall %}
+  <div class="sh-actions sh-state">
+    {{ ui.status_badge(handover_statuses[record.status], tone='success' if record.status == 'received' else 'info' if record.status == 'sent' else 'neutral') }}
+    {% if record.archived_at %}{{ ui.status_badge('Arşiv', tone='neutral', icon='bi-archive') }}{% endif %}
+  </div>
+  <dl class="sh-facts sh-detail-facts">
+    <div><dt>Vardiya tarihi</dt><dd>{{ record.handover_date.strftime('%d.%m.%Y') }}</dd></div>
+    <div><dt>Vardiya</dt><dd>{{ record.shift_name }}</dd></div>
+    <div><dt>Departman</dt><dd>{{ record.department.name }}</dd></div>
+    <div><dt>Alan</dt><dd>{{ record.area or '-' }}</dd></div>
+    <div><dt>Teslim eden</dt><dd>{{ record.sender.full_name or record.sender.username }}</dd></div>
+    <div><dt>Teslim alan</dt><dd>{{ record.receiver.full_name or record.receiver.username }}</dd></div>
+    <div><dt>Gönderim (UTC)</dt><dd>{{ record.sent_at.strftime('%d.%m.%Y %H:%M') if record.sent_at else '-' }}</dd></div>
+    <div><dt>Teslim alma (UTC)</dt><dd>{{ record.received_at.strftime('%d.%m.%Y %H:%M') if record.received_at else '-' }}</dd></div>
+  </dl>
+  {% for name, label in handover_notes %}
+    <section class="sh-section" aria-labelledby="sh-note-{{ name }}">
+      <h2 id="sh-note-{{ name }}">{{ label }}</h2>
+      <p class="sh-note">{{ record|attr(name) or '-' }}</p>
+    </section>
+  {% endfor %}
+  {% if record.cancelled_at %}
+    <section class="sh-section" aria-labelledby="sh-cancelled">
+      <h2 id="sh-cancelled">İptal gerekçesi</h2>
+      <p class="sh-note">{{ record.cancel_reason }}</p>
+      <p class="sh-muted">{{ record.cancelled_at.strftime('%d.%m.%Y %H:%M') }} UTC</p>
+    </section>
+  {% endif %}
+  {% if record.archived_at %}<p class="sh-muted">Arşiv: {{ record.archived_at.strftime('%d.%m.%Y %H:%M') }} UTC</p>{% endif %}
+  <div class="sh-actions sh-form-actions">
+    {% if can_edit %}{{ mutation_form('shift_handover.send', 'Gönder', 'bi-send') }}{% endif %}
+    {% if can_receive %}{{ mutation_form('shift_handover.receive', 'Teslim Aldım', 'bi-check2-circle') }}{% endif %}
+    {% if can_archive %}{{ mutation_form('shift_handover.archive', 'Arşivle', 'bi-archive', 'secondary') }}{% endif %}
+  </div>
+  {% if can_cancel %}
+    <details class="sh-cancel">
+      <summary>Devir teslimi iptal et</summary>
+      <form method="post" action="{{ url_for('shift_handover.cancel', record_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="version_id" value="{{ record.version_id }}">
+        <label class="form-label" for="sh-reason">İptal gerekçesi *</label>
+        <textarea class="form-control" id="sh-reason" name="cancel_reason" maxlength="1000" rows="3" required></textarea>
+        <div class="sh-form-actions">{{ ui.action_button('İptal Et', icon='bi-x-circle', tone='danger') }}</div>
+      </form>
+    </details>
+  {% endif %}
+{% endblock %}

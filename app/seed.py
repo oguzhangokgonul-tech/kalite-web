@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "shift_handover.view", "label": "İlgili vardiya notlarını görüntüleme", "group": "Vardiya Devir Teslim", "description": "Tarafı olduğu vardiya kayıtlarını görüntüler."},
+    {"key": "shift_handover.view_all", "label": "Şirket vardiya notlarını görüntüleme", "group": "Vardiya Devir Teslim", "description": "Seçili şirketin tüm vardiya kayıtlarını görüntüler."},
+    {"key": "shift_handover.create", "label": "Vardiya notu oluşturma", "group": "Vardiya Devir Teslim", "description": "Kendi taslaklarını oluşturur, düzenler ve gönderir."},
+    {"key": "shift_handover.receive", "label": "Vardiya teslim alma", "group": "Vardiya Devir Teslim", "description": "Yalnız kendisine gönderilen vardiya notlarını teslim alır."},
+    {"key": "shift_handover.manage", "label": "Vardiya kayıtlarını yönetme", "group": "Vardiya Devir Teslim", "description": "Şirket kayıtlarını yönetir; başka kişi adına teslim alamaz."},
+    {"key": "shift_handover.export", "label": "Vardiya raporu indirme", "group": "Vardiya Devir Teslim", "description": "Görüntüleyebildiği vardiya notlarının Excel raporunu indirir."},
     {"key": "custody.view", "label": "Zimmetlerini görüntüleme", "group": "Zimmet Yönetimi", "description": "Personel kaydına bağlı zimmetleri görüntüler."},
     {"key": "custody.view_all", "label": "Şirket zimmetlerini görüntüleme", "group": "Zimmet Yönetimi", "description": "Şirketin tüm zimmetlerini görüntüler."},
     {"key": "custody.manage", "label": "Zimmet ve iade yönetimi", "group": "Zimmet Yönetimi", "description": "Şirket personeline zimmet verir, açık kayıtları düzenler ve iade alır."},
@@ -1670,6 +1676,18 @@ OPPORTUNITY_ROLE_PERMISSIONS = {
     "department_staff": ("opportunity.view",),
     "viewer": ("opportunity.view",),
 }
+SHIFT_HANDOVER_ROLE_PERMISSIONS = {
+    'management_representative': ('shift_handover.view', 'shift_handover.view_all', 'shift_handover.create', 'shift_handover.receive', 'shift_handover.manage', 'shift_handover.export'),
+    'management': ('shift_handover.view', 'shift_handover.view_all', 'shift_handover.export'),
+    'department_manager': ('shift_handover.view', 'shift_handover.create', 'shift_handover.receive', 'shift_handover.export'),
+    'department_staff': ('shift_handover.view', 'shift_handover.create', 'shift_handover.receive'),
+    'viewer': ('shift_handover.view',),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition['permissions'].extend(
+        p for p in SHIFT_HANDOVER_ROLE_PERMISSIONS.get(role_definition['key'], ())
+        if p not in role_definition['permissions']
+    )
 CUSTODY_ROLE_PERMISSIONS = {
     'management_representative': ('custody.view', 'custody.view_all', 'custody.manage', 'custody.export'),
     'management': ('custody.view', 'custody.view_all', 'custody.export'),
@@ -4125,6 +4143,8 @@ def ensure_runtime_schema():
         ensure_opportunity_sqlite_guards(opportunity_connection)
 
     from .custody_models import CustodyRecord
+    from .shift_handover_schema import ensure_shift_handover_schema
+    ensure_shift_handover_schema()
     from .custody_schema import ensure_custody_guards
     CustodyRecord.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as custody_connection:

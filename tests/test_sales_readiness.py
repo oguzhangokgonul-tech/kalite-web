@@ -185,20 +185,33 @@ class ChecklistParser(HTMLParser):
 def test_sales_readiness_catalog_and_deferred_metadata():
     assert set(SALES_READINESS_DEFERRED) == {
         "competitor_esignature", "competitor_sso_mfa",
+        "module_management_calendar", "module_communication_plan", "module_business_continuity",
+        "module_production_planning", "module_work_orders",
     }
     catalog_ids = [
         item_id for section in SALES_READINESS_SECTIONS
         for item_id, _label in section["items"]
     ]
     assert len(catalog_ids) == len(set(catalog_ids)) == 142
-    assert len(sales_readiness_active_item_ids()) == 140
+    assert len(sales_readiness_active_item_ids()) == 135
     assert set(SALES_READINESS_DEFERRED) <= sales_readiness_item_ids()
     assert SALES_READINESS_DEFERRED["competitor_esignature"]["scope"] == "E-imza entegrasyonu"
     assert SALES_READINESS_DEFERRED["competitor_sso_mfa"]["scope"] == "SSO/MFA"
-    for metadata in SALES_READINESS_DEFERRED.values():
-        assert metadata["date"] == "2026-09-29"
+    for key, metadata in SALES_READINESS_DEFERRED.items():
+        assert metadata["date"] == ("2026-09-29" if key.startswith("competitor_") else "2026-10-12")
         assert "Lider kararı" in metadata["reason"]
     assert "Mevcut elektronik onay korunur" in SALES_READINESS_DEFERRED["competitor_esignature"]["reason"]
+
+
+def test_shift_handover_priority_keeps_skipped_items_deferred_not_completed(app):
+    ordered = [key for section in SALES_READINESS_SECTIONS for key, _ in section['items']]
+    preceding = set(ordered[:ordered.index('module_shift_handover')])
+    save_sales_readiness_state(preceding)
+    context = sales_readiness_context()
+    assert context['next_item']['id'] == 'module_shift_handover'
+    assert context['deferred_count'] == 7
+    assert not (sales_readiness_completed_ids() & set(SALES_READINESS_DEFERRED))
+    assert 'module_daily_production_report' in sales_readiness_active_item_ids()
 
 
 @pytest.mark.parametrize("stored_value", [None, "0", "1", "legacy"])
@@ -270,7 +283,7 @@ def test_sales_readiness_post_writes_explicit_zero_without_bulk_creation(app, cl
         assert item_id not in sales_readiness_completed_ids()
 
 
-@pytest.mark.parametrize("completed_count", [0, 2, 140])
+@pytest.mark.parametrize("completed_count", [0, 2, len(sales_readiness_active_item_ids())])
 def test_sales_readiness_active_counters_exclude_deferred(app, completed_count):
     active_ids = sales_readiness_active_item_ids()
     selected = set(sorted(active_ids)[:completed_count])
@@ -283,7 +296,7 @@ def test_sales_readiness_active_counters_exclude_deferred(app, completed_count):
 
     assert context["total_count"] == len(active_ids)
     assert context["catalog_total_count"] == len(sales_readiness_item_ids())
-    assert context["deferred_count"] == 2
+    assert context["deferred_count"] == len(SALES_READINESS_DEFERRED)
     assert context["completed_count"] == completed_count
     assert context["remaining_count"] == len(active_ids) - completed_count
     assert context["progress"] == round(completed_count / len(active_ids) * 100)
@@ -329,7 +342,7 @@ def test_sales_readiness_live_scenario_next_is_ai_without_marking_done(app, clie
     assert len(parsed.categories) == len(SALES_READINESS_SECTIONS)
     assert sum("open" in category for category in parsed.categories) == 1
     assert any(link.get("href") == "#readiness-competitor_ai_assistants" for link in parsed.links)
-    assert "67 / 140 madde" in body
+    assert f"67 / {len(sales_readiness_active_item_ids())} madde" in body
     assert "2026-09-29" in body
     assert "Mevcut elektronik onay korunur" in body
     assert "E-imza entegrasyonu" in body and "SSO/MFA" in body

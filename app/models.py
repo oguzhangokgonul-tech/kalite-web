@@ -11,6 +11,7 @@ from .pestle_models import PestleAnalysis
 from .context_models import OrganizationContext
 from .opportunity_models import Opportunity
 from .custody_models import CustodyRecord
+from .shift_handover_models import ShiftHandover
 from .objective_plan_models import ObjectivePlanLink
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
@@ -348,6 +349,14 @@ COMPANY_MODULE_CATALOG = (
         "description": "Gelen ve giden resmî yazıları, eklerini, dağıtımlarını ve arşiv durumlarını izler.",
         "icon": "bi-envelope-paper",
         "sort_order": 71,
+        "parent_key": None,
+    },
+    {
+        "key": "shift_handover",
+        "name": "Vardiya Devir Teslim Notları",
+        "description": "Vardiya notlarını devretme, teslim alma ve geçmiş kayıtları izleme.",
+        "icon": "bi-arrow-left-right",
+        "sort_order": 72,
         "parent_key": None,
     },
     {

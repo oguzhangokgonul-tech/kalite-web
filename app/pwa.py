@@ -48,6 +48,15 @@ def _module_enabled(module_key):
 
 def _quick_actions():
     actions = []
+    if _company() and _module_enabled('shift_handover') and any(
+        _has_permission(p) for p in ('shift_handover.view', 'shift_handover.view_all', 'shift_handover.manage')
+    ):
+        actions.append({
+            'label': _('Vardiya Devir Teslim'),
+            'description': _('Vardiya notları ve teslim alınacak kayıtlar'),
+            'icon': 'bi-arrow-left-right',
+            'url': url_for('shift_handover.dashboard'),
+        })
     if (_company() and _module_enabled("customer_feedback_portal")
             and _has_permission("customer_portal.view")
             and _has_permission("customer_portal.create")):
