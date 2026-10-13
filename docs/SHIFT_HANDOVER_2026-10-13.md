@@ -43,6 +43,22 @@ Sonraki aktif madde: Gunluk uretim raporu.
 - Release configure yalniz ilgili izinleri ve eksik modul secimini ekler; mevcut kapali modul secimleri ve ozel yetkiler korunur.
 - Aktif custom/production_plus firmalarda eksik modul acilir; iso_core firmalar icin kapali kalir.
 
+## Canli Sonuc
+
+- 13 Ekim 2026 tarihinde ozellik commit'i `e9ac46ba7f070e2b584adebad82a46cf5e2ca03d` yayinlandi.
+- Yeni tam yedek: `volkaportal-backup-20261013-060756.zip`; 59.403.433 bayt, 204 ek dosya.
+- Sunucu: `/var/data/aksiyon-takip/backups/shift-handover-release.7P8hktTZ/archive/`.
+- Sunucu disi: `C:\Users\Asus\VolkaPortalBackups\20261013-shift-handover\`.
+- SHA256: `cd7fa0dbc9da1393c5fad950b9be623aca3ebc8d6bbe45a430ca47d04e20da83`.
+- Taze yedegin checksum, SQLite integrity ve geri yukleme dry-run kontrolleri basarili.
+- Sunucu disi taze kopyada upgrade/downgrade/upgrade ile 165 tablonun eski kolon degerleri korundu.
+- Canli migration `202610120002`, eski is verisi ve checklist degerleri gecis boyunca korunarak uygulandi.
+- `aksiyon-takip`, nginx, hatirlatma ve webhook zamanlayicilari aktif; yeni servis hata kaydi yok.
+- Ana alan adi, erprefabrik ve sagiroglucelik giris adresleri HTTPS 200.
+- Canli verinin izole kopyasinda 3 sirket ve 33 kullanici/sirket baglami: liste, yeni form, Excel ve Mobil Merkez yetki kontrolleri basarili. Canli is verisine test kaydi yazilmadi.
+- Yayindan sonra auditli komutla sadece `module_shift_handover` tamamlandi olarak isaretlendi.
+- Dogrulanan checklist: 79/135 aktif madde tamamlandi, 7 madde ertelendi. Siradaki madde: Gunluk uretim raporu.
+
 ## Geri Donus
 
 Yeni kayit varsa migration downgrade tabloyu siler; uretimde uygulanmaz. Once modul kapatilir,
