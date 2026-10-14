@@ -147,7 +147,7 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     page = response.get_data(as_text=True)
     assert response.status_code == 200
     assert "Yeni Aksiyon" in page
-    assert "Yeni İF / DÖF" in page
+    assert "Uygunsuzluk &amp; Faaliyet Oluştur" in page
     assert "Yeni Öneri" in page
     assert "Yeni Şikayet" in page
     assert "Yeni İç Talep" in page
@@ -167,7 +167,7 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     response = client.get("/mobil", base_url=f"https://{company.primary_domain}")
     page = response.get_data(as_text=True)
     assert "Yeni Aksiyon" in page
-    assert "Yeni İF / DÖF" in page
+    assert "Uygunsuzluk &amp; Faaliyet Oluştur" in page
     assert "Yeni Öneri" not in page
     assert "Yeni Şikayet" not in page
     assert "Yeni İç Talep" not in page
@@ -175,6 +175,40 @@ def test_mobile_hub_lists_only_authorized_and_enabled_actions(app, client):
     assert "Bakım İşlemleri" not in page
     assert client.get("/bakim/ariza/yeni", base_url=f"https://{company.primary_domain}").status_code == 403
     assert client.get("/bakim", base_url=f"https://{company.primary_domain}").status_code == 403
+
+
+def test_mobile_quick_actions_copy_order_and_filtered_order(app, monkeypatch):
+    from app import pwa
+    from flask import g
+
+    expected = [
+        ("main.create_action", "Yeni Aksiyon Oluştur", "Şirket içi aksiyonlarınızı takip edin"),
+        ("main.create_maintenance_fault", "Bakım Arızası Oluştur", "Bakım arızalarınızı takip edin"),
+        ("main.create_dof", "Uygunsuzluk & Faaliyet Oluştur", "Uygunsuzluk & Düzeltici/İyileştirici Faaliyetleri kayıt altına alın"),
+        ("main.create_ohs_action", "Yeni ISG Aksiyonu Oluştur", "ISG Aksiyonlarını kayıt altına alın"),
+        ("main.create_suggestion", "Yeni Öneri Oluştur", "Yeni önerilerinizi kayıt altına alın"),
+        ("main.create_complaint", "Yeni Şikayet Oluştur", "Yeni şikayetlerinizi kayıt altına alın"),
+        ("customer_portal.new_record", "Müşteri Geri Bildirimi Oluştur", "Müşteri Geri Bildirimlerini kayıt altına alın"),
+        ("custody.dashboard", "Zimmet Yönetimi", "Zimmet işlemi kayıt altına alın"),
+    ]
+    monkeypatch.setattr(pwa, "_has_permission", lambda permission: True)
+    monkeypatch.setattr(pwa, "url_for", lambda endpoint: endpoint)
+    with app.test_request_context("/mobil"):
+        g.current_company = create_company("COPY", "Mobil Metinler", "mobile-copy")
+        g.company_module_enabled = lambda module: True
+        cards = pwa._quick_actions()
+        assert [(card["url"], card["label"], card["description"]) for card in cards[:8]] == expected
+        assert len({card["url"] for card in cards}) == len(cards)
+        assert [card["url"] for card in cards[8:]] == [
+            "shift_handover.dashboard", "main.ohs_actions_dashboard", "help_desk.create",
+        ]
+        g.company_module_enabled = lambda module: module not in {"maintenance", "ohs_actions"}
+        filtered = pwa._quick_actions()
+        assert [card["url"] for card in filtered] == [
+            card["url"] for card in cards if card["url"] not in {
+                "main.create_maintenance_fault", "main.create_ohs_action", "main.ohs_actions_dashboard",
+            }
+        ]
 
 
 def test_runtime_schema_marks_mobile_pwa_checklist_done(app):
@@ -208,7 +242,7 @@ def test_mobile_customer_complaint_card_matches_route_access(app, client, permis
     target = client.get("/musteri-geri-bildirimleri/yeni", base_url=base)
     assert target.status_code == (200 if visible else 403)
     if visible:
-        assert "Müşteri Şikayeti" in response.get_data(as_text=True)
+        assert "Müşteri Geri Bildirimi Oluştur" in response.get_data(as_text=True)
         assert 'name="before_images"' in target.get_data(as_text=True)
         assert 'name="after_images"' in target.get_data(as_text=True)
 

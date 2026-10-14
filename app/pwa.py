@@ -48,6 +48,77 @@ def _module_enabled(module_key):
 
 def _quick_actions():
     actions = []
+    if _has_permission("actions.create"):
+        actions.append({
+            "label": _("Yeni Aksiyon Oluştur"),
+            "description": _("Şirket içi aksiyonlarınızı takip edin"),
+            "icon": "bi-plus-circle",
+            "url": url_for("main.create_action"),
+        })
+    if _module_enabled("maintenance"):
+        actions.append(
+            {
+                "label": _("Bakım Arızası Oluştur"),
+                "description": _("Bakım arızalarınızı takip edin"),
+                "icon": "bi-wrench-adjustable",
+                "url": url_for("main.create_maintenance_fault"),
+            }
+        )
+    if _module_enabled("if_management"):
+        actions.append(
+            {
+                "label": _("Uygunsuzluk & Faaliyet Oluştur"),
+                "description": _("Uygunsuzluk & Düzeltici/İyileştirici Faaliyetleri kayıt altına alın"),
+                "icon": "bi-shield-exclamation",
+                "url": url_for("main.create_dof"),
+            }
+        )
+    if _module_enabled("ohs_actions"):
+        if _has_permission("actions.create"):
+            actions.append(
+                {
+                    "label": _("Yeni ISG Aksiyonu Oluştur"),
+                    "description": _("ISG Aksiyonlarını kayıt altına alın"),
+                    "icon": "bi-plus-circle",
+                    "url": url_for("main.create_ohs_action"),
+                }
+            )
+    if _module_enabled("suggestions"):
+        actions.append(
+            {
+                "label": _("Yeni Öneri Oluştur"),
+                "description": _("Yeni önerilerinizi kayıt altına alın"),
+                "icon": "bi-lightbulb",
+                "url": url_for("main.create_suggestion"),
+            }
+        )
+        if _has_permission("complaints.manage"):
+            actions.append(
+                {
+                    "label": _("Yeni Şikayet Oluştur"),
+                    "description": _("Yeni şikayetlerinizi kayıt altına alın"),
+                    "icon": "bi-chat-left-dots",
+                    "url": url_for("main.create_complaint"),
+                }
+            )
+    if (_company() and _module_enabled("customer_feedback_portal")
+            and _has_permission("customer_portal.view")
+            and _has_permission("customer_portal.create")):
+        actions.append({
+            "label": _("Müşteri Geri Bildirimi Oluştur"),
+            "description": _("Müşteri Geri Bildirimlerini kayıt altına alın"),
+            "icon": "bi-chat-square-text",
+            "url": url_for("customer_portal.new_record"),
+        })
+    if _company() and _module_enabled('custody_management') and any(
+        _has_permission(p) for p in ('custody.view', 'custody.view_all', 'custody.manage')
+    ):
+        actions.append({
+            'label': _('Zimmet Yönetimi'),
+            'description': _('Zimmet işlemi kayıt altına alın'),
+            'icon': 'bi-person-badge',
+            'url': url_for('custody.dashboard'),
+        })
     if _company() and _module_enabled('shift_handover') and any(
         _has_permission(p) for p in ('shift_handover.view', 'shift_handover.view_all', 'shift_handover.manage')
     ):
@@ -57,87 +128,13 @@ def _quick_actions():
             'icon': 'bi-arrow-left-right',
             'url': url_for('shift_handover.dashboard'),
         })
-    if (_company() and _module_enabled("customer_feedback_portal")
-            and _has_permission("customer_portal.view")
-            and _has_permission("customer_portal.create")):
-        actions.append({
-            "label": _("Müşteri Şikayeti"),
-            "description": _("Müşteri, proje ve önce / sonra görselleri"),
-            "icon": "bi-chat-square-text",
-            "url": url_for("customer_portal.new_record"),
-        })
-    if _company() and _module_enabled('custody_management') and any(
-        _has_permission(p) for p in ('custody.view', 'custody.view_all', 'custody.manage')
-    ):
-        actions.append({
-            'label': _('Zimmet Yönetimi'),
-            'description': _('Zimmetler ve iadeler'),
-            'icon': 'bi-person-badge',
-            'url': url_for('custody.dashboard'),
-        })
-    if _module_enabled("maintenance"):
-        actions.append(
-            {
-                "label": _("Arıza Aç"),
-                "description": _("Makine arızası veya plansız bakım talebi"),
-                "icon": "bi-wrench-adjustable",
-                "url": url_for("main.create_maintenance_fault"),
-            }
-        )
     if _module_enabled("ohs_actions"):
-        actions.append(
-            {
-                "label": _("İSG Aksiyonları"),
-                "description": _("İş sağlığı ve güvenliği"),
-                "icon": "bi-shield-check",
-                "url": url_for("main.ohs_actions_dashboard"),
-            }
-        )
-        if _has_permission("actions.create"):
-            actions.append(
-                {
-                    "label": _("Yeni İSG Aksiyonu"),
-                    "description": _("İş sağlığı ve güvenliği"),
-                    "icon": "bi-plus-circle",
-                    "url": url_for("main.create_ohs_action"),
-                }
-            )
-    if _has_permission("actions.create"):
-        actions.append(
-            {
-                "label": _("Yeni Aksiyon"),
-                "description": _("Sorumlu, termin ve takip bilgileriyle aksiyon oluşturun."),
-                "icon": "bi-plus-circle",
-                "url": url_for("main.create_action"),
-            }
-        )
-    if _module_enabled("if_management"):
-        actions.append(
-            {
-                "label": _("Yeni İF / DÖF"),
-                "description": _("Uygunsuzluk veya düzeltici faaliyet kaydı açın."),
-                "icon": "bi-shield-exclamation",
-                "url": url_for("main.create_dof"),
-            }
-        )
-    if _module_enabled("suggestions"):
-        actions.append(
-            {
-                "label": _("Yeni Öneri"),
-                "description": _("İyileştirme önerinizi hızlıca kaydedin."),
-                "icon": "bi-lightbulb",
-                "url": url_for("main.create_suggestion"),
-            }
-        )
-        if _has_permission("complaints.manage"):
-            actions.append(
-                {
-                    "label": _("Yeni Şikayet"),
-                    "description": _("Şikayet kaydını ilgili iş akışına gönderin."),
-                    "icon": "bi-chat-left-dots",
-                    "url": url_for("main.create_complaint"),
-                }
-            )
+        actions.append({
+            "label": _("İSG Aksiyonları"),
+            "description": _("İş sağlığı ve güvenliği"),
+            "icon": "bi-shield-check",
+            "url": url_for("main.ohs_actions_dashboard"),
+        })
     if _module_enabled("help_desk") and (
         _has_permission("helpdesk.create") or _has_permission("helpdesk.manage")
     ):
