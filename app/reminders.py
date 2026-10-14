@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import current_app
 
+from .action_categories import action_module_available
 from .extensions import db
 from .notification_policy import collect_reminder, reminder_collection, dispatch_collection, local_now
 from .reminder_sources import (
@@ -196,6 +197,8 @@ def _action_reminders(company_id, run_date, days_before):
         .all()
     )
     for action in actions:
+        if not action_module_available(action):
+            continue
         severity, label = _due_state(action.termin_date, run_date)
         users = _merge_users(
             company_id,
@@ -234,7 +237,8 @@ def _sub_action_reminders(company_id, run_date, days_before):
             continue
         severity, label = _due_state(sub_action.due_date, run_date)
         parent = sub_action.parent_action
-        if not parent or parent.company_id != company_id or parent.is_completed:
+        if (not parent or parent.company_id != company_id or parent.is_completed
+                or not action_module_available(parent)):
             continue
         user_ids = [sub_action.responsible_id]
         users = _merge_users(

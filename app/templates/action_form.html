@@ -19,9 +19,9 @@
 
 {% block app_content %}
   {% call ui.page_header(title, "Aksiyon detaylarını, sorumlusunu ve termin tarihini girin.", icon="bi-clipboard-plus") %}
-    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.dashboard') }}">
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for(action_back_endpoint) }}">
       <i class="bi bi-arrow-left"></i>
-      <span>Ana Sayfa</span>
+      <span>{{ action_back_label }}</span>
     </a>
   {% endcall %}
 
@@ -268,7 +268,7 @@
         <i class="bi bi-check-lg"></i>
         <span>Kaydet</span>
       </button>
-      <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Vazgeç</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for(action_back_endpoint) }}">Vazgeç</a>
     </div>
   </form>
 {% endblock %}

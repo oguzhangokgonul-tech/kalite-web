@@ -2,6 +2,7 @@
 
 import unicodedata
 
+from .action_categories import action_module_available
 from .extensions import db
 from .models import (
     Action, COMPANY_MODULE_CATALOG, Company, CompanyModule, Dof,
@@ -143,6 +144,7 @@ def eligible_recipients(users, company_id, kind):
 
 def linked_action_duplicates(action, company_id, owner_id, due_date):
     return bool(action and action.company_id == company_id
+                and action_module_available(action)
                 and action.responsible_user_id == owner_id and action.termin_date == due_date)
 
 
@@ -295,7 +297,7 @@ def effectiveness_reminders(company_id, run_date):
             model.effectiveness_due_date.isnot(None),
         ).all()
         for row in rows:
-            if model is Action and not row.is_completed:
+            if model is Action and (not row.is_completed or not action_module_available(row)):
                 continue
             if row.effectiveness_result in {"Etkin", "Etkin De\u011fil"}:
                 continue

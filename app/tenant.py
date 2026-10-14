@@ -138,6 +138,14 @@ def current_company_id():
 
 
 def scoped_query(query, model):
+    if getattr(model, "__tablename__", None) == "actions":
+        from .action_categories import available_actions_clause
+
+        query = query.filter(available_actions_clause())
+    elif getattr(model, "__tablename__", None) == "notifications":
+        from .action_categories import available_notifications_clause
+
+        query = query.filter(available_notifications_clause())
     if not hasattr(model, "company_id"):
         return query
 
@@ -165,4 +173,9 @@ def ensure_same_company(record):
             abort(404)
     elif not getattr(g, "current_user_is_super_admin", False) and record.company_id is not None:
         abort(404)
+    if getattr(record, "__tablename__", None) == "actions":
+        from .action_categories import action_module_available
+
+        if not action_module_available(record):
+            abort(403)
     return record

@@ -84,6 +84,24 @@ def _quick_actions():
                 "url": url_for("main.create_maintenance_fault"),
             }
         )
+    if _module_enabled("ohs_actions"):
+        actions.append(
+            {
+                "label": _("İSG Aksiyonları"),
+                "description": _("İş sağlığı ve güvenliği"),
+                "icon": "bi-shield-check",
+                "url": url_for("main.ohs_actions_dashboard"),
+            }
+        )
+        if _has_permission("actions.create"):
+            actions.append(
+                {
+                    "label": _("Yeni İSG Aksiyonu"),
+                    "description": _("İş sağlığı ve güvenliği"),
+                    "icon": "bi-plus-circle",
+                    "url": url_for("main.create_ohs_action"),
+                }
+            )
     if _has_permission("actions.create"):
         actions.append(
             {

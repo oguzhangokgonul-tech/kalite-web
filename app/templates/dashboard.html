@@ -1,8 +1,8 @@
 {% extends "app_shell.html" %}
 {% import "components/ui.html" as ui %}
 
-{% block title %}Ana Sayfa{% endblock %}
-{% block topbar_title %}Ana Sayfa{% endblock %}
+{% block title %}{{ action_page_title|default('Ana Sayfa') }}{% endblock %}
+{% block topbar_title %}{{ action_page_title|default('Ana Sayfa') }}{% endblock %}
 
 {% macro status_badge(action) %}
   {% if action.effectiveness_required and action.effectiveness_result == "Etkin Değil" %}
@@ -23,7 +23,7 @@
 {% endmacro %}
 
 {% block app_content %}
-  {% call ui.page_header("Ana Sayfa", "Kalite yönetim sistemi aksiyon takip ekranı", icon="bi-house-door") %}
+  {% call ui.page_header(action_page_title|default('Ana Sayfa'), icon=action_page_icon|default('bi-house-door')) %}
     {% if g.current_user_is_super_admin %}
       <form class="dashboard-company-switcher" method="post" action="{{ url_for('main.switch_company') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -38,8 +38,8 @@
         </select>
       </form>
     {% endif %}
-    {% if g.current_user.can_create_actions %}
-      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_action') }}">
+    {% if g.current_user.has_permission('actions.create') %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for(action_create_endpoint|default('main.create_action')) }}">
         <i class="bi bi-plus-lg"></i>
         <span>Yeni aksiyon ekle</span>
       </a>
@@ -112,7 +112,7 @@
           <i class="bi bi-funnel"></i>
           <span>Filtrele</span>
         </button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+        <a class="btn btn-outline-secondary" href="{{ url_for(action_list_endpoint|default('main.dashboard')) }}">
           <i class="bi bi-arrow-clockwise"></i>
           <span>Temizle</span>
         </a>
@@ -197,13 +197,13 @@
                       <span>Onay gönder</span>
                     </a>
                   {% endif %}
-                  {% if g.current_user.can_edit_actions %}
+                  {% if g.current_user.has_permission('actions.edit') %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
                       <i class="bi bi-pencil"></i>
                       <span>Düzenle</span>
                     </a>
                   {% endif %}
-                  {% if g.current_user.can_delete_actions %}
+                  {% if g.current_user.has_permission('actions.delete') %}
                     <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_action', action_id=action.id) }}">
                       <i class="bi bi-trash"></i>
                       <span>Sil</span>

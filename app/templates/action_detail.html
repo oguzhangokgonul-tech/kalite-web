@@ -44,15 +44,15 @@
     {% elif action.closure_approval_requested and not action.is_completed %}
       <span class="btn btn-warning disabled">Kapanma Onayı Beklemede</span>
     {% endif %}
-    {% if g.current_user.can_edit_actions %}
+    {% if g.current_user.has_permission('actions.edit') %}
       <a class="btn btn-outline-primary" href="{{ url_for('main.edit_action', action_id=action.id) }}">
         <i class="bi bi-pencil"></i>
         <span>Düzenle</span>
       </a>
     {% endif %}
-    <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">
+    <a class="btn btn-outline-secondary" href="{{ url_for(action_back_endpoint) }}">
       <i class="bi bi-arrow-left"></i>
-      <span>Ana Sayfa</span>
+      <span>{{ action_back_label }}</span>
     </a>
   {% endcall %}
 
@@ -536,7 +536,7 @@
           {% if effectiveness_pending %}
             Kapanış kanıtı onaylandı; etkinlik kontrolü bekleniyor.
           {% elif action.is_completed %}
-            Bu aksiyonun kapanış kanıtı Oğuzhan tarafından onaylandı.
+            Bu aksiyonun kapanış kanıtı onay yetkilisi tarafından onaylandı.
           {% elif action.closure_approval_requested %}
             Bu aksiyon için kapanma onayı bekleniyor.
           {% elif effectiveness_failed %}

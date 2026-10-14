@@ -32,6 +32,7 @@ ISO_CORE_MODULE_KEYS = {
     "change_management",
     "deviation_management",
     "incident_near_miss",
+    "ohs_actions",
     "training",
     "internal_audit",
     "management_review",

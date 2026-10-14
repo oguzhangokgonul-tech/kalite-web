@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
+from .action_categories import action_module_available
 from .extensions import db
 from .models import AppSetting, Company, CompanyModule, Notification, User, COMPANY_MODULE_CATALOG
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
@@ -141,6 +142,32 @@ def module_is_enabled(company_id, kind):
     ).first()
 
 
+def _notification_action(kind, record_id):
+    from .models import Action, ActionSubTask
+
+    if kind in {"action", "action-approval", "action-effectiveness"}:
+        return db.session.get(Action, record_id)
+    if kind == "sub-action":
+        record = db.session.get(ActionSubTask, record_id)
+        return record.parent_action if record else None
+    return None
+
+
+def _action_notification_enabled(company_id, action):
+    if action is None:
+        return True
+    if action.company_id != company_id:
+        return False
+    return action_module_available(action)
+
+
+def _action_notification_label(action, text):
+    if (action is not None and action.action_category == "ohs"
+            and not text.startswith("İSG Aksiyonu")):
+        return f"İSG Aksiyonu: {text}"
+    return text
+
+
 @contextmanager
 def reminder_collection(company_id, run_date, *, persist_notifications=True):
     collection = {"company_id": company_id, "run_date": run_date, "items": {},
@@ -160,6 +187,13 @@ def collect_reminder(users, *, company_id, kind, record_id, title, message, targ
     collection = _collection.get()
     if not company_id or not module_is_enabled(company_id, kind):
         return 0, 0
+    action = _notification_action(kind, record_id)
+    if not _action_notification_enabled(company_id, action):
+        return 0, 0
+    title = _action_notification_label(action, title)
+    message = _action_notification_label(action, message)
+    if email_message:
+        email_message = _action_notification_label(action, email_message)
     target_url = safe_notification_target_url(target_url)
     if not target_url:
         return 0, 0
@@ -174,7 +208,7 @@ def collect_reminder(users, *, company_id, kind, record_id, title, message, targ
         ).first() if persist else None
         if persist and notification is None:
             notification = add_user_notification(
-                user, message, company_id=company_id, source_key=source_key,
+                user, message, company_id=company_id, action=action, source_key=source_key,
                 target_url=target_url, due_date=due_date, notification_type=notification_type,
             )
             created += int(notification is not None)
@@ -199,6 +233,9 @@ def _hash(*parts):
 
 
 def _add_event(company_id, item, phase):
+    action = _notification_action(item["kind"], item["record_id"])
+    if not _action_notification_enabled(company_id, action):
+        return None
     notification = item.get("notification")
     db.session.flush()
     key = _hash(company_id, item["user_id"], item["kind"], item["record_id"], item["due_date"], phase)
@@ -208,7 +245,8 @@ def _add_event(company_id, item, phase):
     event = NotificationEmailEvent(
         company_id=company_id, user_id=item["user_id"], dedupe_key=key,
         kind=item["kind"], record_id=item["record_id"], phase=phase,
-        due_date=item["due_date"], title=item["title"][:255], message=item["message"],
+        due_date=item["due_date"], title=_action_notification_label(action, item["title"])[:255],
+        message=_action_notification_label(action, item["message"]),
         target_url=item["target_url"], notification_id=notification.id if notification else None,
         status="pending",
     )
@@ -227,6 +265,8 @@ def queue_notification_event(notification, kind, record_id, event_type):
     user = db.session.get(User, notification.user_id)
     company_id = notification.company_id
     if not user or not user.is_active or not company_id or user.company_id != company_id:
+        return
+    if not _action_notification_enabled(company_id, _notification_action(kind, record_id)):
         return
     due_date = notification.due_date
     if kind in {"action", "dof"} and event_type in {"assignment", "approval", "rescheduled"}:
@@ -280,6 +320,9 @@ def _phase(item, policy, run_date, mode):
 
 def _event_current(event, collection, user):
     if not user.is_active or user.company_id != event.company_id:
+        return False
+    # Check the live category even when an earlier collection still contains the task.
+    if not _action_notification_enabled(event.company_id, _notification_action(event.kind, event.record_id)):
         return False
     current = collection["items"].get((user.id, event.kind, event.record_id))
     if current is not None and not event.phase.startswith("event:"):
@@ -468,8 +511,9 @@ def dispatch_collection(collection, now=None):
             if not link:
                 continue
             current = current_collection["items"].get((user_id, event.kind, event.record_id))
-            title = current["title"] if current else event.title
-            message = current["message"] if current else event.message
+            action = _notification_action(event.kind, event.record_id)
+            title = _action_notification_label(action, current["title"] if current else event.title)
+            message = _action_notification_label(action, current["message"] if current else event.message)
             lines.extend([title, message[:600]])
             if current:
                 lines.extend(f"{label}: {str(value)[:240]}" for label, value in current.get("details", ())

@@ -121,6 +121,12 @@
             </div>
           </div>
         {% endif %}
+        {% if g.company_module_enabled('ohs_actions') %}
+          <a class="dashboard-nav-item {% if g.action_category|default('general') == 'ohs' %}active{% endif %}" href="{{ url_for('main.ohs_actions_dashboard') }}">
+            <i class="bi bi-shield-check"></i>
+            <span>{{ _("İSG Aksiyonları") }}</span>
+          </a>
+        {% endif %}
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
             <i class="bi bi-people"></i>

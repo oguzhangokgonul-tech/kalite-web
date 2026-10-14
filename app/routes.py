@@ -2730,6 +2730,8 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "main.ohs_actions_dashboard": "ohs_actions",
+    "main.create_ohs_action": "ohs_actions",
     "shift_handover.dashboard": "shift_handover",
     "shift_handover.create": "shift_handover",
     "shift_handover.detail": "shift_handover",
@@ -3265,6 +3267,21 @@ def enforce_company_module_access():
     module_key = endpoint_required_company_module()
     if module_key and not company_module_enabled(module_key):
         abort(403)
+    # Shared action URLs retain their category even when opened outside its menu.
+    if request.blueprint == "main":
+        args = request.view_args or {}
+        action = None
+        if "action_id" in args:
+            action = db.session.get(Action, args["action_id"])
+        elif "sub_action_id" in args:
+            sub_action = db.session.get(ActionSubTask, args["sub_action_id"])
+            if sub_action is not None:
+                ensure_same_company(sub_action)
+                action = sub_action.parent_action
+        if action is not None:
+            ensure_same_company(action)
+            g.action_category = action.action_category
+            g.action_company_id = action.company_id
 
 
 def selected_company_module_keys_from_form():
@@ -3698,6 +3715,10 @@ def can_reassign_action(action):
 
 
 def can_view_action(action):
+    from .action_categories import action_module_available
+
+    if not action_module_available(action):
+        return False
     if g.current_user is None:
         return False
     return (
@@ -3834,7 +3855,9 @@ def visible_actions_query():
 def active_users():
     query = User.query.filter_by(is_active=True)
     company_id = current_company_id()
-    if company_id:
+    if getattr(g, "action_category", None) == "ohs":
+        query = query.filter(User.company_id == getattr(g, "action_company_id", company_id))
+    elif company_id:
         query = query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
     elif not getattr(g, "current_user_is_super_admin", False):
         query = query.filter(User.company_id == g.current_user.company_id)
@@ -3877,7 +3900,9 @@ def document_department_choices(include_names=()):
 def active_user_by_id(user_id):
     query = User.query.filter_by(id=user_id, is_active=True)
     company_id = current_company_id()
-    if company_id:
+    if getattr(g, "action_category", None) == "ohs":
+        query = query.filter(User.company_id == getattr(g, "action_company_id", company_id))
+    elif company_id:
         query = query.filter(or_(User.company_id == company_id, User.company_id.is_(None)))
     elif not getattr(g, "current_user_is_super_admin", False):
         query = query.filter(User.company_id == g.current_user.company_id)
@@ -14976,7 +15001,7 @@ def save_closure_evidence_files(action):
             raise ValueError("invalid_file_type")
 
     from .meeting_actions import link_for_action
-    if not link_for_action(action):
+    if action.action_category != "ohs" and not link_for_action(action):
         delete_closure_evidence_file(action)
     for uploaded_file in uploaded_files:
         safe_name, stored_name, mime_type = store_uploaded_file(
@@ -15161,8 +15186,11 @@ def create_inline_sub_actions(action):
     return created_items
 
 
-def refresh_all_actions():
-    actions = visible_actions_query().order_by(Action.termin_date.asc(), Action.id.asc()).all()
+def refresh_all_actions(action_category=None):
+    query = visible_actions_query()
+    if action_category is not None:
+        query = query.filter(Action.action_category == action_category)
+    actions = query.order_by(Action.termin_date.asc(), Action.id.asc()).all()
     changed = False
     for action in actions:
         old_delay_days = action.delay_days
@@ -16921,8 +16949,8 @@ def dashboard_company_options():
     return Company.query.filter_by(is_active=True).order_by(Company.code.asc()).all()
 
 
-def dashboard_context():
-    all_actions = refresh_all_actions()
+def dashboard_context(action_category="general"):
+    all_actions = refresh_all_actions(action_category)
     filters = dashboard_filters()
     actions = filtered_actions(all_actions, filters)
     delayed_count = sum(
@@ -16949,6 +16977,20 @@ def dashboard_context():
         "filters": filters,
         "users": active_users(),
         "current_user_initials": user_initials(g.current_user),
+    }
+
+
+def action_list_endpoint(action=None):
+    category = action.action_category if action is not None else getattr(g, "action_category", "general")
+    return "main.ohs_actions_dashboard" if category == "ohs" else "main.dashboard"
+
+
+@bp.app_context_processor
+def action_navigation_context():
+    is_ohs = getattr(g, "action_category", "general") == "ohs"
+    return {
+        "action_back_endpoint": action_list_endpoint(),
+        "action_back_label": "İSG Aksiyonları" if is_ohs else "Ana Sayfa",
     }
 
 
@@ -17278,8 +17320,8 @@ def assigned_action_tasks(scope):
         status, status_key = action_task_status(action)
         rows.append(
             assigned_task_row(
-                module_key="action",
-                module_label="Aksiyon",
+                module_key="ohs_action" if action.action_category == "ohs" else "action",
+                module_label="İSG Aksiyonu" if action.action_category == "ohs" else "Aksiyon",
                 module_icon="check-circle",
                 module_tone="action",
                 title=f"{action.number_label} {action.title}",
@@ -17326,8 +17368,8 @@ def assigned_action_tasks(scope):
                 status, status_key = "Gecikti", "delayed"
             rows.append(
                 assigned_task_row(
-                    module_key="action",
-                    module_label="Aksiyon",
+                    module_key="ohs_action" if action.action_category == "ohs" else "action",
+                    module_label="İSG Aksiyonu" if action.action_category == "ohs" else "Aksiyon",
                     module_icon="clipboard2-check",
                     module_tone="action",
                     title=f"Etkinlik Kontrolü: {action.number_label} {action.title}",
@@ -17346,13 +17388,13 @@ def assigned_action_tasks(scope):
 
     for sub_action in sub_actions:
         action = sub_action.parent_action
-        if action is None:
+        if action is None or not can_view_action(action):
             continue
         status, status_key = sub_action_task_status(sub_action)
         rows.append(
             assigned_task_row(
-                module_key="action",
-                module_label="Aksiyon",
+                module_key="ohs_action" if action.action_category == "ohs" else "action",
+                module_label="İSG Aksiyonu" if action.action_category == "ohs" else "Aksiyon",
                 module_icon="check-circle",
                 module_tone="action",
                 title=sub_action.title,
@@ -18696,7 +18738,7 @@ def assigned_module_filter_matches(task, module):
 
 
 ASSIGNED_TAB_MODULES = {
-    "actions": {"action"},
+    "actions": {"action", "ohs_action"},
     "audits": {"internal_audit"},
     "dofs": {"dof"},
     "maintenance": {"maintenance"},
@@ -18739,6 +18781,7 @@ ASSIGNED_TAB_MODULES = {
 ASSIGNED_MODULE_OPTIONS = [
     ("", "Tümü"),
     ("action", "Aksiyon"),
+    ("ohs_action", "İSG Aksiyonu"),
     ("dof", "IF Kaydı"),
     ("internal_audit", "İç Denetim"),
     ("maintenance", "Bakım"),
@@ -19225,6 +19268,19 @@ def archive_legal_document(document_id):
 @login_required
 def dashboard():
     return render_template("dashboard.html", **dashboard_context())
+
+
+@bp.get("/isg-aksiyonlari")
+@login_required
+def ohs_actions_dashboard():
+    g.action_category = "ohs"
+    return render_template(
+        "dashboard.html", **dashboard_context("ohs"),
+        action_page_title="İSG Aksiyonları",
+        action_page_icon="bi-shield-check",
+        action_create_endpoint="main.create_ohs_action",
+        action_list_endpoint="main.ohs_actions_dashboard",
+    )
 
 
 @bp.get("/iso-9001-yonetici-ozeti")
@@ -27814,6 +27870,17 @@ def delete_dof(dof_id):
     return render_template("dof_confirm_delete.html", dof=dof)
 
 
+@bp.route("/isg-aksiyonlari/yeni", methods=["GET", "POST"])
+@login_required
+@permission_required("can_create_actions")
+def create_ohs_action():
+    g.action_category = "ohs"
+    if not current_company_id():
+        flash("İSG aksiyonu oluşturmak için önce şirket seçin.", "warning")
+        return redirect(url_for("main.ohs_actions_dashboard"))
+    return create_action()
+
+
 @bp.route("/actions/new", methods=["GET", "POST"])
 @login_required
 @permission_required("can_create_actions")
@@ -27823,6 +27890,7 @@ def create_action():
     if request.method == "POST":
         try:
             action = parse_action_form(save_file=False)
+            action.action_category = "ohs" if request.endpoint == "main.create_ohs_action" else "general"
             linked_dof = getattr(action, "_parsed_source_dof", None)
             linked_risk = getattr(action, "_parsed_source_risk", None)
             if linked_dof is not None:
@@ -27832,12 +27900,12 @@ def create_action():
             else:
                 assign_current_company(action)
             action.action_number = reserve_action_number(company_id=action.company_id)
-            save_uploaded_file(action)
             db.session.add(action)
             db.session.flush()
             linked_dof = getattr(action, "_parsed_source_dof", None) or action.source_dof
             linked_risk = getattr(action, "_parsed_source_risk", None)
             created_sub_actions = create_inline_sub_actions(action)
+            save_uploaded_file(action)
             add_action_history(
                 action,
                 "created",
@@ -27921,8 +27989,9 @@ def create_action():
                 )
             db.session.commit()
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
-            return redirect(url_for("main.dashboard"))
+            return redirect(url_for(action_list_endpoint(action)))
         except ValueError as error:
+            db.session.rollback()
             error_key = str(error)
             if error_key == "invalid_file_type":
                 flash(
@@ -28014,7 +28083,7 @@ def create_action():
             include_names=[form_data.get("department")]
         ),
         today=date.today().isoformat(),
-        title="Yeni Aksiyon",
+        title="Yeni İSG Aksiyonu" if request.endpoint == "main.create_ohs_action" else "Yeni Aksiyon",
         capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
@@ -28124,7 +28193,7 @@ def reassign_action(action_id):
 
     if can_view_action(action):
         return redirect(url_for("main.action_detail", action_id=action.id))
-    return redirect(url_for("main.dashboard"))
+    return redirect(url_for(action_list_endpoint(action)))
 
 
 @bp.post("/actions/<int:action_id>/revise-termin")
@@ -28246,8 +28315,9 @@ def edit_action(action_id):
                 )
             db.session.commit()
             flash("Aksiyon kaydı güncellendi.", "success")
-            return redirect(url_for("main.dashboard"))
+            return redirect(url_for(action_list_endpoint(action)))
         except ValueError as error:
+            db.session.rollback()
             error_key = str(error)
             if error_key == "invalid_file_type":
                 flash(
@@ -28281,7 +28351,7 @@ def edit_action(action_id):
         users=active_users(),
         departments=company_department_choices(include_names=[action.department]),
         today=date.today().isoformat(),
-        title="Aksiyon Düzenle",
+        title="İSG Aksiyonu Düzenle" if action.action_category == "ohs" else "Aksiyon Düzenle",
         capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
@@ -28413,7 +28483,7 @@ def edit_sub_action(sub_action_id):
             flash("Alt aksiyon güncellendi.", "success")
             if can_view_action(action):
                 return redirect(url_for("main.action_detail", action_id=action.id))
-            return redirect(url_for("main.dashboard"))
+            return redirect(url_for(action_list_endpoint(action)))
         except ValueError as error:
             db.session.rollback()
             error_key = str(error)
@@ -28820,7 +28890,7 @@ def delete_action(action_id):
         if cleanup_failed:
             flash("Kayıt silindi; bazı dosyaların temizlenmesi için sistem yöneticisine bilgi verin.", "warning")
         flash("Aksiyon kaydı silindi.", "success")
-        return redirect(url_for("main.dashboard"))
+        return redirect(url_for(action_list_endpoint(action)))
 
     return render_template("confirm_delete.html", action=action)
 
@@ -28835,7 +28905,7 @@ def download_action_file(action_id):
 
     if not action.file_stored_name:
         flash("Bu kayda ait yüklenmiş dosya bulunamadı.", "warning")
-        return redirect(url_for("main.dashboard"))
+        return redirect(url_for(action_list_endpoint(action)))
 
     response = send_stored_upload(
         action.file_stored_name,

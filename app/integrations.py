@@ -358,6 +358,8 @@ def publish_integration_event(
 def _domain_event_descriptor(obj, is_new):
     state = sa_inspect(obj)
     if isinstance(obj, Action):
+        if obj.action_category == "ohs":
+            return None
         event_type = "action.created" if is_new else "action.updated"
         if not is_new and state.attrs.is_completed.history.has_changes() and obj.is_completed:
             event_type = "action.completed"
@@ -504,9 +506,21 @@ def _event_body(event_row):
     ).encode("utf-8")
 
 
+def _action_event_not_exportable(event_row):
+    if not event_row.event_type.startswith("action."):
+        return False
+    # Legacy payloads have no category snapshot; missing subjects must fail closed.
+    return Action.query.filter_by(
+        company_id=event_row.company_id, id=event_row.subject_id, action_category="general",
+    ).first() is None
+
+
 def _materialize_deliveries(limit):
     events = IntegrationEvent.query.filter(IntegrationEvent.dispatched_at.is_(None)).order_by(IntegrationEvent.id).limit(limit).all()
     for event_row in events:
+        if _action_event_not_exportable(event_row):
+            event_row.dispatched_at = utcnow()
+            continue
         endpoints = WebhookEndpoint.query.filter_by(company_id=event_row.company_id, is_active=True).all()
         payload = json.loads(event_row.payload_json)
         for endpoint in endpoints:
@@ -556,6 +570,13 @@ def _deliver(delivery):
             },
             commit=False,
         )
+        db.session.commit()
+        return
+    if _action_event_not_exportable(delivery.event):
+        delivery.status = "failed"
+        delivery.next_attempt_at = None
+        delivery.locked_at = None
+        delivery.last_error_code = "action_category_not_exported"
         db.session.commit()
         return
     if not delivery.endpoint.is_active:

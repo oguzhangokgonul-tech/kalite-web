@@ -395,7 +395,9 @@ def ping():
 @bp.get("/actions")
 @scope_required("actions:read")
 def actions():
-    query = Action.query.filter(Action.company_id == g.api_client.company_id)
+    query = Action.query.filter(
+        Action.company_id == g.api_client.company_id, Action.action_category == "general",
+    )
     status = request.args.get("status")
     if status in {"open", "completed"}:
         query = query.filter(Action.is_completed.is_(status == "completed"))
@@ -408,7 +410,9 @@ def actions():
 @bp.get("/actions/<int:row_id>")
 @scope_required("actions:read")
 def action_detail(row_id):
-    row = Action.query.filter_by(id=row_id, company_id=g.api_client.company_id).first()
+    row = Action.query.filter_by(
+        id=row_id, company_id=g.api_client.company_id, action_category="general",
+    ).first()
     return jsonify({"data": _action(row)}) if row else problem(404, "not_found", "Kayit bulunamadi.")
 
 

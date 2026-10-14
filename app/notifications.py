@@ -180,6 +180,11 @@ def add_user_notification(
     records = (action, dof, document_revision_request)
     if any(record is not None and record.company_id != company_id for record in records):
         return None
+    if action is not None:
+        from .action_categories import action_module_available
+
+        if not action_module_available(action):
+            return None
 
     event_record = next((record for record in records if record is not None), None)
     if email_event is not None:
