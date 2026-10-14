@@ -128,13 +128,6 @@ def _quick_actions():
             'icon': 'bi-arrow-left-right',
             'url': url_for('shift_handover.dashboard'),
         })
-    if _module_enabled("ohs_actions"):
-        actions.append({
-            "label": _("İSG Aksiyonları"),
-            "description": _("İş sağlığı ve güvenliği"),
-            "icon": "bi-shield-check",
-            "url": url_for("main.ohs_actions_dashboard"),
-        })
     if _module_enabled("help_desk") and (
         _has_permission("helpdesk.create") or _has_permission("helpdesk.manage")
     ):

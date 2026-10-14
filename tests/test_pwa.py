@@ -200,13 +200,13 @@ def test_mobile_quick_actions_copy_order_and_filtered_order(app, monkeypatch):
         assert [(card["url"], card["label"], card["description"]) for card in cards[:8]] == expected
         assert len({card["url"] for card in cards}) == len(cards)
         assert [card["url"] for card in cards[8:]] == [
-            "shift_handover.dashboard", "main.ohs_actions_dashboard", "help_desk.create",
+            "shift_handover.dashboard", "help_desk.create",
         ]
         g.company_module_enabled = lambda module: module not in {"maintenance", "ohs_actions"}
         filtered = pwa._quick_actions()
         assert [card["url"] for card in filtered] == [
             card["url"] for card in cards if card["url"] not in {
-                "main.create_maintenance_fault", "main.create_ohs_action", "main.ohs_actions_dashboard",
+                "main.create_maintenance_fault", "main.create_ohs_action",
             }
         ]
 
