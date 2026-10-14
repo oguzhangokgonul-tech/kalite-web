@@ -514,9 +514,9 @@ PERMISSION_CATALOG = (
     },
     {
         "key": "customer_portal.archive",
-        "label": "Müşteri geri bildirimi arşivleme",
+        "label": "Müşteri geri bildirimi arşivleme ve silme",
         "group": "Müşteri Geri Bildirim Portalı",
-        "description": "Kapanan kayıtları denetim izi korunarak arşivler.",
+        "description": "Kapanan kayıtları arşivler; geri bildirimleri gerekçeyle aktif listeden siler. Kayıt ve ekleri arşivde korunur.",
     },
     {
         "key": "customer_portal.file_download",

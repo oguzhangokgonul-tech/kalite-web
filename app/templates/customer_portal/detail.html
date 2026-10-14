@@ -5,10 +5,11 @@
 {% block app_content %}
 {% call ui.page_header(record.complaint_no, record.customer_name ~ " · " ~ record.record_type, icon="bi-inbox") %}
   <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.dashboard', archived=1 if record.is_archived else 0) }}"><i class="bi bi-arrow-left"></i> Listeye Dön</a>
+  {% if can_archive and not record.is_archived %}<a class="btn btn-outline-danger" href="{{ url_for('customer_portal.delete', record_id=record.id) }}"><i class="bi bi-trash" aria-hidden="true"></i> Sil</a>{% endif %}
 {% endcall %}
 
 {% if record.is_archived %}
-  <div class="alert alert-secondary"><i class="bi bi-archive me-1"></i> Bu kayıt arşivdedir ve salt okunur gösterilir.</div>
+  <div class="alert alert-secondary"><i class="bi bi-archive me-1"></i> {{ 'Bu kayıt aktif listeden silinmiştir; arşivde salt okunur olarak korunur.' if record.status == 'Silindi' else 'Bu kayıt arşivdedir ve salt okunur gösterilir.' }}</div>
 {% endif %}
 
 <div class="row g-3 feedback-details">

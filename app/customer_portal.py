@@ -23,7 +23,7 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from sqlalchemy import inspect, or_, text
+from sqlalchemy import cast, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -986,7 +986,7 @@ def dashboard():
     return render_template(
         "customer_portal/dashboard.html",
         records=records,
-        statuses=INTERNAL_STATUSES + (("Arşiv",) if show_archived else ()),
+        statuses=INTERNAL_STATUSES + (("Arşiv", "Silindi") if show_archived else ()),
         search=search,
         selected_status=status,
         show_archived=show_archived,
@@ -994,6 +994,7 @@ def dashboard():
         can_export=_has_permission("customer_portal.export"),
         can_settings=_has_permission("customer_portal.settings"),
         can_create=_has_permission("customer_portal.create"),
+        can_delete=_has_permission("customer_portal.archive"),
     )
 
 
@@ -1254,6 +1255,8 @@ def archive(record_id):
     if not _has_permission("customer_portal.archive"):
         abort(403)
     record = _record_or_404(record_id)
+    if record.is_archived:
+        abort(409, description="Kayıt zaten arşivlenmiş veya silinmiş.")
     if not record.is_closed:
         flash("Yalnızca kapatılmış kayıtlar arşivlenebilir.", "danger")
         return redirect(url_for("customer_portal.detail", record_id=record.id))
@@ -1270,6 +1273,55 @@ def archive(record_id):
     db.session.commit()
     flash("Kayıt denetim izi korunarak arşivlendi.", "success")
     return redirect(url_for("customer_portal.dashboard"))
+
+
+@bp.route("/musteri-geri-bildirimleri/<int:record_id>/sil", methods=["GET", "POST"])
+@login_required
+def delete(record_id):
+    if not _has_permission("customer_portal.archive"):
+        abort(403)
+    record = _record_or_404(record_id)
+    if record.is_archived:
+        abort(409, description="Kayıt zaten arşivlenmiş veya silinmiş.")
+    error = None
+    if request.method == "POST":
+        reason = request.form.get("reason", "").strip()
+        if request.form.get("confirm_delete") != "yes" or not reason or len(reason) > 250:
+            error = "Silme gerekçesini yazın ve onay kutusunu işaretleyin."
+        elif request.form.get("updated_at") != record.updated_at.isoformat():
+            abort(409, description="Kayıt değişti. Sayfayı yenileyip tekrar kontrol edin.")
+        else:
+            previous_status = record.status
+            now = _utcnow()
+            try:
+                unchanged = ComplaintRecord.updated_at == record.updated_at
+                # SQLite server defaults omit fractions; ORM datetime binds include them.
+                if db.engine.dialect.name == "sqlite" and not record.updated_at.microsecond:
+                    unchanged = or_(unchanged, cast(ComplaintRecord.updated_at, db.String) ==
+                                    record.updated_at.strftime("%Y-%m-%d %H:%M:%S"))
+                changed = ComplaintRecord.query.filter_by(
+                    id=record.id, company_id=record.company_id, is_archived=False,
+                ).filter(unchanged).update({
+                    "is_archived": True, "archived_at": now,
+                    "archived_by_user_id": g.current_user.id, "status": "Silindi",
+                    "updated_at": now,
+                }, synchronize_session=False)
+                if changed != 1:
+                    abort(409, description="Kayıt değişti. Sayfayı yenileyin.")
+                db.session.refresh(record)
+                CustomerPortalToken.query.filter_by(
+                    company_id=record.company_id, complaint_id=record.id,
+                ).update({"revoked_at": now})
+                _status_history(record, "internal", f"Silindi: {reason}")
+                _audit(record, "deleted", {"soft_delete": True, "reason": reason,
+                                           "previous_status": previous_status, "status": "Silindi"})
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                raise
+            flash("Kayıt aktif listeden silindi. Görseller ve geçmiş arşivde korunuyor.", "success")
+            return redirect(url_for("customer_portal.dashboard"))
+    return render_template("customer_portal/delete.html", record=record, error=error), (400 if error else 200)
 
 
 @bp.get("/musteri-geri-bildirimleri/<int:record_id>/dosya/<int:file_id>")

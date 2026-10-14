@@ -1,0 +1,31 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Geri Bildirimi Sil{% endblock %}
+{% block app_content %}
+{% call ui.page_header('Geri Bildirimi Sil', record.complaint_no, icon='bi-trash') %}
+  <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.detail', record_id=record.id) }}" title="Kayda dön" aria-label="Kayda dön"><i class="bi bi-arrow-left" aria-hidden="true"></i></a>
+{% endcall %}
+<section class="mx-auto" style="max-width: 720px;">
+  <h2 class="h5 text-break">{{ record.subject }}</h2>
+  <p class="text-break">{{ record.customer_name }}{% if record.customer_reference %} · {{ record.customer_reference }}{% endif %}</p>
+  <p>Kayıt aktif listeden kaldırılacak. Görseller, bağlantılı aksiyonlar ve denetim geçmişi silinmeyecek; kayıt arşivde korunacak.</p>
+  {% if not record.is_internal_feedback %}<p class="text-secondary">Müşteriye gönderilmiş takip bağlantıları geçersiz olacak.</p>{% endif %}
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('customer_portal.delete', record_id=record.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="updated_at" value="{{ record.updated_at.isoformat() }}">
+    <div class="mb-3">
+      <label class="form-label" for="delete-reason">Silme gerekçesi</label>
+      <textarea class="form-control" id="delete-reason" name="reason" rows="3" maxlength="250" required>{{ request.form.get('reason', '') }}</textarea>
+    </div>
+    <div class="form-check mb-4">
+      <input class="form-check-input" id="confirm-delete" name="confirm_delete" value="yes" type="checkbox" required>
+      <label class="form-check-label" for="confirm-delete">Bu geri bildirimi aktif listeden silmeyi onaylıyorum.</label>
+    </div>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      <a class="btn btn-outline-secondary" href="{{ url_for('customer_portal.detail', record_id=record.id) }}">Vazgeç</a>
+      <button class="btn btn-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Sil</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

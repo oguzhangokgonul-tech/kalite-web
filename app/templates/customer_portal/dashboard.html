@@ -30,13 +30,14 @@
         <td data-label="Yapılan İşlem"><span class="feedback-summary">{{ item.corrective_action or item.customer_solution_summary or '-' }}</span></td>
         <td data-label="Termin">{{ item.due_date.strftime('%d.%m.%Y') if item.due_date else '-' }}</td>
         <td data-label="Kalan Süre">
-          {% if item.is_closed %}<span class="text-secondary">Kapandı</span>
+          {% if item.status == 'Silindi' %}<span class="text-secondary">Takip dışı</span>
+          {% elif item.is_closed %}<span class="text-secondary">Kapandı</span>
           {% elif item.due_date %}{% set remaining = (item.due_date - now.date()).days %}<span class="badge {{ 'text-bg-danger' if remaining < 0 else ('text-bg-warning' if remaining == 0 else 'text-bg-light border') }}">{{ (remaining|abs|string) ~ ' gün geçti' if remaining < 0 else ('Bugün' if remaining == 0 else (remaining|string) ~ ' gün kaldı') }}</span>
           {% else %}<span class="text-secondary">Termin yok</span>{% endif %}
         </td>
         <td data-label="Sonuçlanma">{{ item.closed_at.strftime('%d.%m.%Y') if item.closed_at else (item.resolved_at.strftime('%d.%m.%Y') if item.resolved_at else '-') }}</td>
-        <td data-label="Sonuç"><span class="badge {{ 'text-bg-success' if item.is_closed and item.status != 'Reddedildi' else 'text-bg-light border' }}"><i class="bi {{ 'bi-check-circle' if item.is_closed else 'bi-clock' }}" aria-hidden="true"></i> {{ item.status }}</span></td>
-        <td data-label="İşlemler"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_portal.detail', record_id=item.id) }}" aria-label="{{ item.complaint_no }} kaydını aç"><i class="bi bi-arrow-up-right"></i> Aç</a></td>
+        <td data-label="Sonuç"><span class="badge {{ 'text-bg-success' if item.is_closed and item.status not in ['Reddedildi', 'Silindi'] else 'text-bg-light border' }}"><i class="bi {{ 'bi-trash' if item.status == 'Silindi' else ('bi-check-circle' if item.is_closed else 'bi-clock') }}" aria-hidden="true"></i> {{ item.status }}</span></td>
+        <td data-label="İşlemler"><div class="d-flex flex-wrap gap-2"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('customer_portal.detail', record_id=item.id) }}" aria-label="{{ item.complaint_no }} kaydını aç"><i class="bi bi-arrow-up-right"></i> Aç</a>{% if can_delete and not item.is_archived %}<a class="btn btn-sm btn-outline-danger" href="{{ url_for('customer_portal.delete', record_id=item.id) }}" title="Kaydı sil" aria-label="{{ item.complaint_no }} kaydını sil"><i class="bi bi-trash" aria-hidden="true"></i> Sil</a>{% endif %}</div></td>
       </tr>
     {% else %}<tr><td colspan="10" class="feedback-empty">Kayıt bulunamadı.</td></tr>{% endfor %}
     </tbody>

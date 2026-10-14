@@ -3046,6 +3046,7 @@ MODULE_ENDPOINTS = {
     "customer_portal.update": "customer_feedback_portal",
     "customer_portal.add_message": "customer_feedback_portal",
     "customer_portal.archive": "customer_feedback_portal",
+    "customer_portal.delete": "customer_feedback_portal",
     "customer_portal.internal_file": "customer_feedback_portal",
     "customer_portal.settings": "customer_feedback_portal",
     "customer_portal.export_excel": "customer_feedback_portal",
@@ -10996,7 +10997,7 @@ def iso_dashboard_context(all_actions, include_due_panel=True):
     )
     open_complaints = (
         scoped_query(ComplaintRecord.query, ComplaintRecord)
-        .filter(ComplaintRecord.status != "Kapandı")
+        .filter(ComplaintRecord.status != "Kapandı", ComplaintRecord.is_archived.is_(False))
         .all()
     )
     delayed_complaints = sorted(
