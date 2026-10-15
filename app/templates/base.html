@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ current_locale() }}">
+<html lang="{{ current_locale() }}" data-bs-theme="light" data-theme-key="vp-theme:{{ g.current_company.id if g.current_company else (g.tenant_company.id if g.tenant_company else 'public') }}:{{ g.current_user.id if g.current_user else 'guest' }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="{{ (g.current_company.name if g.current_company else config.SITE_NAME) | truncate(24, True, '') }}">
     <title>{% block title %}Dashboard{% endblock %} | {{ config.SITE_NAME }}</title>
+    <script src="{{ url_for('static', filename='js/theme.js', v='20261015-1') }}"></script>
     <script>
       try {
         document.documentElement.dataset.navMode = localStorage.getItem('vp-nav-mode') === 'compact' ? 'compact' : 'expanded';
@@ -43,12 +44,14 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pwa.css', v=config.ASSET_VERSION) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace-ui.css', v=config.ASSET_VERSION) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/navigation.css', v=config.ASSET_VERSION) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css', v='20261015-1') }}">
   </head>
   <body class="{% block body_class %}{% endblock %}">
     {% block navbar %}
       <nav class="navbar navbar-expand-lg bg-white border-bottom sticky-top">
         <div class="container">
           <div class="ms-auto d-flex align-items-center gap-2">
+            {% include 'components/theme_toggle.html' %}
             {% if g.current_user %}
               <a class="btn btn-outline-primary" href="{{ url_for('main.organization') }}">{{ _("Organizasyon Şeması") }}</a>
               <div class="dropdown">

@@ -1,4 +1,5 @@
 import json
+from html.parser import HTMLParser
 
 from sqlalchemy import inspect, text
 
@@ -7,6 +8,19 @@ from app.models import AppSetting, AuditLog, Company, User
 from app.seed import ensure_runtime_schema
 
 from .helpers import create_company, create_user
+
+
+def html_language(html):
+    class RootLanguage(HTMLParser):
+        language = None
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "html":
+                self.language = dict(attrs).get("lang")
+
+    parser = RootLanguage()
+    parser.feed(html)
+    return parser.language
 
 
 def tenant_url(company):
@@ -29,7 +43,7 @@ def test_company_default_locale_controls_anonymous_login_and_manifest(app, clien
         client.get("/manifest.webmanifest", base_url=tenant_url(company)).get_data(as_text=True)
     )
 
-    assert '<html lang="en">' in login_page
+    assert html_language(login_page) == "en"
     assert "Username" in login_page
     assert "Remember me" in login_page
     assert manifest["lang"] == "en"
@@ -51,8 +65,8 @@ def test_anonymous_locale_choice_is_tenant_scoped(app, client):
 
     page_a = client.get("/login", base_url=tenant_url(company_a)).get_data(as_text=True)
     page_b = client.get("/login", base_url=tenant_url(company_b)).get_data(as_text=True)
-    assert '<html lang="en">' in page_a
-    assert '<html lang="tr">' in page_b
+    assert html_language(page_a) == "en"
+    assert html_language(page_b) == "tr"
 
 
 def test_login_language_choice_becomes_user_preference(app, client):
@@ -83,7 +97,7 @@ def test_login_language_choice_becomes_user_preference(app, client):
     db.session.refresh(user)
     assert response.status_code == 200
     assert user.preferred_locale == "en"
-    assert '<html lang="en">' in response.get_data(as_text=True)
+    assert html_language(response.get_data(as_text=True)) == "en"
     assert AuditLog.query.filter_by(
         entity_type="LocalePreference",
         entity_id=str(user.id),
@@ -129,7 +143,7 @@ def test_user_locale_overrides_company_and_is_audited(app, client):
     ).count() == 1
 
     page = client.get("/mobil", base_url=tenant_url(company)).get_data(as_text=True)
-    assert '<html lang="en">' in page
+    assert html_language(page) == "en"
     assert "Mobile Hub" in page
     assert "Quick Actions" in page
 

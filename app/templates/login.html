@@ -9,6 +9,9 @@
 {% block content %}
   <img class="login-watermark" src="{{ url_for('static', filename='brand/icon/volkaportal-stag-512.png') }}" alt="" aria-hidden="true">
   <section class="login-form-panel" aria-label="{{ _('Giriş') }}">
+    <div class="d-flex justify-content-end mb-2">
+      {% include 'components/theme_toggle.html' %}
+    </div>
     <form class="login-card" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="login-card-brand">

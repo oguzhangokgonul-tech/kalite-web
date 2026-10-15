@@ -549,6 +549,7 @@
         <span class="vp-workspace-caption">{% block topbar_title %}{{ _('Çalışma Alanı') }}{% endblock %}</span>
       </div>
       <div class="vp-workspace-tools">
+        {% include 'components/theme_toggle.html' %}
         <a class="vp-toolbar-icon" href="{{ url_for('main.assigned_tasks') }}" aria-label="{{ _('Görevlerim') }}" title="{{ _('Görevlerim') }}"><i class="bi bi-check2-square" aria-hidden="true"></i></a>
         <a class="vp-toolbar-icon" href="{{ url_for('main.notifications') }}" aria-label="{{ _('Bildirimler') }}" title="{{ _('Bildirimler') }}"><i class="bi bi-bell" aria-hidden="true"></i><span class="vp-toolbar-count {% if not g.unread_notification_count %}d-none{% endif %}" data-notification-badge>{{ g.unread_notification_count }}</span></a>
         <span class="vp-workspace-avatar" title="{{ g.current_user.full_name }}">{{ g.current_user_initials }}</span>

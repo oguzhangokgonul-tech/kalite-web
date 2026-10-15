@@ -1,0 +1,571 @@
+/* Load after navigation.css. Light mode deliberately keeps the existing design.
+   Screen-only dark rules also keep application tokens out of printed documents. */
+.vp-theme-toggle.vp-toolbar-icon,
+.vp-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 1px solid var(--vp-border-strong, #d8e2ef);
+  border-radius: 6px;
+  color: var(--vp-text-secondary, #667085);
+  background: var(--vp-surface, #fff);
+  font-size: 18px;
+  line-height: 1;
+}
+.vp-theme-toggle:hover { color: var(--vp-link, #1648d8); background: var(--vp-surface-soft, #f8fbff); }
+html .vp-theme-toggle:focus-visible { outline: 3px solid var(--vp-focus, #1e5bff); outline-offset: 2px; }
+.vp-theme-toggle[hidden] { display: none !important; }
+
+@media screen {
+  html[data-bs-theme="dark"],
+  html[data-bs-theme="dark"] .dashboard-body {
+    color-scheme: dark;
+    --vp-background: #18191b;
+    --vp-surface: #222426;
+    --vp-surface-soft: #2b2d30;
+    --vp-surface-hover: #34373b;
+    --vp-text-primary: #edf0f3;
+    --vp-text-secondary: #b8bec7;
+    --vp-text-muted: #a2aab5;
+    --vp-text: var(--vp-text-primary);
+    --vp-border: #41454b;
+    --vp-border-strong: #626974;
+    --vp-light: #34373b;
+    --vp-navy: #edf0f3;
+    --vp-navy-2: #d3d9e1;
+    --vp-link: #9bc0ff;
+    --vp-focus: #9bc0ff;
+    --vp-danger: #ffabb2;
+    --vp-warning: #f6cf7b;
+    --vp-success: #8bd9b6;
+    --vp-teal: #7ddad0;
+    --vp-shadow-sm: 0 1px 3px #0003;
+    --vp-shadow-card: 0 8px 24px #0003;
+    --vp-shadow-sidebar: 8px 0 24px #0003;
+    --ui-bg: var(--vp-background);
+    --ui-surface: var(--vp-surface);
+    --ui-surface-soft: var(--vp-surface-soft);
+    --ui-text: var(--vp-text-primary);
+    --ui-muted: var(--vp-text-secondary);
+    --ui-border: var(--vp-border);
+    --ui-accent: var(--vp-link);
+    --bs-body-bg: var(--vp-background);
+    --bs-body-bg-rgb: 24, 25, 27;
+    --bs-body-color: var(--vp-text-primary);
+    --bs-body-color-rgb: 237, 240, 243;
+    --bs-emphasis-color: #fff;
+    --bs-emphasis-color-rgb: 255, 255, 255;
+    --bs-secondary-color: var(--vp-text-secondary);
+    --bs-secondary-color-rgb: 184, 190, 199;
+    --bs-tertiary-color: var(--vp-text-muted);
+    --bs-tertiary-color-rgb: 162, 170, 181;
+    --bs-secondary-bg: var(--vp-surface-soft);
+    --bs-secondary-bg-rgb: 43, 45, 48;
+    --bs-tertiary-bg: var(--vp-surface);
+    --bs-tertiary-bg-rgb: 34, 36, 38;
+    --bs-border-color: var(--vp-border);
+    --bs-border-color-translucent: #ffffff26;
+    --bs-heading-color: var(--vp-text-primary);
+    --bs-link-color: var(--vp-link);
+    --bs-link-color-rgb: 155, 192, 255;
+    --bs-link-hover-color: #c6dcff;
+    --bs-link-hover-color-rgb: 198, 220, 255;
+    --bs-code-color: #f3aed5;
+    --bs-highlight-color: #f6cf7b;
+    --bs-highlight-bg: #42351e;
+    --bs-primary-text-emphasis: #9bc0ff;
+    --bs-primary-bg-subtle: #26364f;
+    --bs-primary-border-subtle: #4c6d9f;
+    --bs-secondary-text-emphasis: #c5cbd4;
+    --bs-secondary-bg-subtle: #303338;
+    --bs-secondary-border-subtle: #555c66;
+    --bs-success-text-emphasis: #8bd9b6;
+    --bs-success-bg-subtle: #203d32;
+    --bs-success-border-subtle: #407d62;
+    --bs-info-text-emphasis: #8bdae9;
+    --bs-info-bg-subtle: #203b43;
+    --bs-info-border-subtle: #427b89;
+    --bs-warning-text-emphasis: #f6cf7b;
+    --bs-warning-bg-subtle: #42351e;
+    --bs-warning-border-subtle: #896e36;
+    --bs-danger-text-emphasis: #ffabb2;
+    --bs-danger-bg-subtle: #472a30;
+    --bs-danger-border-subtle: #92525e;
+    --bs-light-text-emphasis: #edf0f3;
+    --bs-light-bg-subtle: #303338;
+    --bs-light-border-subtle: #555c66;
+    --bs-dark-text-emphasis: #edf0f3;
+    --bs-dark-bg-subtle: #222426;
+    --bs-dark-border-subtle: #555c66;
+    --bs-form-valid-color: #8bd9b6;
+    --bs-form-valid-border-color: #8bd9b6;
+    --bs-form-invalid-color: #ffabb2;
+    --bs-form-invalid-border-color: #ffabb2;
+    --bs-focus-ring-color: #9bc0ff55;
+  }
+
+  html[data-bs-theme="dark"] body,
+  html[data-bs-theme="dark"] .dashboard-body .dashboard-app,
+  html[data-bs-theme="dark"] :is(.login-shell, .login-page, .org-fullscreen) {
+    color: var(--vp-text-primary);
+    background: var(--vp-background);
+  }
+  html[data-bs-theme="dark"] .dashboard-content { color: var(--vp-text-primary); }
+
+  /* Shell geometry, drawer visibility and mobile record layouts remain owned by navigation/responsive. */
+  html[data-bs-theme="dark"] #dashboardSidebar {
+    background: var(--vp-surface) !important;
+    color: var(--vp-text-primary);
+    border-color: var(--vp-border);
+  }
+  html[data-bs-theme="dark"] :is(.vp-workspace-bar, .dashboard-topbar, .dashboard-sidebar) {
+    background: var(--vp-surface);
+    color: var(--vp-text-primary);
+    border-color: var(--vp-border);
+  }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.offcanvas-header, .dashboard-subnav, .dashboard-sidebar-bottom, .dashboard-sidebar-user) { border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link, .dashboard-logout) { color: var(--vp-text-secondary); }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link, .dashboard-logout) > i { color: inherit; }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link, .dashboard-logout):hover { color: var(--vp-text-primary); background: var(--vp-surface-hover); }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link).active,
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.sidebar-count-badge, .assigned-count-badge) { color: var(--vp-link); background: var(--bs-primary-bg-subtle); }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-nav-item, .dashboard-subnav-item, .sidebar-quick-link).active > i { color: inherit; }
+  html[data-bs-theme="dark"] #dashboardSidebar .vp-nav-search { background: var(--vp-background); border-color: var(--vp-border); color: var(--vp-text-muted); }
+  html[data-bs-theme="dark"] #dashboardSidebar .vp-nav-search input { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] #dashboardSidebar .vp-nav-search:focus-within { outline-color: var(--vp-focus); border-color: var(--vp-focus); }
+  html[data-bs-theme="dark"] #dashboardSidebar .dashboard-sidebar-nav { scrollbar-color: var(--vp-border-strong) transparent; }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-sidebar-user strong, .dashboard-sidebar-brand),
+  html[data-bs-theme="dark"] .vp-workspace-name { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] #dashboardSidebar :is(.dashboard-sidebar-user span, .vp-nav-empty),
+  html[data-bs-theme="dark"] :is(.vp-workspace-caption, .vp-nav-mode-button, .vp-toolbar-icon) { color: var(--vp-text-secondary); border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] :is(.vp-nav-mode-button, .vp-toolbar-icon):hover { color: var(--vp-link); background: var(--vp-surface-hover); }
+  html[data-bs-theme="dark"] #dashboardSidebar .dashboard-avatar,
+  html[data-bs-theme="dark"] .vp-workspace-avatar { color: var(--vp-link); background: var(--bs-primary-bg-subtle); }
+  html[data-bs-theme="dark"] :is(.dashboard-mobile-menu-button, .dashboard-topbar-button) { color: var(--vp-text-primary); }
+
+  /* Explicit surfaces, including legacy modules with literal white backgrounds. */
+  html[data-bs-theme="dark"] body :is(
+    .card, .app-card, .app-form-card, .vp-card, .vp-form-card, .vp-table-card,
+    .dashboard-table-card, .dashboard-stat-card, .dashboard-filter, .actions-panel,
+    .metric-box, .detail-metric-card, .action-row, .notification-list-card,
+    .documents-summary-card, .documents-category-card, .documents-table-card,
+    .documents-form-card, .documents-preview-card, .documents-side-card,
+    .documents-detail-card, .documents-main-card, .documents-list-table-wrap,
+    .document-list-card, .document-detail-card, .personnel-list-card,
+    .quality-test-placeholder-card, .quality-test-form-card, .quality-parameters-card,
+    .quality-parameter-rule, .quality-measurement-card, .concrete-detail-panel,
+    .concrete-detail-grid, .concrete-strength-summary, .concrete-measurement-action-card,
+    .dof-form-card, .dof-side-card, .dof-detail-info-card, .dof-detail-content-card,
+    .dof-detail-side-card, .dof-detail-revision-card, .dof-detail-comments-card,
+    .dof-row-disclosure-content, .audit-access-card, .audit-progress-card,
+    .audit-question-card, .audit-history-card, .audit-action-bar, .audit-builder-card,
+    .assigned-summary-card, .maintenance-form-card, .maintenance-info-card,
+    .calibration-page-card, .org-toolbar, .org-node, .org-inspector, .org-empty,
+    .orientation-stage, .orientation-panel, .orientation-node, .orientation-empty,
+    .suggestion-hero-card, .suggestion-definition-card, .suggestion-evaluation-card,
+    .suggestion-side-card, .suggestion-score-option, .suggestion-rating-card,
+    .suggestion-comment-card, .role-admin-role-card, .role-permission-group,
+    .role-user-row, .company-module-panel, .company-package-panel,
+    .company-license-panel, .company-module-toggle, .company-package-option,
+    .onboarding-check-tile, .legal-nav-panel, .legal-policy-card, .legal-acceptance-card,
+    .legal-accept-check, .pwa-quick-panel, .pwa-qr-panel, .workflow-step,
+    .report-designer-panel, .report-designer-actions, .dynamic-designer-actions,
+    .change-info-item, .change-workflow-step, .change-file-row, .change-link-row,
+    .deviation-info-item, .deviation-workflow-step, .deviation-file-row, .deviation-link-row,
+    .incident-info-item, .incident-workflow-step, .incident-file-row, .incident-link-row,
+    .process-flow-card, .process-flow-item, .locale-switcher
+  ) {
+    color: var(--vp-text-primary);
+    background: var(--vp-surface);
+    border-color: var(--vp-border);
+    box-shadow: none;
+  }
+  html[data-bs-theme="dark"] body :is(
+    .app-file-box, .documents-file-hero, .documents-file-card, .documents-revision-target,
+    .documents-revision-file, .documents-pdf-preview-shell, .documents-preview-placeholder,
+    .documents-note-card, .documents-ack-status, .documents-category-pill,
+    .documents-revision-pill, .document-category-pill, .quality-parameter-class-card,
+    .quality-readonly-field, .quality-parameters-note, .quality-strength-values span,
+    .sub-action-summary-grid > div, .sub-action-builder-item, .dof-upload-box,
+    .dof-evidence-link, .dof-detail-empty-note, .audit-current-question, .audit-builder-question,
+    .audit-locked-field, .audit-answer-option, .permission-card, .evidence-item,
+    .closure-review-box, .comment-item, .org-zoom-control, .org-inspector-toggle,
+    .org-map, .orientation-scroll, .table-disclosure-body, .suggestion-score-panel,
+    .suggestion-score-list > div, .suggestion-rating-item, .suggestion-evaluation-list > div,
+    .suggestion-score-list-v2 > div, .suggestion-evaluation-list-v2 > div,
+    .suggestion-evaluation-locked, .suggestion-evaluator-option, .suggestion-file-card,
+    .suggestion-empty-upload-card, .role-chip, .company-active-toggle,
+    .onboarding-company-summary > div, .onboarding-chip, .onboarding-user-list span,
+    .concrete-detail-grid > div, .system-admin-log-item, .system-admin-audit-item,
+    .pilot-readiness-alert, .legal-profile-strip > div, .legal-acceptance-list a,
+    .report-option-check, .custom-report-meta span, .pwa-ios-help
+  ) {
+    color: var(--vp-text-secondary);
+    background: var(--vp-surface-soft);
+    border-color: var(--vp-border);
+  }
+  html[data-bs-theme="dark"] body :is(.documents-category-card::before, .login-page::before, .login-card::before) { background: none; }
+  html[data-bs-theme="dark"] body :is(.dashboard-filter-card, .quality-test-filter-card, .maintenance-filter-card) { background: transparent; border-color: var(--vp-border); }
+
+  /* Text is targeted to application content, never to media or every descendant. */
+  html[data-bs-theme="dark"] body :is(.dashboard-content, .login-card, .legal-policy-card, .pwa-mobile-page) :is(h1, h2, h3, h4, h5, h6) { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body :is(
+    .action-title, .action-meta strong, .action-row-due strong, .action-empty strong,
+    .notification-message, .notification-list-body strong, .documents-summary-label,
+    .documents-category-title, .documents-category-count strong, .documents-detail-card strong,
+    .documents-file-hero strong, .documents-info-list strong, .documents-revision-target strong,
+    .documents-preview-placeholder strong, .documents-ack-page-stats strong,
+    .documents-file-tile small, .documents-date-cell, .documents-department-cell,
+    .quality-measurement-card strong, .concrete-main-cell strong, .concrete-detail-grid strong,
+    .sub-action-summary-grid strong, .sub-action-builder-head strong, .dof-status-box strong,
+    .dof-approval-flow strong, .dof-checklist li, .dof-detail-info-card strong,
+    .dof-detail-content-card p, .dof-detail-summary strong, .dof-title-text,
+    .dof-nonconformity-cell, .dof-responsible-cell, .dof-row-disclosure-content strong,
+    .audit-progress-meta strong, .audit-answer-label, .audit-history-text,
+    .audit-builder-question-head strong, .permission-card strong, .detail-metric-card strong,
+    .maintenance-info-card strong, .maintenance-detail-text, .maintenance-due strong,
+    .calibration-device-name, .orientation-zoom-label, .org-zoom-value,
+    .suggestion-definition-text, .suggestion-score-option span, .suggestion-rating-item strong,
+    .suggestion-evaluation-list strong, .suggestion-rating-copy strong, .suggestion-comment-label,
+    .suggestion-score-ring strong, .suggestion-score-list-v2 strong,
+    .suggestion-evaluation-list-v2 strong, .suggestion-evaluation-locked strong,
+    .suggestion-evaluator-option strong, .role-permission-item strong, .role-chip span,
+    .company-usage-cell strong, .company-module-copy strong, .company-onboarding-list,
+    .onboarding-status-card strong, .onboarding-company-summary strong, .onboarding-user-list strong,
+    .concrete-meta-summary strong, .concrete-measurement-action-card strong,
+    .assigned-summary-card strong, .legal-brand-mini strong, .legal-policy-content,
+    .legal-profile-strip strong, .pwa-action-card, .timeline-dates,
+    .change-info-item strong, .change-note, .deviation-info-item strong, .deviation-note,
+    .incident-info-item strong, .incident-note, .report-catalog > summary
+  ) { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body :is(
+    .app-card p, .app-card-header p, .app-page-header p, .app-section-header p,
+    .dashboard-page-heading p, .dashboard-stat-card .stat-label, .dashboard-table-footer,
+    .documents-pagination, .documents-list-count, .documents-breadcrumb,
+    .documents-summary-card small, .documents-category-count span, .documents-category-date,
+    .documents-card-header span, .documents-title-cell span, .documents-file-meta,
+    .documents-side-card p, .documents-detail-card small, .documents-file-card small,
+    .documents-info-list span, .documents-revision-target span, .documents-revision-file small,
+    .documents-ack-status span, .documents-ack-summary-link small, .documents-table-meta,
+    .action-description, .action-meta, .action-due-label, .notification-time,
+    .notification-list-body small, .notification-list-time, .metric-label,
+    .dashboard-action-title-cell span, .dashboard-action-title-cell small,
+    .assigned-task-description, .assigned-summary-label, .assigned-page-intro,
+    .quality-test-muted-line, .quality-parameter-class-header small,
+    .quality-parameter-fields small, .quality-parameter-help, .quality-measurement-card span,
+    .quality-measurement-card small, .concrete-muted-line, .concrete-detail-grid span,
+    .concrete-detail-grid small, .sub-action-summary-grid span, .dof-meta-line,
+    .dof-counter, .dof-side-card p, .dof-upload-box small, .dof-status-box span,
+    .dof-approval-flow span, .dof-approval-flow small, .dof-detail-info-card > div > span:first-child,
+    .dof-detail-content-card small, .dof-detail-side-title p, .dof-detail-summary span,
+    .dof-row-disclosure-content p, .audit-progress-meta, .audit-counter,
+    .audit-history-head p, .audit-history-list small, .permission-card small,
+    .detail-metric-card span, .evidence-item span, .comment-item small,
+    .org-node-title, .orientation-node-title, .calibration-device-meta,
+    .calibration-table-footer, .maintenance-title-cell span, .maintenance-muted-line,
+    .maintenance-info-card small, .maintenance-info-card > span:not(.maintenance-info-icon),
+    .vehicle-due-summary, .suggestion-score-panel p, .suggestion-rating-item span,
+    .suggestion-evaluation-list small, .suggestion-hero-main p, .suggestion-card-heading p,
+    .suggestion-side-card p, .suggestion-rating-copy span, .suggestion-char-note,
+    .suggestion-score-ring span, .suggestion-score-list-v2 span,
+    .suggestion-evaluation-list-v2 span, .suggestion-evaluation-list-v2 small,
+    .suggestion-evaluator-option small, .suggestion-file-card small,
+    .suggestion-empty-upload-card span, .role-permission-item small, .role-card-footer,
+    .role-user-summary small, .company-usage-cell small, .company-active-toggle small,
+    .company-module-copy small, .company-module-panel-header p, .company-logo-remove,
+    .onboarding-status-card small, .onboarding-status-card p, .onboarding-company-summary span,
+    .onboarding-user-list small, .concrete-detail-eyebrow, .concrete-strength-metric em,
+    .concrete-strength-metric strong small, .concrete-meta-summary span,
+    .concrete-measurement-action-card span, .concrete-measurement-action-card small,
+    .legal-brand-mini span, .legal-profile-strip span, .legal-acceptance-list small,
+    .pwa-section-kicker, .pwa-action-copy small, .pwa-qr-panel p, .pwa-empty-state,
+    .project-timeline-summary p, .timeline-year-filter label, .timeline-axis,
+    .timeline-label > div > span, .timeline-dates small, .timeline-legend, .project-empty-state,
+    .change-info-item span, .change-workflow-step span, .deviation-info-item span,
+    .deviation-workflow-step span, .incident-info-item span, .incident-workflow-step span,
+    .org-context-page dt, .swot-page dt, .pestle-page dt, .import-source-values dt,
+    .workflow-drag-handle
+  ) { color: var(--vp-text-secondary); }
+  html[data-bs-theme="dark"] body :is(
+    .dashboard-table a:not(.btn):not(.vp-action-btn):not(.documents-action-btn):not(.document-action-btn),
+    .documents-title-cell a, .documents-card-header a, .documents-breadcrumb a,
+    .assigned-task-title, .documents-table-title, .maintenance-ref-link,
+    .maintenance-title-cell a, .personnel-phone-link, .custody-record-link,
+    .meetings-disclosure summary, .legal-doc-nav a, .dof-evidence-name,
+    .documents-upload-box strong, .suggestion-file-card span,
+    .suggestion-empty-upload-card strong
+  ) { color: var(--vp-link); }
+
+  /* Bootstrap variables do not cover the app's hardcoded form and button rules. */
+  html[data-bs-theme="dark"] body :is(.form-label, .app-form-label, .dashboard-filter-card label, .form-check-label, .quality-parameter-rule-grid label > span) { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body :is(.form-control, .form-select, .input-group-text, .document-filter-select, .document-search, .documents-search, .vehicle-reminder-toggle) {
+    color: var(--vp-text-primary);
+    background-color: var(--vp-surface);
+    border-color: var(--vp-border-strong);
+  }
+  html[data-bs-theme="dark"] body :is(.document-search, .documents-search) input { color: var(--vp-text-primary); background: transparent; }
+  html[data-bs-theme="dark"] body :is(.form-control, .form-select):focus {
+    color: var(--vp-text-primary);
+    background-color: var(--vp-surface);
+    border-color: var(--vp-focus);
+    box-shadow: 0 0 0 3px var(--bs-focus-ring-color);
+  }
+  html[data-bs-theme="dark"] body :is(.form-control, .form-select):disabled,
+  html[data-bs-theme="dark"] body .form-control[readonly],
+  html[data-bs-theme="dark"] body .input-group-text { color: var(--vp-text-secondary); background-color: var(--vp-surface-soft); }
+  html[data-bs-theme="dark"] body :is(.form-control, textarea, .vp-nav-search input)::placeholder { color: var(--vp-text-muted); opacity: 1; }
+  html[data-bs-theme="dark"] body .form-check-input { background-color: var(--vp-background); border-color: var(--vp-border-strong); }
+  html[data-bs-theme="dark"] body .form-check-input:checked,
+  html[data-bs-theme="dark"] body .form-check-input:indeterminate { background-color: #265ec0; border-color: var(--vp-focus); }
+  html[data-bs-theme="dark"] body .form-check-input:focus { border-color: var(--vp-focus); box-shadow: 0 0 0 3px var(--bs-focus-ring-color); }
+  html[data-bs-theme="dark"] body .form-control::file-selector-button { color: var(--vp-text-primary); background-color: var(--vp-surface-soft); }
+  html[data-bs-theme="dark"] body .form-control:hover:not(:disabled):not([readonly])::file-selector-button { background-color: var(--vp-surface-hover); }
+  html[data-bs-theme="dark"] body .form-control:-webkit-autofill { -webkit-text-fill-color: var(--vp-text-primary); caret-color: var(--vp-text-primary); box-shadow: 0 0 0 1000px var(--vp-surface) inset; }
+  html[data-bs-theme="dark"] body :is(.form-control, .form-select, .form-check-input).is-invalid,
+  html[data-bs-theme="dark"] body .was-validated :is(.form-control, .form-select, .form-check-input):invalid { border-color: var(--bs-form-invalid-border-color); }
+  html[data-bs-theme="dark"] body :is(.form-control, .form-select, .form-check-input).is-valid,
+  html[data-bs-theme="dark"] body .was-validated :is(.form-control, .form-select, .form-check-input):valid { border-color: var(--bs-form-valid-border-color); }
+
+  html[data-bs-theme="dark"] body :is(.btn-light, .btn-outline-secondary, .btn-outline-dark, .btn-icon, .assigned-detail-button) {
+    --bs-btn-color: var(--vp-text-primary);
+    --bs-btn-bg: var(--vp-surface);
+    --bs-btn-border-color: var(--vp-border-strong);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--vp-surface-hover);
+    --bs-btn-hover-border-color: var(--vp-focus);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--vp-surface-hover);
+    --bs-btn-active-border-color: var(--vp-focus);
+    --bs-btn-disabled-color: var(--vp-text-muted);
+    --bs-btn-disabled-bg: var(--vp-surface-soft);
+    color: var(--vp-text-primary);
+    background: var(--vp-surface);
+    border-color: var(--vp-border-strong);
+  }
+  html[data-bs-theme="dark"] body :is(.btn-light, .btn-outline-secondary, .btn-outline-dark, .btn-icon, .assigned-detail-button):is(:hover, :focus-visible, :active, .active) { color: #fff; background: var(--vp-surface-hover); border-color: var(--vp-focus); }
+  html[data-bs-theme="dark"] .btn-outline-primary { --bs-btn-color: var(--vp-link); color: var(--vp-link); border-color: var(--bs-primary-border-subtle); }
+  html[data-bs-theme="dark"] .btn-outline-success { --bs-btn-color: var(--vp-success); --bs-btn-border-color: var(--bs-success-border-subtle); }
+  html[data-bs-theme="dark"] .btn-outline-danger { --bs-btn-color: var(--vp-danger); --bs-btn-border-color: var(--bs-danger-border-subtle); }
+  html[data-bs-theme="dark"] .btn-outline-warning { --bs-btn-color: var(--vp-warning); }
+  html[data-bs-theme="dark"] .btn-outline-info { --bs-btn-color: var(--bs-info-text-emphasis); }
+  html[data-bs-theme="dark"] .btn-outline-primary:is(:hover, :focus-visible, :active, .active) { color: #fff; background: #265ec0; border-color: var(--vp-focus); }
+  html[data-bs-theme="dark"] body :is(.vp-action-btn, .vp-action-link, .documents-action-btn, .document-action-btn) {
+    color: color-mix(in srgb, rgb(var(--vp-action-rgb, 37, 99, 235)) 55%, white);
+    background: var(--vp-surface);
+    border-color: color-mix(in srgb, rgb(var(--vp-action-rgb, 37, 99, 235)) 65%, white);
+  }
+  html[data-bs-theme="dark"] body :is(.vp-action-btn, .vp-action-link, .documents-action-btn, .document-action-btn):is(:hover, :focus-visible) { color: #fff; background: var(--vp-surface-hover); border-color: currentColor; }
+  html[data-bs-theme="dark"] body :is(a, button, summary, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--vp-focus); outline-offset: 2px; }
+
+  /* Tables retain Bootstrap's striped/hover/state layers, including mobile record cards. */
+  html[data-bs-theme="dark"] body :is(.table, .dashboard-table, .vp-table, .document-table, .documents-table) {
+    --bs-table-color: var(--vp-text-primary);
+    --bs-table-bg: var(--vp-surface);
+    --bs-table-border-color: var(--vp-border);
+    --bs-table-striped-color: var(--vp-text-primary);
+    --bs-table-striped-bg: #ffffff05;
+    --bs-table-hover-color: var(--vp-text-primary);
+    --bs-table-hover-bg: #ffffff0c;
+    --bs-table-active-color: var(--vp-text-primary);
+    --bs-table-active-bg: #9bc0ff20;
+    color: var(--vp-text-primary);
+    border-color: var(--vp-border);
+  }
+  html[data-bs-theme="dark"] body :is(.table, .dashboard-table, .vp-table, .document-table, .documents-table, .personnel-table, .calibration-table) > :is(thead, tbody, tfoot) > tr > :is(th, td) {
+    color: var(--bs-table-color, var(--vp-text-primary));
+    border-color: var(--vp-border);
+    background-color: var(--bs-table-bg, var(--vp-surface));
+  }
+  html[data-bs-theme="dark"] body :is(.table, .dashboard-table, .vp-table, .document-table, .documents-table, .personnel-table, .calibration-table) > thead > tr > th { color: var(--vp-text-secondary); background-color: var(--vp-surface-soft); }
+  html[data-bs-theme="dark"] body :is(.table, .dashboard-table, .vp-table, .document-table, .documents-table, .calibration-table) > tbody > tr:hover > td { background-color: var(--bs-table-bg, var(--vp-surface)); }
+  html[data-bs-theme="dark"] body .vp-records-active .vp-responsive-table > tbody > tr.vp-record-row,
+  html[data-bs-theme="dark"] body :is(.dof-dashboard-table, .assigned-table, .documents-table) > tbody > tr { background: var(--vp-surface); border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] body :is(.table, .dashboard-table, .documents-table, .assigned-table, .project-table) td::before { color: var(--vp-text-secondary); }
+  html[data-bs-theme="dark"] body .table-primary { --bs-table-bg: var(--bs-primary-bg-subtle); --bs-table-color: var(--bs-primary-text-emphasis); }
+  html[data-bs-theme="dark"] body .table-success { --bs-table-bg: var(--bs-success-bg-subtle); --bs-table-color: var(--bs-success-text-emphasis); }
+  html[data-bs-theme="dark"] body .table-warning { --bs-table-bg: var(--bs-warning-bg-subtle); --bs-table-color: var(--bs-warning-text-emphasis); }
+  html[data-bs-theme="dark"] body .table-danger { --bs-table-bg: var(--bs-danger-bg-subtle); --bs-table-color: var(--bs-danger-text-emphasis); }
+  html[data-bs-theme="dark"] body .table-info { --bs-table-bg: var(--bs-info-bg-subtle); --bs-table-color: var(--bs-info-text-emphasis); }
+  html[data-bs-theme="dark"] body :is(.table-light, .table-secondary) { --bs-table-bg: var(--vp-surface-soft); --bs-table-color: var(--vp-text-primary); }
+
+  html[data-bs-theme="dark"] :is(.dropdown-menu, .modal-content, .offcanvas, .toast, .popover) {
+    --bs-dropdown-bg: var(--vp-surface);
+    --bs-dropdown-color: var(--vp-text-primary);
+    --bs-dropdown-link-color: var(--vp-text-primary);
+    --bs-dropdown-link-hover-color: #fff;
+    --bs-dropdown-link-hover-bg: var(--vp-surface-hover);
+    --bs-dropdown-link-active-bg: #265ec0;
+    --bs-dropdown-link-disabled-color: var(--vp-text-muted);
+    --bs-dropdown-header-color: var(--vp-text-secondary);
+    --bs-modal-bg: var(--vp-surface);
+    --bs-modal-color: var(--vp-text-primary);
+    --bs-offcanvas-bg: var(--vp-surface);
+    --bs-offcanvas-color: var(--vp-text-primary);
+    --bs-popover-bg: var(--vp-surface);
+    --bs-popover-header-bg: var(--vp-surface-soft);
+    --bs-popover-header-color: var(--vp-text-primary);
+    --bs-popover-body-color: var(--vp-text-primary);
+    --bs-toast-bg: var(--vp-surface);
+    --bs-toast-header-bg: var(--vp-surface-soft);
+    --bs-toast-header-color: var(--vp-text-primary);
+    color: var(--vp-text-primary);
+    border-color: var(--vp-border);
+  }
+  html[data-bs-theme="dark"] .accordion {
+    --bs-accordion-bg: var(--vp-surface);
+    --bs-accordion-color: var(--vp-text-primary);
+    --bs-accordion-btn-color: var(--vp-text-primary);
+    --bs-accordion-active-bg: var(--bs-primary-bg-subtle);
+    --bs-accordion-active-color: var(--vp-link);
+  }
+  html[data-bs-theme="dark"] .list-group {
+    --bs-list-group-bg: var(--vp-surface);
+    --bs-list-group-color: var(--vp-text-primary);
+    --bs-list-group-action-color: var(--vp-text-primary);
+    --bs-list-group-action-hover-bg: var(--vp-surface-hover);
+    --bs-list-group-action-hover-color: #fff;
+    --bs-list-group-action-active-bg: var(--vp-surface-hover);
+    --bs-list-group-action-active-color: #fff;
+  }
+  html[data-bs-theme="dark"] .pagination {
+    --bs-pagination-bg: var(--vp-surface);
+    --bs-pagination-color: var(--vp-link);
+    --bs-pagination-hover-bg: var(--vp-surface-hover);
+    --bs-pagination-focus-bg: var(--vp-surface-hover);
+    --bs-pagination-disabled-bg: var(--vp-surface-soft);
+    --bs-pagination-disabled-color: var(--vp-text-muted);
+  }
+  html[data-bs-theme="dark"] .nav-tabs { --bs-nav-tabs-link-active-bg: var(--vp-surface); --bs-nav-tabs-link-active-color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body :is(.bg-white, .bg-light) { background-color: var(--vp-surface) !important; }
+  html[data-bs-theme="dark"] body :is(.text-dark, .text-black, .text-body) { color: var(--vp-text-primary) !important; }
+  html[data-bs-theme="dark"] body :is(.text-muted, .text-secondary, .text-black-50) { color: var(--vp-text-secondary) !important; }
+  html[data-bs-theme="dark"] body .text-primary { color: var(--vp-link) !important; }
+  html[data-bs-theme="dark"] body .text-success { color: var(--vp-success) !important; }
+  html[data-bs-theme="dark"] body .text-danger { color: var(--vp-danger) !important; }
+  html[data-bs-theme="dark"] body .text-warning { color: var(--vp-warning) !important; }
+  html[data-bs-theme="dark"] body .text-info { color: var(--bs-info-text-emphasis) !important; }
+
+  /* Semantic states override legacy !important status rules, not arbitrary classes. */
+  html[data-bs-theme="dark"] body :is(.vp-status-success, .status-pill-success, .document-status-success, .dof-due-status-success, .if-status-badge-completed, .maintenance-badge-success, .calibration-due-success, .quality-strength-pill.quality-strength-success, .assigned-page-priority-low, .assigned-page-status-completed, .text-bg-success, .documents-ack-badge.success, .documents-ack-status.success, .audit-tone-success, .quality-complete-panel, .pwa-network-status:not(.offline), .workflow-terminal.is-end, .timeline-status.status-text-completed, .ohs-matrix-cell.risk-success, .suggestion-score-pill:not(.is-negative), .import-steps .is-complete) {
+    color: var(--bs-success-text-emphasis) !important; background: var(--bs-success-bg-subtle) !important; border-color: var(--bs-success-border-subtle) !important;
+  }
+  html[data-bs-theme="dark"] body :is(.vp-status-warning, .vp-status-amber, .status-pill-warning, .priority-pill-warning, .document-status-warning, .dof-due-status-warning, .if-status-badge-personnel, .if-status-badge-pending, .maintenance-badge-warning, .calibration-due-warning, .quality-strength-pill.quality-strength-warning, .assigned-page-priority-medium, .assigned-page-status-pending, .text-bg-warning, .documents-ack-badge.pending, .audit-tone-warning, .dof-status-box, .role-locked-note, .timeline-status.status-text-in_progress, .ohs-matrix-cell.risk-warning) {
+    color: var(--bs-warning-text-emphasis) !important; background: var(--bs-warning-bg-subtle) !important; border-color: var(--bs-warning-border-subtle) !important;
+  }
+  html[data-bs-theme="dark"] body :is(.vp-status-danger, .status-pill-danger, .priority-pill-danger, .document-status-danger, .dof-due-status-danger, .if-status-badge-revision, .if-status-badge-delayed, .maintenance-badge-danger, .calibration-due-danger, .quality-strength-pill.quality-strength-danger, .assigned-page-priority-high, .assigned-page-status-delayed, .text-bg-danger, .audit-tone-danger, .dof-rejection-card, .evidence-danger, .vp-error-state, .pwa-network-status.offline, .suggestion-score-pill.is-negative, .ohs-matrix-cell.risk-danger) {
+    color: var(--bs-danger-text-emphasis) !important; background: var(--bs-danger-bg-subtle) !important; border-color: var(--bs-danger-border-subtle) !important;
+  }
+  html[data-bs-theme="dark"] body :is(.vp-status-info, .vp-status-blue, .status-pill-info, .priority-pill-info, .if-status-badge-management, .assigned-page-status-open, .assigned-page-status-active, .text-bg-primary, .btn-soft-primary, .workflow-terminal:not(.is-end), .timeline-status.status-text-pending, .import-steps .is-current) {
+    color: var(--bs-primary-text-emphasis) !important; background: var(--bs-primary-bg-subtle) !important; border-color: var(--bs-primary-border-subtle) !important;
+  }
+  html[data-bs-theme="dark"] body :is(.maintenance-badge-info, .text-bg-info) { color: var(--bs-info-text-emphasis) !important; background: var(--bs-info-bg-subtle) !important; border-color: var(--bs-info-border-subtle) !important; }
+  html[data-bs-theme="dark"] body .assigned-page-status-danger { color: var(--bs-danger-text-emphasis); background: var(--bs-danger-bg-subtle); border-color: var(--bs-danger-border-subtle); }
+  html[data-bs-theme="dark"] body :is(.vp-status-muted, .status-pill-muted, .priority-pill-muted, .document-status-muted, .dof-due-status-muted, .if-status-badge-draft, .if-status-badge-neutral, .maintenance-badge-muted, .calibration-due-muted, .quality-strength-pill.quality-strength-muted, .assigned-page-status-neutral, .text-bg-secondary, .text-bg-light, .audit-tone-secondary, .timeline-status.status-text-cancelled, .ohs-matrix-cell.risk-muted) {
+    color: var(--bs-secondary-text-emphasis) !important; background: var(--bs-secondary-bg-subtle) !important; border-color: var(--bs-secondary-border-subtle) !important;
+  }
+  html[data-bs-theme="dark"] body :is(.vp-status-purple, .document-status-purple, .if-status-badge-deputy, .assigned-page-status-planned) { color: #d2b5fa; background: #382d49; border-color: #7d609f; }
+  html[data-bs-theme="dark"] body :is(.stat-success, .maintenance-due-success, .quality-parameter-label-success, .concrete-strength-metric.quality-strength-success, .portfolio-benefit) { color: var(--vp-success); }
+  html[data-bs-theme="dark"] body :is(.stat-warning, .maintenance-due-warning, .quality-parameter-label-warning, .concrete-strength-metric.quality-strength-warning) { color: var(--vp-warning); }
+  html[data-bs-theme="dark"] body :is(.stat-danger, .maintenance-due-danger, .quality-parameter-label-danger, .concrete-strength-metric.quality-strength-danger, .custody-notice, .portfolio-risk, .action-delay, .dof-rejection-card p, .dof-rejection-card small) { color: var(--vp-danger); }
+  html[data-bs-theme="dark"] body :is(.stat-primary, .stat-info, .dashboard-stat-value, .documents-summary-value) { color: var(--vp-link); }
+  html[data-bs-theme="dark"] body .stat-icon { background: var(--vp-surface-soft); }
+
+  html[data-bs-theme="dark"] body :is(.app-page-icon, .app-card-icon, .documents-list-icon, .documents-title-icon, .documents-detail-icon, .documents-category-icon, .documents-category-arrow, .documents-summary-icon, .dof-detail-info-icon, .dof-card-icon, .audit-access-icon, .maintenance-card-icon, .maintenance-info-icon, .suggestion-hero-icon, .suggestion-card-icon, .suggestion-rating-icon, .company-module-icon, .onboarding-status-icon, .vp-empty-state-icon, .vp-modal-icon, .pwa-action-icon, .pwa-section-heading > i, .workflow-step-number, .report-rule-number, .timeline-kind-icon, .change-workflow-step i, .deviation-workflow-step i, .incident-workflow-step i) { color: var(--vp-link); background: var(--bs-primary-bg-subtle); border-color: var(--bs-primary-border-subtle); }
+  html[data-bs-theme="dark"] body :is(.notification-list-card.is-unread, .audit-selector-row.is-active, .suggestion-score-list > div.is-selected, .company-package-option:has(input:checked), .legal-doc-nav a.active, .legal-doc-nav a:hover, .vp-list-view-controls [aria-pressed="true"], .locale-choice:hover, .vehicle-reminder-option:hover) { color: var(--vp-link); background: var(--bs-primary-bg-subtle); border-color: var(--bs-primary-border-subtle); }
+  html[data-bs-theme="dark"] body :is(.locale-choice, .vehicle-reminder-option, .audit-selector-link, .audit-selector-title) { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body .locale-choice.active { color: #fff; background: #265ec0; }
+  html[data-bs-theme="dark"] body :is(.sub-action-progress, .audit-progress-track, .audit-dashboard-progress div, .company-usage-meter, .custom-report-bar-track) { background: var(--vp-surface-hover); }
+  html[data-bs-theme="dark"] body .suggestion-score-ring { background: radial-gradient(circle, var(--vp-surface) 54%, transparent 56%), conic-gradient(var(--vp-link) var(--score-angle), var(--vp-border) 0); }
+  html[data-bs-theme="dark"] body :is(.swot-quadrant, .pestle-factor, .org-context-factor) { border-top-color: var(--vp-border); }
+  html[data-bs-theme="dark"] body :is(.swot-meta, .pestle-meta, .org-context-meta, .opportunity-section, .opportunity-summary, .project-timeline-summary, .project-timeline-section, .timeline-axis, .timeline-row, .report-designer-empty, .custom-report-table-wrap, .pwa-action-card, .pwa-empty-state) { border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] body .timeline-gridline { background: var(--vp-border); }
+  html[data-bs-theme="dark"] body .timeline-track { background: none; }
+  html[data-bs-theme="dark"] body :is(.timeline-milestone, .ohs-matrix-marker) { background: var(--vp-surface); }
+  html[data-bs-theme="dark"] body .timeline-milestone.is-complete { background: var(--bs-success-bg-subtle); border-color: var(--vp-success); }
+  html[data-bs-theme="dark"] body .workflow-step::before,
+  html[data-bs-theme="dark"] body .workflow-terminal.is-end::before { background: var(--vp-border-strong); }
+  html[data-bs-theme="dark"] body .calibration-metrics .dashboard-stat-card small,
+  html[data-bs-theme="dark"] body .shift-handover-page :is(.sh-facts dt, .sh-muted) { color: var(--vp-text-secondary); }
+  html[data-bs-theme="dark"] body .shift-handover-page :is(.sh-notice, .sh-cancel summary) { color: var(--vp-danger); }
+
+  /* Login artwork and all other media keep their original pixels. */
+  html[data-bs-theme="dark"] body .login-page .login-card { color: var(--vp-text-primary); background: var(--vp-surface); border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] body .login-page .login-card .form-label { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body .login-page .login-card .form-control { color: var(--vp-text-primary); background-color: var(--vp-background); border-color: var(--vp-border-strong); }
+  html[data-bs-theme="dark"] body .login-page .login-card .form-control:focus { border-color: var(--vp-focus); box-shadow: 0 0 0 3px var(--bs-focus-ring-color); }
+  html[data-bs-theme="dark"] body :is(.login-subtitle, .login-footer-note, .login-remember-option, .login-input-icon i) { color: var(--vp-text-secondary); }
+  html[data-bs-theme="dark"] body .login-footer-note a { color: var(--vp-link); }
+  html[data-bs-theme="dark"] body .login-page .login-button { color: #fff; background: #265ec0; }
+  html[data-bs-theme="dark"] body .login-page .login-button:hover { background: #1e50a8; }
+  html[data-bs-theme="dark"] body .login-page .alert { color: var(--bs-alert-color); background: var(--bs-alert-bg); border-color: var(--bs-alert-border-color); }
+}
+
+/* Bootstrap dark variables are not screen-scoped. Reset them explicitly for print. */
+@media print {
+  html[data-bs-theme="dark"], html[data-bs-theme="dark"] body {
+    color-scheme: light;
+    --bs-body-bg: #fff;
+    --bs-body-bg-rgb: 255, 255, 255;
+    --bs-body-color: #172033;
+    --bs-body-color-rgb: 23, 32, 51;
+    --bs-emphasis-color: #000;
+    --bs-emphasis-color-rgb: 0, 0, 0;
+    --bs-heading-color: #172033;
+    --bs-secondary-color: #475467;
+    --bs-secondary-color-rgb: 71, 84, 103;
+    --bs-tertiary-color: #475467;
+    --bs-tertiary-color-rgb: 71, 84, 103;
+    --bs-secondary-bg: #e9ecef;
+    --bs-secondary-bg-rgb: 233, 236, 239;
+    --bs-tertiary-bg: #f8f9fa;
+    --bs-tertiary-bg-rgb: 248, 249, 250;
+    --bs-border-color: #b8bec7;
+    --bs-border-color-translucent: #0003;
+    --bs-link-color: #1648d8;
+    --bs-link-color-rgb: 22, 72, 216;
+    --bs-link-hover-color: #1648d8;
+    --bs-link-hover-color-rgb: 22, 72, 216;
+    --bs-code-color: #a61e64;
+    --bs-highlight-color: #172033;
+    --bs-highlight-bg: #fff3cd;
+    --bs-form-valid-color: #0f5132;
+    --bs-form-valid-border-color: #198754;
+    --bs-form-invalid-color: #842029;
+    --bs-form-invalid-border-color: #dc3545;
+    --bs-primary-text-emphasis: #1648d8;
+    --bs-primary-bg-subtle: #e8efff;
+    --bs-primary-border-subtle: #bfd0ff;
+    --bs-secondary-text-emphasis: #475467;
+    --bs-secondary-bg-subtle: #eef2f6;
+    --bs-secondary-border-subtle: #d8e2ef;
+    --bs-success-text-emphasis: #0f5132;
+    --bs-success-bg-subtle: #dff8ef;
+    --bs-success-border-subtle: #9ee7d3;
+    --bs-warning-text-emphasis: #664d03;
+    --bs-warning-bg-subtle: #fff4d8;
+    --bs-warning-border-subtle: #ffd98a;
+    --bs-danger-text-emphasis: #842029;
+    --bs-danger-bg-subtle: #ffe7e5;
+    --bs-danger-border-subtle: #ffb4ad;
+    --bs-info-text-emphasis: #055160;
+    --bs-info-bg-subtle: #cff4fc;
+    --bs-info-border-subtle: #9eeaf9;
+    --bs-light-text-emphasis: #495057;
+    --bs-light-bg-subtle: #fcfcfd;
+    --bs-light-border-subtle: #e9ecef;
+    --bs-dark-text-emphasis: #495057;
+    --bs-dark-bg-subtle: #ced4da;
+    --bs-dark-border-subtle: #adb5bd;
+    background: #fff !important;
+    color: #172033 !important;
+  }
+  .vp-theme-toggle { display: none !important; }
+  html[data-bs-theme="dark"] :is(.dashboard-app, .dashboard-main, .dashboard-content, .login-page, .login-page .login-card) { background: #fff !important; color: #172033 !important; box-shadow: none; }
+  html[data-bs-theme="dark"] .login-page .login-card :is(.form-label, .form-control, .login-remember-option, .login-footer-note, a) { color: #172033 !important; background-color: #fff; }
+}
