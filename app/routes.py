@@ -16388,35 +16388,25 @@ def validate_password_policy(password):
 
 def flash_user_form_error(error):
     error_key = str(error)
-    if error_key == "personnel_name_conflict":
-        flash("Bu ad ve telefonla başka bir personel kaydı bulunuyor.", "danger")
-        return
+    messages = {
+        "personnel_name_conflict": ("full_name", "Bu ad ve telefonla başka bir personel kaydı bulunuyor."),
+        "invalid_company": ("company_id", "Aktif bir şirket seçin."),
+        "user_limit_reached": ("is_active", "Kullanici limiti doldu. Sirket lisans limitini artirin veya pasif kullanici birakin."),
+        "invalid_locale": ("preferred_locale", "Desteklenmeyen bir dil seçildi."),
+        "username_exists": ("username", "Bu kullanıcı adı zaten kullanılıyor."),
+        "password_required": ("password", "Şifre girin."),
+        "password_too_short": ("password", f"Parola en az {current_app.config['PASSWORD_MIN_LENGTH']} karakter olmalıdır."),
+        "password_too_long": ("password", f"Parola en fazla {current_app.config.get('PASSWORD_MAX_LENGTH', 128)} karakter olabilir."),
+    }
     if error_key == "profile_field_too_long":
-        flash("Kullanıcı adı en fazla 80, ad soyad ve görev 160, e-posta 255 karakter olabilir.", "danger")
-        return
-    if error_key == "invalid_company":
-        flash("Aktif bir şirket seçin.", "danger")
-        return
-    if error_key == "user_limit_reached":
-        flash("Kullanici limiti doldu. Sirket lisans limitini artirin veya pasif kullanici birakin.", "danger")
-        return
-    if error_key == "invalid_locale":
-        flash("Desteklenmeyen bir dil seçildi.", "danger")
-        return
-    if error_key == "username_exists":
-        flash("Bu kullanıcı adı zaten kullanılıyor.", "danger")
-    elif error_key == "password_too_short":
-        flash(
-            f"Parola en az {current_app.config['PASSWORD_MIN_LENGTH']} karakter olmalıdır.",
-            "danger",
-        )
-    elif error_key == "password_too_long":
-        flash(
-            f"Parola en fazla {current_app.config.get('PASSWORD_MAX_LENGTH', 128)} karakter olabilir.",
-            "danger",
-        )
+        fields = {"username": 80, "full_name": 160, "title": 160, "email": 255}
+        field = next((key for key, limit in fields.items() if len(request.form.get(key, "").strip()) > limit), "username")
+        message = "Kullanıcı adı en fazla 80, ad soyad ve görev 160, e-posta 255 karakter olabilir."
     else:
-        flash("Lütfen kullanıcı bilgilerini eksiksiz doldurun.", "danger")
+        required_field = "username" if not request.form.get("username", "").strip() else "full_name"
+        field, message = messages.get(error_key, (required_field, "Lütfen kullanıcı bilgilerini eksiksiz doldurun."))
+    g.user_form_errors = {field: message}
+    flash(message, "danger")
 
 
 @bp.post("/dil")
@@ -29164,8 +29154,17 @@ def edit_user(user_id):
             parse_user_form(user)
             enforce_company_user_limit(user)
             apply_role_form_to_user(user)
+            password_changed = bool(request.form.get("password"))
+            if password_changed:
+                password_audit = record_audit_event(
+                    "User", "password_changed", "Kullanıcı şifresi değiştirildi",
+                    entity_id=user.id, company_id=user.company_id,
+                    user_id=g.current_user.id, commit=False,
+                )
+                # Platform accounts must not inherit the selected tenant's audit scope.
+                password_audit.company_id = user.company_id
             db.session.commit()
-            flash("Kullanıcı güncellendi.", "success")
+            flash("Kullanıcı ve şifresi güncellendi." if password_changed else "Kullanıcı güncellendi.", "success")
             return redirect(url_for("main.users"))
         except IntegrityError as error:
             db.session.rollback()

@@ -26,6 +26,7 @@ from tests.test_inspection_management import create_form_version
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=5067)
+    parser.add_argument("--password-min-length", type=int, default=4)
     args = parser.parse_args()
     with TemporaryDirectory(prefix="volkaportal-responsive-") as folder:
         class PreviewConfig:
@@ -36,7 +37,7 @@ def main():
             UPLOAD_FOLDER = str(Path(folder) / "uploads")
             WTF_CSRF_ENABLED = True
             TENANT_BASE_DOMAIN = "volkaportal.com"
-            PASSWORD_MIN_LENGTH = 4
+            PASSWORD_MIN_LENGTH = args.password_min_length
             LOGIN_MAX_FAILED_ATTEMPTS = 5
             LOGIN_LOCKOUT_MINUTES = 10
             LOGIN_IP_MAX_FAILED_ATTEMPTS = 20

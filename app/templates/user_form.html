@@ -7,6 +7,10 @@
 
 {% block app_content %}
   {% set is_form_post = request.method == 'POST' %}
+  {% set field_errors = g.user_form_errors|default({}) %}
+  {% macro field_error(field) %}
+    {% if field in field_errors %}<div class="invalid-feedback d-block" id="{{ field }}Error" data-server-error="{{ field }}">{{ field_errors[field] }}</div>{% endif %}
+  {% endmacro %}
   {% call ui.page_header(title, "Kullanıcı bilgilerini ve aksiyon yetkilerini tanımlayın.", icon="bi-person-gear") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.users') }}">
       <i class="bi bi-arrow-left"></i>
@@ -14,7 +18,7 @@
     </a>
   {% endcall %}
 
-  <form class="app-form-card" method="post">
+  <form class="app-form-card" method="post" id="userForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-person-gear"></i></span>
@@ -34,23 +38,28 @@
               <option value="{{ company.id }}" {% if request.form.get('company_id', request.args.get('company_id', g.current_company.id if g.current_company else '') )|string == company.id|string %}selected{% endif %}>{{ company.label }}</option>
             {% endfor %}
           </select>
+          {{ field_error('company_id') }}
         </div>
       {% endif %}
       <div>
         <label class="form-label" for="full_name">Ad Soyad</label>
         <input class="form-control" id="full_name" name="full_name" value="{{ request.form.get('full_name', '') if is_form_post else (user.full_name if user else '') }}" required maxlength="160">
+        {{ field_error('full_name') }}
       </div>
       <div>
         <label class="form-label" for="username">Kullanıcı adı</label>
         <input class="form-control" id="username" name="username" value="{{ request.form.get('username', '') if is_form_post else (user.username if user else '') }}" required maxlength="80">
+        {{ field_error('username') }}
       </div>
       <div>
         <label class="form-label" for="title">Görev</label>
         <input class="form-control" id="title" name="title" value="{{ request.form.get('title', '') if is_form_post else ((user.title or '') if user else '') }}" maxlength="160">
+        {{ field_error('title') }}
       </div>
       <div>
         <label class="form-label" for="email">E-posta</label>
         <input class="form-control" id="email" name="email" type="email" value="{{ request.form.get('email', '') if is_form_post else (user.email if user and user.email else '') }}" maxlength="255">
+        {{ field_error('email') }}
       </div>
       <div>
         <label class="form-label" for="preferred_locale">Arayüz Dili</label>
@@ -61,15 +70,18 @@
             <option value="{{ locale_code }}" {% if preferred_locale_value == locale_code %}selected{% endif %}>{{ locale_data.label }}</option>
           {% endfor %}
         </select>
+        {{ field_error('preferred_locale') }}
       </div>
       <div class="app-form-full">
         <label class="form-label" for="password">Şifre</label>
-        <input class="form-control" id="password" name="password" type="password" minlength="{{ config.PASSWORD_MIN_LENGTH }}" maxlength="{{ config.PASSWORD_MAX_LENGTH|default(128) }}" {% if not user %}required{% endif %}>
+        <div class="input-group">
+          <input class="form-control" id="password" name="password" type="password" autocomplete="new-password" aria-describedby="passwordPolicy{% if user %} passwordUnchanged{% endif %} passwordError" minlength="{{ config.PASSWORD_MIN_LENGTH }}" maxlength="{{ config.PASSWORD_MAX_LENGTH|default(128) }}" {% if not user %}required{% endif %}>
+          <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Şifreyi göster" title="Şifreyi göster" aria-controls="password" aria-pressed="false" hidden><i class="bi bi-eye" aria-hidden="true"></i></button>
+        </div>
+        <div id="passwordError" class="invalid-feedback{% if 'password' in field_errors %} d-block{% endif %}" aria-live="polite" {% if 'password' in field_errors %}data-server-error="password"{% endif %}>{{ field_errors.get('password', '') }}</div>
+        <div class="form-text" id="passwordPolicy">Şifre {{ config.PASSWORD_MIN_LENGTH }}–{{ config.PASSWORD_MAX_LENGTH|default(128) }} karakter olmalıdır.</div>
         {% if user %}
-          <div class="form-text">Şifreyi değiştirmek istemiyorsanız boş bırakın.</div>
-        {% endif %}
-        {% if not user %}
-          <div class="form-text">Parola en az {{ config.PASSWORD_MIN_LENGTH }} karakter olmalıdır.</div>
+          <div class="form-text" id="passwordUnchanged">Şifreyi değiştirmek istemiyorsanız boş bırakın.</div>
         {% endif %}
       </div>
     </div>
@@ -98,6 +110,7 @@
             <small>Kullanıcı sisteme giriş yapabilir.</small>
           </span>
         </label>
+        {{ field_error('is_active') }}
 
         {% set permissions = [
           ("can_create_actions", "Aksiyon ekleyebilir", "Yeni aksiyon kaydı oluşturabilir."),
@@ -168,6 +181,7 @@
     {% endif %}
 
     <div class="app-form-actions">
+      <span id="userFormError" class="text-danger" role="alert" {% if not field_errors %}hidden{% endif %}>{% for field, message in field_errors.items() %}Kaydedilmedi. <a class="text-danger" href="#{{ field }}">{{ message }}</a>{% endfor %}</span>
       <button class="btn btn-primary" type="submit">
         <i class="bi bi-check-lg"></i>
         <span>Kaydet</span>
@@ -175,4 +189,9 @@
       <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}">Vazgeç</a>
     </div>
   </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script defer src="{{ url_for('static', filename='js/user-form.js', v=config.ASSET_VERSION) }}"></script>
 {% endblock %}
