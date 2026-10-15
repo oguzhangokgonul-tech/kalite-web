@@ -6,6 +6,7 @@
 {% block topbar_actions %}{% endblock %}
 
 {% block app_content %}
+  {% set is_form_post = request.method == 'POST' %}
   {% call ui.page_header(title, "Kullanıcı bilgilerini ve aksiyon yetkilerini tanımlayın.", icon="bi-person-gear") %}
     <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.users') }}">
       <i class="bi bi-arrow-left"></i>
@@ -37,19 +38,19 @@
       {% endif %}
       <div>
         <label class="form-label" for="full_name">Ad Soyad</label>
-        <input class="form-control" id="full_name" name="full_name" value="{{ user.full_name if user else '' }}" required maxlength="160">
+        <input class="form-control" id="full_name" name="full_name" value="{{ request.form.get('full_name', '') if is_form_post else (user.full_name if user else '') }}" required maxlength="160">
       </div>
       <div>
         <label class="form-label" for="username">Kullanıcı adı</label>
-        <input class="form-control" id="username" name="username" value="{{ user.username if user else '' }}" required maxlength="80">
+        <input class="form-control" id="username" name="username" value="{{ request.form.get('username', '') if is_form_post else (user.username if user else '') }}" required maxlength="80">
       </div>
       <div>
         <label class="form-label" for="title">Görev</label>
-        <input class="form-control" id="title" name="title" value="{{ user.title if user else '' }}" maxlength="160">
+        <input class="form-control" id="title" name="title" value="{{ request.form.get('title', '') if is_form_post else ((user.title or '') if user else '') }}" maxlength="160">
       </div>
       <div>
         <label class="form-label" for="email">E-posta</label>
-        <input class="form-control" id="email" name="email" type="email" value="{{ user.email if user and user.email else '' }}" maxlength="255">
+        <input class="form-control" id="email" name="email" type="email" value="{{ request.form.get('email', '') if is_form_post else (user.email if user and user.email else '') }}" maxlength="255">
       </div>
       <div>
         <label class="form-label" for="preferred_locale">Arayüz Dili</label>
@@ -74,17 +75,24 @@
     </div>
 
     <div class="app-card-footer">
+      {% if not can_manage_roles %}
+        <input type="hidden" name="legacy_permissions_present" value="1">
+      {% endif %}
       <div class="app-card-header mb-3">
         <span class="app-card-icon"><i class="bi bi-shield-lock"></i></span>
         <div>
-          <h3>Yetkiler</h3>
-          <p>Kullanıcının aksiyon sistemi içinde hangi işlemleri yapabileceğini seçin.</p>
+          <h3>{{ 'Kayıtlı Yetkiler' if can_manage_roles else 'Yetkiler' }}</h3>
+          {% if can_manage_roles %}
+            <p>Kullanıcının kayıtlı aksiyon yetkileri.</p>
+          {% else %}
+            <p>Kullanıcının aksiyon sistemi içinde hangi işlemleri yapabileceğini seçin.</p>
+          {% endif %}
         </div>
       </div>
 
       <div class="permission-grid">
         <label class="permission-card" for="is_active">
-          <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if not user or user.is_active %}checked{% endif %}>
+          <input class="form-check-input" id="is_active" name="is_active" type="checkbox" {% if (('is_active' in request.form) if is_form_post else (not user or user.is_active)) %}checked{% endif %}>
           <span>
             <strong>Aktif kullanıcı</strong>
             <small>Kullanıcı sisteme giriş yapabilir.</small>
@@ -100,8 +108,9 @@
           ("can_manage_users", "Kullanıcı ve yetki yönetebilir", "Kullanıcı hesaplarını ve yetki ayarlarını düzenleyebilir.")
         ] %}
         {% for field, label, description in permissions %}
+          {% set permission_checked = has_permission(user, field) if can_manage_roles else ((field in request.form) if is_form_post else (user and user|attr(field))) %}
           <label class="permission-card" for="{{ field }}">
-            <input class="form-check-input" id="{{ field }}" name="{{ field }}" type="checkbox" {% if user and user|attr(field) %}checked{% endif %}>
+            <input class="form-check-input" id="{{ field }}" name="{{ field }}" type="checkbox" {% if permission_checked %}checked{% endif %} {% if can_manage_roles %}disabled{% endif %}>
             <span>
               <strong>{{ label }}</strong>
               <small>{{ description }}</small>
@@ -124,6 +133,7 @@
         <div class="role-user-roles role-user-roles-form">
           {% for role in roles %}
             {% set input_id = "user_form_role_%s"|format(role.id) %}
+            {% set is_protected_role = user and user.username == 'superadmin' and role.key == 'super_admin' %}
             <label class="role-chip" for="{{ input_id }}">
               <input
                 class="form-check-input"
@@ -131,10 +141,10 @@
                 name="role_ids"
                 type="checkbox"
                 value="{{ role.id }}"
-                {% if user and role in user.roles %}checked{% endif %}
-                {% if user and user.username == 'superadmin' and role.key == 'super_admin' %}disabled{% endif %}
+                {% if ((is_protected_role or role.id|string in request.form.getlist('role_ids')) if is_form_post else (user and role in user.roles)) %}checked{% endif %}
+                {% if is_protected_role %}disabled{% endif %}
               >
-              {% if user and user.username == 'superadmin' and role.key == 'super_admin' %}
+              {% if is_protected_role %}
                 <input type="hidden" name="role_ids" value="{{ role.id }}">
               {% endif %}
               <span>{{ role.name }}</span>
@@ -149,7 +159,7 @@
               name="extra_permissions"
               type="checkbox"
               value="quality.create"
-              {% if user and 'quality.create' in user_extra_permission_keys(user) %}checked{% endif %}
+              {% if (('quality.create' in request.form.getlist('extra_permissions')) if is_form_post else (user and 'quality.create' in user_extra_permission_keys(user))) %}checked{% endif %}
             >
             <span>Kalite deneyi açabilme</span>
           </label>

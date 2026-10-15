@@ -3077,6 +3077,11 @@ class PersonnelContact(db.Model):
 
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
 
+    @property
+    def display_title(self):
+        # NULL is legacy/unset; an empty string is an explicitly cleared title.
+        return self.title if self.title is not None else (self.department or "")
+
 
 class Vehicle(db.Model):
     __tablename__ = "vehicles"
@@ -6935,9 +6940,11 @@ class OrientationNode(db.Model):
 
     def to_dict(self):
         contact = self.personnel_contact if self.node_type == "person" else None
+        if contact is not None and contact.company_id != self.company_id:
+            contact = None
         display_title = ""
         if contact is not None:
-            display_title = contact.title or contact.department or ""
+            display_title = contact.display_title
         else:
             display_title = self.title or ""
         return {

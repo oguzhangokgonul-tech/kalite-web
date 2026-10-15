@@ -216,7 +216,10 @@ def test_audit_log_page_rejects_permission_manager(app, client):
 
 
 def test_audit_log_shows_database_safety_entries_to_superadmin_account(app, client):
-    user = create_user("superadmin", "roles.manage")
+    from app.seed import ensure_default_roles
+
+    ensure_default_roles()
+    user = helper_create_user("superadmin", role_key="super_admin")
     db.session.add(
         AuditLog(
             entity_type="DatabaseSafety",

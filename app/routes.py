@@ -2154,7 +2154,7 @@ def normalize_personnel_name(value):
 def personnel_contact_display_title(contact):
     if contact is None:
         return ""
-    return contact.title or contact.department or ""
+    return contact.display_title
 
 
 def personnel_contact_by_id(contact_id):
@@ -2185,7 +2185,7 @@ def personnel_contact_options():
     ]
 
 
-def sync_user_from_personnel_contact(user, contact=None):
+def sync_user_from_personnel_contact(user, contact=None, *, clear_fields=()):
     contact = contact or user.personnel_contact
     if contact is None:
         return False
@@ -2198,18 +2198,18 @@ def sync_user_from_personnel_contact(user, contact=None):
         user.full_name = contact.full_name
         changed = True
     contact_title = personnel_contact_display_title(contact)
-    if contact_title and user.title != contact_title:
+    if (contact_title or "title" in clear_fields) and user.title != contact_title:
         user.title = contact_title[:160]
         changed = True
-    if contact.email and user.email != contact.email:
-        user.email = contact.email[:255]
+    if (contact.email or "email" in clear_fields) and user.email != contact.email:
+        user.email = contact.email[:255] if contact.email else None
         changed = True
     return changed
 
 
 def sync_orientation_node_from_personnel_contact(node, contact=None):
     contact = contact or node.personnel_contact
-    if contact is None or node.node_type != "person":
+    if contact is None or node.node_type != "person" or node.company_id != contact.company_id:
         return False
     changed = False
     if node.name != contact.full_name:
@@ -2273,15 +2273,19 @@ def sync_personnel_links():
         db.session.commit()
 
 
-def sync_personnel_contact_dependents(contact):
+def sync_personnel_contact_dependents(contact, *, clear_fields=()):
+    if contact.id is None:
+        return False
     ensure_personnel_account_manageable(contact)
     changed = False
-    for user in User.query.filter_by(personnel_contact_id=contact.id).all():
-        changed = sync_user_from_personnel_contact(user, contact) or changed
-    for node in OrientationNode.query.filter_by(personnel_contact_id=contact.id).all():
+    for user in User.query.filter_by(personnel_contact_id=contact.id, company_id=contact.company_id).all():
+        changed = sync_user_from_personnel_contact(user, contact, clear_fields=clear_fields) or changed
+    for node in OrientationNode.query.filter_by(personnel_contact_id=contact.id, company_id=contact.company_id).all():
         changed = sync_orientation_node_from_personnel_contact(node, contact) or changed
     for action in Action.query.join(User, Action.responsible_user_id == User.id).filter(
-        User.personnel_contact_id == contact.id
+        User.personnel_contact_id == contact.id,
+        User.company_id == contact.company_id,
+        Action.company_id == contact.company_id,
     ).all():
         if action.responsible_owner != contact.full_name:
             action.responsible_owner = contact.full_name
@@ -2290,6 +2294,8 @@ def sync_personnel_contact_dependents(contact):
 
 
 def ensure_personnel_account_manageable(contact):
+    if contact.id is None:
+        return
     for user in User.query.filter_by(personnel_contact_id=contact.id).all():
         if not can_manage_user_account(user):
             abort(403, description="Bu hesaba bağlı personeli yalnız Superadmin yönetebilir.")
@@ -7003,7 +7009,7 @@ def parse_personnel_contact_form():
     if any(len(values[key] or "") > limit for key, limit in limits.items()):
         raise ValueError("text_too_long")
     for key, value in list(values.items()):
-        if value == "":
+        if value == "" and key != "title":
             values[key] = None
     return values
 
@@ -7209,7 +7215,7 @@ def personnel_contacts_report_workbook():
         (
             contact.full_name or "",
             contact.phone or "",
-            contact.title or contact.department or "",
+            contact.display_title,
             "Aktif" if contact.is_active else "Silinmiş",
         )
         for contact in contacts
@@ -8838,7 +8844,7 @@ def report_personnel_contacts_data():
         (
             contact.full_name or "",
             contact.phone or "",
-            contact.title or contact.department or "",
+            contact.display_title,
             "Aktif" if contact.is_active else "Silinmiş",
         )
         for contact in contacts
@@ -15624,6 +15630,8 @@ def parse_user_form(user=None):
         abort(403)
     username = request.form.get("username", "").strip().lower()
     full_name = request.form.get("full_name", "").strip()
+    title = request.form.get("title", user.title or "").strip()
+    email = request.form.get("email", user.email or "").strip() or None
     password = request.form.get("password", "")
     if username == "superadmin" and (not is_superadmin_account() or user.username != "superadmin"):
         abort(403)
@@ -15643,6 +15651,8 @@ def parse_user_form(user=None):
 
     if not username or not full_name:
         raise ValueError("required_fields")
+    if len(username) > 80 or len(full_name) > 160 or len(title) > 160 or len(email or "") > 255:
+        raise ValueError("profile_field_too_long")
     if user.id is None and not password:
         raise ValueError("password_required")
     if password:
@@ -15668,29 +15678,44 @@ def parse_user_form(user=None):
     user.username = username
     user.company_id = company_id
     user.full_name = full_name
-    user.title = request.form.get("title", "").strip()
-    user.email = request.form.get("email", "").strip() or None
-    preferred_locale_value = request.form.get("preferred_locale", "").strip().lower()
+    user.title = title
+    user.email = email
+    preferred_locale_value = request.form.get("preferred_locale", user.preferred_locale or "").strip().lower()
     if preferred_locale_value and preferred_locale_value not in SUPPORTED_LOCALES:
         raise ValueError("invalid_locale")
     user.preferred_locale = preferred_locale_value or None
     if username != "superadmin":
-        contact = linked_personnel_contact_for_user_form(
-            full_name,
-            title=user.title,
-            email=user.email,
-        )
+        # Keep the existing identity; a name edit must not relink to another person.
+        contact = user.personnel_contact
+        if contact is not None and contact.company_id != company_id:
+            abort(404)
+        if contact is None:
+            contact = linked_personnel_contact_for_user_form(full_name, title=title, email=email)
+        ensure_personnel_account_manageable(contact)
+        if contact.company_id is not None and contact.phone is not None:
+            with db.session.no_autoflush:
+                duplicate = PersonnelContact.query.filter(
+                    PersonnelContact.company_id == contact.company_id,
+                    PersonnelContact.full_name == full_name,
+                    PersonnelContact.phone == contact.phone,
+                    PersonnelContact.id != contact.id,
+                ).first()
+            if duplicate is not None:
+                raise ValueError("personnel_name_conflict")
+        contact.full_name = full_name
+        if "title" in request.form:
+            contact.title = title
+        if "email" in request.form:
+            contact.email = email
         user.personnel_contact = contact
-        sync_user_from_personnel_contact(user, contact)
+        clear_fields = {field for field in ("title", "email") if field in request.form}
+        sync_user_from_personnel_contact(user, contact, clear_fields=clear_fields)
+        sync_personnel_contact_dependents(contact, clear_fields=clear_fields)
     user.is_active = request.form.get("is_active") == "on"
-    user.can_create_actions = request.form.get("can_create_actions") == "on"
-    user.can_edit_actions = request.form.get("can_edit_actions") == "on"
-    user.can_delete_actions = request.form.get("can_delete_actions") == "on"
-    user.can_comment_assigned_actions = (
-        request.form.get("can_comment_assigned_actions") == "on"
-    )
-    user.can_close_assigned_actions = request.form.get("can_close_assigned_actions") == "on"
-    user.can_manage_users = request.form.get("can_manage_users") == "on"
+    if request.form.get("role_form_present") != "1":
+        for field in LEGACY_PERMISSION_ALIASES:
+            if field in request.form or request.form.get("legacy_permissions_present") == "1":
+                setattr(user, field, request.form.get(field) == "on")
     if user.username == "superadmin":
         user.company_id = None
     elif company_id:
@@ -16363,6 +16388,12 @@ def validate_password_policy(password):
 
 def flash_user_form_error(error):
     error_key = str(error)
+    if error_key == "personnel_name_conflict":
+        flash("Bu ad ve telefonla başka bir personel kaydı bulunuyor.", "danger")
+        return
+    if error_key == "profile_field_too_long":
+        flash("Kullanıcı adı en fazla 80, ad soyad ve görev 160, e-posta 255 karakter olabilir.", "danger")
+        return
     if error_key == "invalid_company":
         flash("Aktif bir şirket seçin.", "danger")
         return
@@ -26260,7 +26291,7 @@ def edit_personnel_contact(contact_id):
             for key, value in parse_personnel_contact_form().items():
                 setattr(contact, key, value)
             contact.is_active = request.form.get("is_active") == "on"
-            sync_personnel_contact_dependents(contact)
+            sync_personnel_contact_dependents(contact, clear_fields={"title", "email"})
             db.session.commit()
             flash("Personel kaydı güncellendi.", "success")
             return redirect(url_for("main.personnel_contacts"))
@@ -29057,6 +29088,21 @@ def apply_role_form_to_user(user):
     audit_user_role_assignment(user, previous_keys)
 
 
+def user_form_integrity_error_key(error):
+    constraint = getattr(getattr(error.orig, "diag", None), "constraint_name", None)
+    message = str(error.orig)
+    if constraint == "uq_personnel_contacts_company_name_phone" or message == (
+        "UNIQUE constraint failed: personnel_contacts.company_id, personnel_contacts.full_name, personnel_contacts.phone"
+    ):
+        return "personnel_name_conflict"
+    if constraint in {"uq_users_company_username", "uq_users_global_username"} or message in {
+        "UNIQUE constraint failed: users.company_id, users.username",
+        "UNIQUE constraint failed: users.username",
+    }:
+        return "username_exists"
+    return None
+
+
 @bp.route("/users/new", methods=["GET", "POST"])
 @login_required
 @permission_required("can_manage_users")
@@ -29072,6 +29118,12 @@ def create_user():
             if is_superadmin_account() and user.company_id:
                 session["company_id"] = user.company_id
             return redirect(url_for("main.users"))
+        except IntegrityError as error:
+            db.session.rollback()
+            error_key = user_form_integrity_error_key(error)
+            if error_key is None:
+                raise
+            flash_user_form_error(error_key)
         except ValueError as error:
             db.session.rollback()
             flash_user_form_error(error)
@@ -29083,6 +29135,7 @@ def create_user():
         "user_form.html",
         user=None,
         title="Yeni Kullanıcı",
+        has_permission=has_permission,
         roles=assignable_user_roles(),
         can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
         companies=Company.query.filter_by(is_active=True).order_by(Company.name).all() if is_superadmin_account() else [],
@@ -29114,6 +29167,12 @@ def edit_user(user_id):
             db.session.commit()
             flash("Kullanıcı güncellendi.", "success")
             return redirect(url_for("main.users"))
+        except IntegrityError as error:
+            db.session.rollback()
+            error_key = user_form_integrity_error_key(error)
+            if error_key is None:
+                raise
+            flash_user_form_error(error_key)
         except ValueError as error:
             db.session.rollback()
             flash_user_form_error(error)
@@ -29125,6 +29184,7 @@ def edit_user(user_id):
         "user_form.html",
         user=user,
         title="Kullanıcı Düzenle",
+        has_permission=has_permission,
         roles=assignable_user_roles(user),
         can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
         user_extra_permission_keys=user_extra_permission_keys,

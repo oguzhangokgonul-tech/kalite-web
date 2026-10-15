@@ -42,7 +42,7 @@
       </div>
       <div>
         <label class="form-label" for="title">Görev / Ünvan</label>
-        <input class="form-control" id="title" name="title" value="{{ value_for('title', contact.department if contact and contact.department else '') }}" maxlength="160">
+        <input class="form-control" id="title" name="title" value="{{ form_data.get('title', contact.display_title if contact else '') }}" maxlength="160">
       </div>
       <div>
         <label class="form-label" for="email">E-posta</label>
