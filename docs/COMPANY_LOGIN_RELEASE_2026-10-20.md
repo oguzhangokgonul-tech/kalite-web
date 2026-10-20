@@ -61,5 +61,26 @@ applied and health checks pass; do not restore old data over newer records.
 
 ## Status
 
-Implementation and scoped verification completed. Deployment and live
-verification results pending; do not treat this document as proof of deployment.
+Deployed on 2026-10-20. Live application commit:
+`827a3b018aaeb09805ebd92cd1196fd9150cbdfb`. The same commit was pushed to origin.
+
+- Full backup: `volkaportal-backup-20261020-121513.zip`.
+- SHA-256: `ba0d2815f985b1f6f1553cfbe1d217acf3771e4ebf7680450f8366c5d559c74c`.
+- Server evidence directory: `/var/data/aksiyon-takip/backups/entry.BkKTQePk`.
+- Off-host copy: ignored `backups/company-login-20261020/`; hash matched before
+  activation. Backup data and secrets are not committed.
+- Isolated restore passed database integrity, complete row/schema comparison
+  and SHA-256 comparison of all 204 uploaded files. Candidate migration was
+  a no-op; login on the restored copy passed. No live passwords changed.
+- Deployment returned `DEPLOY_OK`; application, reminders timer and webhooks
+  timer were active, with no matched startup errors. Live tracked tree clean.
+- HTTPS landing, root/tenant login and protected-route checks passed.
+- Live browser checks at 390, 768 and 1440px passed: landing, login navigation,
+  company selection, no horizontal overflow and no page JavaScript errors.
+- Root lists existing active codes `000`, `001`, `002`; existing `000` was not
+  removed. Tenant logins show only `001` for erprefabrik and `002` for
+  sagiroglucelik. Real customer credentials were not used in browser tests.
+- Graphify refreshed locally using code-only extraction, without LLM labeling.
+
+The two pre-existing legal-policy test failures remain open. Real physical
+144 Hz performance remains unverified; no full-repository pass is claimed.

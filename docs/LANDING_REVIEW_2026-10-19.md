@@ -106,3 +106,10 @@ node tests/ui/landing_dynamic.mjs
   blocking findings for the side-by-side correction. Physical high-refresh-device
   performance remains unverified.
 - No deployment performed.
+
+## Subsequent Publication - 2026-10-20
+
+The approved landing and side-by-side corrections were deployed with the
+company-code login release at `827a3b0`. Anonymous platform-root visitors now
+see this landing. See `COMPANY_LOGIN_RELEASE_2026-10-20.md` for backup, restore,
+service and live-browser evidence.
