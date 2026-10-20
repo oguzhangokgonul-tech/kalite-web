@@ -216,7 +216,9 @@ from .tenant import (
     assign_current_company,
     current_company_id,
     ensure_same_company,
+    host_is_tenant_base,
     host_looks_local,
+    normalize_request_host,
     normalize_link_domain,
     scoped_query,
     tenant_base_url,
@@ -814,6 +816,20 @@ def load_logged_in_user():
                     "warning",
                 )
                 return redirect(url_for("main.login", next=request.full_path))
+            return
+        if (
+            not g.current_user_is_super_admin
+            and g.current_user.company_id
+            and (g.current_company is None or not g.current_company.is_active)
+        ):
+            session.clear()
+            g.current_user = None
+            g.current_company = None
+            g.current_user_initials = ""
+            g.current_user_is_super_admin = False
+            g.current_user_is_superadmin_account = False
+            if request.endpoint != "main.login":
+                return redirect(url_for("main.login"))
             return
         g.enabled_company_modules = company_module_state(g.current_company)
         refresh_company_branding()
@@ -16300,7 +16316,7 @@ def login_counter_start(username=None, ip_address=None):
     query = LoginAttempt.query.filter(LoginAttempt.success.is_(True))
     if username is not None:
         query = query.filter(LoginAttempt.username == username)
-        company = getattr(g, "tenant_company", None)
+        company = getattr(g, "login_company", getattr(g, "tenant_company", None))
         query = query.filter(LoginAttempt.company_id == (company.id if company else None))
     if ip_address is not None:
         query = query.filter(LoginAttempt.ip_address == ip_address)
@@ -16319,7 +16335,7 @@ def recent_failed_login_count(username=None, ip_address=None):
     )
     if username is not None:
         query = query.filter(LoginAttempt.username == username)
-        company = getattr(g, "tenant_company", None)
+        company = getattr(g, "login_company", getattr(g, "tenant_company", None))
         query = query.filter(LoginAttempt.company_id == (company.id if company else None))
     if ip_address is not None:
         query = query.filter(LoginAttempt.ip_address == ip_address)
@@ -16341,7 +16357,7 @@ def login_rate_limit_reason(username, ip_address):
 
 
 def log_login_attempt(username, ip_address, success, reason):
-    company = getattr(g, "tenant_company", None)
+    company = getattr(g, "login_company", getattr(g, "tenant_company", None))
     db.session.add(
         LoginAttempt(
             company_id=company.id if company else None,
@@ -16449,6 +16465,37 @@ def set_language():
     return redirect(safe_internal_next_url(request.form.get("next")))
 
 
+def is_platform_entry_host():
+    return host_is_tenant_base(request.host) or (
+        current_app.config.get("APP_ENV") != "production"
+        and normalize_request_host(request.host) in {"localhost", "127.0.0.1", "0.0.0.0"}
+    )
+
+
+def render_login_page():
+    tenant_company = getattr(g, "tenant_company", None)
+    if tenant_company is not None:
+        codes = [tenant_company.code]
+        selected_code = tenant_company.code
+    elif is_platform_entry_host():
+        codes = [
+            code for (code,) in db.session.query(Company.code)
+            .filter(Company.is_active.is_(True)).order_by(Company.code).all()
+        ]
+        selected_code = (
+            request.form.get("company_code", "").strip()
+            if request.method == "POST" else (codes[0] if codes else "")
+        )
+    else:
+        codes, selected_code = [], ""
+    return render_template(
+        "login.html",
+        login_company_codes=codes,
+        selected_company_code=selected_code,
+        login_tenant_fixed=tenant_company is not None,
+    )
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if g.current_user is not None:
@@ -16460,8 +16507,23 @@ def login():
         remember_me = request.form.get("remember_me") == "1"
         ip_address = login_client_ip()
         tenant_company = getattr(g, "tenant_company", None)
-
-        user = find_login_user(identity, tenant_company)
+        code = request.form.get("company_code", "").strip()
+        company = tenant_company
+        valid_company = True
+        if tenant_company is not None:
+            valid_company = not code or code == tenant_company.code
+        elif is_platform_entry_host():
+            if code:
+                company = (
+                    Company.query.filter_by(code=code, is_active=True).first()
+                    if re.fullmatch(r"[0-9]{3}", code) else None
+                )
+                valid_company = company is not None
+        else:
+            valid_company = False
+        # Keep the selected authentication scope separate from trusted host tenancy.
+        g.login_company = company
+        user = find_login_user(identity, company) if valid_company else None
         identity = normalize_login_identity(user.username) if user else identity
         lock_reason = login_rate_limit_reason(identity, ip_address)
         if lock_reason:
@@ -16471,10 +16533,7 @@ def login():
                 "Çok fazla hatalı giriş denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
                 "danger",
             )
-            return render_template("login.html")
-
-        company = tenant_company
-        user = find_login_user(identity, company)
+            return render_login_page()
 
         if user and user.is_active and user.check_password(password):
             is_super_admin = has_role(user, "super_admin")
@@ -16482,13 +16541,13 @@ def login():
                 if company is None:
                     log_login_attempt(identity, ip_address, False, "missing_company")
                     db.session.commit()
-                    flash("Lutfen sirketinize ait VolkaPortal adresinden giris yapin.", "danger")
-                    return render_template("login.html")
+                    flash("Lütfen şirket kodunuzu seçerek giriş yapın.", "danger")
+                    return render_login_page()
                 if user.company_id != company.id:
                     log_login_attempt(identity, ip_address, False, "wrong_company")
                     db.session.commit()
                     flash("Bu kullanıcı seçilen şirkete bağlı değil.", "danger")
-                    return render_template("login.html")
+                    return render_login_page()
 
             tenant_locale_key = tenant_locale_session_key(company)
             anonymous_locale = normalize_locale(session.get(tenant_locale_key))
@@ -16532,7 +16591,7 @@ def login():
         db.session.commit()
         flash("Kullanıcı adı veya şifre hatalı.", "danger")
 
-    return render_template("login.html")
+    return render_login_page()
 
 
 @bp.route("/logout", methods=["GET", "POST"])
@@ -19287,8 +19346,11 @@ def archive_legal_document(document_id):
 
 
 @bp.route("/")
-@login_required
 def dashboard():
+    if g.current_user is None:
+        if is_platform_entry_host():
+            return render_template("public/landing_dynamic.html")
+        return redirect(url_for("main.login", next=request.full_path))
     return render_template("dashboard.html", **dashboard_context())
 
 

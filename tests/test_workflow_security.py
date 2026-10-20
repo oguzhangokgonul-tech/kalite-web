@@ -105,7 +105,10 @@ def test_disabled_user_cannot_reuse_existing_session(client):
     login(client, user, company)
     user.is_active = False
     db.session.commit()
-    assert client.get("/").status_code == 302
+    response = client.get("/")
+    assert response.status_code == 200
+    assert b"data-dynamic-landing" in response.data
+    assert client.get("/documents/list").status_code == 302
     with client.session_transaction() as session:
         assert "user_id" not in session
 

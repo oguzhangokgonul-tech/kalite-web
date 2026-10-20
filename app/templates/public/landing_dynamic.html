@@ -8,11 +8,11 @@
 
 {% block head_extra %}
   <meta name="description" content="VolkaPortal i&#231;in dinamik, teknolojik ve mod&#252;l odakl&#305; landing page tasar&#305;m alternatifi.">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing_dynamic.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing_dynamic.css', v='20261020-scroll-3') }}">
 {% endblock %}
 
 {% block content %}
-  <div class="vp-dynamic" data-dynamic-landing>
+  <div class="vp-dynamic" id="top" data-dynamic-landing>
     <div class="vp-scroll-progress" aria-hidden="true"><span data-scroll-progress></span></div>
     <div class="vp-cursor-glow" data-cursor-glow aria-hidden="true"></div>
     <div class="vp-tech-field" aria-hidden="true">
@@ -38,14 +38,14 @@
       </div>
     </header>
 
-    <section class="vp-dynamic-hero" id="top">
+    <section class="vp-dynamic-hero">
       <div class="vp-dynamic-orbit" aria-hidden="true">
         <span></span><span></span><span></span><span></span>
       </div>
       <div class="vp-hero-beams" aria-hidden="true">
         <span></span><span></span><span></span>
       </div>
-      <div class="vp-dynamic-hero-copy">
+      <div class="vp-dynamic-hero-copy" id="platform">
         <h1>
           <span>Kurumsal S&#252;re&#231;</span>
           <span>Y&#246;netiminde</span>
@@ -74,7 +74,7 @@
           <div class="vp-product-content">
             <div class="vp-product-toolbar">
               <strong>VolkaPortal</strong>
-              <em>Canl&#305; operasyon g&#246;r&#252;n&#252;m&#252;</em>
+              <em>Temsili operasyon g&#246;r&#252;n&#252;m&#252;</em>
             </div>
             <div class="vp-product-grid">
               <article><small>A&#231;&#305;k Aksiyon</small><strong>150</strong></article>
@@ -91,8 +91,8 @@
       </div>
     </section>
 
-    <section class="vp-dynamic-strip" id="platform" aria-label="Referanslar">
-      <strong class="vp-strip-label">Referanslar</strong>
+    <section class="vp-dynamic-strip" aria-label="Referans alan&#305;, &#246;rnek g&#246;sterim">
+      <strong class="vp-strip-label">Referanslar (&#214;rnek g&#246;sterim)</strong>
       <div class="vp-strip-marquee">
         <div class="vp-strip-track">
           <span>Er Prefabrik</span>
@@ -118,28 +118,28 @@
     </section>
 
     <section class="vp-scroll-story" id="flow">
-      <div class="vp-story-copy">
-        <article class="vp-story-step is-active" data-scene-trigger="actions">
+      <div class="vp-story-copy" id="modules">
+        <article class="vp-story-step is-active" id="flow-actions" data-scene-trigger="actions">
           <span>01</span>
           <h2>Aksiyonlar&#305; sahadan merkeze ta&#351;&#305;y&#305;n.</h2>
           <p>Sorumlu, ilgili ki&#351;i, termin, kan&#305;t ve onay bekleme bilgileri tek sat&#305;rda takip edilir.</p>
         </article>
-        <article class="vp-story-step" data-scene-trigger="if">
+        <article class="vp-story-step" id="flow-if" data-scene-trigger="if">
           <span>02</span>
           <h2>IF s&#252;recini karar ak&#305;&#351;&#305;na ba&#287;lay&#305;n.</h2>
           <p>Personel kapatmas&#305;, y&#246;netim temsilcisi onay&#305; ve genel m&#252;d&#252;r yard&#305;mc&#305;s&#305; onay&#305; ayr&#305; ayr&#305; g&#246;r&#252;n&#252;r.</p>
         </article>
-        <article class="vp-story-step" data-scene-trigger="audit">
+        <article class="vp-story-step" id="flow-audit" data-scene-trigger="audit">
           <span>03</span>
           <h2>&#304;&#231; denetimde sorudan bulguya ilerleyin.</h2>
           <p>Soru listeleri, teknik bulgular ve uygunsuzluklardan a&#231;&#305;lan IF kay&#305;tlar&#305; ayn&#305; zincirde tutulur.</p>
         </article>
-        <article class="vp-story-step" data-scene-trigger="docs">
+        <article class="vp-story-step" id="flow-docs" data-scene-trigger="docs">
           <span>04</span>
           <h2>Dok&#252;manlar&#305; revizyon kontroll&#252; yay&#305;nlay&#305;n.</h2>
           <p>Dok&#252;man kategorileri, yay&#305;n tarihi, son revizyon ve indirme kontrol&#252; tek panelde g&#246;r&#252;n&#252;r.</p>
         </article>
-        <article class="vp-story-step" data-scene-trigger="maintenance">
+        <article class="vp-story-step" id="flow-maintenance" data-scene-trigger="maintenance">
           <span>05</span>
           <h2>Bak&#305;m ve deney verilerini operasyonla birle&#351;tirin.</h2>
           <p>Ar&#305;za, makine envanteri ve beton deney &#246;l&#231;&#252;mleri ayn&#305; kurumsal tasar&#305;m diliyle takip edilir.</p>
@@ -162,7 +162,7 @@
             <div class="vp-scene-header">
               <span></span>
               <strong>{{ title | safe }}</strong>
-              <em>Canl&#305; ekran</em>
+              <em>Temsili ekran</em>
             </div>
             <div class="vp-scene-metrics">
               <article><small>Toplam</small><b>{{ 18 + loop.index * 7 }}</b></article>
@@ -183,7 +183,7 @@
       </div>
     </section>
 
-    <footer class="vp-dynamic-footer" id="modules">
+    <footer class="vp-dynamic-footer" id="demo">
       <div class="vp-footer-brand">
         <img src="{{ url_for('static', filename='brand/logo/volkaportal-logo-horizontal-on-dark-640.png') }}" alt="VolkaPortal" width="640" height="228">
       </div>
@@ -191,7 +191,7 @@
         <span>Manisa/T&#252;rkiye</span>
       </address>
       <div class="vp-footer-contact">
-        <a href="mailto:Info@volkaportal.com">Info@volkaportal.com</a>
+        <a href="mailto:info@volkaportal.com?subject=VolkaPortal%20Demo%20Talebi">Info@volkaportal.com</a>
       </div>
       <div class="vp-footer-bottom">
         <span>&#169;2026 VolkaPortal. T&#252;m haklar&#305; sakl&#305;d&#305;r.</span>
@@ -209,88 +209,5 @@
 {% endblock %}
 
 {% block scripts %}
-  <script>
-    (() => {
-      const root = document.querySelector("[data-dynamic-landing]");
-      if (!root) return;
-
-      const triggers = [...root.querySelectorAll("[data-scene-trigger]")];
-      const scenes = [...root.querySelectorAll("[data-scene]")];
-      const progress = root.querySelector("[data-scroll-progress]");
-      const glow = root.querySelector("[data-cursor-glow]");
-      const header = root.querySelector(".vp-dynamic-header");
-      let pageHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-      let scrollTicking = false;
-      let mouseTicking = false;
-      let mouseX = -999;
-      let mouseY = -999;
-
-      function activate(sceneName) {
-        triggers.forEach((trigger) => {
-          trigger.classList.toggle("is-active", trigger.dataset.sceneTrigger === sceneName);
-        });
-        scenes.forEach((scene) => {
-          scene.classList.toggle("is-active", scene.dataset.scene === sceneName);
-        });
-      }
-
-      if ("IntersectionObserver" in window) {
-        const observer = new IntersectionObserver((entries) => {
-          const visible = entries
-            .filter((entry) => entry.isIntersecting)
-            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-          if (visible) activate(visible.target.dataset.sceneTrigger);
-        }, {
-          rootMargin: "-35% 0px -45% 0px",
-          threshold: [0.15, 0.35, 0.55, 0.75],
-        });
-
-        triggers.forEach((trigger) => observer.observe(trigger));
-      }
-
-      function updateScrollProgress() {
-        const ratio = pageHeight > 0 ? window.scrollY / pageHeight : 0;
-        if (progress) {
-          progress.style.transform = `scaleX(${Math.min(1, Math.max(0, ratio))})`;
-        }
-        if (header) {
-          header.classList.toggle("is-compact", window.scrollY > 72);
-        }
-        scrollTicking = false;
-      }
-
-      function updateMouseEffects(event) {
-        mouseX = event.clientX;
-        mouseY = event.clientY;
-        if (!glow || mouseTicking) return;
-        mouseTicking = true;
-        window.requestAnimationFrame(() => {
-          glow.style.setProperty("--x", `${mouseX}px`);
-          glow.style.setProperty("--y", `${mouseY}px`);
-          mouseTicking = false;
-        });
-      }
-
-      function requestScrollUpdate() {
-        if (scrollTicking) return;
-        scrollTicking = true;
-        window.requestAnimationFrame(updateScrollProgress);
-      }
-
-      function refreshPageHeight() {
-        pageHeight = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
-        requestScrollUpdate();
-      }
-
-      window.addEventListener("scroll", requestScrollUpdate, { passive: true });
-      window.addEventListener("resize", refreshPageHeight, { passive: true });
-      window.addEventListener("load", refreshPageHeight, { once: true });
-      if (window.matchMedia("(pointer: fine)").matches) {
-        window.addEventListener("mousemove", updateMouseEffects, { passive: true });
-      } else if (glow) {
-        glow.remove();
-      }
-      refreshPageHeight();
-    })();
-  </script>
+  <script defer src="{{ url_for('static', filename='js/landing_dynamic.js', v='20261020-scroll-3') }}"></script>
 {% endblock %}

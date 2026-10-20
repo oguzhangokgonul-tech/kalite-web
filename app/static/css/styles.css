@@ -9168,6 +9168,21 @@ textarea.form-control:focus {
     box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.11);
 }
 
+.login-page .login-card .form-select {
+    min-height: 50px;
+    padding-left: 46px;
+    color: #e6edf7;
+    background-color: #0b1626;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 12px;
+    color-scheme: dark;
+}
+
+.login-page .login-card .form-select:focus {
+    border-color: rgba(0, 212, 255, 0.72);
+    box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.11);
+}
+
 .login-remember-option {
     display: inline-flex;
     align-items: center;

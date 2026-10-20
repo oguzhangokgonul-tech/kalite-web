@@ -23,7 +23,7 @@
     <link href="{{ url_for('static', filename='vendor/bootstrap-5.3.3/bootstrap.min.css') }}" rel="stylesheet">
     <link href="{{ url_for('static', filename='vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/variables.css', v=config.ASSET_VERSION) }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css', v=config.ASSET_VERSION) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css', v=config.ASSET_VERSION ~ '-20261020-entry') }}">
     {% if g.company_brand_primary_color or g.company_brand_accent_color %}
       <style>
         :root {

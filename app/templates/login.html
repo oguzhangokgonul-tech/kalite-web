@@ -40,10 +40,24 @@
 
       <div class="login-form-stack">
         <div>
+          <label class="form-label" for="company_code">{{ _("Şirket Kodu") }}</label>
+          <div class="login-input-icon">
+            <i class="bi bi-building" aria-hidden="true"></i>
+            <select class="form-select" id="company_code" name="company_code" autocomplete="off">
+              {% if not login_tenant_fixed %}
+                <option value="" {% if not selected_company_code %}selected{% endif %}>{{ _("Sistem Yönetimi") }}</option>
+              {% endif %}
+              {% for code in login_company_codes %}
+                <option value="{{ code }}" {% if selected_company_code == code %}selected{% endif %}>{{ code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div>
           <label class="form-label" for="identity">{{ _("Kullanıcı adı") }}</label>
           <div class="login-input-icon">
             <i class="bi bi-person"></i>
-            <input class="form-control" id="identity" name="identity" required autofocus autocomplete="username" placeholder="{{ _('Kullanıcı adınızı girin') }}">
+            <input class="form-control" id="identity" name="identity" required autocomplete="username" value="{{ request.form.get('identity', '') }}" placeholder="{{ _('Kullanıcı adınızı girin') }}">
           </div>
         </div>
         <div>

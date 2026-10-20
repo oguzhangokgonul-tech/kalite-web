@@ -86,6 +86,7 @@ def test_notification_filter_keys_are_unique():
 def test_internal_get_routes_do_not_render_for_anonymous_users(app, client):
     public_endpoints = {
         "main.login",
+        "main.dashboard",
         "main.landing",
         "main.landing_dynamic_preview",
         "main.legal_index",
