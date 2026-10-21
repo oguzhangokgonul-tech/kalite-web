@@ -10,6 +10,9 @@
   {% set quality_tests_active = request.endpoint in ['main.quality_test_page', 'main.create_quality_test_record', 'main.quality_test_measurement', 'main.quality_test_parameters'] %}
   {% set suggestion_module_active = request.endpoint in ['main.suggestions_dashboard', 'main.create_suggestion', 'main.edit_suggestion', 'main.suggestion_detail', 'main.delete_suggestion', 'main.download_suggestion_attachment', 'main.suggestion_parameters', 'main.delete_suggestion_parameter', 'main.suggestion_evaluators', 'main.approve_suggestion', 'main.complaints_dashboard', 'main.create_complaint', 'main.edit_complaint', 'main.delete_complaint'] or (request.endpoint or '').startswith('customer_portal.') %}
   {% set human_resources_active = request.endpoint in ['main.personnel_contacts', 'main.create_personnel_contact', 'main.edit_personnel_contact', 'main.delete_personnel_contact'] %}
+  {% set ohs_notes_active = request.blueprint == 'ohs_notes' %}
+  {% set ohs_actions_active = g.action_category|default('general') == 'ohs' %}
+  {% set occupational_health_active = ohs_notes_active or ohs_actions_active %}
   {% set company_onboarding_active = request.endpoint in ['main.company_onboarding_wizard', 'main.company_onboarding_status', 'main.repair_company_onboarding'] %}
   {% set sales_readiness_active = request.endpoint == 'main.sales_readiness' %}
   {% set system_backups_active = request.endpoint in ['main.system_backups', 'main.create_system_backup', 'main.download_system_backup', 'main.verify_system_backup'] %}
@@ -88,7 +91,7 @@
         <input id="vpNavSearch" type="search" placeholder="{{ _('Menüde ara') }}" autocomplete="off">
       </div>
       <nav class="dashboard-sidebar-nav" aria-label="Ana men&#252;" tabindex="0">
-        <a class="dashboard-nav-item {% if request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
+        <a class="dashboard-nav-item {% if not occupational_health_active and request.endpoint in ['main.dashboard', 'main.create_action', 'main.edit_action', 'main.action_detail', 'main.sub_action_detail', 'main.edit_sub_action'] %}active{% endif %}" href="{{ url_for('main.dashboard') }}">
           <i class="bi bi-house-door"></i>
           <span>{{ _("Ana Sayfa") }}</span>
         </a>
@@ -122,16 +125,25 @@
           </div>
         {% endif %}
         {% if g.company_module_enabled('ohs_actions') %}
-          {% if g.current_company %}
-          <a class="dashboard-nav-item {% if request.blueprint == 'ohs_notes' %}active{% endif %}" href="{{ url_for('ohs_notes.dashboard') }}">
-            <i class="bi bi-journal-text"></i>
-            <span>{{ _("İSG Notları") }}</span>
-          </a>
-          {% endif %}
-          <a class="dashboard-nav-item {% if g.action_category|default('general') == 'ohs' %}active{% endif %}" href="{{ url_for('main.ohs_actions_dashboard') }}">
-            <i class="bi bi-shield-check"></i>
-            <span>{{ _("İSG Aksiyonları") }}</span>
-          </a>
+          <div class="dashboard-nav-group {% if occupational_health_active %}active{% endif %}">
+            <button class="dashboard-nav-item dashboard-nav-toggle {% if occupational_health_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#occupationalHealthNav" aria-expanded="{{ 'true' if occupational_health_active else 'false' }}" aria-controls="occupationalHealthNav">
+              <i class="bi bi-shield-check" aria-hidden="true"></i>
+              <span>{{ _("İş Sağlığı") }}</span>
+              <i class="bi bi-chevron-down dashboard-nav-chevron" aria-hidden="true"></i>
+            </button>
+            <div class="dashboard-subnav collapse {% if occupational_health_active %}show{% endif %}" id="occupationalHealthNav">
+              {% if g.current_company %}
+                <a class="dashboard-subnav-item {% if ohs_notes_active %}active{% endif %}" href="{{ url_for('ohs_notes.dashboard') }}" {% if ohs_notes_active %}aria-current="page"{% endif %}>
+                  <i class="bi bi-journal-text" aria-hidden="true"></i>
+                  <span>{{ _("İSG Notları") }}</span>
+                </a>
+              {% endif %}
+              <a class="dashboard-subnav-item {% if ohs_actions_active %}active{% endif %}" href="{{ url_for('main.ohs_actions_dashboard') }}" {% if ohs_actions_active %}aria-current="page"{% endif %}>
+                <i class="bi bi-shield-check" aria-hidden="true"></i>
+                <span>{{ _("İSG Aksiyonları") }}</span>
+              </a>
+            </div>
+          </div>
         {% endif %}
         {% if g.current_user.can_manage_users %}
           <a class="dashboard-nav-item {% if request.endpoint in ['main.users', 'main.create_user', 'main.edit_user'] %}active{% endif %}" href="{{ url_for('main.users') }}">
