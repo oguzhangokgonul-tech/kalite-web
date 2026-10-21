@@ -1,0 +1,29 @@
+{% extends "app_shell.html" %}
+{% block title %}{{ 'İSG Notunu Düzenle' if note else 'İSG Notu Oluştur' }}{% endblock %}
+{% block topbar_title %}İSG Notları{% endblock %}
+{% block app_content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+  <h1 class="h4 mb-0">{{ 'İSG Notunu Düzenle' if note else 'İSG Notu Oluştur' }}</h1>
+  <a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.detail', note_id=note.id) if note else url_for('ohs_notes.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Geri</a>
+</div>
+<form method="post" class="app-form-card">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if note %}<input type="hidden" name="version_id" value="{{ note.version_id }}">{% endif %}
+  <div class="mb-3">
+    <label class="form-label" for="title">Başlık</label>
+    <input class="form-control" id="title" name="title" required maxlength="160" value="{{ request.form.get('title', note.title if note else '') }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="location">Yer / Bölüm (isteğe bağlı)</label>
+    <input class="form-control" id="location" name="location" maxlength="200" value="{{ request.form.get('location', (note.location or '') if note else '') }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label" for="description">İSG Notu</label>
+    <textarea class="form-control" id="description" name="description" required maxlength="5000" rows="6">{{ request.form.get('description', note.description if note else '') }}</textarea>
+  </div>
+  <div class="d-flex flex-wrap justify-content-end gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.detail', note_id=note.id) if note else url_for('ohs_notes.dashboard') }}">Vazgeç</a>
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> Kaydet</button>
+  </div>
+</form>
+{% endblock %}

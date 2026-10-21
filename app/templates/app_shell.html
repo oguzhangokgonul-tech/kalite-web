@@ -122,6 +122,12 @@
           </div>
         {% endif %}
         {% if g.company_module_enabled('ohs_actions') %}
+          {% if g.current_company %}
+          <a class="dashboard-nav-item {% if request.blueprint == 'ohs_notes' %}active{% endif %}" href="{{ url_for('ohs_notes.dashboard') }}">
+            <i class="bi bi-journal-text"></i>
+            <span>{{ _("İSG Notları") }}</span>
+          </a>
+          {% endif %}
           <a class="dashboard-nav-item {% if g.action_category|default('general') == 'ohs' %}active{% endif %}" href="{{ url_for('main.ohs_actions_dashboard') }}">
             <i class="bi bi-shield-check"></i>
             <span>{{ _("İSG Aksiyonları") }}</span>

@@ -2752,6 +2752,11 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "ohs_notes.dashboard": "ohs_actions",
+    "ohs_notes.create": "ohs_actions",
+    "ohs_notes.detail": "ohs_actions",
+    "ohs_notes.edit": "ohs_actions",
+    "ohs_notes.delete": "ohs_actions",
     "main.ohs_actions_dashboard": "ohs_actions",
     "main.create_ohs_action": "ohs_actions",
     "shift_handover.dashboard": "shift_handover",
@@ -27962,13 +27967,16 @@ def create_ohs_action():
     if not current_company_id():
         flash("İSG aksiyonu oluşturmak için önce şirket seçin.", "warning")
         return redirect(url_for("main.ohs_actions_dashboard"))
-    return create_action()
+    from .ohs_notes import atomic
+    return atomic(create_action)()
 
 
 @bp.route("/actions/new", methods=["GET", "POST"])
 @login_required
 @permission_required("can_create_actions")
 def create_action():
+    from .ohs_notes import source_for_action, link_action
+    linked_ohs_note = source_for_action()
     linked_dof = None
     linked_risk = None
     if request.method == "POST":
@@ -27986,6 +27994,8 @@ def create_action():
             action.action_number = reserve_action_number(company_id=action.company_id)
             db.session.add(action)
             db.session.flush()
+            if linked_ohs_note is not None:
+                link_action(linked_ohs_note, action)
             linked_dof = getattr(action, "_parsed_source_dof", None) or action.source_dof
             linked_risk = getattr(action, "_parsed_source_risk", None)
             created_sub_actions = create_inline_sub_actions(action)
@@ -28155,9 +28165,12 @@ def create_action():
         if linked_risk is not None and linked_dof is None and linked_risk.dof:
             linked_dof = linked_risk.dof
         form_data = action_form_defaults(linked_dof=linked_dof, linked_risk=linked_risk)
+        if linked_ohs_note is not None:
+            form_data.update(title=linked_ohs_note.title, description=linked_ohs_note.description)
 
     return render_template(
         "action_form.html",
+        linked_ohs_note=linked_ohs_note,
         action=None,
         linked_dof=linked_dof,
         linked_risk=linked_risk,
@@ -28184,9 +28197,11 @@ def action_detail(action_id):
 
     from .meeting_actions import visible_source
     from .objective_plans import visible_source as visible_objective_source
+    from .ohs_notes import records as ohs_note_records
     return render_template(
         "action_detail.html",
         action=action,
+        source_ohs_note=ohs_note_records().filter_by(action_id=action.id).first() if action.action_category == "ohs" else None,
         source_meeting=visible_source(action),
         source_objective=visible_objective_source(action, 'action'),
         users=active_users(),
@@ -28943,6 +28958,9 @@ def delete_action(action_id):
     ensure_same_company(action)
     from .meeting_actions import require_unlinked_for_delete
     require_unlinked_for_delete(action)
+    from .ohs_notes_models import OhsNote
+    if OhsNote.query.filter_by(action_id=action.id).first() is not None:
+        abort(409, description="İSG notundan oluşturulan aksiyon silinemez; işlem geçmişi korunur.")
     from .objective_plan_models import ObjectivePlanLink
     if ObjectivePlanLink.query.filter_by(action_id=action.id).first() is not None:
         abort(409, description="Kalite hedefine bağlı aksiyon silinemez; işlem geçmişi korunur.")

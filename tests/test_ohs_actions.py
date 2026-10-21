@@ -258,7 +258,8 @@ def test_mobile_create_link_respects_existing_permission_and_module(client, scen
     login(client, user)
     response = client.get("/mobil")
     assert response.status_code == 200
-    assert ('href="/isg-aksiyonlari/yeni"' in response.get_data(as_text=True)) is (enabled and can_create)
+    assert 'href="/isg-aksiyonlari/yeni"' not in response.get_data(as_text=True)
+    assert ('href="/isg-notlari/yeni"' in response.get_data(as_text=True)) is enabled
     expected = 200 if enabled and can_create else 403
     assert client.get("/isg-aksiyonlari/yeni").status_code == expected
     response = client.post("/isg-aksiyonlari/yeni", data=action_payload(user))
@@ -494,7 +495,8 @@ def test_role_ui_and_shared_route_permissions(
     assert client.get("/isg-aksiyonlari/yeni").status_code == (200 if can_create else 403)
     mobile = client.get("/mobil")
     assert mobile.status_code == 200
-    assert ('href="/isg-aksiyonlari/yeni"' in mobile.get_data(as_text=True)) is can_create
+    assert 'href="/isg-aksiyonlari/yeni"' not in mobile.get_data(as_text=True)
+    assert 'href="/isg-notlari/yeni"' in mobile.get_data(as_text=True)
 
     detail_url = f"/actions/{action.id}"
     detail = client.get(detail_url)

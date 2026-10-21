@@ -56,6 +56,9 @@
     </a>
   {% endcall %}
 
+  {% if source_ohs_note %}
+    <div class="mb-3">{{ ui.action_link(url_for('ohs_notes.detail', note_id=source_ohs_note.id), source_ohs_note.number ~ ' · Kaynak İSG Notu', icon='bi-journal-text', tone='secondary') }}</div>
+  {% endif %}
   {% if source_meeting %}
     <div class="mb-3">
       {{ ui.action_link(url_for('meetings.detail', meeting_id=source_meeting.id), source_meeting.meeting_no ~ ' · Kaynak Toplantı', icon='bi-chat-square-text', tone='secondary') }}

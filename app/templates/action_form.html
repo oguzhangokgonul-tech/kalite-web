@@ -27,6 +27,11 @@
 
   <form class="app-form-card" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if linked_ohs_note is defined and linked_ohs_note %}
+      <input type="hidden" name="ohs_note_id" value="{{ linked_ohs_note.id }}">
+      <input type="hidden" name="ohs_note_version" value="{{ request.form.get('ohs_note_version', '') if request.method == 'POST' else linked_ohs_note.version_id }}">
+      <p><a href="{{ url_for('ohs_notes.detail', note_id=linked_ohs_note.id) }}">Kaynak İSG Notu: {{ linked_ohs_note.number }}</a></p>
+    {% endif %}
     {% if linked_dof_id %}
       <input type="hidden" name="dof_id" value="{{ linked_dof_id }}">
     {% endif %}

@@ -1,0 +1,38 @@
+{% extends "app_shell.html" %}
+{% block title %}{{ note.number }}{% endblock %}
+{% block topbar_title %}İSG Notları{% endblock %}
+{% block app_content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+  <h1 class="h4 mb-0">{{ note.number }}</h1>
+  <a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Not Havuzu</a>
+</div>
+<h2 class="h5 text-break">{{ note.title }}</h2>
+<div class="text-muted small text-break mb-3">
+  {{ note.author.full_name if note.author else '-' }} · {{ note.created_at.strftime('%d.%m.%Y %H:%M') }}
+  {% if note.location %} · {{ note.location }}{% endif %}
+</div>
+<p class="text-break" style="white-space: pre-wrap">{{ note.description }}</p>
+<div class="d-flex flex-wrap gap-2 my-4">
+  {% if visible_action %}
+    <a class="btn btn-outline-success" href="{{ url_for('main.action_detail', action_id=visible_action.id) }}"><i class="bi bi-link-45deg" aria-hidden="true"></i> {{ visible_action.number_label }}</a>
+  {% elif note.converted_at %}
+    <span class="text-success align-self-center">Aksiyon oluşturuldu</span>
+  {% elif g.current_user.has_permission('actions.create') %}
+    <a class="btn btn-primary" href="{{ url_for('main.create_ohs_action', ohs_note_id=note.id) }}"><i class="bi bi-plus-circle" aria-hidden="true"></i> Aksiyon Oluştur</a>
+  {% endif %}
+  {% if editable %}
+    <a class="btn btn-outline-primary" href="{{ url_for('ohs_notes.edit', note_id=note.id) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Düzenle</a>
+  {% endif %}
+</div>
+{% if editable %}
+<details>
+  <summary class="text-danger py-2">Notu Sil</summary>
+  <form method="post" action="{{ url_for('ohs_notes.delete', note_id=note.id) }}" class="mt-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="version_id" value="{{ note.version_id }}">
+    <p>Bu not havuzdan kaldırılacak. Varsa bağlı aksiyon silinmez.</p>
+    <button class="btn btn-outline-danger" type="submit"><i class="bi bi-trash" aria-hidden="true"></i> Silmeyi Onayla</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

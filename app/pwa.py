@@ -73,16 +73,13 @@ def _quick_actions():
                 "url": url_for("main.create_dof"),
             }
         )
-    if _module_enabled("ohs_actions"):
-        if _has_permission("actions.create"):
-            actions.append(
-                {
-                    "label": _("Yeni ISG Aksiyonu Oluştur"),
-                    "description": _("ISG Aksiyonlarını kayıt altına alın"),
-                    "icon": "bi-plus-circle",
-                    "url": url_for("main.create_ohs_action"),
-                }
-            )
+    if _company() and _module_enabled("ohs_actions"):
+        actions.append({
+            "label": _("İSG Notu Oluştur"),
+            "description": _("İSG gözlemlerinizi kayıt altına alın"),
+            "icon": "bi-journal-plus",
+            "url": url_for("ohs_notes.create"),
+        })
     if _module_enabled("suggestions"):
         actions.append(
             {

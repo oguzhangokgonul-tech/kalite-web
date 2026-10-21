@@ -1,0 +1,45 @@
+{% extends "app_shell.html" %}
+{% block title %}İSG Notları{% endblock %}
+{% block topbar_title %}İSG Notları{% endblock %}
+{% block app_content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+  <h1 class="h4 mb-0">İSG Notları <span class="text-muted small">({{ page.total }})</span></h1>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.ohs_actions_dashboard') }}">İSG Aksiyonları</a>
+    <a class="btn btn-primary" href="{{ url_for('ohs_notes.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> İSG Notu Oluştur</a>
+  </div>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-12 col-md-6">
+    <label class="form-label" for="search">Not ara</label>
+    <input class="form-control" type="search" id="search" name="search" value="{{ search }}" maxlength="160">
+  </div>
+  <div class="col-8 col-md-4">
+    <label class="form-label" for="status">Durum</label>
+    <select class="form-select" id="status" name="status">
+      <option value="">Tümü</option>
+      <option value="open" {% if status == 'open' %}selected{% endif %}>Not havuzunda</option>
+      <option value="converted" {% if status == 'converted' %}selected{% endif %}>Aksiyon oluşturuldu</option>
+    </select>
+  </div>
+  <div class="col-4 col-md-2 d-flex align-items-end"><button class="btn btn-outline-primary w-100" type="submit"><i class="bi bi-search" aria-hidden="true"></i> Ara</button></div>
+</form>
+<div class="list-group">
+  {% for note in page.items %}
+  <a class="list-group-item list-group-item-action p-3" href="{{ url_for('ohs_notes.detail', note_id=note.id) }}">
+    <div class="d-flex flex-wrap justify-content-between gap-2">
+      <span class="fw-medium text-break">{{ note.title }}</span>
+      <span class="text-{{ 'success' if note.converted_at else 'secondary' }} small">{{ 'Aksiyon oluşturuldu' if note.converted_at else 'Not havuzunda' }}</span>
+    </div>
+    <div class="small text-muted text-break mt-2">{{ note.number }} · {{ note.author.full_name if note.author else '-' }} · {{ note.created_at.strftime('%d.%m.%Y') }}{% if note.location %} · {{ note.location }}{% endif %}</div>
+  </a>
+  {% else %}<div class="p-4 text-center text-muted">İSG notu bulunamadı.</div>{% endfor %}
+</div>
+{% if page.pages > 1 %}
+<nav aria-label="Not sayfaları" class="d-flex align-items-center justify-content-between mt-3">
+  {% if page.has_prev %}<a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.dashboard', page=page.prev_num, search=search, status=status) }}">Önceki</a>{% endif %}
+  <span>{{ page.page }} / {{ page.pages }}</span>
+  {% if page.has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.dashboard', page=page.next_num, search=search, status=status) }}">Sonraki</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

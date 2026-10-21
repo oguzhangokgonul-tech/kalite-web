@@ -185,7 +185,7 @@ def test_mobile_quick_actions_copy_order_and_filtered_order(app, monkeypatch):
         ("main.create_action", "Yeni Aksiyon Oluştur", "Şirket içi aksiyonlarınızı takip edin"),
         ("main.create_maintenance_fault", "Bakım Arızası Oluştur", "Bakım arızalarınızı takip edin"),
         ("main.create_dof", "Uygunsuzluk & Faaliyet Oluştur", "Uygunsuzluk & Düzeltici/İyileştirici Faaliyetleri kayıt altına alın"),
-        ("main.create_ohs_action", "Yeni ISG Aksiyonu Oluştur", "ISG Aksiyonlarını kayıt altına alın"),
+        ("ohs_notes.create", "İSG Notu Oluştur", "İSG gözlemlerinizi kayıt altına alın"),
         ("main.create_suggestion", "Yeni Öneri Oluştur", "Yeni önerilerinizi kayıt altına alın"),
         ("main.create_complaint", "Yeni Şikayet Oluştur", "Yeni şikayetlerinizi kayıt altına alın"),
         ("customer_portal.new_record", "Müşteri Geri Bildirimi Oluştur", "Müşteri Geri Bildirimlerini kayıt altına alın"),
@@ -206,7 +206,7 @@ def test_mobile_quick_actions_copy_order_and_filtered_order(app, monkeypatch):
         filtered = pwa._quick_actions()
         assert [card["url"] for card in filtered] == [
             card["url"] for card in cards if card["url"] not in {
-                "main.create_maintenance_fault", "main.create_ohs_action",
+                "main.create_maintenance_fault", "ohs_notes.create",
             }
         ]
 
