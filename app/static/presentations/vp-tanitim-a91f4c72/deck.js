@@ -97,9 +97,15 @@
 
   document.querySelectorAll('figure.screen, figure.phone-screen').forEach(figure => {
     const image = figure.querySelector('img');
+    const caption = figure.querySelector('figcaption');
+    const zoomIcon = document.createElement('i');
+    zoomIcon.className = 'bi bi-arrows-angle-expand zoom-icon';
+    zoomIcon.setAttribute('aria-hidden', 'true');
+    caption?.append(zoomIcon);
     figure.tabIndex = 0;
     figure.setAttribute('role', 'button');
     figure.setAttribute('aria-label', `Görseli büyüt: ${image.alt}`);
+    figure.title = 'Görseli büyüt';
     const openImage = () => {
       expandedImage.src = image.src;
       expandedImage.alt = image.alt;

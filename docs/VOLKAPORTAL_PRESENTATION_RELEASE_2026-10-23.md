@@ -1,7 +1,8 @@
 # VolkaPortal tanitim sunumu
 
 - URL: `/static/presentations/vp-tanitim-a91f4c72/index.html`
-- 13 bolumlu, koyu marka temali HTML sunumu; masaustu, tablet ve mobil duzenleri, bolum listesi, klavye gezinmesi, tam ekran ve gorsel buyutme icerir.
+- 16 bolumlu, koyu marka temali HTML sunumu; once platform kabiliyetlerini, sonra modulleri anlatir. Masaustu, tablet ve mobil duzenleri, bolum listesi, klavye gezinmesi, tam ekran ve gorsel buyutme icerir.
+- Urun ekranlari daha genis alanda, kaynak en-boy orani korunarak ve kirpilma olmadan gosterilir. Modul ekranlari icin daha tam demo yakalamalari kullanilir.
 - Uygulama ekranlari, onceki sunum icin `presentations/volkaportal-customer-2026-10-23/.build/demo_server.py` tarafindan uretilen `Demo Uretim A.S.` verilerinden alinmistir. Fotografik uretim/saha gorselleri bu sunum icin AI ile uretilmistir; gercek tesis veya personel fotografi olarak sunulmamalidir.
 - Sayfa menude listelenmez ve `noindex` ister. Buna ragmen `/static/` herkese aciktir; baglantiyi bilen herkes sayfayi ve gorselleri gorebilir. Gizli musteri verisi eklenmemelidir.
 - Yalnizca statik dosyalar ve UI testi eklenir. Veritabani migration, Flask servis yeniden baslatma ve yeni subdomain/SSL degisikligi gerekmez.

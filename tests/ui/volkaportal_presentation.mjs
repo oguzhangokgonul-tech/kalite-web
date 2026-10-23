@@ -9,22 +9,33 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 const entry = path.resolve('app/static/presentations/vp-tanitim-a91f4c72/index.html');
 const entryUrl = process.env.PRESENTATION_URL || pathToFileURL(entry).href;
 const output = path.resolve('.tmp-presentation-qa');
+const expectedSlides = [
+  'kapak', 'akis', 'giris', 'arayuz', 'mobil', 'raporlama', 'yonetim',
+  'aksiyonlar', 'uygunsuzluk', 'kalite', 'katilim', 'bakim', 'operasyon',
+  'ekip', 'geri-bildirim', 'son',
+];
 await fs.mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--disable-gpu'] });
 try {
   for (const viewport of [
     { name: 'desktop', width: 1440, height: 900 },
+    { name: 'desktop-short', width: 1280, height: 720 },
+    { name: 'desktop-wide', width: 1920, height: 1080 },
     { name: 'tablet', width: 768, height: 1024 },
     { name: 'mobile', width: 390, height: 844 },
     { name: 'mobile-small', width: 320, height: 700 },
   ]) {
-    const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
+    const page = await browser.newPage({ viewport, deviceScaleFactor: 1, hasTouch: viewport.name.startsWith('mobile') });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(entryUrl, { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
-    assert.equal(await page.locator('.slide').count(), 13);
+    assert.equal(await page.locator('.slide').count(), 16);
+    assert.deepEqual(await page.locator('.slide').evaluateAll(slides => slides.map(slide => slide.id)), expectedSlides);
+    assert.deepEqual(await page.locator('#outline-nav a').evaluateAll(links => links.map(link => link.hash.slice(1))), expectedSlides);
+    assert.equal(await page.locator('#akis .eyebrow').textContent(), 'PLATFORM / 01');
+    assert.equal(await page.locator('#aksiyonlar .eyebrow').textContent(), 'MODÜLLER / 01 · AKSİYONLAR');
     assert.deepEqual(errors, []);
 
     const assets = await page.locator('img[src]').evaluateAll(images => images.map(image => ({ src: image.src, eager: image.loading !== 'lazy', loaded: image.complete && image.naturalWidth > 0 })));
@@ -33,6 +44,30 @@ try {
       else assert.ok((await page.request.get(asset.src)).ok(), `${viewport.name}: asset ${asset.src}`);
     }
     assert.deepEqual(assets.filter(asset => asset.eager && !asset.loaded), [], `${viewport.name}: broken eager images`);
+    const previews = await page.locator('.screen img, .phone-screen img').evaluateAll(async images => {
+      images.forEach(image => { image.loading = 'eager'; });
+      await Promise.all(images.map(image => image.decode()));
+      return images.map(image => {
+      const { width, height } = image.getBoundingClientRect();
+      return { alt: image.alt, displayedRatio: width / height, sourceRatio: image.naturalWidth / image.naturalHeight };
+      });
+    });
+    for (const preview of previews) {
+      assert.ok(Math.abs(preview.displayedRatio - preview.sourceRatio) < 0.02, `${viewport.name}: cropped image ${preview.alt}`);
+    }
+    if (viewport.name === 'desktop') {
+      const imageWidth = await page.locator('#kalite .screen img').evaluate(image => image.getBoundingClientRect().width);
+      assert.ok(imageWidth > viewport.width * 0.6, `desktop: product image is too small (${imageWidth}px)`);
+    }
+    if (viewport.width > 980) {
+      const controls = await page.locator('.deck-controls').boundingBox();
+      for (const id of ['aksiyonlar', 'uygunsuzluk', 'ekip']) {
+        await page.locator(`#${id}`).evaluate(slide => slide.scrollIntoView({ block: 'start', behavior: 'instant' }));
+        await page.waitForTimeout(650);
+        const box = await page.locator(`#${id} figure.screen`).boundingBox();
+        assert.ok(box.y >= 76 && box.y + box.height < controls.y - 8, `${viewport.name}: ${id} image bottom ${box.y + box.height}px overlaps controls top ${controls.y}px`);
+      }
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     assert.ok(overflow <= 1, `${viewport.name}: horizontal overflow ${overflow}px`);
 
@@ -51,7 +86,8 @@ try {
     await page.locator('#outline-nav a[href="#kalite"]').click();
     await page.waitForTimeout(500);
     assert.equal(await page.locator('#outline-dialog').evaluate(dialog => dialog.open), false);
-    await page.locator('#kalite figure.screen').click();
+    if (viewport.name.startsWith('mobile')) await page.locator('#kalite figure.screen').tap();
+    else await page.locator('#kalite figure.screen').click();
     assert.equal(await page.locator('#image-dialog').evaluate(dialog => dialog.open), true);
     await page.locator('#image-close').click();
     assert.equal(await page.locator('#image-dialog').evaluate(dialog => dialog.open), false);
@@ -69,28 +105,28 @@ try {
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press('End');
     await page.waitForTimeout(1200);
-    assert.match(await page.locator('#slide-counter').textContent(), /^13 \/ 13$/);
+    assert.match(await page.locator('#slide-counter').textContent(), /^16 \/ 16$/);
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(800);
-    assert.match(await page.locator('#slide-counter').textContent(), /^12 \/ 13$/);
+    assert.match(await page.locator('#slide-counter').textContent(), /^15 \/ 16$/);
     await page.keyboard.press('Home');
     await page.waitForTimeout(1200);
-    assert.match(await page.locator('#slide-counter').textContent(), /^01 \/ 13$/);
+    assert.match(await page.locator('#slide-counter').textContent(), /^01 \/ 16$/);
     await page.locator('#next-button').click();
     await page.waitForTimeout(750);
     await page.keyboard.press('ArrowLeft');
     await page.waitForTimeout(750);
-    assert.match(await page.locator('#slide-counter').textContent(), /^01 \/ 13$/);
+    assert.match(await page.locator('#slide-counter').textContent(), /^01 \/ 16$/);
 
     if (viewport.name === 'desktop' || viewport.name === 'mobile') {
-      for (const id of ['akis', 'giris', 'kalite', 'katilim', 'operasyon', 'raporlama', 'son']) {
+      for (const id of ['akis', 'giris', 'arayuz', 'raporlama', 'yonetim', 'aksiyonlar', 'uygunsuzluk', 'kalite', 'katilim', 'bakim', 'operasyon', 'ekip', 'geri-bildirim', 'son']) {
         await page.locator(`#${id}`).evaluate(slide => slide.scrollIntoView({ block: 'start', behavior: 'instant' }));
         await page.waitForTimeout(150);
         await page.screenshot({ path: path.join(output, `${viewport.name}-${id}.png`), animations: 'disabled' });
       }
     }
 
-    console.log(`${viewport.name}: 13 slides, images, layout, outline and image zoom passed`);
+    console.log(`${viewport.name}: 16 slides, uncropped images, layout, outline and image zoom passed`);
     await page.close();
   }
 } finally {
