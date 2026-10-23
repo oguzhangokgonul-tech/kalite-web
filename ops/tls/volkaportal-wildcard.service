@@ -1,0 +1,11 @@
+[Unit]
+Description=Renew VolkaPortal wildcard TLS certificate
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/volkaportal/volkaportal-wildcard-renew.sh
+UMask=0077
+PrivateTmp=true
+NoNewPrivileges=true
