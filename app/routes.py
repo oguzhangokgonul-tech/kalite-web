@@ -732,6 +732,16 @@ def assigned_tasks_badge_count():
 
 @bp.before_app_request
 def load_logged_in_user():
+    host = normalize_request_host(request.host)
+    base_domain = tenant_base_domain()
+    is_tenant_subdomain = bool(
+        base_domain
+        and host.endswith(f".{base_domain}")
+        and "." not in host[: -(len(base_domain) + 1)]
+    )
+    tenant_company = tenant_company_from_host(request.host) if is_tenant_subdomain else None
+    if is_tenant_subdomain and tenant_company is None:
+        abort(404)
     # Public application assets never need tenant, session or task initialization.
     if request.endpoint == "static":
         return
@@ -749,7 +759,7 @@ def load_logged_in_user():
         session.clear()
         g.current_user = None
     g.current_company = None
-    g.tenant_company = tenant_company_from_host(request.host)
+    g.tenant_company = tenant_company if is_tenant_subdomain else tenant_company_from_host(request.host)
     refresh_locale()
     session.pop("company_code", None)
     g.current_user_initials = ""
@@ -15841,6 +15851,31 @@ def company_field_exists(field_name, value, company_id=None):
     )
 
 
+def company_domain_collides(slug, primary_domain, custom_domain, company_id=None):
+    base_domain = tenant_base_domain()
+    proposed_hosts = {
+        normalize_request_host(host)
+        for host in (company_primary_domain_for_slug(slug), primary_domain, custom_domain)
+        if host
+    }
+    if base_domain and base_domain in proposed_hosts:
+        return True
+
+    for other in Company.query.filter(Company.id != company_id).all():
+        existing_hosts = {
+            normalize_request_host(host)
+            for host in (
+                company_primary_domain_for_slug(other.slug) if other.slug else None,
+                other.primary_domain,
+                other.custom_domain,
+            )
+            if host
+        }
+        if proposed_hosts & existing_hosts:
+            return True
+    return False
+
+
 def parse_company_form(company=None):
     company = company or Company()
     code = request.form.get("code", "").strip()
@@ -15868,9 +15903,7 @@ def parse_company_form(company=None):
         raise ValueError("code_exists")
     if company_field_exists("slug", slug, company.id):
         raise ValueError("slug_exists")
-    if company_field_exists("primary_domain", primary_domain, company.id):
-        raise ValueError("domain_exists")
-    if company_field_exists("custom_domain", custom_domain, company.id):
+    if company_domain_collides(slug, primary_domain, custom_domain, company.id):
         raise ValueError("domain_exists")
 
     company.code = code

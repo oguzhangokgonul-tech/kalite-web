@@ -17,7 +17,7 @@ from app.models import (
     Role,
     User,
 )
-from app.routes import SALES_READINESS_SETTING_PREFIX
+from app.routes import SALES_READINESS_SETTING_PREFIX, parse_company_form
 from app.seed import ensure_default_roles
 
 
@@ -111,6 +111,57 @@ def onboarding_payload(**overrides):
     }
     data.update(overrides)
     return data
+
+
+@pytest.mark.parametrize(
+    ("existing_slug", "existing_primary", "existing_custom", "submitted"),
+    [
+        ("claimed", "other.example.com", None, {"primary_domain": "claimed.volkaportal.com"}),
+        ("existing", "primary.example.com", None, {"custom_domain": "primary.example.com"}),
+        ("existing", "other.example.com", "custom.example.com", {"primary_domain": "custom.example.com"}),
+        ("existing", "other.example.com", "claimed.volkaportal.com", {"slug": "claimed", "primary_domain": "new.example.com"}),
+        ("existing", "claimed.volkaportal.com", None, {"slug": "claimed", "primary_domain": "new.example.com"}),
+        ("existing", "other.example.com", None, {"primary_domain": "volkaportal.com"}),
+        ("existing", "other.example.com", None, {"custom_domain": "www.volkaportal.com"}),
+    ],
+)
+def test_company_form_rejects_domain_collisions(
+    app, existing_slug, existing_primary, existing_custom, submitted
+):
+    existing = Company(
+        code="111",
+        name="Existing",
+        slug=existing_slug,
+        primary_domain=existing_primary,
+        custom_domain=existing_custom,
+        is_active=True,
+    )
+    db.session.add(existing)
+    db.session.commit()
+
+    with app.test_request_context("/companies/new", method="POST", data=onboarding_payload(**submitted)):
+        with pytest.raises(ValueError, match="^domain_exists$"):
+            parse_company_form()
+
+
+def test_company_form_allows_existing_company_domains_on_edit(app):
+    company = Company(
+        code="222",
+        name="Pilot Firma",
+        slug="pilot-firma",
+        primary_domain="pilot-firma.volkaportal.com",
+        custom_domain="pilot.example.com",
+        is_active=True,
+    )
+    db.session.add(company)
+    db.session.commit()
+
+    with app.test_request_context(
+        f"/companies/{company.id}/edit",
+        method="POST",
+        data=onboarding_payload(custom_domain="pilot.example.com"),
+    ):
+        assert parse_company_form(company) is company
 
 
 def test_company_onboarding_wizard_requires_super_admin(app, client):

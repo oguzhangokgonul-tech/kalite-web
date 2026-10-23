@@ -55,6 +55,51 @@ def test_cross_tenant_host_clears_non_superadmin_session(app, client):
         assert "user_id" not in session
 
 
+def test_unknown_tenant_host_rejects_shared_cookie_without_clearing_known_host(app, client):
+    app.config["SESSION_COOKIE_DOMAIN"] = ".volkaportal.com"
+    company = create_company("376")
+    user = create_user(
+        "tenant-user-unknown-host",
+        company=company,
+        permissions=("documents.view",),
+    )
+    make_document(app, company, document_code="PR.376", title="Known Host Document")
+    known_url = f"https://{company.slug}.volkaportal.com"
+
+    with client.session_transaction(base_url=known_url) as session:
+        session["user_id"] = user.id
+        session["company_id"] = company.id
+
+    unknown_response = client.get(
+        "/documents/list", base_url="https://unregistered.volkaportal.com"
+    )
+    assert unknown_response.status_code == 404
+    assert "Known Host Document" not in unknown_response.get_data(as_text=True)
+
+    known_response = client.get("/documents/list", base_url=known_url)
+    assert known_response.status_code == 200
+    assert "Known Host Document" in known_response.get_data(as_text=True)
+
+
+def test_inactive_tenant_host_is_rejected(app, client):
+    company = create_company("377")
+    company.is_active = False
+    db.session.commit()
+
+    assert client.get("/login", base_url=f"https://{company.slug}.volkaportal.com").status_code == 404
+
+
+def test_platform_apex_remains_available(app, client):
+    apex_url = "https://volkaportal.com"
+    assert client.get("/", base_url=apex_url).status_code == 200
+    assert client.get("/login", base_url=apex_url).status_code == 200
+
+    superadmin = create_user("superadmin", role_key="super_admin")
+    with client.session_transaction(base_url=apex_url) as session:
+        session["user_id"] = superadmin.id
+    assert client.get("/sistem/admin-paneli", base_url=apex_url).status_code == 200
+
+
 def test_disabled_company_module_blocks_route_even_with_permission(app, client):
     company = create_company("375")
     user = create_user(

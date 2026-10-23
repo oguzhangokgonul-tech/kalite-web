@@ -109,12 +109,16 @@ def test_tenant_host_cannot_be_overridden_and_legacy_post_still_works(client, ac
     assert_session(client, ua, a, host)
 
 
-@pytest.mark.parametrize("host", [
-    "https://unknown.volkaportal.com", "https://untrusted.example", "http://unknown.local",
+@pytest.mark.parametrize("host,expected_status", [
+    ("https://unknown.volkaportal.com", 404),
+    ("https://untrusted.example", 200),
+    ("http://unknown.local", 200),
 ])
-def test_unknown_host_cannot_select_company(client, accounts, host):
-    assert 'value="001"' not in client.get("/login", base_url=host).get_data(as_text=True)
-    assert authenticate(client, "001", host=host).status_code == 200
+def test_unknown_host_cannot_select_company(client, accounts, host, expected_status):
+    login_response = client.get("/login", base_url=host)
+    assert login_response.status_code == expected_status
+    assert 'value="001"' not in login_response.get_data(as_text=True)
+    assert authenticate(client, "001", host=host).status_code == expected_status
     assert_session(client, host=host)
 
 
