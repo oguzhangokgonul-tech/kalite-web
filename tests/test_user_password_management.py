@@ -170,6 +170,42 @@ def test_password_change_invalidates_old_password_and_allows_real_new_login(app,
     assert InputValues(response.get_data(as_text=True)).values["password"] == ""
 
 
+def test_password_change_invalidates_existing_session(app, client, account):
+    base_url = f"https://{account.own.slug}.volkaportal.com"
+    existing_session = real_login(
+        app, account.own, account.user.username, OLD_PASSWORD, account.user.id,
+    )
+    with existing_session.session_transaction(base_url=base_url) as session:
+        assert session["user_session_version"] == 0
+    response = client.post(
+        f"/users/{account.user.id}/edit",
+        data=browser_form(account.user, password=NEW_PASSWORD),
+    )
+    assert response.status_code == 302
+    existing_session.get("/", base_url=base_url)
+    with existing_session.session_transaction(base_url=base_url) as session:
+        assert "user_id" not in session
+    real_login(app, account.own, account.user.username, NEW_PASSWORD, account.user.id)
+
+
+def test_turkish_dotted_i_username_accepts_plain_i_login(app, account):
+    user = create_user("i\u0307lker", company=account.own, role_key="department_staff")
+    user.full_name = "\u0130lker Ko\u00e7ak"
+    user.set_password(OLD_PASSWORD)
+    db.session.commit()
+    real_login(app, account.own, "ilker", OLD_PASSWORD, user.id)
+    real_login(app, account.own, "Ilker Kocak", OLD_PASSWORD, user.id)
+    real_login(app, account.other, "ilker", OLD_PASSWORD)
+
+
+def test_folded_username_collision_does_not_choose_an_account(app, account):
+    for username in ("i\u0307lker", "\u00edlker"):
+        user = create_user(username, company=account.own, role_key="department_staff")
+        user.set_password(OLD_PASSWORD)
+    db.session.commit()
+    real_login(app, account.own, "ilker", OLD_PASSWORD)
+
+
 def test_global_root_password_audit_does_not_inherit_selected_tenant(client, account):
     root = create_user("superadmin", role_key="super_admin")
     root.set_password(OLD_PASSWORD)
@@ -422,8 +458,26 @@ def test_delete_disables_real_login_and_self_delete_is_blocked(app, client, acco
     assert response.status_code == 302
     db.session.expire_all()
     assert account.user.is_active is False
+    assert account.user.deleted_at is not None
+    assert account.user.personnel_contact_id is None
+    assert client.get(
+        f"/insan-kaynaklari/personel-listesi/{account.contact.id}/duzenle"
+    ).status_code == 200
+    assert account.user.full_name not in client.get("/users").get_data(as_text=True)
+    assert client.get(f"/users/{account.user.id}/edit").status_code == 404
+    assert client.post(
+        f"/users/{account.user.id}/edit",
+        data=browser_form(account.user, password=NEW_PASSWORD),
+    ).status_code == 404
+    assert client.post(f"/users/{account.user.id}/delete").status_code == 404
     real_login(app, account.own, username, OLD_PASSWORD)
     real_login(app, account.own, account.user.username, OLD_PASSWORD)
+    replacement = client.post("/users/new", data=browser_form(
+        account.user, username="replacement-person", full_name=account.contact.full_name,
+        password=NEW_PASSWORD,
+    ))
+    assert replacement.status_code == 302
+    assert User.query.filter_by(username="replacement-person").one().personnel_contact_id == account.contact.id
 
 
 def test_duplicate_username_rejects_password_and_profile_changes(client, account):
@@ -506,7 +560,7 @@ def test_complete_users_create_read_edit_roles_deactivate_reactivate_delete(app,
     assert client.post(f"/users/{user_id}/delete").status_code == 302
     db.session.expire_all()
     assert saved.is_active is False
-    assert saved.personnel_contact_id == contact_id
-    assert saved.personnel_contact.is_active is True
+    assert saved.personnel_contact_id is None
+    assert db.session.get(PersonnelContact, contact_id).is_active is True
     real_login(app, account.own, "workflow-user", NEW_PASSWORD)
     assert_foreign_unchanged(account)

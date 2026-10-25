@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import unicodedata
 
 from sqlalchemy import event
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -964,6 +965,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=True, index=True)
     username = db.Column(db.String(80), nullable=False)
+    username_search_key = db.Column(db.String(160), nullable=False, default="", server_default="", index=True)
     __table_args__ = (
         db.UniqueConstraint("company_id", "username", name="uq_users_company_username"),
         db.Index(
@@ -974,6 +976,7 @@ class User(db.Model):
         ),
     )
     full_name = db.Column(db.String(160), nullable=False)
+    full_name_search_key = db.Column(db.String(160), nullable=False, default="", server_default="", index=True)
     title = db.Column(db.String(160), nullable=True)
     email = db.Column(db.String(255), nullable=True)
     preferred_locale = db.Column(db.String(10), nullable=True)
@@ -988,7 +991,9 @@ class User(db.Model):
         index=True,
     )
     password_hash = db.Column(db.String(255), nullable=False)
+    session_version = db.Column(db.Integer, nullable=False, default=0, server_default="0")
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, index=True)
     can_create_actions = db.Column(db.Boolean, nullable=False, default=False)
     can_edit_actions = db.Column(db.Boolean, nullable=False, default=False)
     can_delete_actions = db.Column(db.Boolean, nullable=False, default=False)
@@ -1051,6 +1056,18 @@ class User(db.Model):
             permission_key == permission.permission_key
             for permission in self.extra_permissions
         )
+
+
+def normalize_user_login_key(value):
+    decomposed = unicodedata.normalize("NFKD", (value or "").strip().casefold())
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+@event.listens_for(User, "before_insert")
+@event.listens_for(User, "before_update")
+def sync_user_login_keys(mapper, connection, target):
+    target.username_search_key = normalize_user_login_key(target.username)
+    target.full_name_search_key = normalize_user_login_key(target.full_name)
 
 
 class LoginAttempt(db.Model):

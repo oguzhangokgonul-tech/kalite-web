@@ -75,6 +75,7 @@ def create_user(username, *, company=None, role_key=None, permissions=(), full_n
 def login(client, user, company=None):
     with client.session_transaction() as session:
         session["user_id"] = user.id
+        session["user_session_version"] = user.session_version
         if company is not None:
             session["company_id"] = company.id
         else:

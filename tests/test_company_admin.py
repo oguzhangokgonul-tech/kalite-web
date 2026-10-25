@@ -63,6 +63,7 @@ def login(client, user, company=None):
     with client.session_transaction() as session:
         session.clear()
         session["user_id"] = user.id
+        session["user_session_version"] = user.session_version
         if company:
             session["company_id"] = company.id
 

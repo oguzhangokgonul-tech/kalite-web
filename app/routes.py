@@ -207,6 +207,7 @@ from .models import (
     TrainingParticipant,
     TrainingRecord,
     User,
+    normalize_user_login_key,
     UserPermission,
     Vehicle,
     VehicleFuelEntry,
@@ -752,7 +753,9 @@ def load_logged_in_user():
     ensure_legal_schema()
     user_id = session.get("user_id")
     g.current_user = db.session.get(User, user_id) if user_id else None
-    if user_id and (g.current_user is None or not g.current_user.is_active):
+    if user_id and (g.current_user is None or not g.current_user.is_active or
+                    g.current_user.deleted_at is not None or
+                    session.get("user_session_version", 0) != g.current_user.session_version):
         session.clear()
         g.current_user = None
     if g.current_user and g.current_user.has_role("company_admin") and not g.current_user.company_id:
@@ -2304,7 +2307,9 @@ def sync_personnel_contact_dependents(contact, *, clear_fields=()):
         return False
     ensure_personnel_account_manageable(contact)
     changed = False
-    for user in User.query.filter_by(personnel_contact_id=contact.id, company_id=contact.company_id).all():
+    for user in User.query.filter_by(
+        personnel_contact_id=contact.id, company_id=contact.company_id, deleted_at=None,
+    ).all():
         changed = sync_user_from_personnel_contact(user, contact, clear_fields=clear_fields) or changed
     for node in OrientationNode.query.filter_by(personnel_contact_id=contact.id, company_id=contact.company_id).all():
         changed = sync_orientation_node_from_personnel_contact(node, contact) or changed
@@ -2322,7 +2327,7 @@ def sync_personnel_contact_dependents(contact, *, clear_fields=()):
 def ensure_personnel_account_manageable(contact):
     if contact.id is None:
         return
-    for user in User.query.filter_by(personnel_contact_id=contact.id).all():
+    for user in User.query.filter_by(personnel_contact_id=contact.id, deleted_at=None).all():
         if not can_manage_user_account(user):
             abort(403, description="Bu hesaba bağlı personeli yalnız Superadmin yönetebilir.")
 
@@ -3433,6 +3438,8 @@ def is_super_admin(user=None):
 
 
 def can_manage_user_account(user):
+    if user.deleted_at is not None:
+        return False
     if is_superadmin_account():
         return True
     if user.company_id != current_company_id() or user.company_id is None:
@@ -15657,6 +15664,8 @@ def describe_dof_revision_changes(before, dof):
 
 def parse_user_form(user=None):
     user = user or User()
+    if user.id is not None and user.deleted_at is not None:
+        abort(404)
     if user.id is not None and not can_manage_user_account(user):
         abort(403)
     username = request.form.get("username", "").strip().lower()
@@ -15754,6 +15763,7 @@ def parse_user_form(user=None):
 
     if password:
         user.set_password(password)
+        user.session_version = (user.session_version or 0) + 1
 
     return user
 
@@ -16351,6 +16361,8 @@ def login_lockout_window_start():
 
 def login_counter_start(username=None, ip_address=None):
     window_start = login_lockout_window_start()
+    if ip_address is not None:
+        return window_start
     query = LoginAttempt.query.filter(LoginAttempt.success.is_(True))
     if username is not None:
         query = query.filter(LoginAttempt.username == username)
@@ -16413,12 +16425,7 @@ def find_login_user(identity, company=None):
     if not identity:
         return None
 
-    query = User.query.filter(
-        or_(
-            db.func.lower(User.username) == identity,
-            db.func.lower(User.full_name) == identity,
-        )
-    )
+    query = User.query.filter(User.is_active.is_(True), User.deleted_at.is_(None))
 
     if company is not None:
         query = query.filter(
@@ -16430,7 +16437,28 @@ def find_login_user(identity, company=None):
     else:
         query = query.filter(User.company_id.is_(None)).order_by(User.id.asc())
 
-    return query.first()
+    folded_identity = normalize_user_login_key(identity)
+    username_matches = query.filter(
+        User.username_search_key == folded_identity
+    ).all()
+    if username_matches:
+        exact_username = next(
+            (user for user in username_matches if normalize_login_identity(user.username) == identity),
+            None,
+        )
+        if exact_username is not None:
+            return exact_username
+        return username_matches[0] if len(username_matches) == 1 else None
+    name_matches = query.filter(
+        User.full_name_search_key == folded_identity
+    ).all()
+    exact_name = next(
+        (user for user in name_matches if normalize_login_identity(user.full_name) == identity),
+        None,
+    )
+    if exact_name is not None:
+        return exact_name
+    return name_matches[0] if len(name_matches) == 1 else None
 
 
 def validate_password_policy(password):
@@ -16561,6 +16589,11 @@ def login():
             valid_company = False
         # Keep the selected authentication scope separate from trusted host tenancy.
         g.login_company = company
+        if recent_failed_login_count(ip_address=ip_address) >= current_app.config["LOGIN_IP_MAX_FAILED_ATTEMPTS"]:
+            log_login_attempt(identity, ip_address, False, "rate_limited")
+            db.session.commit()
+            flash("Çok fazla hatalı giriş denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.", "danger")
+            return render_login_page()
         user = find_login_user(identity, company) if valid_company else None
         identity = normalize_login_identity(user.username) if user else identity
         lock_reason = login_rate_limit_reason(identity, ip_address)
@@ -16607,6 +16640,7 @@ def login():
             session.clear()
             session.permanent = remember_me
             session["user_id"] = user.id
+            session["user_session_version"] = user.session_version
             if anonymous_locale:
                 session[tenant_locale_key] = anonymous_locale
             user_company = None
@@ -29129,7 +29163,8 @@ def download_latest_closure_evidence_file(action_id):
 @login_required
 @permission_required("can_manage_users")
 def users():
-    user_list = scoped_query(User.query, User).order_by(User.full_name.asc()).all()
+    user_list = scoped_query(User.query, User).filter(
+        User.deleted_at.is_(None)).order_by(User.full_name.asc()).all()
     user_limit_summary = None
     if g.current_company:
         limit = company_user_limit(g.current_company)
@@ -29251,6 +29286,8 @@ def create_user():
 @permission_required("can_manage_users")
 def edit_user(user_id):
     user = User.query.get_or_404(user_id)
+    if user.deleted_at is not None:
+        abort(404)
     if not can_manage_user_account(user):
         abort(403 if user.company_id == current_company_id() else 404)
     if user.username == "superadmin" and not getattr(g, "current_user_is_super_admin", False):
@@ -29308,6 +29345,8 @@ def edit_user(user_id):
 @permission_required("users.delete")
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
+    if user.deleted_at is not None:
+        abort(404)
     if not can_manage_user_account(user):
         abort(403 if user.company_id == current_company_id() else 404)
     if user.id == g.current_user.id:
@@ -29325,8 +29364,16 @@ def delete_user(user_id):
 
     original_username = user.username
     user.is_active = False
+    user.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    user.personnel_contact_id = None
     user.username = f"silindi_{user.id}_{user.username}"[:80]
     user.email = None
+    deletion_audit = record_audit_event(
+        "User", "deleted", "Kullanıcı hesabı listeden kaldırıldı",
+        entity_id=user.id, company_id=user.company_id,
+        user_id=g.current_user.id, commit=False,
+    )
+    deletion_audit.company_id = user.company_id
     db.session.commit()
     flash(f"{original_username} kullanıcısı sistemden kaldırıldı.", "success")
     return redirect(url_for("main.users"))
@@ -29365,7 +29412,7 @@ def roles():
         "roles.html",
         roles=role_hierarchy(),
         permission_groups=permission_catalog_grouped(),
-        users=User.query.order_by(User.full_name.asc()).all(),
+        users=User.query.filter(User.deleted_at.is_(None)).order_by(User.full_name.asc()).all(),
         user_extra_permission_keys=user_extra_permission_keys,
     )
 
@@ -29512,7 +29559,7 @@ def company_onboarding_status(company_id):
         mode="status",
         form_action=url_for("main.repair_company_onboarding", company_id=company.id),
         company_users=(
-            User.query.filter_by(company_id=company.id)
+            User.query.filter_by(company_id=company.id, deleted_at=None)
             .order_by(User.full_name.asc(), User.id.asc())
             .all()
         ),

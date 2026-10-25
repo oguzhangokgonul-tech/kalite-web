@@ -193,6 +193,17 @@ def test_rate_limit_shared_by_root_and_tenant_but_not_other_company(app, client,
     assert authenticate(client, "002", "Second-password-84").status_code == 302
 
 
+def test_successful_login_does_not_reset_ip_failure_window(app, client, accounts):
+    app.config.update(LOGIN_MAX_FAILED_ATTEMPTS=100, LOGIN_IP_MAX_FAILED_ATTEMPTS=3)
+    for identity in ("unknown-one", "unknown-two"):
+        assert authenticate(client, "001", "wrong", identity=identity).status_code == 200
+    legitimate_client = app.test_client()
+    assert authenticate(legitimate_client, "001").status_code == 302
+    assert authenticate(client, "001", "wrong", identity="unknown-three").status_code == 200
+    assert authenticate(client, "001").status_code == 200
+    assert LoginAttempt.query.order_by(LoginAttempt.id.desc()).first().reason == "rate_limited"
+
+
 def test_csrf_remember_and_safe_next(app, client, accounts):
     app.config["WTF_CSRF_ENABLED"] = True
     assert authenticate(client, "001").status_code == 302  # CSRF error redirects, no login.
