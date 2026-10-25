@@ -143,6 +143,35 @@ def test_global_superadmin_and_unprivileged_global_user(client, accounts):
     assert_session(client, admin)
 
 
+@pytest.mark.parametrize("tenant_host", [False, True])
+def test_company_bound_superadmin_role_cannot_authenticate(client, accounts, tenant_host):
+    company = accounts[0]
+    invalid_admin = create_user("invalid-company-admin", company=company, role_key="super_admin")
+    invalid_admin.set_password(PASSWORD)
+    db.session.commit()
+
+    host = f"https://{company.slug}.volkaportal.com" if tenant_host else ROOT
+    response = authenticate(client, company.code, identity=invalid_admin.username, host=host)
+
+    assert response.status_code == 200
+    assert_session(client, host=host)
+    attempt = LoginAttempt.query.order_by(LoginAttempt.id.desc()).first()
+    assert not attempt.success and attempt.reason == "invalid_role_scope"
+
+
+def test_global_superadmin_can_authenticate_on_tenant_host(client, accounts):
+    company = accounts[0]
+    admin = create_user("superadmin", role_key="super_admin")
+    admin.set_password(PASSWORD)
+    db.session.commit()
+    host = f"https://{company.slug}.volkaportal.com"
+
+    response = authenticate(client, company.code, identity=admin.username, host=host)
+
+    assert response.status_code == 302
+    assert_session(client, admin, company, host)
+
+
 def test_company_deactivation_revokes_existing_session(client, accounts):
     a, _, user, _ = accounts
     assert authenticate(client, "001").status_code == 302

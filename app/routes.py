@@ -761,6 +761,9 @@ def load_logged_in_user():
     if g.current_user and g.current_user.has_role("company_admin") and not g.current_user.company_id:
         session.clear()
         g.current_user = None
+    if g.current_user and g.current_user.company_id is not None and g.current_user.has_role("super_admin"):
+        session.clear()
+        g.current_user = None
     g.current_company = None
     g.tenant_company = tenant_company if is_tenant_subdomain else tenant_company_from_host(request.host)
     refresh_locale()
@@ -16607,6 +16610,11 @@ def login():
             return render_login_page()
 
         if user and user.is_active and user.check_password(password):
+            if user.company_id is not None and has_role(user, "super_admin"):
+                log_login_attempt(identity, ip_address, False, "invalid_role_scope")
+                db.session.commit()
+                flash("Kullanıcı adı veya şifre hatalı.", "danger")
+                return render_login_page()
             is_super_admin = has_role(user, "super_admin")
             if not is_super_admin:
                 if company is None:
