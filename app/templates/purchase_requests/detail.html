@@ -1,0 +1,61 @@
+{% extends "purchase_requests/base.html" %}
+{% block title %}{{ record.record_no }}{% endblock %}
+{% macro action_form(endpoint, label, icon) %}
+<form method="post" action="{{ url_for(endpoint, record_id=record.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="version_id" value="{{ record.version_id }}">
+  <button class="btn btn-primary" type="submit"><i class="bi {{ icon }}" aria-hidden="true"></i> {{ label }}</button>
+</form>
+{% endmacro %}
+{% block app_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+  <div><div class="text-muted small">{{ record.record_no }}</div><h1 class="h3 mb-1">{{ record.title }}</h1><span class="badge text-bg-{{ 'success' if record.status == 'closed' else 'danger' if record.status == 'rejected' else 'warning' if record.status == 'returned' else 'secondary' }}">{{ purchase_statuses[record.status] }}</span></div>
+  <div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Liste</a>{% if can_edit %}<a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.edit', record_id=record.id) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Düzenle</a>{% endif %}</div>
+</div>
+<dl class="row mb-4">
+  <dt class="col-5 col-sm-3">Tür</dt><dd class="col-7 col-sm-9">{{ purchase_kinds[record.kind] }}</dd>
+  <dt class="col-5 col-sm-3">Talep sahibi</dt><dd class="col-7 col-sm-9">{{ record.requester.full_name or record.requester.username }}</dd>
+  <dt class="col-5 col-sm-3">Miktar</dt><dd class="col-7 col-sm-9">{{ record.quantity }} {{ record.unit }}</dd>
+  <dt class="col-5 col-sm-3">Tahmini tutar</dt><dd class="col-7 col-sm-9">{{ record.estimated_total if record.estimated_total is not none else '-' }} {% if record.estimated_total is not none %}{{ record.currency }}{% endif %}</dd>
+  <dt class="col-5 col-sm-3">İhtiyaç tarihi</dt><dd class="col-7 col-sm-9">{{ record.needed_by.strftime('%d.%m.%Y') if record.needed_by else '-' }}</dd>
+  <dt class="col-5 col-sm-3">Satın alma onayı</dt><dd class="col-7 col-sm-9">{{ (record.purchasing_approver.full_name or record.purchasing_approver.username) if record.purchasing_approver else '-' }}</dd>
+  <dt class="col-5 col-sm-3">Yönetici onayı</dt><dd class="col-7 col-sm-9">{{ (record.admin_approver.full_name or record.admin_approver.username) if record.admin_approver else '-' }}</dd>
+</dl>
+<section class="mb-4" aria-labelledby="purchase-description-heading"><h2 class="h5" id="purchase-description-heading">Açıklama</h2><p class="text-break" style="white-space: pre-wrap">{{ record.description }}</p></section>
+<section class="mb-4" aria-labelledby="purchase-justification-heading"><h2 class="h5" id="purchase-justification-heading">Gerekçe</h2><p class="text-break" style="white-space: pre-wrap">{{ record.justification }}</p></section>
+{% if record.status in ('returned', 'rejected') %}<div class="alert alert-{{ 'warning' if record.status == 'returned' else 'danger' }}" role="status"><strong>{{ purchase_statuses[record.status] }}:</strong> {{ record.decision_reason }}</div>{% endif %}
+{% if can_edit or can_purchase or can_admin %}
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% if can_edit %}{{ action_form('purchase_requests.submit', 'Onaya gönder', 'bi-send') }}{% endif %}
+  {% if can_purchase %}{{ action_form('purchase_requests.approve_purchase', 'Onayla ve şirket adminine gönder', 'bi-check2-circle') }}{% endif %}
+  {% if can_admin %}{{ action_form('purchase_requests.approve_admin', 'Onayla ve kapat', 'bi-check2-circle') }}{% endif %}
+</div>
+{% endif %}
+{% if can_purchase or can_admin %}
+<section class="mb-4" aria-labelledby="purchase-decision-heading">
+  <h2 class="h5" id="purchase-decision-heading">İade veya ret</h2>
+  <form method="post" action="{{ url_for('purchase_requests.decide', record_id=record.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="version_id" value="{{ record.version_id }}">
+    <label class="form-label" for="purchase-reason">Gerekçe *</label>
+    <textarea class="form-control" id="purchase-reason" name="reason" maxlength="1000" rows="3" required></textarea>
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      <button class="btn btn-outline-secondary" type="submit" name="action" value="returned"><i class="bi bi-arrow-return-left" aria-hidden="true"></i> Düzeltme için talep sahibine iade et</button>
+      <button class="btn btn-outline-danger" type="submit" name="action" value="rejected"><i class="bi bi-x-circle" aria-hidden="true"></i> Reddet</button>
+    </div>
+  </form>
+</section>
+{% endif %}
+<section aria-labelledby="purchase-history-heading">
+  <h2 class="h5" id="purchase-history-heading">Karar geçmişi</h2>
+  <ol class="list-group list-group-numbered mb-4">
+    {% for decision in record.decisions %}
+      <li class="list-group-item">
+        <div class="d-flex flex-wrap justify-content-between gap-1"><strong>{{ purchase_actions[decision.action] }}</strong><time class="text-muted small">{{ decision.created_at.strftime('%d.%m.%Y %H:%M') }} UTC</time></div>
+        <div class="small">{{ decision.actor.full_name or decision.actor.username }}</div>
+        {% if decision.reason %}<div class="text-break mt-1" style="white-space: pre-wrap">{{ decision.reason }}</div>{% endif %}
+      </li>
+    {% else %}<li class="list-group-item text-muted">Henüz karar yok.</li>{% endfor %}
+  </ol>
+</section>
+{% endblock %}

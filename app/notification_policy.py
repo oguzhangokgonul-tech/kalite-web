@@ -22,6 +22,8 @@ def _default(label, days=(7, 0), module=None):
 
 
 POLICY_DEFAULTS = {
+    "payment-receivable": {**_default("Alınacak ödeme", (7, 1, 0), "payment_tracking"), "email": False},
+    "payment-payable": {**_default("Yapılacak ödeme", (7, 1, 0), "payment_tracking"), "email": False},
     "action": _default("Aksiyon"),
     "sub-action": _default("Alt aksiyon"),
     "action-approval": _default("Aksiyon kapanış onayı"),

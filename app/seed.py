@@ -6,6 +6,12 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "payments.view", "label": "Ödeme kayıtlarını görüntüleme", "group": "Ödemeler", "description": "Şirketin alınacak ve yapılacak ödeme kayıtlarını ve PDF belgelerini görür."},
+    {"key": "payments.manage", "label": "Ödeme kayıtlarını yönetme", "group": "Ödemeler", "description": "Kayıt, gerçekleşen tutar, sorumlu ve PDF belgelerini yönetir."},
+    {"key": "purchase.view", "label": "Kendi satın alma taleplerini görüntüleme", "group": "Satın Alma", "description": "Kendi açtığı talepleri görüntüler."},
+    {"key": "purchase.create", "label": "Satın alma talebi oluşturma", "group": "Satın Alma", "description": "Malzeme veya hizmet talebi açar ve iade edilen talebini düzeltir."},
+    {"key": "purchase.view_all", "label": "Şirket satın alma taleplerini görüntüleme", "group": "Satın Alma", "description": "Şirketteki tüm satın alma taleplerini görüntüler."},
+    {"key": "purchase.approve", "label": "Satın alma ilk onayı", "group": "Satın Alma", "description": "Satın alma aşamasındaki talepleri değerlendirir."},
     {"key": "shift_handover.view", "label": "İlgili vardiya notlarını görüntüleme", "group": "Vardiya Devir Teslim", "description": "Tarafı olduğu vardiya kayıtlarını görüntüler."},
     {"key": "shift_handover.view_all", "label": "Şirket vardiya notlarını görüntüleme", "group": "Vardiya Devir Teslim", "description": "Seçili şirketin tüm vardiya kayıtlarını görüntüler."},
     {"key": "shift_handover.create", "label": "Vardiya notu oluşturma", "group": "Vardiya Devir Teslim", "description": "Kendi taslaklarını oluşturur, düzenler ve gönderir."},
@@ -1758,9 +1764,38 @@ for role_definition in ROLE_DEFINITIONS:
 
 
 # Include assigned-worker permissions too, so all tenant roles can be delegated.
+PAYMENT_ROLE_PERMISSIONS = {
+    "management_representative": ("payments.view", "payments.manage"),
+    "management": ("payments.view", "payments.manage"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        key for key in PAYMENT_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if key not in role_definition["permissions"]
+    )
+
+PURCHASE_ROLE_PERMISSIONS = {
+    "management_representative": ("purchase.view", "purchase.create"),
+    "management": ("purchase.view", "purchase.create"),
+    "department_manager": ("purchase.view", "purchase.create"),
+    "department_staff": ("purchase.view", "purchase.create"),
+    "viewer": ("purchase.view",),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        key for key in PURCHASE_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if key not in role_definition["permissions"]
+    )
+ROLE_DEFINITIONS += ({
+    "key": "purchasing_approver",
+    "name": "Satın Alma Onaylayıcısı",
+    "hierarchy_level": 35,
+    "description": "Şirketin satın alma taleplerinde ilk onayı verir.",
+    "permissions": ["purchase.view", "purchase.create", "purchase.view_all", "purchase.approve"],
+},)
 COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS = {
     "management_representative", "management", "department_manager",
-    "department_staff", "viewer",
+    "department_staff", "viewer", "purchasing_approver",
 }
 ROLE_DEFINITIONS += ({
     "key": "company_admin",
@@ -4170,6 +4205,10 @@ def ensure_runtime_schema():
     from .custody_models import CustodyRecord
     from .shift_handover_schema import ensure_shift_handover_schema
     ensure_shift_handover_schema()
+    from .purchase_schema import ensure_purchase_schema
+    ensure_purchase_schema()
+    from .payment_schema import ensure_payment_schema
+    ensure_payment_schema()
     from .ohs_actions_schema import ensure_ohs_actions_schema
     ensure_ohs_actions_schema()
     from .ohs_notes_models import OhsNote

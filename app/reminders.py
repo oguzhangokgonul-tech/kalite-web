@@ -47,6 +47,8 @@ from .models import (
     DynamicFormAssignment,
     OhsRiskAssessment,
     WorkflowInstanceStep,
+    PaymentRecord,
+    PaymentInstallment,
 )
 from .notifications import (
     unique_users,
@@ -182,6 +184,38 @@ def _send_record_reminders(
         notification_type=notification_type, run_date=run_date,
         email_message=email_message, email_details=details, created_at=created_at,
     )
+
+
+def _payment_reminders(company_id, run_date, kinds):
+    stats = {"notifications": 0, "emails": 0}
+    installments = _company_query(PaymentInstallment, company_id).join(PaymentRecord).filter(
+        PaymentRecord.company_id == company_id,
+        PaymentRecord.status == "open",
+        PaymentRecord.archived_at.is_(None),
+        PaymentInstallment.settled_amount < PaymentInstallment.amount,
+        PaymentInstallment.due_date <= run_date + timedelta(days=7),
+    ).all()
+    for installment in installments:
+        record = installment.record
+        kind = "payment-receivable" if record.direction == "receivable" else "payment-payable"
+        if kinds is not None and kind not in kinds:
+            continue
+        if record.responsible_user_id:
+            users = users_by_ids([record.responsible_user_id], company_id)
+        else:
+            users = users_with_permissions(company_id, ("payments.manage",))
+        state, due_text = _due_state(installment.due_date, run_date)
+        created, emails = _send_record_reminders(
+            users, company_id=company_id, kind=kind, record_id=installment.id,
+            title=f"{record.number_label} / {installment.sequence_no}. taksit",
+            message=f"{record.counterparty}: {installment.sequence_no}. taksit için termin {due_text.lower()}.",
+            target_url=f"/odemeler/{record.direction}/{record.id}",
+            due_date=installment.due_date, notification_type=state,
+            run_date=run_date, created_at=record.created_at,
+        )
+        stats["notifications"] += created
+        stats["emails"] += emails
+    return stats
 
 
 def _merge_users(company_id, user_ids=(), permission_keys=()):
@@ -1117,6 +1151,7 @@ def generate_due_reminders(company_id=None, run_date=None, *, kinds=None, persis
     ))
     stats = {"notifications": 0, "emails": 0}
     builders = (
+        ({"payment-receivable", "payment-payable"}, _payment_reminders, (kinds,)),
         ({"action", "action-approval"}, _action_reminders, (days_before,)),
         ({"sub-action"}, _sub_action_reminders, (days_before,)),
         ({"dof"}, _dof_reminders, (days_before,)),

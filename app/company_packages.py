@@ -41,6 +41,8 @@ ISO_CORE_MODULE_KEYS = {
     "swot",
     "pestle",
     "supplier_management",
+    "purchase_requests",
+    "payment_tracking",
     "report_center",
     "integration_management",
     "documents",

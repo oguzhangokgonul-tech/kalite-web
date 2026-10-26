@@ -1,0 +1,41 @@
+{% extends "payments/base.html" %}
+{% block title %}{{ 'Ödeme Kaydını Düzenle' if record else 'Yeni Ödeme Kaydı' }}{% endblock %}
+{% block app_content %}
+<div class="payment-page payment-form-page">
+  <header class="payment-page-header">
+    <div>
+      <a class="payment-back" href="{{ url_for('payments.detail', direction=direction, record_id=record.id) if record else url_for('payments.dashboard', direction=direction) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ payment_directions[direction] }}</a>
+      <h1>{{ 'Kaydı Düzenle' if record else 'Yeni Kayıt' }}</h1>
+    </div>
+  </header>
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('payments.edit', direction=direction, record_id=record.id) if record else url_for('payments.create', direction=direction) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if record %}<input type="hidden" name="version_id" value="{{ record.version_id }}">{% endif %}
+    <div class="payment-form-grid">
+      <div class="payment-field payment-field-wide"><label for="payment-counterparty">{{ 'Müşteri' if direction == 'receivable' else 'Tedarikçi / Alacaklı' }} *</label><input class="form-control" id="payment-counterparty" name="counterparty" maxlength="180" value="{{ values.get('counterparty', '') or '' }}" required></div>
+      <div class="payment-field payment-field-wide"><label for="payment-description">Ödeme konusu *</label><input class="form-control" id="payment-description" name="description" maxlength="500" value="{{ values.get('description', '') or '' }}" required></div>
+      <div class="payment-field"><label for="payment-amount">Toplam tutar *</label><input class="form-control" id="payment-amount" name="amount" inputmode="decimal" value="{{ values.get('amount', '') or '' }}" {% if plan_locked %}readonly{% endif %} required></div>
+      <div class="payment-field"><label for="payment-currency">Para birimi *</label><select class="form-select" id="payment-currency" name="currency" {% if plan_locked %}disabled{% endif %} required>{% for currency in ('TRY','USD','EUR') %}<option value="{{ currency }}" {% if values.get('currency', 'TRY') == currency %}selected{% endif %}>{{ currency }}</option>{% endfor %}</select>{% if plan_locked %}<input type="hidden" name="currency" value="{{ record.currency }}">{% endif %}</div>
+      <div class="payment-field"><label for="payment-method">Ödeme seçeneği *</label><select class="form-select" id="payment-method" name="payment_method" {% if plan_locked %}disabled{% endif %} required>{% for key, label in payment_methods.items() %}<option value="{{ key }}" {% if values.get('payment_method', 'bank_transfer') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>{% if plan_locked %}<input type="hidden" name="payment_method" value="{{ record.payment_method }}">{% endif %}</div>
+      <div class="payment-field"><label for="payment-responsible">Takip / teyit sorumlusu</label><select class="form-select" id="payment-responsible" name="responsible_user_id"><option value="">Atanmadı</option>{% for user in responsibles %}<option value="{{ user.id }}" {% if values.get('responsible_user_id', '')|string == user.id|string %}selected{% endif %}>{{ user.full_name }}</option>{% endfor %}</select></div>
+      <section class="payment-plan-editor" aria-labelledby="payment-plan-title">
+        <div class="payment-plan-heading">
+          <div><h2 id="payment-plan-title">Taksit planı</h2><p>Her taksit için tarih ve tutar girin. Taksitlerin toplamı ödeme tutarına eşit olmalı.</p></div>
+          <div class="payment-plan-count"><label for="payment-installment-count">Taksit sayısı</label><input class="form-control" id="payment-installment-count" name="installment_count" type="number" min="1" max="24" value="{{ schedule_rows|length }}" {% if plan_locked %}disabled{% endif %}></div>
+        </div>
+        <div id="payment-installment-rows" class="payment-plan-rows">
+          {% for item in schedule_rows %}<div class="payment-plan-row"><span class="payment-plan-number">{{ loop.index }}. taksit</span><div><label for="payment-date-{{ loop.index }}">Tarih</label><input class="form-control" id="payment-date-{{ loop.index }}" name="installment_due_date" type="date" value="{{ item.due_date }}" {% if plan_locked %}disabled{% endif %} required></div><div><label for="payment-part-{{ loop.index }}">Tutar</label><input class="form-control" id="payment-part-{{ loop.index }}" name="installment_amount" inputmode="decimal" value="{{ item.amount }}" {% if plan_locked %}disabled{% endif %} required></div></div>{% endfor %}
+        </div>
+        {% if plan_locked %}<p class="payment-field-hint">Gerçekleşme kaydı olduğu için plan sabit. Kalan taksitlere detay sayfasından işlem girin.</p>{% else %}<button class="btn btn-sm btn-outline-secondary" id="payment-even-split" type="button"><i class="bi bi-distribute-horizontal" aria-hidden="true"></i> Tutarı eşit dağıt</button>{% endif %}
+      </section>
+      <div class="payment-field"><label for="payment-reference">Fatura / belge no</label><input class="form-control" id="payment-reference" name="reference_no" maxlength="100" value="{{ values.get('reference_no', '') or '' }}"></div>
+      <div class="payment-field"><label for="payment-project">Proje no</label><input class="form-control" id="payment-project" name="project_no" maxlength="100" value="{{ values.get('project_no', '') or '' }}"></div>
+      <div class="payment-field payment-field-wide"><label for="payment-note">Not</label><textarea class="form-control" id="payment-note" name="note" maxlength="3000" rows="3">{{ values.get('note', '') or '' }}</textarea></div>
+      {% if not record %}<div class="payment-field payment-field-wide"><label for="payment-pdf">PDF belge</label><input class="form-control" id="payment-pdf" type="file" name="pdf" accept=".pdf,application/pdf"><span class="payment-field-hint">Fatura, sözleşme veya dekont. En fazla 10 MB.</span></div>{% endif %}
+    </div>
+    <div class="payment-form-actions"><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> {{ 'Kaydet' if record else 'Kayıt Oluştur' }}</button><a class="btn btn-outline-secondary" href="{{ url_for('payments.detail', direction=direction, record_id=record.id) if record else url_for('payments.dashboard', direction=direction) }}">Vazgeç</a></div>
+  </form>
+</div>
+{% if not plan_locked %}<script defer src="{{ url_for('static', filename='js/payment-plan.js', v=config.ASSET_VERSION) }}"></script>{% endif %}
+{% endblock %}

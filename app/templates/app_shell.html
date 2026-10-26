@@ -57,6 +57,7 @@
   {% set management_review_active = request.endpoint in ['main.management_review_dashboard', 'main.create_management_review', 'main.edit_management_review', 'main.management_review_report', 'main.delete_management_review'] %}
   {% set supplier_management_active = request.endpoint in ['main.supplier_dashboard', 'main.create_supplier', 'main.edit_supplier', 'main.evaluate_supplier', 'main.create_supplier_quality_audit', 'main.edit_supplier_quality_audit', 'main.delete_supplier_quality_audit', 'main.create_supplier_survey', 'main.edit_supplier_survey', 'main.delete_supplier_survey', 'main.deactivate_supplier'] %}
   {% set integrations_active = request.endpoint and request.endpoint.startswith('integrations.') %}
+  {% set payment_tracking_active = request.blueprint == 'payments' %}
   {% set mobile_hub_active = request.endpoint in ['pwa.mobile_hub', 'pwa.mobile_qr'] %}
   {% set active_quality_slug = request.view_args.get('slug') if quality_tests_active and request.view_args else '' %}
   {% set quality_test_menu = [
@@ -433,6 +434,22 @@
           <i class="bi bi-truck"></i>
           <span>{{ _("Tedarikçi Değerlendirme") }}</span>
         </a>
+        {% endif %}
+        {% if g.current_company and g.company_module_enabled('purchase_requests') and (g.current_user.has_permission('purchase.view') or g.current_user.has_permission('purchase.create') or g.current_user.has_permission('purchase.approve')) %}
+        <a class="dashboard-nav-item {% if request.blueprint == 'purchase_requests' %}active{% endif %}" href="{{ url_for('purchase_requests.dashboard') }}">
+          <i class="bi bi-bag-check"></i><span>Satın Alma</span>
+        </a>
+        {% endif %}
+        {% if g.current_company and g.company_module_enabled('payment_tracking') and (g.current_user.has_permission('payments.view') or g.current_user.has_permission('payments.manage')) %}
+        <div class="dashboard-nav-group {% if payment_tracking_active %}active{% endif %}">
+          <button class="dashboard-nav-item dashboard-nav-toggle {% if payment_tracking_active %}active{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#paymentsNav" aria-expanded="{{ 'true' if payment_tracking_active else 'false' }}" aria-controls="paymentsNav">
+            <i class="bi bi-wallet2" aria-hidden="true"></i><span>Ödemeler</span><i class="bi bi-chevron-down dashboard-nav-chevron" aria-hidden="true"></i>
+          </button>
+          <div class="dashboard-subnav collapse {% if payment_tracking_active %}show{% endif %}" id="paymentsNav">
+            <a class="dashboard-subnav-item {% if payment_tracking_active and request.view_args and request.view_args.get('direction') == 'receivable' %}active{% endif %}" href="{{ url_for('payments.dashboard', direction='receivable') }}"><i class="bi bi-arrow-down-left-circle" aria-hidden="true"></i><span>Alınacak Ödemeler</span></a>
+            <a class="dashboard-subnav-item {% if payment_tracking_active and request.view_args and request.view_args.get('direction') == 'payable' %}active{% endif %}" href="{{ url_for('payments.dashboard', direction='payable') }}"><i class="bi bi-arrow-up-right-circle" aria-hidden="true"></i><span>Yapılacak Ödemeler</span></a>
+          </div>
+        </div>
         {% endif %}
         {% if g.current_company and g.company_module_enabled('integration_management') and g.current_user.has_permission('integrations.view') %}
         <a class="dashboard-nav-item {% if integrations_active %}active{% endif %}" href="{{ url_for('integrations.dashboard') }}">

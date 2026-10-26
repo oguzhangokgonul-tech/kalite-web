@@ -1,0 +1,3 @@
+{% extends "app_shell.html" %}
+{% block topbar_title %}Ödemeler{% endblock %}
+{% block head_extra %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/payment-tracking.css', v=config.ASSET_VERSION) }}">{% endblock %}

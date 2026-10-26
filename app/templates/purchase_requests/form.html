@@ -1,0 +1,61 @@
+{% extends "purchase_requests/base.html" %}
+{% block title %}{{ 'Talebi Düzenle' if record else 'Yeni Satın Alma Talebi' }}{% endblock %}
+{% block app_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h3 mb-0">{{ 'Talebi Düzenle' if record else 'Yeni Satın Alma Talebi' }}</h1>
+  <a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.detail', record_id=record.id) if record else url_for('purchase_requests.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Geri</a>
+</div>
+{% if record and record.status == 'returned' %}<div class="alert alert-warning" role="status"><strong>İade gerekçesi:</strong> {{ record.decision_reason }}</div>{% endif %}
+<form method="post" action="{{ url_for('purchase_requests.edit', record_id=record.id) if record else url_for('purchase_requests.create') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="version_id" value="{{ values.get('version_id', record.version_id if record else 1) }}">
+  {% if not record %}<input type="hidden" name="request_token" value="{{ request_token }}">{% endif %}
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      <label class="form-label" for="purchase-kind">Talep türü *</label>
+      <select class="form-select" id="purchase-kind" name="kind" required>
+        <option value="">Seçin</option>
+        {% for key, label in purchase_kinds.items() %}<option value="{{ key }}" {% if values.get('kind') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-6">
+      <label class="form-label" for="purchase-needed">İhtiyaç tarihi</label>
+      <input class="form-control" id="purchase-needed" type="date" name="needed_by" value="{{ values.get('needed_by', '') or '' }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="purchase-title">Başlık *</label>
+      <input class="form-control" id="purchase-title" name="title" maxlength="180" value="{{ values.get('title', '') or '' }}" required>
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="purchase-description">Malzeme veya hizmet açıklaması *</label>
+      <textarea class="form-control" id="purchase-description" name="description" rows="4" maxlength="5000" required>{{ values.get('description', '') or '' }}</textarea>
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="purchase-justification">Talep gerekçesi *</label>
+      <textarea class="form-control" id="purchase-justification" name="justification" rows="3" maxlength="3000" required>{{ values.get('justification', '') or '' }}</textarea>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label class="form-label" for="purchase-quantity">Miktar *</label>
+      <input class="form-control" id="purchase-quantity" type="number" name="quantity" min="0.001" max="999999999.999" step="0.001" value="{{ values.get('quantity', '1') }}" required>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label class="form-label" for="purchase-unit">Birim *</label>
+      <input class="form-control" id="purchase-unit" name="unit" maxlength="40" value="{{ values.get('unit', '') or '' }}" required>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label class="form-label" for="purchase-total">Tahmini toplam tutar</label>
+      <input class="form-control" id="purchase-total" type="number" name="estimated_total" min="0" max="999999999999.99" step="0.01" value="{{ values.get('estimated_total', '') or '' }}">
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <label class="form-label" for="purchase-currency">Para birimi</label>
+      <select class="form-select" id="purchase-currency" name="currency">
+        {% for currency in ('TRY', 'USD', 'EUR') %}<option value="{{ currency }}" {% if values.get('currency', 'TRY') == currency %}selected{% endif %}>{{ currency }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2 mt-4">
+    <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> {{ 'Değişiklikleri Kaydet' if record else 'Taslağı Kaydet' }}</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.detail', record_id=record.id) if record else url_for('purchase_requests.dashboard') }}">Vazgeç</a>
+  </div>
+</form>
+{% endblock %}

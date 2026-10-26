@@ -1,0 +1,18 @@
+{% extends "payments/base.html" %}
+{% block title %}{{ 'Tahsilat Gir' if direction == 'receivable' else 'Ödeme Gir' }}{% endblock %}
+{% block app_content %}
+<div class="payment-page payment-transaction-page">
+  <header class="payment-page-header"><div><a class="payment-back" href="{{ url_for('payments.detail', direction=direction, record_id=record.id) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ record.number_label }}</a><h1>{{ 'Tahsilat Gir' if direction == 'receivable' else 'Ödeme Gir' }}</h1><p>{{ record.counterparty }} · {{ installment.sequence_no }}. taksit</p></div></header>
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <div class="payment-amount-band"><div><span>Taksit tutarı</span><strong>{{ '%.2f'|format(installment.amount) }} {{ record.currency }}</strong></div><div><span>Gerçekleşen</span><strong>{{ '%.2f'|format(installment.settled_amount) }} {{ record.currency }}</strong></div><div><span>Kalan</span><strong>{{ '%.2f'|format(installment.remaining_amount) }} {{ record.currency }}</strong></div></div>
+  <form method="post" class="payment-transaction-form" action="{{ url_for('payments.installment_transaction', direction=direction, record_id=record.id, installment_id=installment.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ record.version_id }}">
+    <div class="payment-field"><label for="movement-amount">Bu işlem tutarı ({{ record.currency }}) *</label><input class="form-control" id="movement-amount" name="amount" inputmode="decimal" value="{{ values.get('amount', '') }}" required></div>
+    <div class="payment-field"><label for="movement-date">Gerçekleşme tarihi *</label><input class="form-control" id="movement-date" name="occurred_on" type="date" value="{{ values.get('occurred_on', payment_today.isoformat()) }}" required></div>
+    {% if record.payment_method in ('check', 'promissory_note') %}<div class="payment-field"><label for="movement-instrument">{{ 'Çek' if record.payment_method == 'check' else 'Senet' }} / belge no</label><input class="form-control" id="movement-instrument" name="instrument_no" maxlength="100" value="{{ values.get('instrument_no', '') }}"></div>{% endif %}
+    <div class="payment-field"><label for="movement-note">Not</label><textarea class="form-control" id="movement-note" name="note" maxlength="500" rows="3">{{ values.get('note', '') }}</textarea></div>
+    <p class="payment-field-hint">{{ payment_methods.get(record.payment_method, 'Belirtilmedi') }} seçimi tek başına tahsilat veya ödeme sayılmaz. Yalnız gerçekleşen tutarı kaydedin.</p>
+    <div class="payment-form-actions"><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> Gerçekleşmeyi Kaydet</button><a class="btn btn-outline-secondary" href="{{ url_for('payments.detail', direction=direction, record_id=record.id) }}">Vazgeç</a></div>
+  </form>
+</div>
+{% endblock %}

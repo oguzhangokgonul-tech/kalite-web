@@ -1,0 +1,42 @@
+{% extends "purchase_requests/base.html" %}
+{% block title %}Satın Alma Talepleri{% endblock %}
+{% block app_content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h3 mb-0">Satın Alma Talepleri</h1>
+  {% if can_create %}<a class="btn btn-primary" href="{{ url_for('purchase_requests.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Satın Alma Talebi Oluştur</a>{% endif %}
+</div>
+{% if show_setup_notice %}<div class="alert alert-warning" role="status">Satın alma onayı için bir kullanıcıya <strong>Satın Alma Onaylayıcısı</strong> rolü atayın. <a href="{{ url_for('main.users') }}">Kullanıcılar</a></div>{% endif %}
+<form method="get" class="row g-2 align-items-end mb-3" aria-label="Talep filtreleri">
+  <div class="col-12 col-sm-auto">
+    <label class="form-label" for="purchase-status">Durum</label>
+    <select class="form-select" id="purchase-status" name="status">
+      <option value="all">Tümü</option>
+      {% for key, label in purchase_statuses.items() %}<option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-12 col-sm-auto"><button class="btn btn-outline-secondary w-100" type="submit"><i class="bi bi-funnel" aria-hidden="true"></i> Filtrele</button></div>
+</form>
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th scope="col">Talep</th><th scope="col">Tür</th><th scope="col">Talep sahibi</th><th scope="col">Durum</th><th scope="col">İhtiyaç tarihi</th></tr></thead>
+    <tbody>
+    {% for item in pagination.items %}
+      <tr>
+        <td><a class="fw-semibold" href="{{ url_for('purchase_requests.detail', record_id=item.id) }}">{{ item.title }}</a><div class="small text-muted">{{ item.record_no }}</div></td>
+        <td>{{ purchase_kinds[item.kind] }}</td>
+        <td>{{ item.requester.full_name or item.requester.username }}</td>
+        <td>{{ purchase_statuses[item.status] }}</td>
+        <td>{{ item.needed_by.strftime('%d.%m.%Y') if item.needed_by else '-' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="5" class="text-center text-muted py-4">Talep bulunamadı.{% if can_create %}<div class="mt-2"><a class="btn btn-outline-primary" href="{{ url_for('purchase_requests.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Satın Alma Talebi Oluştur</a></div>{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if pagination.pages > 1 %}
+<nav aria-label="Talep sayfaları" class="d-flex justify-content-between gap-2">
+  {% if pagination.has_prev %}<a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.dashboard', status=status, page=pagination.prev_num) }}"><i class="bi bi-chevron-left" aria-hidden="true"></i> Önceki</a>{% else %}<span></span>{% endif %}
+  <span class="align-self-center">{{ pagination.page }} / {{ pagination.pages }}</span>
+  {% if pagination.has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('purchase_requests.dashboard', status=status, page=pagination.next_num) }}">Sonraki <i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

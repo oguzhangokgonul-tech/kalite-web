@@ -1,0 +1,55 @@
+{% extends "payments/base.html" %}
+{% block title %}{{ record.number_label }}{% endblock %}
+{% block app_content %}
+<div class="payment-page payment-detail-page">
+  <header class="payment-page-header">
+    <div><a class="payment-back" href="{{ url_for('payments.dashboard', direction=direction) }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> {{ payment_directions[direction] }}</a><div class="payment-heading-line"><h1>{{ record.counterparty }}</h1><span class="payment-status payment-status-{{ record.status }}">{{ payment_statuses[record.status] }}</span></div><p>{{ record.number_label }} · {{ record.description }}</p></div>
+    {% if payment_can_manage and not record.archived_at and record.status != 'cancelled' %}<a class="btn btn-outline-primary" href="{{ url_for('payments.edit', direction=direction, record_id=record.id) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Düzenle</a>{% endif %}
+  </header>
+  {% if record.archived_at %}<div class="alert alert-secondary" role="status">Bu kayıt arşivde. Belgeler ve işlem geçmişi korunuyor.</div>{% endif %}
+  <div class="payment-amount-band">
+    <div><span>Toplam</span><strong>{{ '%.2f'|format(record.amount) }} {{ record.currency }}</strong></div>
+    <div><span>Gerçekleşen</span><strong>{{ '%.2f'|format(record.settled_amount) }} {{ record.currency }}</strong></div>
+    <div><span>Kalan</span><strong>{{ '%.2f'|format(record.remaining_amount) }} {{ record.currency }}</strong></div>
+  </div>
+  <div class="payment-detail-grid">
+    <section class="payment-section"><h2>Kayıt Bilgileri</h2><dl class="payment-facts">
+      <div><dt>Ödeme seçeneği</dt><dd>{{ payment_methods.get(record.payment_method, 'Belirtilmedi') }}</dd></div>
+      <div><dt>Taksit sayısı</dt><dd>{{ record.installments|length }}</dd></div>
+      <div><dt>Sıradaki termin</dt><dd><time datetime="{{ record.due_date.isoformat() }}">{{ record.due_date.strftime('%d.%m.%Y') }}</time>{% if record.status == 'open' and record.due_date < payment_today %} <span class="payment-due-note">{{ (payment_today - record.due_date).days }} gün geçti</span>{% endif %}</dd></div>
+      <div><dt>Takip / teyit sorumlusu</dt><dd>{{ record.responsible_user.full_name if record.responsible_user else 'Atanmadı' }}</dd></div>
+      <div><dt>Fatura / belge no</dt><dd>{{ record.reference_no or '—' }}</dd></div>
+      <div><dt>Proje no</dt><dd>{{ record.project_no or '—' }}</dd></div>
+      <div><dt>Son gerçekleşme</dt><dd>{{ record.settled_on.strftime('%d.%m.%Y') if record.settled_on else '—' }}</dd></div>
+      <div><dt>Teyit eden</dt><dd>{{ record.confirmed_by_user.full_name if record.confirmed_by_user else '—' }}</dd></div>
+    </dl>{% if record.note %}<div class="payment-note"><strong>Not</strong><p>{{ record.note }}</p></div>{% endif %}</section>
+    <section class="payment-section"><h2>PDF Belgeler</h2>
+      <ul class="payment-documents">{% for file in record.attachments if file.is_active %}<li><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i><a href="{{ url_for('payments.download_document', direction=direction, record_id=record.id, file_id=file.id) }}">{{ file.original_name }}</a><span>{{ (file.size_bytes / 1024)|round(0)|int }} KB</span>{% if payment_can_manage and not record.archived_at %}<form method="post" action="{{ url_for('payments.remove_document', direction=direction, record_id=record.id, file_id=file.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-sm btn-outline-danger" type="submit" aria-label="{{ file.original_name }} belgesini kaldır" title="Belgeyi kaldır"><i class="bi bi-trash" aria-hidden="true"></i></button></form>{% endif %}</li>{% else %}<li class="payment-no-docs">Henüz PDF eklenmedi.</li>{% endfor %}</ul>
+      {% if payment_can_manage and not record.archived_at %}<form method="post" enctype="multipart/form-data" action="{{ url_for('payments.upload_document', direction=direction, record_id=record.id) }}" class="payment-upload-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><label for="payment-detail-pdf">PDF ekle</label><input class="form-control" id="payment-detail-pdf" type="file" name="pdf" accept=".pdf,application/pdf" required><button class="btn btn-outline-primary" type="submit"><i class="bi bi-upload" aria-hidden="true"></i> Yükle</button></form>{% endif %}
+    </section>
+  </div>
+
+  <section class="payment-section" id="taksitler"><div class="payment-section-heading"><h2>Taksit Planı</h2>{% if payment_can_manage and record.status == 'open' and not record.archived_at %}{% for item in record.installments if item.remaining_amount > 0 %}{% if loop.first %}<a class="btn btn-primary" href="{{ url_for('payments.installment_transaction', direction=direction, record_id=record.id, installment_id=item.id) }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> {{ 'Tahsilat Gir' if direction == 'receivable' else 'Ödeme Gir' }}</a>{% endif %}{% endfor %}{% endif %}</div>
+    <div class="payment-installment-list">{% for item in record.installments %}<div class="payment-installment-row">
+      <div class="payment-installment-id"><strong>{{ item.sequence_no }}. taksit</strong><span>{{ item.due_date.strftime('%d.%m.%Y') }}</span>{% if record.status == 'open' and item.remaining_amount > 0 and item.due_date < payment_today %}<small class="payment-due-note">{{ (payment_today - item.due_date).days }} gün gecikti</small>{% endif %}</div>
+      <div><small>Tutar</small><strong>{{ '%.2f'|format(item.amount) }} {{ record.currency }}</strong></div>
+      <div><small>Gerçekleşen</small><strong>{{ '%.2f'|format(item.settled_amount) }} {{ record.currency }}</strong></div>
+      <div><small>Kalan</small><strong>{{ '%.2f'|format(item.remaining_amount) }} {{ record.currency }}</strong></div>
+      <div class="payment-installment-action">{% if item.remaining_amount == 0 %}<span class="payment-status payment-status-closed">Tamamlandı</span>{% elif payment_can_manage and record.status == 'open' and not record.archived_at %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('payments.installment_transaction', direction=direction, record_id=record.id, installment_id=item.id) }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Kısmi İşlem Gir</a>{% else %}<span class="payment-status payment-status-open">Açık</span>{% endif %}</div>
+    </div>{% endfor %}</div>
+    {% set legacy_total = record.installments|sum(attribute='legacy_settled_amount') %}{% if legacy_total %}<p class="payment-field-hint">Önceki sistemden aktarılan gerçekleşen toplam: {{ '%.2f'|format(legacy_total) }} {{ record.currency }}. Tekil geçmiş hareket tarihleri bilinmiyor.</p>{% endif %}
+  </section>
+
+  <section class="payment-section"><h2>İşlem Geçmişi</h2>
+    <div class="payment-movement-list">{% for movement in record.transactions %}<div class="payment-movement-row">
+      <div><strong>{{ movement.occurred_on.strftime('%d.%m.%Y') }}</strong><span>{{ movement.installment.sequence_no }}. taksit · {{ movement.created_by_user.full_name }}</span>{% if movement.note %}<small>{{ movement.note }}</small>{% endif %}{% if movement.instrument_no %}<small>Belge / çek / senet no: {{ movement.instrument_no }}</small>{% endif %}</div>
+      <strong class="{{ 'text-danger' if movement.amount < 0 else 'text-success' }}">{{ '%+.2f'|format(movement.amount) }} {{ record.currency }}</strong>
+      {% if payment_can_manage and movement.amount > 0 and movement.id not in reversed_ids and not record.archived_at and record.status != 'cancelled' %}<form method="post" action="{{ url_for('payments.reverse_transaction', direction=direction, record_id=record.id, movement_id=movement.id) }}" class="payment-reverse-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ record.version_id }}"><input class="form-control form-control-sm" name="reason" maxlength="500" aria-label="{{ movement.id }} numaralı hareket için geri alma gerekçesi" placeholder="Geri alma gerekçesi" required><button class="btn btn-sm btn-outline-danger" type="submit">Geri Al</button></form>{% endif %}
+    </div>{% else %}<p class="payment-empty-inline">Henüz yeni işlem kaydedilmedi.</p>{% endfor %}</div>
+  </section>
+
+  {% if payment_can_manage and not record.archived_at %}
+    {% if record.status == 'open' %}<form method="post" action="{{ url_for('payments.cancel', direction=direction, record_id=record.id) }}" class="payment-final-action"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ record.version_id }}"><label for="payment-cancel-reason">Kayıt iptal gerekçesi</label><div><input class="form-control" id="payment-cancel-reason" name="reason" maxlength="500" required><button class="btn btn-outline-danger" type="submit"><i class="bi bi-x-circle" aria-hidden="true"></i> İptal Et</button></div></form>{% else %}<form method="post" action="{{ url_for('payments.archive', direction=direction, record_id=record.id) }}" class="payment-final-action"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="version_id" value="{{ record.version_id }}"><button class="btn btn-outline-secondary" type="submit"><i class="bi bi-archive" aria-hidden="true"></i> Arşivle</button></form>{% endif %}
+  {% endif %}
+</div>
+{% endblock %}

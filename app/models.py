@@ -13,6 +13,8 @@ from .context_models import OrganizationContext
 from .opportunity_models import Opportunity
 from .custody_models import CustodyRecord
 from .shift_handover_models import ShiftHandover
+from .purchase_models import PurchaseRequest, PurchaseRequestItem, PurchaseDecision
+from .payment_models import PaymentRecord, PaymentAttachment, PaymentInstallment, PaymentTransaction
 from .objective_plan_models import ObjectivePlanLink
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
@@ -421,6 +423,12 @@ COMPANY_MODULE_CATALOG += (
     {"key": "projects", "name": "Proje Yönetimi", "description": "Proje planları, sorumlular, görevler ve ilerleme takibi.", "icon": "bi-kanban", "sort_order": 84, "parent_key": None},
     {"key": "swot", "name": "SWOT Analizi", "description": "Güçlü ve zayıf yönler, fırsatlar, tehditler ve gözden geçirme kayıtları.", "icon": "bi-grid-1x2", "sort_order": 85, "parent_key": None},
     {"key": "pestle", "name": "PESTLE Analizi", "description": "Dış bağlam faktörleri, dayanaklar ve gözden geçirme kayıtları.", "icon": "bi-globe2", "sort_order": 86, "parent_key": None},
+)
+COMPANY_MODULE_CATALOG += (
+    {"key": "purchase_requests", "name": "Satın Alma", "description": "Malzeme ve hizmet taleplerinin satın alma ve şirket admini onayları.", "icon": "bi-bag-check", "sort_order": 87, "parent_key": None},
+)
+COMPANY_MODULE_CATALOG += (
+    {"key": "payment_tracking", "name": "Ödemeler", "description": "Alınacak ve yapılacak ödemelerin vade, sorumlu ve belge takibi.", "icon": "bi-wallet2", "sort_order": 88, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (

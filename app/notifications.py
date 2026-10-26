@@ -165,6 +165,7 @@ def add_user_notification(
     target_url=None,
     due_date=None,
     email_event=None,
+    allow_platform_admin=False,
 ):
     if user is None or not getattr(user, "is_active", True):
         return None
@@ -175,7 +176,9 @@ def add_user_notification(
             or getattr(document_revision_request, "company_id", None)
             or getattr(user, "company_id", None)
         )
-    if getattr(user, "company_id", None) != company_id:
+    if (getattr(user, "company_id", None) != company_id and
+            not (allow_platform_admin and company_id is not None and
+                 getattr(user, "company_id", None) is None and user.has_role("super_admin"))):
         return None
     records = (action, dof, document_revision_request)
     if any(record is not None and record.company_id != company_id for record in records):

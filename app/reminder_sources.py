@@ -20,6 +20,8 @@ from .notifications import unique_users, user_has_permission
 # Read access is sufficient only for an explicitly assigned task. Permission
 # fallback is separately restricted to the managers who can perform the work.
 SOURCE_ACCESS = {
+    "payment-receivable": ("payment_tracking", ("payments.view", "payments.manage")),
+    "payment-payable": ("payment_tracking", ("payments.view", "payments.manage")),
     "action": (None, ("actions.comment_assigned", "actions.view_all", "actions.edit", "actions.request_close_assigned")),
     "action-approval": (None, ("actions.approve_closure",)),
     "sub-action": (None, ("actions.comment_assigned", "actions.view_all", "actions.edit", "actions.request_close_assigned")),

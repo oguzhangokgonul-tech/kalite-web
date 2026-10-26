@@ -1,0 +1,57 @@
+{% extends "payments/base.html" %}
+{% block title %}{{ payment_directions[direction] }}{% endblock %}
+{% block app_content %}
+<div class="payment-page">
+  <header class="payment-page-header">
+    <div>
+      <h1>{{ payment_directions[direction] }}</h1>
+      <p>Vadesi gelen kayıtları ve gerçekleşen tutarları takip edin.</p>
+    </div>
+    {% if payment_can_manage %}<a class="btn btn-primary" href="{{ url_for('payments.create', direction=direction) }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Yeni Kayıt</a>{% endif %}
+  </header>
+
+  <div class="payment-summary" aria-label="Ödeme durumu özeti">
+    <a href="{{ url_for('payments.dashboard', direction=direction, status='open') }}" class="payment-summary-item"><span>Açık</span><strong>{{ counts.open }}</strong></a>
+    <a href="{{ url_for('payments.dashboard', direction=direction, status='overdue') }}" class="payment-summary-item payment-summary-overdue"><span>Geciken</span><strong>{{ counts.overdue }}</strong></a>
+    <a href="{{ url_for('payments.dashboard', direction=direction, status='upcoming') }}" class="payment-summary-item payment-summary-upcoming"><span>7 gün içinde</span><strong>{{ counts.upcoming }}</strong></a>
+  </div>
+
+  <form method="get" class="payment-filters" aria-label="Ödeme filtreleri">
+    <div><label for="payment-search">Ara</label><input class="form-control" id="payment-search" name="q" value="{{ search }}" maxlength="100" placeholder="Karşı taraf, konu veya referans"></div>
+    <div><label for="payment-status">Durum</label><select class="form-select" id="payment-status" name="status">
+      {% for key, label in [('open','Açık'),('overdue','Geciken'),('upcoming','7 gün içinde'),('closed','Tamamlandı'),('cancelled','İptal'),('all','Tüm aktif kayıtlar'),('archived','Arşiv')] %}
+      <option value="{{ key }}" {% if status == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select></div>
+    <button class="btn btn-outline-primary" type="submit"><i class="bi bi-funnel" aria-hidden="true"></i> Filtrele</button>
+  </form>
+
+  <div class="payment-list-wrap">
+    <table class="payment-list">
+      <thead><tr><th scope="col">Kayıt / Karşı Taraf</th><th scope="col">Tutar</th><th scope="col">Kalan</th><th scope="col">Termin</th><th scope="col">Takip Sorumlusu</th><th scope="col">Durum</th><th scope="col"><span class="visually-hidden">İşlem</span></th></tr></thead>
+      <tbody>
+      {% for item in pagination.items %}
+        <tr>
+          <td data-label="Kayıt"><a class="payment-record-link" href="{{ url_for('payments.detail', direction=direction, record_id=item.id) }}">{{ item.counterparty }}</a><span class="payment-record-meta">{{ item.number_label }} · {{ item.description }}</span></td>
+          <td data-label="Tutar">{{ '%.2f'|format(item.amount) }} {{ item.currency }}<span class="payment-record-meta">{{ payment_methods.get(item.payment_method, 'Belirtilmedi') }} · {{ item.installments|length }} taksit</span></td>
+          <td data-label="Kalan">{{ '%.2f'|format(item.remaining_amount) }} {{ item.currency }}</td>
+          <td data-label="Termin"><time datetime="{{ item.due_date.isoformat() }}">{{ item.due_date.strftime('%d.%m.%Y') }}</time>{% if item.status == 'open' and item.due_date < payment_today %}<span class="payment-due-note">{{ (payment_today - item.due_date).days }} gün geçti</span>{% endif %}</td>
+          <td data-label="Sorumlu">{{ item.responsible_user.full_name if item.responsible_user else 'Atanmadı' }}</td>
+          <td data-label="Durum"><span class="payment-status payment-status-{{ item.status }}">{{ payment_statuses[item.status] }}</span></td>
+          <td class="payment-row-action"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('payments.detail', direction=direction, record_id=item.id) }}" aria-label="{{ item.number_label }} kaydını aç"><i class="bi bi-arrow-right" aria-hidden="true"></i></a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="payment-empty">Bu filtrede kayıt bulunamadı.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagination.pages > 1 %}
+  <nav class="payment-pagination" aria-label="Ödeme kayıtları sayfaları">
+    {% if pagination.has_prev %}<a class="btn btn-outline-secondary" href="{{ url_for('payments.dashboard', direction=direction, status=status, q=search, page=pagination.prev_num) }}"><i class="bi bi-chevron-left" aria-hidden="true"></i> Önceki</a>{% else %}<span></span>{% endif %}
+    <span>{{ pagination.page }} / {{ pagination.pages }}</span>
+    {% if pagination.has_next %}<a class="btn btn-outline-secondary" href="{{ url_for('payments.dashboard', direction=direction, status=status, q=search, page=pagination.next_num) }}">Sonraki <i class="bi bi-chevron-right" aria-hidden="true"></i></a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

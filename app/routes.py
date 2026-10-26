@@ -2770,6 +2770,14 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "purchase_requests.dashboard": "purchase_requests",
+    "purchase_requests.create": "purchase_requests",
+    "purchase_requests.detail": "purchase_requests",
+    "purchase_requests.edit": "purchase_requests",
+    "purchase_requests.submit": "purchase_requests",
+    "purchase_requests.approve_purchase": "purchase_requests",
+    "purchase_requests.approve_admin": "purchase_requests",
+    "purchase_requests.decide": "purchase_requests",
     "ohs_notes.dashboard": "ohs_actions",
     "ohs_notes.create": "ohs_actions",
     "ohs_notes.detail": "ohs_actions",
@@ -3299,6 +3307,10 @@ def company_module_enabled(module_key):
 
 def endpoint_required_company_module(endpoint=None):
     endpoint = endpoint or request.endpoint
+    if endpoint and endpoint.startswith("payments."):
+        return "payment_tracking"
+    if endpoint and endpoint.startswith("purchase_requests."):
+        return "purchase_requests"
     if endpoint in QUALITY_TEST_ENDPOINTS:
         slug = (request.view_args or {}).get("slug")
         if slug:
@@ -18837,6 +18849,7 @@ def assigned_all_tasks(scope):
     from .org_context import assigned_task_rows as assigned_context_task_rows
     from .opportunities import assigned_task_rows as assigned_opportunity_task_rows
     from .shift_handover import assigned_task_rows as assigned_shift_handover_task_rows
+    from .purchase_requests import assigned_task_rows as assigned_purchase_task_rows
     from .work_permits import assigned_task_rows as assigned_work_permit_task_rows
     from .hazardous_substances import assigned_task_rows as assigned_hazardous_task_rows
     from .environmental_management import assigned_task_rows as assigned_environmental_task_rows
@@ -18883,6 +18896,7 @@ def assigned_all_tasks(scope):
         + assigned_context_task_rows(scope, assigned_task_row)
         + assigned_opportunity_task_rows(scope, assigned_task_row)
         + assigned_shift_handover_task_rows(scope, assigned_task_row)
+        + assigned_purchase_task_rows(scope, assigned_task_row)
         + assigned_work_permit_task_rows(scope, assigned_task_row)
         + assigned_hazardous_task_rows(scope, assigned_task_row)
         + assigned_environmental_task_rows(scope, assigned_task_row)
