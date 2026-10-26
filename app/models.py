@@ -15,6 +15,7 @@ from .custody_models import CustodyRecord
 from .shift_handover_models import ShiftHandover
 from .purchase_models import PurchaseRequest, PurchaseRequestItem, PurchaseDecision
 from .payment_models import PaymentRecord, PaymentAttachment, PaymentInstallment, PaymentTransaction
+from .contract_models import ContractRecord, ContractFile
 from .objective_plan_models import ObjectivePlanLink
 from .notification_models import NotificationEmailBatch, NotificationEmailEvent
 
@@ -429,6 +430,7 @@ COMPANY_MODULE_CATALOG += (
 )
 COMPANY_MODULE_CATALOG += (
     {"key": "payment_tracking", "name": "Ödemeler", "description": "Alınacak ve yapılacak ödemelerin vade, sorumlu ve belge takibi.", "icon": "bi-wallet2", "sort_order": 88, "parent_key": None},
+    {"key": "contracts", "name": "Sözleşmeler", "description": "İmzalı sözleşmelerin ve taranmış belgelerin güvenli kaydı.", "icon": "bi-file-earmark-lock", "sort_order": 89, "parent_key": None},
 )
 COMPANY_MODULE_KEYS = tuple(item["key"] for item in COMPANY_MODULE_CATALOG)
 CHANGE_REQUEST_TYPES = (

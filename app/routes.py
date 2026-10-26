@@ -3307,6 +3307,8 @@ def company_module_enabled(module_key):
 
 def endpoint_required_company_module(endpoint=None):
     endpoint = endpoint or request.endpoint
+    if endpoint and endpoint.startswith("contracts."):
+        return "contracts"
     if endpoint and endpoint.startswith("payments."):
         return "payment_tracking"
     if endpoint and endpoint.startswith("purchase_requests."):

@@ -451,6 +451,11 @@
           </div>
         </div>
         {% endif %}
+        {% if g.current_company and g.company_module_enabled('contracts') and (g.current_user.has_permission('contracts.view') or g.current_user.has_permission('contracts.manage')) %}
+        <a class="dashboard-nav-item {% if request.blueprint == 'contracts' %}active{% endif %}" href="{{ url_for('contracts.dashboard') }}">
+          <i class="bi bi-file-earmark-lock" aria-hidden="true"></i><span>Sözleşmeler</span>
+        </a>
+        {% endif %}
         {% if g.current_company and g.company_module_enabled('integration_management') and g.current_user.has_permission('integrations.view') %}
         <a class="dashboard-nav-item {% if integrations_active %}active{% endif %}" href="{{ url_for('integrations.dashboard') }}">
           <i class="bi bi-plug"></i>

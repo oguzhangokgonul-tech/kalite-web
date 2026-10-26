@@ -43,6 +43,7 @@ ISO_CORE_MODULE_KEYS = {
     "supplier_management",
     "purchase_requests",
     "payment_tracking",
+    "contracts",
     "report_center",
     "integration_management",
     "documents",

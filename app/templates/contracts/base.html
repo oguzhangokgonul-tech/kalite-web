@@ -1,0 +1,28 @@
+{% extends "app_shell.html" %}
+{% block topbar_title %}Sözleşmeler{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/contracts.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block content_extra_class %}contracts-page{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.querySelectorAll('[data-contract-doc-required]').forEach(function (form) {
+      var inputs = Array.from(form.querySelectorAll('input[type="file"][name="documents"]'));
+      if (!inputs.length) return;
+      function validate() {
+        var selected = inputs.some(function (input) { return input.files && input.files.length > 0; });
+        inputs[0].setCustomValidity(selected ? '' : 'En az bir belge seçin veya fotoğraf çekin.');
+        return selected;
+      }
+      inputs.forEach(function (input) { input.addEventListener('change', validate); });
+      form.addEventListener('submit', function (event) {
+        if (!validate()) {
+          event.preventDefault();
+          inputs[0].reportValidity();
+        }
+      });
+    });
+  </script>
+{% endblock %}

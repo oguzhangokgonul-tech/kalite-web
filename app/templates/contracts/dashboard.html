@@ -1,0 +1,56 @@
+{% extends "contracts/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Sözleşmeler{% endblock %}
+{% block app_content %}
+  {% set contract_rows = pagination.items if pagination is defined and pagination else (records if records is defined else []) %}
+  {% call ui.page_header('Sözleşmeler', icon='bi-file-earmark-text', heading_level=1) %}
+    {% if contracts_can_manage %}{{ ui.action_link(url_for('contracts.create'), 'Yeni Sözleşme', icon='bi-plus-lg') }}{% endif %}
+  {% endcall %}
+
+  <form class="contracts-toolbar" method="get" action="{{ url_for('contracts.dashboard') }}">
+    <label class="visually-hidden" for="contracts-search">Sözleşme ara</label>
+    <input class="form-control" id="contracts-search" name="q" type="search" value="{{ search or '' }}" placeholder="Sözleşme, numara veya karşı taraf ara">
+    <label class="visually-hidden" for="contracts-archive">Görünüm</label>
+    <select class="form-select" id="contracts-archive" name="archive">
+      <option value="0" {% if request.args.get('archive') != '1' %}selected{% endif %}>Güncel kayıtlar</option>
+      <option value="1" {% if request.args.get('archive') == '1' %}selected{% endif %}>Arşiv</option>
+    </select>
+    {{ ui.action_button('Ara', icon='bi-search', tone='secondary') }}
+  </form>
+
+  <section class="contracts-section" aria-labelledby="contracts-list-title">
+    <h2 id="contracts-list-title">Kayıtlar{% if pagination is defined and pagination %} <span class="contracts-muted">({{ pagination.total }})</span>{% endif %}</h2>
+    {% if contract_rows %}
+      <div class="contracts-table-wrap">
+        <table class="contracts-table">
+          <thead><tr><th scope="col">Sözleşme</th><th scope="col">Karşı taraf</th><th scope="col">Başlangıç</th><th scope="col">Bitiş</th><th scope="col">Durum</th><th scope="col"><span class="visually-hidden">İşlem</span></th></tr></thead>
+          <tbody>
+            {% for record in contract_rows %}
+              <tr>
+                <td data-label="Sözleşme"><a class="contracts-record-link" href="{{ url_for('contracts.detail', record_id=record.id) }}">{{ record.title }}</a>{% if record.contract_no %}<span class="contracts-muted contracts-subline">{{ record.contract_no }}</span>{% endif %}</td>
+                <td data-label="Karşı taraf">{{ record.counterparty }}</td>
+                <td data-label="Başlangıç">{% if record.starts_on %}<time datetime="{{ record.starts_on.isoformat() }}">{{ record.starts_on.strftime('%d.%m.%Y') }}</time>{% else %}—{% endif %}</td>
+                <td data-label="Bitiş">{% if record.ends_on %}<time datetime="{{ record.ends_on.isoformat() }}">{{ record.ends_on.strftime('%d.%m.%Y') }}</time>{% else %}—{% endif %}</td>
+                <td data-label="Durum">
+                  {% if record.archived_at %}<span class="contracts-status contracts-status-archived">Arşiv</span>
+                  {% elif record.ends_on and record.ends_on < contracts_today %}<span class="contracts-status contracts-status-expired">Süresi doldu</span>
+                  {% else %}<span class="contracts-status contracts-status-active">Aktif</span>{% endif %}
+                </td>
+                <td class="contracts-row-action">{{ ui.action_link(url_for('contracts.detail', record_id=record.id), 'Sözleşmeyi aç', icon='bi-arrow-right', tone='secondary', size='sm', icon_only=True) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="contracts-empty">Henüz sözleşme kaydı bulunmuyor.</p>
+    {% endif %}
+    {% if pagination is defined and pagination and pagination.pages > 1 %}
+      <nav class="contracts-pagination" aria-label="Sözleşme sayfaları">
+        {% if pagination.has_prev %}{{ ui.action_link(url_for('contracts.dashboard', page=pagination.prev_num, q=search, archive=request.args.get('archive', '0')), 'Önceki sayfa', icon='bi-chevron-left', tone='secondary', icon_only=True) }}{% else %}<span></span>{% endif %}
+        <span>{{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}{{ ui.action_link(url_for('contracts.dashboard', page=pagination.next_num, q=search, archive=request.args.get('archive', '0')), 'Sonraki sayfa', icon='bi-chevron-right', tone='secondary', icon_only=True) }}{% else %}<span></span>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}

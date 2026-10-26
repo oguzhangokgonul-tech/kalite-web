@@ -60,6 +60,7 @@ from .ohs_notes import bp as ohs_notes_bp
 from .shift_handover import bp as shift_handover_bp
 from .purchase_requests import bp as purchase_requests_bp
 from .payment_tracking import bp as payments_bp
+from .contracts import bp as contracts_bp
 from .objective_plans import bp as objective_plans_bp
 from .notification_settings import bp as notification_settings_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
@@ -136,6 +137,7 @@ def create_app(config_class=Config):
     app.register_blueprint(shift_handover_bp)
     app.register_blueprint(purchase_requests_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(contracts_bp)
     app.register_blueprint(objective_plans_bp)
     app.register_blueprint(notification_settings_bp)
 

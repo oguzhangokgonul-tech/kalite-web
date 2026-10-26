@@ -1,0 +1,67 @@
+{% extends "contracts/base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}{{ record.title }}{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(record.title, subtitle=record.contract_no, icon='bi-file-earmark-text', heading_level=1) %}
+    {{ ui.action_link(url_for('contracts.dashboard'), 'Listeye dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+    {% if contracts_can_manage and not record.archived_at %}{{ ui.action_link(url_for('contracts.edit', record_id=record.id), 'Düzenle', icon='bi-pencil', tone='secondary') }}{% endif %}
+  {% endcall %}
+  {% if record.archived_at %}<p class="contracts-archive-notice" role="status"><i class="bi bi-archive" aria-hidden="true"></i> Bu sözleşme arşivde. Belgeler erişime açıktır.</p>{% endif %}
+  <section class="contracts-section" aria-labelledby="contract-details-title">
+    <h2 id="contract-details-title">Sözleşme bilgileri</h2>
+    <dl class="contracts-facts">
+      <div><dt>Karşı taraf</dt><dd>{{ record.counterparty }}</dd></div>
+      <div><dt>Sözleşme no</dt><dd>{{ record.contract_no or '—' }}</dd></div>
+      <div><dt>İmza tarihi</dt><dd>{% if record.signed_on %}<time datetime="{{ record.signed_on.isoformat() }}">{{ record.signed_on.strftime('%d.%m.%Y') }}</time>{% else %}—{% endif %}</dd></div>
+      <div><dt>Başlangıç tarihi</dt><dd>{% if record.starts_on %}<time datetime="{{ record.starts_on.isoformat() }}">{{ record.starts_on.strftime('%d.%m.%Y') }}</time>{% else %}—{% endif %}</dd></div>
+      <div><dt>Bitiş tarihi</dt><dd>{% if record.ends_on %}<time datetime="{{ record.ends_on.isoformat() }}">{{ record.ends_on.strftime('%d.%m.%Y') }}</time>{% else %}—{% endif %}</dd></div>
+      <div><dt>Durum</dt><dd>{% if record.archived_at %}<span class="contracts-status contracts-status-archived">Arşiv</span>{% elif record.ends_on and record.ends_on < contracts_today %}<span class="contracts-status contracts-status-expired">Süresi doldu</span>{% else %}<span class="contracts-status contracts-status-active">Aktif</span>{% endif %}</dd></div>
+    </dl>
+    {% if record.note %}<div class="contracts-note"><h3>Not</h3><p>{{ record.note }}</p></div>{% endif %}
+  </section>
+
+  <section class="contracts-section" aria-labelledby="contract-files-title">
+    <h2 id="contract-files-title">Belgeler</h2>
+    <ul class="contracts-files">
+      {% for file in record.files if file.is_active %}
+        <li>
+          <div class="contracts-file-info">
+            <i class="bi {{ 'bi-file-earmark-pdf' if file.mime_type == 'application/pdf' else 'bi-file-earmark-image' }}" aria-hidden="true"></i>
+            <div><strong>{{ file.original_name }}</strong><span class="contracts-muted">{{ [1, (file.size_bytes / 1024)|round(0)|int]|max }} KB</span></div>
+          </div>
+          <div class="contracts-actions contracts-file-actions">
+            {{ ui.action_link(url_for('contracts.document', record_id=record.id, file_id=file.id), 'Önizle: ' ~ file.original_name, icon='bi-eye', tone='secondary', size='sm', icon_only=True, target='_blank', rel='noopener') }}
+            {{ ui.action_link(url_for('contracts.download', record_id=record.id, file_id=file.id), 'İndir: ' ~ file.original_name, icon='bi-download', tone='secondary', size='sm', icon_only=True) }}
+            {% if contracts_can_manage and not record.archived_at %}
+              <form method="post" action="{{ url_for('contracts.remove_file', record_id=record.id, file_id=file.id) }}" onsubmit="return confirm('Bu belge kaldırılsın mı?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {{ ui.action_button('Kaldır: ' ~ file.original_name, icon='bi-trash', tone='danger', size='sm', icon_only=True) }}
+              </form>
+            {% endif %}
+          </div>
+        </li>
+      {% else %}<li class="contracts-empty">Aktif belge bulunmuyor.</li>{% endfor %}
+    </ul>
+    {% if contracts_can_manage and not record.archived_at %}
+      <form class="contracts-upload" method="post" enctype="multipart/form-data" action="{{ url_for('contracts.upload', record_id=record.id) }}" data-contract-doc-required>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <h3>Belge ekle</h3>
+        <div class="contracts-upload-fields">
+          <div><label class="form-label" for="contract-upload-documents">Dosya seç</label><input class="form-control" id="contract-upload-documents" type="file" name="documents" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+          <div><label class="form-label" for="contract-upload-camera">Kamera ile çek</label><input class="form-control" id="contract-upload-camera" type="file" name="documents" accept="image/jpeg,image/png" capture="environment"></div>
+        </div>
+        {{ ui.action_button('Yükle', icon='bi-upload') }}
+      </form>
+    {% endif %}
+  </section>
+  {% if contracts_can_manage and not record.archived_at %}
+    <details class="contracts-archive-action">
+      <summary><i class="bi bi-archive" aria-hidden="true"></i> Sözleşmeyi arşivle</summary>
+      <form method="post" action="{{ url_for('contracts.archive', record_id=record.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <p>Arşivlenen sözleşme düzenlenemez; belgeler korunur.</p>
+        {{ ui.action_button('Arşivlemeyi Onayla', icon='bi-archive', tone='danger') }}
+      </form>
+    </details>
+  {% endif %}
+{% endblock %}

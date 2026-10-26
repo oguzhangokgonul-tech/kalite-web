@@ -1,0 +1,34 @@
+{% extends "contracts/base.html" %}
+{% import "components/ui.html" as ui %}
+{% set record = record if record is defined else none %}
+{% set values = values if values is defined and values else {} %}
+{% block title %}{{ 'Sözleşmeyi Düzenle' if record else 'Yeni Sözleşme' }}{% endblock %}
+{% block app_content %}
+  {% set back_url = url_for('contracts.detail', record_id=record.id) if record else url_for('contracts.dashboard') %}
+  {% call ui.page_header('Sözleşmeyi Düzenle' if record else 'Yeni Sözleşme', icon='bi-file-earmark-text', heading_level=1) %}
+    {{ ui.action_link(back_url, 'Geri dön', icon='bi-arrow-left', tone='secondary', icon_only=True) }}
+  {% endcall %}
+  {% if error is defined and error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <form class="contracts-form" method="post" enctype="multipart/form-data" action="{{ url_for('contracts.edit', record_id=record.id) if record else url_for('contracts.create') }}" {% if not record %}data-contract-doc-required{% endif %}>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="contracts-form-grid">
+      <div class="contracts-wide"><label class="form-label" for="contract-title">Başlık <span aria-hidden="true">*</span></label><input class="form-control" id="contract-title" name="title" maxlength="180" value="{{ values.get('title', record.title if record else '') or '' }}" required></div>
+      <div class="contracts-wide"><label class="form-label" for="contract-counterparty">Karşı taraf <span aria-hidden="true">*</span></label><input class="form-control" id="contract-counterparty" name="counterparty" maxlength="180" value="{{ values.get('counterparty', record.counterparty if record else '') or '' }}" required></div>
+      <div><label class="form-label" for="contract-number">Sözleşme no</label><input class="form-control" id="contract-number" name="contract_no" maxlength="100" value="{{ values.get('contract_no', record.contract_no if record else '') or '' }}"></div>
+      <div><label class="form-label" for="contract-signed">İmza tarihi</label><input class="form-control" id="contract-signed" name="signed_on" type="date" value="{{ values.get('signed_on', record.signed_on.isoformat() if record and record.signed_on else '') or '' }}"></div>
+      <div><label class="form-label" for="contract-starts">Başlangıç tarihi</label><input class="form-control" id="contract-starts" name="starts_on" type="date" value="{{ values.get('starts_on', record.starts_on.isoformat() if record and record.starts_on else '') or '' }}"></div>
+      <div><label class="form-label" for="contract-ends">Bitiş tarihi</label><input class="form-control" id="contract-ends" name="ends_on" type="date" value="{{ values.get('ends_on', record.ends_on.isoformat() if record and record.ends_on else '') or '' }}"></div>
+      <div class="contracts-wide"><label class="form-label" for="contract-note">Not</label><textarea class="form-control" id="contract-note" name="note" rows="4" maxlength="5000">{{ values.get('note', record.note if record else '') or '' }}</textarea></div>
+      <fieldset class="contracts-wide contracts-file-fields">
+        <legend>Belgeler{% if not record %} <span aria-hidden="true">*</span>{% endif %}</legend>
+        <div><label class="form-label" for="contract-documents">Dosya seç</label><input class="form-control" id="contract-documents" type="file" name="documents" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+        <div><label class="form-label" for="contract-camera">Kamera ile çek</label><input class="form-control" id="contract-camera" type="file" name="documents" accept="image/jpeg,image/png" capture="environment"></div>
+        {% if not record %}<p class="contracts-hint">Kayıt için en az bir PDF, JPEG veya PNG belge ekleyin.</p>{% endif %}
+      </fieldset>
+    </div>
+    <div class="contracts-actions contracts-form-actions">
+      {{ ui.action_button('Değişiklikleri Kaydet' if record else 'Sözleşme Oluştur', icon='bi-check-lg') }}
+      {{ ui.action_link(back_url, 'Vazgeç', icon='bi-x-lg', tone='secondary') }}
+    </div>
+  </form>
+{% endblock %}

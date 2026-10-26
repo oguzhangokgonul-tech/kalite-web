@@ -6,6 +6,8 @@ from .maintenance_seed import MAINTENANCE_MACHINE_DEFAULTS
 
 
 PERMISSION_CATALOG = (
+    {"key": "contracts.view", "label": "Sözleşmeleri görüntüleme", "group": "Sözleşmeler", "description": "Şirket sözleşmelerini ve taranmış belgelerini görüntüler."},
+    {"key": "contracts.manage", "label": "Sözleşmeleri yönetme", "group": "Sözleşmeler", "description": "Sözleşme ve belge ekler, düzenler ve arşivler."},
     {"key": "payments.view", "label": "Ödeme kayıtlarını görüntüleme", "group": "Ödemeler", "description": "Şirketin alınacak ve yapılacak ödeme kayıtlarını ve PDF belgelerini görür."},
     {"key": "payments.manage", "label": "Ödeme kayıtlarını yönetme", "group": "Ödemeler", "description": "Kayıt, gerçekleşen tutar, sorumlu ve PDF belgelerini yönetir."},
     {"key": "purchase.view", "label": "Kendi satın alma taleplerini görüntüleme", "group": "Satın Alma", "description": "Kendi açtığı talepleri görüntüler."},
@@ -1771,6 +1773,16 @@ PAYMENT_ROLE_PERMISSIONS = {
 for role_definition in ROLE_DEFINITIONS:
     role_definition["permissions"].extend(
         key for key in PAYMENT_ROLE_PERMISSIONS.get(role_definition["key"], ())
+        if key not in role_definition["permissions"]
+    )
+
+CONTRACT_ROLE_PERMISSIONS = {
+    "management_representative": ("contracts.view", "contracts.manage"),
+    "management": ("contracts.view", "contracts.manage"),
+}
+for role_definition in ROLE_DEFINITIONS:
+    role_definition["permissions"].extend(
+        key for key in CONTRACT_ROLE_PERMISSIONS.get(role_definition["key"], ())
         if key not in role_definition["permissions"]
     )
 
@@ -4209,6 +4221,8 @@ def ensure_runtime_schema():
     ensure_purchase_schema()
     from .payment_schema import ensure_payment_schema
     ensure_payment_schema()
+    from .contract_schema import ensure_contract_schema
+    ensure_contract_schema()
     from .ohs_actions_schema import ensure_ohs_actions_schema
     ensure_ohs_actions_schema()
     from .ohs_notes_models import OhsNote
