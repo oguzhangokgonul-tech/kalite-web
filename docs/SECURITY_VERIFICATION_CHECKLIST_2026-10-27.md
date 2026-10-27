@@ -133,8 +133,8 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   Release/DevOps uzman kontrol raporlari kaydedilsin.
 - [ ] Acik yuksek/kritik bulgu kalmasin; diger bulgularin sahibi ve tarihi
   olsun. Risk kabulunu ve canliya alma kararini yalniz Lider versin.
-- [ ] Canliya alma sonrasi sadece dusuk etkili saglik, TLS, log ve HTTP
-  smoke kontrolleri yapilsin. Canli yuk/siza testi ayri onaya baglidir.
+- [x] Bu release sonrasinda sadece dusuk etkili saglik, TLS, log ve HTTP
+  smoke kontrolleri yapildi. Canli yuk/siza testi ayri onaya baglidir.
 
 ## Bu turun kanit kaydi
 
@@ -172,7 +172,14 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   aksiyonun dosyasi icin red test once 200, duzeltme sonrasi 404 dondu.
   22 odakli dosya testi ve aksiyon, ISG, yukleme guvenligi, is akisi
   guvenligi, tenant paketinde 154 regresyon testi gecti. Tum pytest paketi
-  ve canli release kaniti ayrica degerlendirilecek.
+  ayrica degerlendirilecek.
+- 27 Ekim ikinci release: `1fe5141` canliya alindi. 204 upload iceren tam
+  yedek `backup-verify` ve restore dry-run ile dogrulandi; sunucu disi
+  kopyanin SHA-256 degeri eslesti. Sema degisikligi yok; migration head
+  `202610260002`, `pip check` ve `tenant-health` temiz. Servis ve iki
+  zamanlayici aktif; ana sayfa ve firma girisi 200, oturumsuz aksiyon
+  indirme istegi 302, yeni hata logu yok. Tam pytest paketi ve yetim
+  dosyalarin sahiplik tasarimi acik kalir.
 - 27 Ekim ikinci tur: mevcut Odemeler/Sozlesmeler/Satin Alma modulleri
   paketi 49 testle gecti. Odeme indirmesinde metaveri yabanci firma yoluna
   degistirildiginde yeni test duzeltmeden once 200 ile kirmizi oldu; firma
