@@ -123,7 +123,11 @@ class InputValues(HTMLParser):
 
 @pytest.mark.parametrize("actor_role", ["company_admin", "management_representative", "super_admin"])
 def test_explicit_title_persists_in_user_personnel_org_and_reopened_form(client, profile, actor_role):
-    actor = create_user(f"editor-{actor_role}", company=profile.own, role_key=actor_role)
+    actor = create_user(
+        f"editor-{actor_role}",
+        company=None if actor_role == "super_admin" else profile.own,
+        role_key=actor_role,
+    )
     login(client, actor, company=profile.own)
     counts = (PersonnelContact.query.count(), OrientationNode.query.count())
     post_edit(client, profile, form(profile.user, title="  Updated Title  "))

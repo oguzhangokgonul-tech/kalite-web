@@ -20,6 +20,7 @@
 
   <form class="app-form-card" method="post" id="userForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="personal_permissions_separate" value="1">
     <div class="app-card-header">
       <span class="app-card-icon"><i class="bi bi-person-gear"></i></span>
       <div>
@@ -164,19 +165,11 @@
             </label>
           {% endfor %}
         </div>
-        <div class="role-extra-permissions mt-3">
-          <label class="role-chip role-chip-extra" for="extra_quality_create">
-            <input
-              class="form-check-input"
-              id="extra_quality_create"
-              name="extra_permissions"
-              type="checkbox"
-              value="quality.create"
-              {% if (('quality.create' in request.form.getlist('extra_permissions')) if is_form_post else (user and 'quality.create' in user_extra_permission_keys(user))) %}checked{% endif %}
-            >
-            <span>Kalite deneyi açabilme</span>
-          </label>
-        </div>
+        {% if user and user.id != g.current_user.id and not user.has_role('super_admin') and user.company_id %}
+          <a class="btn btn-outline-primary mt-3" href="{{ url_for('main.edit_user_permissions', user_id=user.id) }}">
+            <i class="bi bi-shield-check"></i> Kişisel Yetkiler
+          </a>
+        {% endif %}
       </div>
     {% endif %}
 

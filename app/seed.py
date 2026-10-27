@@ -485,6 +485,12 @@ PERMISSION_CATALOG = (
         "description": "Yetki kapsamındaki doğrulanmış müşteri taleplerini ve personel geri bildirim kayıtlarını görüntüler.",
     },
     {
+        "key": "customer_portal.view_all",
+        "label": "Tüm müşteri geri bildirimlerini görüntüleme",
+        "group": "Müşteri Geri Bildirim Portalı",
+        "description": "Şirketin tüm müşteri geri bildirimlerini görüntüler.",
+    },
+    {
         "key": "customer_portal.create",
         "label": "Müşteri geri bildirimi oluşturma",
         "group": "Müşteri Geri Bildirim Portalı",
@@ -876,6 +882,18 @@ PERMISSION_CATALOG = (
         "description": "Kalite deneyleri ekranında yeni deney kaydı oluşturur.",
     },
     {
+        "key": "suggestions.evaluate",
+        "label": "Öneri değerlendirme",
+        "group": "Öneri Yönetimi",
+        "description": "Atandığı şirket önerilerini değerlendirir.",
+    },
+    {
+        "key": "suggestions.manage_evaluators",
+        "label": "Öneri yetkililerini yönetme",
+        "group": "Öneri Yönetimi",
+        "description": "Şirket önerilerini ve değerlendirme yetkililerini yönetir.",
+    },
+    {
         "key": "quality.parameters_manage",
         "label": "Kalite deney parametreleri",
         "group": "Kalite Deneyleri",
@@ -1201,6 +1219,8 @@ ROLE_DEFINITIONS = (
             "vehicles.manage",
             "calibration.manage",
             "quality.parameters_manage",
+            "suggestions.evaluate",
+            "suggestions.manage_evaluators",
             "organization.manage",
         ],
     },
@@ -1237,6 +1257,7 @@ ROLE_DEFINITIONS = (
             "training.view",
             "complaints.view",
             "customer_portal.view",
+            "customer_portal.view_all",
             "customer_portal.create",
             "customer_portal.respond",
             "customer_portal.close",
@@ -3593,12 +3614,16 @@ def ensure_runtime_schema():
                     description TEXT,
                     hierarchy_level INTEGER NOT NULL DEFAULT 100,
                     is_system BOOLEAN NOT NULL DEFAULT 1,
+                    permissions_customized BOOLEAN NOT NULL DEFAULT 0,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
                 """
             )
         )
+        changed = True
+    elif "permissions_customized" not in {column["name"] for column in inspector.get_columns("roles")}:
+        db.session.execute(text("ALTER TABLE roles ADD COLUMN permissions_customized BOOLEAN NOT NULL DEFAULT 0"))
         changed = True
 
     if "role_permissions" not in tables:
@@ -3639,12 +3664,16 @@ def ensure_runtime_schema():
                 CREATE TABLE user_permissions (
                     user_id INTEGER NOT NULL,
                     permission_key VARCHAR(120) NOT NULL,
+                    is_allowed BOOLEAN NOT NULL DEFAULT 1,
                     PRIMARY KEY (user_id, permission_key),
                     FOREIGN KEY(user_id) REFERENCES users (id)
                 )
                 """
             )
         )
+        changed = True
+    elif "is_allowed" not in {column["name"] for column in inspector.get_columns("user_permissions")}:
+        db.session.execute(text("ALTER TABLE user_permissions ADD COLUMN is_allowed BOOLEAN NOT NULL DEFAULT 1"))
         changed = True
 
     if "actions" in tables:
@@ -4470,7 +4499,7 @@ def ensure_default_roles():
 
         existing_permissions = {item.permission_key: item for item in role.permissions}
         desired_permissions = set(definition.get("permissions") or ())
-        if is_new_role or role.is_system:
+        if is_new_role or not role.permissions_customized:
             for permission_key in desired_permissions:
                 if permission_key not in existing_permissions:
                     ensure_role_permission(role, permission_key)

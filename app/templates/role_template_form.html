@@ -1,0 +1,52 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Rol Şablonu{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(role.name ~ " Şablonu", "", icon="bi-sliders") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.roles') }}"><i class="bi bi-arrow-left"></i> Kişi Yetkileri</a>
+  {% endcall %}
+
+  <div class="alert alert-warning" role="note">
+    Bu rol bütün şirketlerde ortaktır. Buradaki değişiklik {{ role.users|length }} kullanıcının varsayılan yetkisini etkiler; kişisel istisnalar korunur.
+  </div>
+  <form class="app-form-card" method="post" action="{{ url_for('main.roles') }}" id="personalPermissionsForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="role_id" value="{{ role.id }}">
+    <div class="personal-permissions-toolbar">
+      <label class="form-label" for="permissionSearch">Yetki ara</label>
+      <input class="form-control" id="permissionSearch" type="search" placeholder="Modül veya işlem adı" autocomplete="off">
+    </div>
+    <div class="personal-permission-groups">
+      {% for group, permissions in permission_groups.items() %}
+        <details class="personal-permission-group" {% if loop.first %}open{% endif %}>
+          <summary>{{ group }} <span class="text-muted">{{ permissions|length }}</span></summary>
+          <div class="personal-permission-list">
+            {% for permission in permissions %}
+              <div class="personal-permission-row" data-permission-search="{{ (group ~ ' ' ~ permission.label ~ ' ' ~ permission.key)|lower }}">
+                <div>
+                  <label class="fw-semibold" for="role_permission_{{ permission.key|replace('.', '_') }}">{{ permission.label }}</label>
+                  <div class="text-muted small">{{ permission.description }}</div>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" id="role_permission_{{ permission.key|replace('.', '_') }}" name="permission_keys" value="{{ permission.key }}" type="checkbox" {% if permission.key in role.permission_keys or role.key == 'super_admin' %}checked{% endif %} {% if role.key == 'super_admin' %}disabled{% endif %}>
+                  {% if role.key == 'super_admin' %}<input type="hidden" name="permission_keys" value="{{ permission.key }}">{% endif %}
+                  <label class="form-check-label" for="role_permission_{{ permission.key|replace('.', '_') }}">Şablonda açık</label>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+    <div class="app-form-actions">
+      <span id="permissionChangeCount" class="text-muted" aria-live="polite">Değişiklik yok</span>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Şablonu Kaydet</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script defer src="{{ url_for('static', filename='js/user-permissions.js', v=config.ASSET_VERSION) }}"></script>
+{% endblock %}

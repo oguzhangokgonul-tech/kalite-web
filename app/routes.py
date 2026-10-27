@@ -3420,6 +3420,10 @@ def has_permission(user, permission):
     if has_role(user, "super_admin"):
         return True
     role_permission = LEGACY_PERMISSION_ALIASES.get(permission, permission)
+    if hasattr(user, "permission_override"):
+        override = user.permission_override(role_permission)
+        if override is not None:
+            return override
     if hasattr(user, "has_permission") and user.has_permission(role_permission):
         return True
     return bool(getattr(user, permission, False))
@@ -3442,12 +3446,6 @@ def is_related_to_current_user(action):
         g.current_user is not None
         and g.current_user.id
         in {action.related_user_1_id, action.related_user_2_id}
-    )
-
-
-def is_oguzhan_admin():
-    return current_user_can("roles.manage") or has_role(g.current_user, "company_admin") or has_role(
-        g.current_user, "management_representative"
     )
 
 
@@ -3540,7 +3538,6 @@ def is_management_representative(user=None):
         has_role(user, "super_admin")
         or has_role(user, "company_admin")
         or has_role(user, "management_representative")
-        or user_title_has(user, "Yönetim Temsilcisi")
     )
 
 
@@ -3549,7 +3546,6 @@ def is_deputy_general_manager(user=None):
     return user is not None and (
         has_role(user, "super_admin")
         or has_role(user, "executive_approver")
-        or user_title_has(user, "Genel Müdür Yardımcısı")
     )
 
 
@@ -3583,11 +3579,7 @@ def has_visible_linked_risk(**filters):
 
 
 def can_view_all_dofs():
-    return (
-        is_management_representative()
-        or is_deputy_general_manager()
-        or is_general_manager()
-    )
+    return current_user_can("if.view_all")
 
 
 def can_view_all_dof_records():
@@ -3609,7 +3601,7 @@ def can_view_dof(dof):
 
 
 def can_delete_dof(dof=None):
-    return can_view_all_dofs()
+    return current_user_can("if.delete")
 
 
 def can_edit_dof_draft(dof):
@@ -3639,7 +3631,7 @@ def can_edit_dof(dof):
 
 def can_approve_dof_management(dof):
     return (
-        is_management_representative()
+        current_user_can("if.approve_management")
         and dof.approval_step == "management_representative"
         and dof.status != "Tamamlandı"
     )
@@ -3647,7 +3639,7 @@ def can_approve_dof_management(dof):
 
 def can_approve_dof_deputy(dof):
     return (
-        is_deputy_general_manager()
+        current_user_can("if.approve_deputy")
         and dof.approval_step == "general_manager_deputy"
         and dof.status != "Tamamlandı"
     )
@@ -3660,16 +3652,9 @@ def can_reject_dof(dof):
         or dof.approval_step not in {"management_representative", "general_manager_deputy"}
     ):
         return False
-    return (
-        is_general_manager()
-        or (
-            is_management_representative()
-            and dof.approval_step == "management_representative"
-        )
-        or (
-            is_deputy_general_manager()
-            and dof.approval_step == "general_manager_deputy"
-        )
+    return current_user_can("if.reject") and (
+        (dof.approval_step == "management_representative" and current_user_can("if.approve_management"))
+        or (dof.approval_step == "general_manager_deputy" and current_user_can("if.approve_deputy"))
     )
 
 
@@ -3684,7 +3669,7 @@ def can_revise_rejected_dof(dof):
         return True
     return (
         dof.rejected_step == "general_manager_deputy"
-        and is_management_representative()
+        and current_user_can("if.approve_management")
     )
 
 
@@ -3727,7 +3712,6 @@ def can_review_action_effectiveness(action):
         return False
     return (
         action.effectiveness_owner_user_id == g.current_user.id
-        or is_oguzhan_admin()
         or current_user_can("actions.edit")
     )
 
@@ -3735,7 +3719,8 @@ def can_review_action_effectiveness(action):
 def can_request_closure_action(action):
     if (
         g.current_user is None
-        or is_oguzhan_admin()
+        or current_user_can("actions.edit")
+        or current_user_can("actions.approve_closure")
         or action.is_completed
         or action.closure_approval_requested
     ):
@@ -3754,7 +3739,7 @@ def can_request_closure_action(action):
 
 def can_approve_closure_action(action):
     return (
-        is_oguzhan_admin()
+        current_user_can("actions.approve_closure")
         and not action.is_completed
         and action.closure_approval_requested
     )
@@ -3763,7 +3748,7 @@ def can_approve_closure_action(action):
 def can_comment_action(action):
     if g.current_user is None:
         return False
-    return is_oguzhan_admin() or (
+    return current_user_can("actions.edit") or (
         current_user_can("actions.comment_assigned")
         and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
     )
@@ -3772,7 +3757,7 @@ def can_comment_action(action):
 def can_reassign_action(action):
     if g.current_user is None:
         return False
-    return is_oguzhan_admin() or (
+    return current_user_can("actions.edit") or (
         current_user_can("actions.request_close_assigned")
         and is_assigned_to_current_user(action)
     )
@@ -3819,7 +3804,7 @@ def can_revise_termin(action):
     if g.current_user is None or action.is_completed:
         return False
     return (
-        is_oguzhan_admin()
+        current_user_can("actions.edit")
         or (
             can_write_assigned_action()
             and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
@@ -3831,8 +3816,7 @@ def can_create_sub_action(action):
     if g.current_user is None or action.is_completed:
         return False
     return (
-        is_oguzhan_admin()
-        or current_user_can("actions.edit")
+        current_user_can("actions.edit")
         or (
             can_write_assigned_action()
             and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
@@ -3856,8 +3840,7 @@ def can_full_edit_sub_action(sub_action):
     if g.current_user is None or action.is_completed:
         return False
     return (
-        is_oguzhan_admin()
-        or current_user_can("actions.edit")
+        current_user_can("actions.edit")
         or (
             can_write_assigned_action()
             and (
@@ -5962,7 +5945,7 @@ DOCUMENT_REVISION_REJECTED_STATUS = "Reddedildi"
 
 def document_management_representatives():
     return unique_users(
-        user for user in active_users() if is_management_representative(user)
+        user for user in active_users() if has_permission(user, "documents.manage")
     )
 
 
@@ -10944,17 +10927,14 @@ def unique_users(users):
 
 def dof_management_approver_users():
     return unique_users(
-        user for user in active_users() if is_management_representative(user)
+        user for user in active_users() if has_permission(user, "if.approve_management")
     )
 
 
 def dof_deputy_approver_users():
-    users = [
-        user for user in active_users() if user_title_has(user, "Genel Müdür Yardımcısı")
-    ]
-    if not users:
-        users = [oguzhan_user()]
-    return unique_users(users)
+    return unique_users(
+        user for user in active_users() if has_permission(user, "if.approve_deputy")
+    )
 
 
 def dof_primary_users(dof):
@@ -13058,7 +13038,7 @@ def can_export_quality_objectives():
 def can_manage_quality_objectives_companywide():
     return bool(
         getattr(g, "current_user_is_super_admin", False)
-        or is_management_representative()
+        or can_manage_quality_objectives()
         or can_approve_quality_objectives()
     )
 
@@ -14248,7 +14228,7 @@ def customer_feedback_query(include_archived=False, visible_scope=True):
         return query
     if (
         current_user_can("customer_portal.assign")
-        or has_role(g.current_user, "management")
+        or current_user_can("customer_portal.view_all")
         or (
             current_user_can("customer_portal.triage")
             and not has_role(g.current_user, "department_manager")
@@ -15965,10 +15945,6 @@ def sync_user_legacy_permissions(user):
     }
     for field, permission_key in legacy_map.items():
         setattr(user, field, user.has_permission(permission_key))
-
-
-def user_extra_permission_keys(user):
-    return {permission.permission_key for permission in user.extra_permissions}
 
 
 def permission_catalog_grouped():
@@ -25637,11 +25613,7 @@ def save_vehicle_fuel(vehicle_id):
 
 
 def can_manage_suggestion_parameters():
-    return (
-        getattr(g, "current_user_is_super_admin", False)
-        or is_management_representative()
-        or current_user_can("quality.parameters_manage")
-    )
+    return current_user_can("quality.parameters_manage")
 
 
 SUGGESTION_EVALUATE_PERMISSION = "suggestions.evaluate"
@@ -25651,7 +25623,7 @@ SUGGESTION_COMPLETED_STATUS = "Değerlendirme Tamamlandı"
 
 
 def can_manage_suggestion_evaluators():
-    return getattr(g, "current_user_is_super_admin", False) or is_management_representative()
+    return current_user_can("suggestions.manage_evaluators")
 
 
 def can_view_suggestion(suggestion):
@@ -25678,7 +25650,9 @@ def can_delete_suggestion(suggestion):
 def suggestion_evaluator_users():
     return [
         user
-        for user in active_users()
+        for user in User.query.filter_by(company_id=current_company_id(), is_active=True).filter(
+            User.deleted_at.is_(None)
+        ).all()
         if has_permission(user, SUGGESTION_EVALUATE_PERMISSION)
     ]
 
@@ -25686,11 +25660,7 @@ def suggestion_evaluator_users():
 def can_evaluate_suggestion(suggestion):
     if suggestion.status != SUGGESTION_IN_EVALUATION_STATUS:
         return False
-    return (
-        getattr(g, "current_user_is_super_admin", False)
-        or is_management_representative()
-        or current_user_can(SUGGESTION_EVALUATE_PERMISSION)
-    )
+    return current_user_can(SUGGESTION_EVALUATE_PERMISSION)
 
 
 def suggestion_user_completed_evaluation(suggestion, user_id, required_parameter_ids=None):
@@ -26171,26 +26141,44 @@ def edit_suggestion(suggestion_id):
 def suggestion_evaluators():
     if not can_manage_suggestion_evaluators():
         abort(403)
-    users = active_users()
+    users = User.query.filter_by(company_id=current_company_id(), is_active=True).filter(
+        User.deleted_at.is_(None)
+    ).order_by(User.full_name.asc()).all()
     if request.method == "POST":
-        selected_user_ids = {
-            int(user_id)
-            for user_id in request.form.getlist("evaluator_user_ids")
-            if user_id.isdigit()
-        }
+        raw_ids = request.form.getlist("evaluator_user_ids")
+        if any(not user_id.isdigit() for user_id in raw_ids):
+            abort(400)
+        selected_user_ids = {int(user_id) for user_id in raw_ids}
+        if selected_user_ids - {user.id for user in users}:
+            abort(403)
         for user in users:
             existing_permissions = {
                 permission.permission_key: permission
                 for permission in user.extra_permissions
             }
             is_selected = user.id in selected_user_ids
-            has_existing = SUGGESTION_EVALUATE_PERMISSION in existing_permissions
-            if is_selected and not has_existing:
-                user.extra_permissions.append(
-                    UserPermission(permission_key=SUGGESTION_EVALUATE_PERMISSION)
+            existing = existing_permissions.get(SUGGESTION_EVALUATE_PERMISSION)
+            before = existing.is_allowed is not False if existing else None
+            inherited = any(
+                SUGGESTION_EVALUATE_PERMISSION in role.permission_keys for role in user.roles
+            )
+            after = (None if inherited else True) if is_selected else (False if inherited else None)
+            if after is None and existing is not None:
+                user.extra_permissions.remove(existing)
+            elif after is not None and existing is None:
+                user.extra_permissions.append(UserPermission(
+                    permission_key=SUGGESTION_EVALUATE_PERMISSION, is_allowed=after,
+                ))
+            elif after is not None and existing is not None:
+                existing.is_allowed = after
+            if before != after:
+                user.session_version = (user.session_version or 0) + 1
+                record_audit_event(
+                    "User", "permissions_changed", "Öneri değerlendirme yetkisi güncellendi",
+                    entity_id=user.id, company_id=user.company_id, user_id=g.current_user.id,
+                    old_values={SUGGESTION_EVALUATE_PERMISSION: before},
+                    new_values={SUGGESTION_EVALUATE_PERMISSION: after}, commit=False,
                 )
-            elif not is_selected and has_existing:
-                user.extra_permissions.remove(existing_permissions[SUGGESTION_EVALUATE_PERMISSION])
 
         for suggestion in scoped_query(Suggestion.query, Suggestion).filter(
             Suggestion.status.in_([SUGGESTION_IN_EVALUATION_STATUS, SUGGESTION_COMPLETED_STATUS])
@@ -29015,7 +29003,7 @@ def request_action_closure(action_id):
     )
     approvers = [
         user for user in active_users()
-        if has_permission(user, "roles.manage") or has_role(user, "management_representative")
+        if has_permission(user, "actions.approve_closure")
     ]
     if approvers:
         notify_users(
@@ -29425,22 +29413,35 @@ def apply_role_form_to_user(user):
             roles.append(super_admin_role)
     previous_keys = user.role_keys
     user.roles = roles
-    selected_extra_permissions = set(request.form.getlist("extra_permissions"))
-    allowed_extra_permissions = {"quality.create"}
-    selected_extra_permissions &= allowed_extra_permissions
-    if not is_super_admin() and any(not current_user_can(key) for key in selected_extra_permissions):
-        abort(403)
-    existing_extra_permissions = {
-        permission.permission_key: permission for permission in user.extra_permissions
-    }
-    for permission_key in selected_extra_permissions:
-        if permission_key not in existing_extra_permissions:
-            user.extra_permissions.append(UserPermission(permission_key=permission_key))
-    for permission in list(user.extra_permissions):
-        if permission.permission_key in allowed_extra_permissions and (
-            permission.permission_key not in selected_extra_permissions
-        ):
-            user.extra_permissions.remove(permission)
+    legacy_extra_form = user.id is not None and request.form.get("personal_permissions_separate") != "1"
+    if legacy_extra_form or "extra_permissions" in request.form or request.form.get("extra_permissions_present") == "1":
+        previous_quality = user.permission_override("quality.create")
+        selected_extra_permissions = set(request.form.getlist("extra_permissions"))
+        if selected_extra_permissions - {"quality.create"}:
+            abort(400)
+        if not is_super_admin() and any(not current_user_can(key) for key in selected_extra_permissions):
+            abort(403)
+        existing_extra_permissions = {
+            permission.permission_key: permission for permission in user.extra_permissions
+        }
+        for permission_key in selected_extra_permissions:
+            if permission_key in existing_extra_permissions:
+                existing_extra_permissions[permission_key].is_allowed = True
+            else:
+                user.extra_permissions.append(UserPermission(permission_key=permission_key))
+        for permission in list(user.extra_permissions):
+            if permission.permission_key == "quality.create" and permission.is_allowed and (
+                permission.permission_key not in selected_extra_permissions
+            ):
+                user.extra_permissions.remove(permission)
+        new_quality = user.permission_override("quality.create")
+        if user.id is not None and previous_quality != new_quality:
+            record_audit_event(
+                "User", "permissions_changed", "Kalite deneyi yetkisi güncellendi",
+                entity_id=user.id, company_id=user.company_id, user_id=g.current_user.id,
+                old_values={"quality.create": previous_quality},
+                new_values={"quality.create": new_quality}, commit=False,
+            )
     sync_user_legacy_permissions(user)
     audit_user_role_assignment(user, previous_keys)
 
@@ -29496,7 +29497,6 @@ def create_user():
         roles=assignable_user_roles(),
         can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
         companies=Company.query.filter_by(is_active=True).order_by(Company.name).all() if is_superadmin_account() else [],
-        user_extra_permission_keys=user_extra_permission_keys,
     )
 
 
@@ -29555,7 +29555,76 @@ def edit_user(user_id):
         has_permission=has_permission,
         roles=assignable_user_roles(user),
         can_manage_roles=is_super_admin() or current_user_can("users.assign_roles"),
-        user_extra_permission_keys=user_extra_permission_keys,
+    )
+
+
+@bp.route("/users/<int:user_id>/permissions", methods=["GET", "POST"])
+@login_required
+@permission_required("users.assign_roles")
+def edit_user_permissions(user_id):
+    from .seed import PERMISSION_CATALOG
+
+    user = User.query.get_or_404(user_id)
+    if user.deleted_at is not None:
+        abort(404)
+    if user.company_id != current_company_id() and not is_superadmin_account():
+        abort(404)
+    if not can_manage_user_account(user) or user.id == g.current_user.id:
+        abort(403)
+    if user.has_role("super_admin") or user.company_id is None:
+        abort(403)
+
+    groups = permission_catalog_grouped()
+    catalog_keys = {item["key"] for item in PERMISSION_CATALOG}
+    current = {permission.permission_key: permission for permission in user.extra_permissions}
+    if request.method == "POST":
+        submitted = {
+            key.removeprefix("permission:"): value
+            for key, value in request.form.items()
+            if key.startswith("permission:")
+        }
+        if set(submitted) != catalog_keys or any(value not in {"inherit", "allow", "deny"} for value in submitted.values()):
+            abort(400)
+        changes = {}
+        inherited_keys = {key for role in user.roles for key in role.permission_keys}
+        for key, value in submitted.items():
+            previous = (current[key].is_allowed is not False) if key in current else None
+            chosen = {"inherit": None, "allow": True, "deny": False}[value]
+            if previous == chosen:
+                continue
+            if chosen is True and not is_superadmin_account() and not current_user_can(key):
+                abort(403)
+            if chosen is None and key in inherited_keys and not is_superadmin_account() and not current_user_can(key):
+                abort(403)
+            changes[key] = (previous, chosen)
+        for key, (_, chosen) in changes.items():
+            existing = current.get(key)
+            if chosen is None:
+                if existing is not None:
+                    user.extra_permissions.remove(existing)
+            elif existing is None:
+                user.extra_permissions.append(UserPermission(permission_key=key, is_allowed=chosen))
+            else:
+                existing.is_allowed = chosen
+        if changes:
+            sync_user_legacy_permissions(user)
+            user.session_version = (user.session_version or 0) + 1
+            record_audit_event(
+                "User", "permissions_changed", "Kullaniciya ozel yetkiler guncellendi",
+                entity_id=user.id, company_id=user.company_id, user_id=g.current_user.id,
+                old_values={key: before for key, (before, _) in changes.items()},
+                new_values={key: after for key, (_, after) in changes.items()},
+                commit=False,
+            )
+            db.session.commit()
+        flash("Kisiye ozel yetkiler kaydedildi.", "success")
+        return redirect(url_for("main.edit_user_permissions", user_id=user.id))
+
+    return render_template(
+        "user_permissions.html", user=user, permission_groups=groups,
+        permission_decisions={key: row.is_allowed is not False for key, row in current.items()},
+        inherited_keys={key for role in user.roles for key in role.permission_keys},
+        company_label=db.session.get(Company, user.company_id).label if user.company_id else "Platform",
     )
 
 
@@ -29598,20 +29667,36 @@ def delete_user(user_id):
     return redirect(url_for("main.users"))
 
 
+@bp.get("/roles/<int:role_id>/edit")
+@login_required
+@super_admin_required
+def edit_role_template(role_id):
+    role = Role.query.get_or_404(role_id)
+    if role.key == "company_admin" and not is_superadmin_account():
+        abort(403)
+    return render_template(
+        "role_template_form.html", role=role,
+        permission_groups=permission_catalog_grouped(),
+    )
+
+
 @bp.route("/roles", methods=["GET", "POST"])
 @login_required
 @super_admin_required
 def roles():
     if request.method == "POST":
+        from .seed import PERMISSION_CATALOG
+
         role_id = request.form.get("role_id", type=int)
         role = Role.query.get_or_404(role_id)
         if role.key == "company_admin" and not is_superadmin_account():
             abort(403)
         permission_keys = set(request.form.getlist("permission_keys"))
+        if permission_keys - {item["key"] for item in PERMISSION_CATALOG}:
+            abort(400)
         if role.key == "super_admin":
-            from .seed import PERMISSION_CATALOG
-
             permission_keys = {item["key"] for item in PERMISSION_CATALOG}
+        previous_keys = role.permission_keys
         existing = {item.permission_key: item for item in role.permissions}
         for permission_key in permission_keys:
             if permission_key not in existing:
@@ -29623,6 +29708,16 @@ def roles():
         for user in role.users:
             sync_user_legacy_permissions(user)
 
+        if previous_keys != permission_keys:
+            role.permissions_customized = True
+            event = record_audit_event(
+                "Role", "permissions_changed", "Rol şablonu yetkileri güncellendi",
+                entity_id=role.id, user_id=g.current_user.id,
+                old_values={"permissions": sorted(previous_keys)},
+                new_values={"permissions": sorted(permission_keys)}, commit=False,
+            )
+            event.company_id = None
+
         db.session.commit()
         flash(f"{role.name} rol yetkileri güncellendi.", "success")
         return redirect(url_for("main.roles"))
@@ -29630,9 +29725,8 @@ def roles():
     return render_template(
         "roles.html",
         roles=role_hierarchy(),
-        permission_groups=permission_catalog_grouped(),
         users=User.query.filter(User.deleted_at.is_(None)).order_by(User.full_name.asc()).all(),
-        user_extra_permission_keys=user_extra_permission_keys,
+        company_labels={company.id: company.label for company in Company.query.all()},
     )
 
 
@@ -29989,24 +30083,30 @@ def update_user_roles():
         validate_user_role_assignment(user, selected_roles)
         previous_keys = user.role_keys
         user.roles = selected_roles
-        selected_extra_permissions = set(
-            request.form.getlist(f"user_{user.id}_extra_permissions")
-        )
-        allowed_extra_permissions = {"quality.create"}
-        selected_extra_permissions &= allowed_extra_permissions
-        existing_extra_permissions = {
-            permission.permission_key: permission for permission in user.extra_permissions
-        }
-        for permission_key in selected_extra_permissions:
-            if permission_key not in existing_extra_permissions:
-                user.extra_permissions.append(
-                    UserPermission(permission_key=permission_key)
+        extra_field = f"user_{user.id}_extra_permissions"
+        if extra_field in request.form:
+            selected_extra_permissions = set(request.form.getlist(extra_field))
+            if selected_extra_permissions - {"quality.create"}:
+                abort(400)
+            previous_quality = user.permission_override("quality.create")
+            existing = next((item for item in user.extra_permissions if item.permission_key == "quality.create"), None)
+            if "quality.create" in selected_extra_permissions:
+                if not is_super_admin() and not current_user_can("quality.create"):
+                    abort(403)
+                if existing is None:
+                    user.extra_permissions.append(UserPermission(permission_key="quality.create"))
+                else:
+                    existing.is_allowed = True
+            elif existing is not None and existing.is_allowed is not False:
+                user.extra_permissions.remove(existing)
+            new_quality = user.permission_override("quality.create")
+            if previous_quality != new_quality:
+                record_audit_event(
+                    "User", "permissions_changed", "Kalite deneyi yetkisi güncellendi",
+                    entity_id=user.id, company_id=user.company_id, user_id=g.current_user.id,
+                    old_values={"quality.create": previous_quality},
+                    new_values={"quality.create": new_quality}, commit=False,
                 )
-        for permission in list(user.extra_permissions):
-            if permission.permission_key in allowed_extra_permissions and (
-                permission.permission_key not in selected_extra_permissions
-            ):
-                user.extra_permissions.remove(permission)
         sync_user_legacy_permissions(user)
         audit_user_role_assignment(user, previous_keys)
     db.session.commit()

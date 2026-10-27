@@ -1,6 +1,7 @@
 """Independent company-admin route checks using an isolated in-memory database."""
 
 import json
+from types import SimpleNamespace
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -8,9 +9,12 @@ import pytest
 
 from app import create_app
 from app.extensions import db
-from app.models import AuditLog, Company, PersonnelContact, Role, RolePermission, User
+from app.models import AuditLog, Company, PersonnelContact, Role, RolePermission, User, UserPermission
 from app.routes import is_management_representative
 from app.seed import COMPANY_ADMIN_DELEGATABLE_ROLE_KEYS, ensure_default_roles
+from app.seed import PERMISSION_CATALOG
+from app.routes import can_approve_dof_management, can_manage_suggestion_evaluators, can_view_all_dofs, has_permission
+from app.notifications import user_has_permission
 
 
 @pytest.fixture()
@@ -95,6 +99,12 @@ def payload(username="ordinary", role=None, **overrides):
     return data
 
 
+def personal_permission_form(**decisions):
+    data = {f"permission:{item['key']}": "inherit" for item in PERMISSION_CATALOG}
+    data.update({f"permission:{key}": value for key, value in decisions.items()})
+    return data
+
+
 def assign(client, route, target, role, company=None):
     if route == "new":
         data = payload("new-assignee", role)
@@ -159,6 +169,41 @@ def test_company_admin_seed_is_exact_and_idempotent(app):
     assert Role.query.filter_by(key="company_admin").count() == 1
     assert role.permission_keys == expected
     assert len(role.permissions) == len(expected)
+
+
+def test_role_template_permission_removal_survives_seed_reconciliation(app):
+    role = Role.query.filter_by(key="department_staff").one()
+    removed = role.permissions[0]
+    key = removed.permission_key
+    role.permissions.remove(removed)
+    role.permissions_customized = True
+    db.session.commit()
+    ensure_default_roles()
+    db.session.commit()
+    db.session.expire_all()
+    assert key not in role.permission_keys
+
+
+def test_global_role_template_editor_is_separate_and_audited(client, companies):
+    root = create_user("superadmin", "super_admin")
+    role = Role.query.filter_by(key="department_staff").one()
+    removed_key = sorted(role.permission_keys)[0]
+    login(client, root, companies[0])
+    assert client.get(f"/roles/{role.id}/edit").status_code == 200
+    response = client.post("/roles", data={
+        "role_id": str(role.id),
+        "permission_keys": sorted(role.permission_keys - {removed_key}),
+    })
+    assert response.status_code == 302
+    ensure_default_roles()
+    db.session.commit()
+    db.session.expire_all()
+    assert role.permissions_customized is True
+    assert removed_key not in role.permission_keys
+    event = AuditLog.query.filter_by(entity_type="Role", entity_id=str(role.id), action="permissions_changed").one()
+    assert event.company_id is None
+    login(client, create_user("restricted-admin", "company_admin", companies[0]), companies[0])
+    assert client.get(f"/roles/{role.id}/edit").status_code == 403
 
 
 def test_company_admin_is_not_superadmin(admin):
@@ -601,3 +646,118 @@ def test_onboarding_company_admin_assignment_has_role_audit(client):
                                     user_id=root.id).one()
     assert json.loads(event.old_values) == {"roles": []}
     assert json.loads(event.new_values) == {"roles": ["company_admin"]}
+
+
+def test_personal_denial_overrides_role_and_legacy_flag(client, companies, admin):
+    target = create_user("manager-target", "management_representative", companies[0])
+    peer = create_user("manager-peer", "management_representative", companies[0])
+    target.can_create_actions = True
+    db.session.commit()
+    login(client, admin, companies[0])
+    response = client.get(f"/users/{target.id}/permissions")
+    assert response.status_code == 200
+    assert "Kişiden kaldır" in response.get_data(as_text=True)
+
+    response = client.post(f"/users/{target.id}/permissions", data=personal_permission_form(**{
+        "actions.create": "deny",
+    }))
+    assert response.status_code == 302
+    db.session.expire_all()
+    assert not target.has_permission("actions.create")
+    assert not has_permission(target, "can_create_actions")
+    assert not user_has_permission(target, "can_create_actions")
+    assert peer.has_permission("actions.create")
+    event = AuditLog.query.filter_by(entity_type="User", entity_id=str(target.id), action="permissions_changed").one()
+    assert json.loads(event.new_values)["actions.create"] is False
+
+    login(client, target, companies[0])
+    assert client.get("/actions/new").status_code == 403
+    login(client, admin, companies[0])
+    response = client.post(f"/users/{target.id}/permissions", data=personal_permission_form())
+    assert response.status_code == 302
+    db.session.expire_all()
+    assert target.has_permission("actions.create")
+
+
+def test_personal_allow_and_unrelated_profile_edit_keep_decision(client, companies, admin):
+    target = create_user("staff-target", "department_staff", companies[0])
+    login(client, admin, companies[0])
+    response = client.post(f"/users/{target.id}/permissions", data=personal_permission_form(**{
+        "quality.create": "allow",
+    }))
+    assert response.status_code == 302
+    db.session.expire_all()
+    assert target.has_permission("quality.create")
+    response = client.post(f"/users/{target.id}/edit", data=payload(
+        target.username, role=target.roles[0], personal_permissions_separate="1",
+    ))
+    assert response.status_code == 302
+    db.session.expire_all()
+    assert target.has_permission("quality.create")
+
+
+def test_personal_permissions_reject_cross_tenant_self_and_escalation(client, companies, admin):
+    own = create_user("staff-own", "department_staff", companies[0])
+    other = create_user("staff-other", "department_staff", companies[1])
+    login(client, admin, companies[0])
+    assert client.get(f"/users/{other.id}/permissions").status_code == 404
+    assert client.post(f"/users/{other.id}/permissions", data=personal_permission_form()).status_code == 404
+    assert client.post(f"/users/{admin.id}/permissions", data=personal_permission_form()).status_code == 403
+    invalid = personal_permission_form(**{"roles.manage": "allow", "actions.create": "deny"})
+    assert client.post(f"/users/{own.id}/permissions", data=invalid).status_code == 403
+    db.session.expire_all()
+    assert not own.extra_permissions
+    assert client.post(f"/users/{own.id}/permissions", data={"permission:actions.create": "allow"}).status_code == 400
+
+
+def test_title_alone_does_not_grant_if_or_suggestion_management(app, companies):
+    from flask import g
+
+    staff = create_user("titled-staff", "department_staff", companies[0])
+    staff.title = "Yönetim Temsilcisi"
+    db.session.commit()
+    with app.test_request_context("/"):
+        g.current_user = staff
+        assert not can_view_all_dofs()
+        assert not can_manage_suggestion_evaluators()
+
+
+def test_suggestion_evaluator_admin_cannot_write_global_account(client, companies, admin):
+    global_user = create_user("superadmin", "super_admin")
+    own_user = create_user("own-evaluator", "department_staff", companies[0])
+    login(client, admin, companies[0])
+    response = client.get("/oneri-sikayet/oneri/yetkililer")
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert own_user.full_name in html
+    assert global_user.full_name not in html
+    response = client.post("/oneri-sikayet/oneri/yetkililer", data={
+        "evaluator_user_ids": [str(global_user.id)],
+    })
+    assert response.status_code == 403
+    db.session.expire_all()
+    assert not global_user.extra_permissions
+
+
+def test_personal_denial_blocks_if_approval_and_management_feedback_scope(app, companies):
+    from flask import g
+    from app.customer_portal import _can_access
+
+    representative = create_user("if-representative", "management_representative", companies[0])
+    representative.extra_permissions.append(UserPermission(
+        permission_key="if.approve_management", is_allowed=False,
+    ))
+    manager = create_user("feedback-manager", "management", companies[0])
+    manager.extra_permissions.append(UserPermission(
+        permission_key="customer_portal.view_all", is_allowed=False,
+    ))
+    db.session.commit()
+    with app.test_request_context("/"):
+        g.current_user = representative
+        record = SimpleNamespace(approval_step="management_representative", status="Açık")
+        assert not can_approve_dof_management(record)
+        feedback = SimpleNamespace(
+            company_id=companies[0].id, responsible_user_id=None,
+            created_by_user_id=None, is_internal_feedback=False, department="Kalite",
+        )
+        assert not _can_access(feedback, manager)

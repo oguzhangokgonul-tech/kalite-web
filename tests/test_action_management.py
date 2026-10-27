@@ -7,7 +7,7 @@ from unittest.mock import patch
 from werkzeug.exceptions import NotFound
 
 from app.extensions import db
-from app.models import Action, ActionClosureFile, ActionComment, ActionHistory, ActionSubTask, AuditLog, DEPARTMENTS
+from app.models import Action, ActionClosureFile, ActionComment, ActionHistory, ActionSubTask, AuditLog, DEPARTMENTS, UserPermission
 from app.routes import (
     send_action_upload, save_sub_action_evidence_file, save_closure_evidence_files,
     commit_action_upload_changes,
@@ -129,6 +129,22 @@ def test_action_create_file_comment_subtask_and_closure_flow(client):
     db.session.refresh(action)
     assert action.is_completed is True
     assert ActionHistory.query.filter_by(action_id=action.id, event_type="completed").count() == 1
+
+
+def test_personal_denial_blocks_manager_closure_approval(client):
+    company = create_company("329")
+    owner = create_user("closure-owner", company=company, permissions=("actions.create",))
+    approver = create_user("closure-manager", company=company, role_key="management_representative")
+    action = make_action(company, owner, closure_approval_requested=True)
+    assert approver.has_permission("actions.approve_closure")
+    approver.extra_permissions.append(UserPermission(
+        permission_key="actions.approve_closure", is_allowed=False,
+    ))
+    db.session.commit()
+    login(client, approver)
+    assert client.post(f"/actions/{action.id}/complete").status_code == 403
+    db.session.refresh(action)
+    assert not action.is_completed
 
 
 def test_sub_action_created_with_evidence_uses_its_record_directory(app, client):

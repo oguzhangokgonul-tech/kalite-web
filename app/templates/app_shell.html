@@ -157,9 +157,9 @@
             <i class="bi bi-buildings"></i>
             <span>{{ _("Şirket Yönetimi") }}</span>
           </a>
-          <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.update_user_roles'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
+          <a class="dashboard-nav-item {% if request.endpoint in ['main.roles', 'main.edit_role_template', 'main.update_user_roles', 'main.edit_user_permissions'] %}active{% endif %}" href="{{ url_for('main.roles') }}">
             <i class="bi bi-shield-lock"></i>
-            <span>{{ _("Rol Yönetimi") }}</span>
+            <span>Kişi Yetkileri</span>
           </a>
         {% endif %}
         {% if g.current_user_is_superadmin_account %}

@@ -1,0 +1,61 @@
+{% extends "app_shell.html" %}
+{% import "components/ui.html" as ui %}
+
+{% block title %}Kişi Yetkileri{% endblock %}
+{% block app_content %}
+  {% call ui.page_header(user.full_name ~ " - Yetkiler", "", icon="bi-shield-check") %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('main.users') }}"><i class="bi bi-arrow-left"></i> Kullanıcılar</a>
+  {% endcall %}
+
+  <form method="post" class="app-form-card" id="personalPermissionsForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="app-card-header">
+      <span class="app-card-icon"><i class="bi bi-person-lock"></i></span>
+      <div>
+        <h3>{{ user.full_name }}</h3>
+        <p>{{ company_label }} · {{ user.role_names|join(', ') or 'Rol atanmadı' }}</p>
+      </div>
+    </div>
+
+    <div class="personal-permissions-toolbar">
+      <label class="form-label" for="permissionSearch">Yetki ara</label>
+      <input class="form-control" id="permissionSearch" type="search" placeholder="Modül veya işlem adı" autocomplete="off">
+      <p class="form-text mb-0">Rol şablonu varsayılandır. Kişisel seçim yalnız bu kullanıcıyı etkiler. Yalnız sahip olduğunuz yetkileri verebilirsiniz; şirket ve kayıt erişim sınırları ayrıca geçerlidir.</p>
+    </div>
+
+    <div class="personal-permission-groups">
+      {% for group, permissions in permission_groups.items() %}
+        <details class="personal-permission-group" {% if loop.first %}open{% endif %}>
+          <summary>{{ group }} <span class="text-muted">{{ permissions|length }}</span></summary>
+          <div class="personal-permission-list">
+            {% for permission in permissions %}
+              {% set decision = permission_decisions.get(permission.key) %}
+              <div class="personal-permission-row" data-permission-search="{{ (group ~ ' ' ~ permission.label ~ ' ' ~ permission.key)|lower }}">
+                <div>
+                  <label for="permission_{{ permission.key|replace('.', '_') }}" class="fw-semibold">{{ permission.label }}</label>
+                  <div class="text-muted small">{{ permission.description }}</div>
+                  <div class="small">Şablon: {{ 'İzinli' if permission.key in inherited_keys else 'Kapalı' }} · Etkin: {{ 'İzinli' if user.has_permission(permission.key) else 'Kapalı' }}</div>
+                </div>
+                <select class="form-select" id="permission_{{ permission.key|replace('.', '_') }}" name="permission:{{ permission.key }}" aria-label="{{ permission.label }} için kişisel karar">
+                  <option value="inherit" {% if decision is none %}selected{% endif %}>Şablondan devral</option>
+                  <option value="allow" {% if decision is sameas true %}selected{% endif %}>Kişiye izin ver</option>
+                  <option value="deny" {% if decision is sameas false %}selected{% endif %}>Kişiden kaldır</option>
+                </select>
+              </div>
+            {% endfor %}
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+
+    <div class="app-form-actions">
+      <span id="permissionChangeCount" class="text-muted" aria-live="polite">Değişiklik yok</span>
+      <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> Yetkileri Kaydet</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script defer src="{{ url_for('static', filename='js/user-permissions.js', v=config.ASSET_VERSION) }}"></script>
+{% endblock %}

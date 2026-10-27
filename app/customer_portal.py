@@ -248,7 +248,7 @@ def _can_access(record, user=None):
         return False
     if (
         user.has_permission("customer_portal.assign")
-        or user.has_role("management")
+        or user.has_permission("customer_portal.view_all")
         or (
             user.has_permission("customer_portal.triage")
             and not user.has_role("department_manager")
@@ -277,7 +277,7 @@ def _visible_query(include_archived=False):
     )
     if (
         _has_permission("customer_portal.assign")
-        or user.has_role("management")
+        or _has_permission("customer_portal.view_all")
         or (
             _has_permission("customer_portal.triage")
             and not user.has_role("department_manager")

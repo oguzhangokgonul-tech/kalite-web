@@ -103,6 +103,10 @@ def user_has_permission(user, permission_key):
     if hasattr(user, "has_role") and user.has_role("super_admin"):
         return True
     mapped_key = LEGACY_PERMISSION_ALIASES.get(permission_key, permission_key)
+    if hasattr(user, "permission_override"):
+        override = user.permission_override(mapped_key)
+        if override is not None:
+            return override
     if hasattr(user, "has_permission") and user.has_permission(mapped_key):
         return True
     return bool(getattr(user, permission_key, False))

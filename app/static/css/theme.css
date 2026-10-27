@@ -504,6 +504,10 @@ html .vp-theme-toggle:focus-visible { outline: 3px solid var(--vp-focus, #1e5bff
   html[data-bs-theme="dark"] body .login-page .login-button { color: #fff; background: #265ec0; }
   html[data-bs-theme="dark"] body .login-page .login-button:hover { background: #1e50a8; }
   html[data-bs-theme="dark"] body .login-page .alert { color: var(--bs-alert-color); background: var(--bs-alert-bg); border-color: var(--bs-alert-border-color); }
+  html[data-bs-theme="dark"] body .role-template-summary { color: var(--vp-text-primary); background: var(--vp-surface); border-color: var(--vp-border) !important; }
+  html[data-bs-theme="dark"] body .personal-permission-group { border-color: var(--vp-border); }
+  html[data-bs-theme="dark"] body .personal-permission-group > summary { color: var(--vp-text-primary); }
+  html[data-bs-theme="dark"] body .personal-permission-row { border-color: var(--vp-border); }
 }
 
 /* Bootstrap dark variables are not screen-scoped. Reset them explicitly for print. */

@@ -38,6 +38,7 @@ class UserPermission(db.Model):
 
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), primary_key=True)
     permission_key = db.Column(db.String(120), primary_key=True)
+    is_allowed = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
 
     user = db.relationship("User", back_populates="extra_permissions")
 
@@ -933,6 +934,7 @@ class Role(db.Model):
     description = db.Column(db.Text, nullable=True)
     hierarchy_level = db.Column(db.Integer, nullable=False, default=100)
     is_system = db.Column(db.Boolean, nullable=False, default=True)
+    permissions_customized = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
     created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
     updated_at = db.Column(
         db.DateTime,
@@ -1060,12 +1062,18 @@ class User(db.Model):
     def has_permission(self, permission_key):
         if self.has_role("super_admin"):
             return True
+        override = self.permission_override(permission_key)
+        if override is not None:
+            return override
         if any(permission_key in role.permission_keys for role in self.roles):
             return True
-        return any(
-            permission_key == permission.permission_key
-            for permission in self.extra_permissions
-        )
+        return False
+
+    def permission_override(self, permission_key):
+        for permission in self.extra_permissions:
+            if permission.permission_key == permission_key:
+                return permission.is_allowed is not False
+        return None
 
 
 def normalize_user_login_key(value):

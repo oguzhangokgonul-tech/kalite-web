@@ -15052,3 +15052,56 @@ textarea.form-control::placeholder {
   align-self: flex-start;
   margin: 4px 14px;
 }
+
+.personal-permissions-toolbar {
+  margin-bottom: 18px;
+}
+
+.personal-permissions-toolbar .form-control {
+  max-width: 420px;
+}
+
+.personal-permission-group {
+  border-top: 1px solid #dbe5f1;
+}
+
+.personal-permission-group > summary {
+  cursor: pointer;
+  padding: 15px 4px;
+  font-weight: 700;
+  color: #152747;
+}
+
+.personal-permission-group > summary span {
+  margin-left: 8px;
+  font-weight: 400;
+}
+
+.role-template-summary {
+  background: #fff;
+}
+
+.personal-permission-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 230px);
+  align-items: center;
+  gap: 16px;
+  padding: 12px 4px;
+  border-top: 1px solid #edf1f6;
+}
+
+.personal-permission-row[hidden],
+.personal-permission-group[hidden] {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .personal-permission-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .personal-permission-row .form-select {
+    width: 100%;
+  }
+}
