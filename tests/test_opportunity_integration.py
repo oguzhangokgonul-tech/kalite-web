@@ -126,18 +126,26 @@ def test_linked_action_delete_preserves_record_and_all_evidence(app, client, mod
     from tests.helpers import stored_upload_path, write_stored_upload
     company = create_company('OP-delete')
     owner = create_user('op-delete-owner', company=company, role_key='management_representative')
-    paths = [f'company-{company.id:03d}/op-{kind}.txt' for kind in ('attachment', 'legacy-closure', 'closure', 'subtask')]
-    for path in paths:
-        write_stored_upload(app, path, b'preserve evidence')
     action = Action(company_id=company.id, action_number=1, title='Linked action',
                     responsible_user_id=owner.id, responsible_owner=owner.full_name,
-                    termin_date=date(2026, 12, 1),
-                    file_stored_name=paths[0], closure_file_stored_name=paths[1])
+                    termin_date=date(2026, 12, 1))
     db.session.add(action)
     db.session.flush()
-    evidence = ActionClosureFile(company_id=company.id, action_id=action.id, original_name='closure.txt', stored_name=paths[2])
-    subtask = ActionSubTask(company_id=company.id, parent_action_id=action.id, title='Subtask', evidence_stored_name=paths[3])
+    evidence = ActionClosureFile(company_id=company.id, action_id=action.id, original_name='closure.txt', stored_name='pending')
+    subtask = ActionSubTask(company_id=company.id, parent_action_id=action.id, title='Subtask')
     db.session.add_all([evidence, subtask])
+    db.session.flush()
+    prefix = f'company-{company.id:03d}/actions'
+    paths = [
+        f'{prefix}/files/{action.id}/attachment.txt',
+        f'{prefix}/closure/{action.id}/legacy/legacy-closure.txt',
+        f'{prefix}/closure/{action.id}/{evidence.id}/closure.txt',
+        f'{prefix}/sub-actions/{action.id}/{subtask.id}/subtask.txt',
+    ]
+    action.file_stored_name, action.closure_file_stored_name = paths[:2]
+    evidence.stored_name, subtask.evidence_stored_name = paths[2:]
+    for path in paths:
+        write_stored_upload(app, path, b'preserve evidence')
     item = opportunity(company, owner, 'Linked opportunity')
     item.action_id = action.id
     db.session.commit()
@@ -192,16 +200,25 @@ def test_action_files_deleted_only_after_successful_database_commit(app, client,
     from tests.helpers import stored_upload_path, write_stored_upload
     company = create_company('OP-delete-order')
     user = create_user('op-delete-order', company=company, role_key='management_representative')
-    paths = [f'company-{company.id:03d}/order-{i}.txt' for i in range(4)]
-    for path in paths:
-        write_stored_upload(app, path, b'evidence')
     action = Action(company_id=company.id, action_number=1, title='Deletion order', termin_date=date(2026, 12, 1),
-                    responsible_user_id=user.id, responsible_owner=user.full_name,
-                    file_stored_name=paths[0], closure_file_stored_name=paths[1])
+                    responsible_user_id=user.id, responsible_owner=user.full_name)
     db.session.add(action)
     db.session.flush()
-    db.session.add(ActionClosureFile(company_id=company.id, action_id=action.id, original_name='closure.txt', stored_name=paths[2]))
-    db.session.add(ActionSubTask(company_id=company.id, parent_action_id=action.id, title='Subtask', evidence_stored_name=paths[3]))
+    closure = ActionClosureFile(company_id=company.id, action_id=action.id, original_name='closure.txt', stored_name='pending')
+    subtask = ActionSubTask(company_id=company.id, parent_action_id=action.id, title='Subtask')
+    db.session.add_all([closure, subtask])
+    db.session.flush()
+    prefix = f'company-{company.id:03d}/actions'
+    paths = [
+        f'{prefix}/files/{action.id}/attachment.txt',
+        f'{prefix}/closure/{action.id}/legacy/legacy-closure.txt',
+        f'{prefix}/closure/{action.id}/{closure.id}/closure.txt',
+        f'{prefix}/sub-actions/{action.id}/{subtask.id}/subtask.txt',
+    ]
+    action.file_stored_name, action.closure_file_stored_name = paths[:2]
+    closure.stored_name, subtask.evidence_stored_name = paths[2:]
+    for path in paths:
+        write_stored_upload(app, path, b'evidence')
     db.session.commit()
     action_id = action.id
     real_commit = db.session.commit

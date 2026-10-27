@@ -21,6 +21,7 @@ from flask import (
     current_app,
     flash,
     g,
+    has_app_context,
     jsonify,
     redirect,
     render_template,
@@ -32,8 +33,9 @@ from flask import (
 )
 from flask_babel import gettext as _, refresh as refresh_locale
 from flask_wtf.csrf import generate_csrf
-from sqlalchemy import and_, inspect, or_, text
+from sqlalchemy import and_, event, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import HTTPException
 
@@ -5293,15 +5295,73 @@ def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attach
     )
 
 
-def send_action_upload(stored_name, *, company_id, action_id, folder, download_name):
-    if company_id is None:
-        abort(404)
+def action_upload_path(stored_name, *, company_id, action_id, folder, record_id=None):
+    if company_id is None or action_id is None:
+        return None
     file_path = safe_upload_path(stored_name)
     upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
-    expected_dir = upload_root / f"company-{company_id:03d}" / "actions" / folder
-    if file_path is None or not file_path.is_relative_to(expected_dir) or not file_path.is_file():
-        abort(404)
+    expected_dir = upload_root / f"company-{company_id:03d}" / "actions" / folder / str(action_id)
+    if record_id is not None:
+        expected_dir /= str(record_id)
+    if file_path is None or file_path.parent != expected_dir:
+        return None
     if str(stored_name) != file_path.relative_to(upload_root).as_posix():
+        return None
+    return file_path
+
+
+def delete_action_upload(stored_name, *, company_id, action_id, folder, record_id=None):
+    file_path = action_upload_path(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    if file_path and file_path.is_file():
+        file_path.unlink()
+
+
+def defer_action_upload_deletion(stored_name, *, company_id, action_id, folder, record_id=None):
+    file_path = action_upload_path(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    if file_path is not None:
+        db.session.info.setdefault("action_upload_deletions", set()).add(file_path)
+
+
+@event.listens_for(Session, "after_rollback")
+def discard_uncommitted_action_uploads(session):
+    if session.in_nested_transaction():
+        return
+    session.info.pop("action_upload_deletions", None)
+    for file_path in session.info.pop("action_upload_new_files", set()):
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            if has_app_context():
+                current_app.logger.exception("Rolled-back action upload cleanup failed")
+
+
+def commit_action_upload_changes():
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    db.session.info.pop("action_upload_new_files", None)
+    for file_path in db.session.info.pop("action_upload_deletions", set()):
+        try:
+            if file_path.is_file():
+                file_path.unlink()
+        except OSError:
+            current_app.logger.exception("Committed action upload cleanup failed")
+
+
+def send_action_upload(stored_name, *, company_id, action_id, folder, download_name, record_id=None):
+    file_path = action_upload_path(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    if file_path is None or not file_path.is_file():
         abort(404)
     if folder == "files":
         borrowed = Action.query.filter(
@@ -10664,6 +10724,7 @@ def action_snapshot(action):
         "effectiveness_owner_user_id": action.effectiveness_owner_user_id,
         "effectiveness_due_date": action.effectiveness_due_date,
         "file_original_name": action.file_original_name,
+        "file_stored_name": action.file_stored_name,
     }
 
 
@@ -10722,7 +10783,8 @@ def describe_action_changes(before, action):
         )
     if before["description"] != (action.description or ""):
         changes.append("açıklaması güncellendi")
-    if before["file_original_name"] != action.file_original_name:
+    if (before["file_original_name"] != action.file_original_name or
+            before["file_stored_name"] != action.file_stored_name):
         changes.append("dosyası güncellendi")
     return changes
 
@@ -10739,6 +10801,7 @@ def sub_action_snapshot(sub_action):
         "description": sub_action.description or "",
         "evidence_required": sub_action.evidence_required,
         "evidence_original_name": sub_action.evidence_original_name,
+        "evidence_stored_name": sub_action.evidence_stored_name,
         "closing_note": sub_action.closing_note or "",
     }
 
@@ -10778,7 +10841,8 @@ def describe_sub_action_changes(before, sub_action):
             f"{'Evet' if before['evidence_required'] else 'Hayır'} -> "
             f"{'Evet' if sub_action.evidence_required else 'Hayır'}"
         )
-    if before["evidence_original_name"] != sub_action.evidence_original_name:
+    if (before["evidence_original_name"] != sub_action.evidence_original_name or
+            before["evidence_stored_name"] != sub_action.evidence_stored_name):
         changes.append("kanıt dosyası güncellendi")
     if before["closing_note"] != (sub_action.closing_note or ""):
         changes.append("kapanış açıklaması güncellendi")
@@ -15039,7 +15103,10 @@ def delete_uploaded_file(action):
     if not action.file_stored_name:
         return
 
-    delete_stored_upload(action.file_stored_name)
+    defer_action_upload_deletion(
+        action.file_stored_name, company_id=action.company_id,
+        action_id=action.id, folder="files",
+    )
 
     action.file_original_name = None
     action.file_stored_name = None
@@ -15077,6 +15144,8 @@ def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions"
     except ValueError:
         upload_path.unlink(missing_ok=True)
         raise
+    if folder.startswith("actions/"):
+        db.session.info.setdefault("action_upload_new_files", set()).add(upload_path)
     return original_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
 
 
@@ -15087,7 +15156,7 @@ def save_uploaded_file(action):
 
     safe_name, stored_name, mime_type = store_uploaded_file(
         uploaded_file,
-        folder="actions/files",
+        folder=f"actions/files/{action.id}",
         company_id=action.company_id,
     )
     delete_uploaded_file(action)
@@ -15097,13 +15166,19 @@ def save_uploaded_file(action):
     action.file_mime_type = mime_type
 
 
-def delete_closure_evidence_file(action):
-    for closure_file in list(action.closure_files):
-        delete_stored_upload(closure_file.stored_name)
+def delete_closure_evidence_file(action, closure_files=None):
+    for closure_file in closure_files if closure_files is not None else list(action.closure_files):
+        defer_action_upload_deletion(
+            closure_file.stored_name, company_id=action.company_id,
+            action_id=action.id, folder="closure", record_id=closure_file.id,
+        )
         db.session.delete(closure_file)
 
     if action.closure_file_stored_name:
-        delete_stored_upload(action.closure_file_stored_name)
+        defer_action_upload_deletion(
+            action.closure_file_stored_name, company_id=action.company_id,
+            action_id=action.id, folder="closure", record_id="legacy",
+        )
 
     action.closure_file_original_name = None
     action.closure_file_stored_name = None
@@ -15125,30 +15200,48 @@ def save_closure_evidence_files(action):
             raise ValueError("invalid_file_type")
 
     from .meeting_actions import link_for_action
-    if action.action_category != "ohs" and not link_for_action(action):
-        delete_closure_evidence_file(action)
-    for uploaded_file in uploaded_files:
-        safe_name, stored_name, mime_type = store_uploaded_file(
-            uploaded_file,
-            folder="actions/closure",
-            company_id=action.company_id,
-        )
-        db.session.add(
-            ActionClosureFile(
+    replace_existing = action.action_category != "ohs" and not link_for_action(action)
+    previous_files = list(action.closure_files) if replace_existing else []
+    saved_files = []
+    try:
+        for uploaded_file in uploaded_files:
+            closure_file = ActionClosureFile(
                 action=action,
                 company_id=action.company_id,
-                original_name=safe_name,
-                stored_name=stored_name,
-                mime_type=mime_type,
+                original_name=safe_original_filename(uploaded_file.filename, "dosya"),
+                stored_name=f"pending-{uuid4().hex}",
             )
-        )
+            db.session.add(closure_file)
+            db.session.flush()
+            safe_name, stored_name, mime_type = store_uploaded_file(
+                uploaded_file,
+                folder=f"actions/closure/{action.id}/{closure_file.id}",
+                company_id=action.company_id,
+            )
+            closure_file.original_name = safe_name
+            closure_file.stored_name = stored_name
+            closure_file.mime_type = mime_type
+            saved_files.append((stored_name, closure_file.id))
+    except Exception:
+        for stored_name, file_id in saved_files:
+            delete_action_upload(
+                stored_name, company_id=action.company_id, action_id=action.id,
+                folder="closure", record_id=file_id,
+            )
+        raise
+    if replace_existing:
+        delete_closure_evidence_file(action, closure_files=previous_files)
 
 
 def delete_sub_action_evidence_file(sub_action):
     if not sub_action.evidence_stored_name:
         return
 
-    delete_stored_upload(sub_action.evidence_stored_name)
+    defer_action_upload_deletion(
+        sub_action.evidence_stored_name, company_id=sub_action.company_id,
+        action_id=sub_action.parent_action_id, folder="sub-actions",
+        record_id=sub_action.id,
+    )
 
     sub_action.evidence_original_name = None
     sub_action.evidence_stored_name = None
@@ -15160,20 +15253,31 @@ def save_sub_action_evidence_file(sub_action):
     if not uploaded_file or not uploaded_file.filename:
         return
 
-    delete_sub_action_evidence_file(sub_action)
+    action_id = sub_action.parent_action_id or (
+        sub_action.parent_action.id if sub_action.parent_action else None
+    )
+    if action_id is None:
+        raise ValueError("invalid_action")
+    if sub_action.id is None:
+        db.session.add(sub_action)
+        db.session.flush()
     safe_name, stored_name, mime_type = store_uploaded_file(
         uploaded_file,
         SUB_ACTION_EVIDENCE_EXTENSIONS,
-        folder="actions/sub-actions",
+        folder=f"actions/sub-actions/{action_id}/{sub_action.id}",
         company_id=sub_action.company_id,
     )
+    delete_sub_action_evidence_file(sub_action)
     sub_action.evidence_original_name = safe_name
     sub_action.evidence_stored_name = stored_name
     sub_action.evidence_mime_type = mime_type
 
 
-def parse_sub_action_form(sub_action=None):
+def parse_sub_action_form(sub_action=None, parent_action=None):
     sub_action = sub_action or ActionSubTask()
+    if parent_action is not None:
+        sub_action.parent_action = parent_action
+        sub_action.company_id = parent_action.company_id
     title = request.form.get("title", "").strip()
     responsible = parse_optional_user("responsible_id")
     related_user_1 = parse_optional_user("related_user_1_id")
@@ -15204,13 +15308,16 @@ def parse_sub_action_form(sub_action=None):
     sub_action.description = description or None
     sub_action.evidence_required = evidence_required
     sub_action.closing_note = closing_note or None
-    save_sub_action_evidence_file(sub_action)
 
     if status == "Tamamlandı":
-        if evidence_required and not sub_action.evidence_stored_name:
+        uploaded_file = request.files.get("evidence_file")
+        has_upload = bool(uploaded_file and uploaded_file.filename)
+        if evidence_required and not (sub_action.evidence_stored_name or has_upload):
             raise ValueError("evidence_required")
         if evidence_required and not closing_note:
             raise ValueError("closing_note_required")
+    save_sub_action_evidence_file(sub_action)
+    if status == "Tamamlandı":
         sub_action.completed_at = sub_action.completed_at or datetime.utcnow()
         sub_action.completed_by_user_id = sub_action.completed_by_user_id or g.current_user.id
     else:
@@ -28234,7 +28341,7 @@ def create_action():
                     f"{linked_dof.dof_no} kaydı için {action.number_label} bağlı aksiyon açıldı.",
                     exclude_user_id=g.current_user.id,
                 )
-            db.session.commit()
+            commit_action_upload_changes()
             flash("Aksiyon kaydı başarıyla eklendi.", "success")
             return redirect(url_for(action_list_endpoint(action)))
         except ValueError as error:
@@ -28565,7 +28672,7 @@ def edit_action(action_id):
                         before["related_user_2_id"],
                     },
                 )
-            db.session.commit()
+            commit_action_upload_changes()
             flash("Aksiyon kaydı güncellendi.", "success")
             return redirect(url_for(action_list_endpoint(action)))
         except ValueError as error:
@@ -28619,7 +28726,7 @@ def create_sub_action(action_id):
         abort(403)
 
     try:
-        sub_action = parse_sub_action_form()
+        sub_action = parse_sub_action_form(parent_action=action)
         sub_action.parent_action = action
         sub_action.company_id = action.company_id
         sub_action.created_by_user_id = g.current_user.id
@@ -28640,7 +28747,7 @@ def create_sub_action(action_id):
             exclude_user_id=g.current_user.id,
             email_event="assignment",
         )
-        db.session.commit()
+        commit_action_upload_changes()
         flash("Alt aksiyon eklendi.", "success")
     except ValueError as error:
         db.session.rollback()
@@ -28731,7 +28838,7 @@ def edit_sub_action(sub_action_id):
                     f"'{sub_action.title}' alt aksiyonu tamamlandı.",
                     exclude_user_id=g.current_user.id,
                 )
-            db.session.commit()
+            commit_action_upload_changes()
             flash("Alt aksiyon güncellendi.", "success")
             if can_view_action(action):
                 return redirect(url_for("main.action_detail", action_id=action.id))
@@ -28775,6 +28882,14 @@ def complete_sub_action(sub_action_id):
     closing_note = request.form.get("closing_note", "").strip()
     if closing_note:
         sub_action.closing_note = closing_note
+    uploaded_file = request.files.get("evidence_file")
+    has_upload = bool(uploaded_file and uploaded_file.filename)
+    if sub_action.evidence_required and not (sub_action.evidence_stored_name or has_upload):
+        flash("Bu alt aksiyon için kanıt dosyası yüklenmeden tamamlanamaz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
+    if sub_action.evidence_required and not sub_action.closing_note:
+        flash("Bu alt aksiyon için kapanış açıklaması yazılmadan tamamlanamaz.", "danger")
+        return redirect(url_for("main.action_detail", action_id=action.id))
     try:
         save_sub_action_evidence_file(sub_action)
     except ValueError as error:
@@ -28782,13 +28897,6 @@ def complete_sub_action(sub_action_id):
             flash("Dosya en fazla 25 MB olabilir.", "danger")
         else:
             flash("Alt aksiyon kanıtı için sadece PDF, JPG, PNG, DOCX veya XLSX yükleyebilirsiniz.", "danger")
-        return redirect(url_for("main.action_detail", action_id=action.id))
-
-    if sub_action.evidence_required and not sub_action.evidence_stored_name:
-        flash("Bu alt aksiyon için kanıt dosyası yüklenmeden tamamlanamaz.", "danger")
-        return redirect(url_for("main.action_detail", action_id=action.id))
-    if sub_action.evidence_required and not sub_action.closing_note:
-        flash("Bu alt aksiyon için kapanış açıklaması yazılmadan tamamlanamaz.", "danger")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
     sub_action.status = "Tamamlandı"
@@ -28805,7 +28913,7 @@ def complete_sub_action(sub_action_id):
         f"'{sub_action.title}' alt aksiyonu tamamlandı.",
         exclude_user_id=g.current_user.id,
     )
-    db.session.commit()
+    commit_action_upload_changes()
     flash("Alt aksiyon tamamlandı.", "success")
     return redirect(url_for("main.action_detail", action_id=action.id))
 
@@ -28828,7 +28936,7 @@ def delete_sub_action(sub_action_id):
         f"{g.current_user.full_name} '{title}' alt aksiyonunu sildi.",
         actor=g.current_user,
     )
-    db.session.commit()
+    commit_action_upload_changes()
     flash("Alt aksiyon silindi.", "success")
     return redirect(url_for("main.action_detail", action_id=action.id))
 
@@ -28848,6 +28956,7 @@ def download_sub_action_evidence(sub_action_id):
         company_id=sub_action.company_id,
         action_id=sub_action.parent_action_id,
         folder="sub-actions",
+        record_id=sub_action.id,
         download_name=sub_action.evidence_original_name,
     )
     record_download_audit(
@@ -28884,6 +28993,7 @@ def request_action_closure(action_id):
     try:
         save_closure_evidence_files(action)
     except ValueError as error:
+        db.session.rollback()
         if str(error) == "file_too_large":
             flash("Dosya en fazla 25 MB olabilir.", "danger")
         else:
@@ -28915,7 +29025,7 @@ def request_action_closure(action_id):
             exclude_user_id=g.current_user.id,
             email_event="approval",
         )
-    db.session.commit()
+    commit_action_upload_changes()
     flash("Kapatma talebi onay yetkililerinin incelemesine açıldı.", "success")
     return redirect(url_for("main.action_detail", action_id=action.id))
 
@@ -29125,9 +29235,17 @@ def delete_action(action_id):
 
     if request.method == "POST":
         # A concurrent link can reject DELETE; retain evidence until the transaction commits.
-        paths = {action.file_stored_name, action.closure_file_stored_name}
-        paths.update(item.evidence_stored_name for item in action.sub_actions)
-        paths.update(item.stored_name for item in action.closure_files)
+        paths = {
+            (action.file_stored_name, "files", None),
+            (action.closure_file_stored_name, "closure", "legacy"),
+        }
+        paths.update(
+            (item.evidence_stored_name, "sub-actions", item.id)
+            for item in action.sub_actions
+        )
+        paths.update(
+            (item.stored_name, "closure", item.id) for item in action.closure_files
+        )
         try:
             db.session.delete(action)
             db.session.commit()
@@ -29138,9 +29256,14 @@ def delete_action(action_id):
             db.session.rollback()
             raise
         cleanup_failed = False
-        for path in paths - {None, ""}:
+        for path, folder, record_id in paths:
+            if not path:
+                continue
             try:
-                delete_stored_upload(path)
+                delete_action_upload(
+                    path, company_id=action.company_id,
+                    action_id=action.id, folder=folder, record_id=record_id,
+                )
             except OSError:
                 cleanup_failed = True
                 current_app.logger.exception("Deleted action upload cleanup failed")
@@ -29200,6 +29323,7 @@ def download_closure_evidence_file(action_id, file_id):
         company_id=action.company_id,
         action_id=action.id,
         folder="closure",
+        record_id=closure_file.id,
         download_name=closure_file.original_name,
     )
     record_download_audit(
@@ -29240,6 +29364,7 @@ def download_latest_closure_evidence_file(action_id):
         company_id=action.company_id,
         action_id=action.id,
         folder="closure",
+        record_id="legacy",
         download_name=action.closure_file_original_name,
     )
     record_download_audit(

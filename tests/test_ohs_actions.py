@@ -75,21 +75,23 @@ def stored_action(app, scenario):
     action = make_action(s.company, s.owner, title="ISG confidential action", action_category="ohs")
     prefix = f"company-{s.company.id:03d}/actions"
     action.file_original_name = "hazard.png"
-    action.file_stored_name = f"{prefix}/files/hazard.png"
+    action.file_stored_name = f"{prefix}/files/{action.id}/hazard.png"
     action.file_mime_type = "image/png"
     sub = ActionSubTask(
         company_id=s.company.id, parent_action_id=action.id,
         title="ISG confidential subtask", responsible_id=s.owner.id,
         created_by_user_id=s.manager.id, due_date=action.termin_date,
         evidence_original_name="evidence.png",
-        evidence_stored_name=f"{prefix}/sub-actions/evidence.png",
         evidence_mime_type="image/png",
     )
     closure = ActionClosureFile(
         company_id=s.company.id, action_id=action.id, original_name="closure.png",
-        stored_name=f"{prefix}/closure/closure.png", mime_type="image/png",
+        stored_name="pending", mime_type="image/png",
     )
     db.session.add_all([sub, closure])
+    db.session.flush()
+    sub.evidence_stored_name = f"{prefix}/sub-actions/{action.id}/{sub.id}/evidence.png"
+    closure.stored_name = f"{prefix}/closure/{action.id}/{closure.id}/closure.png"
     db.session.commit()
     for path in (action.file_stored_name, sub.evidence_stored_name, closure.stored_name):
         write_stored_upload(app, path, PHOTO)
@@ -409,7 +411,7 @@ def test_ohs_due_reminder_email_is_tenant_scoped_and_deduplicated(app, scenario,
 def test_rejected_closure_resubmission_preserves_evidence(app, client, scenario, resubmission):
     s = scenario
     action = make_action(s.company, s.owner, action_category="ohs")
-    legacy_path = f"company-{s.company.id:03d}/actions/closure/legacy.png"
+    legacy_path = f"company-{s.company.id:03d}/actions/closure/{action.id}/legacy/legacy.png"
     action.closure_file_original_name = "legacy.png"
     action.closure_file_stored_name = legacy_path
     action.closure_file_mime_type = "image/png"

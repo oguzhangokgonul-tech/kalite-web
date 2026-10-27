@@ -89,13 +89,17 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   Dosya yolunda kayit kimligi bulunmadigindan, artik baska bir
   kayit tarafindan referans edilmeyen yetim dosyanin sahipligi bu kontrolle
   kanitlanamaz; bu kalinti risk acik kalir.
-- [ ] Yetim veya elle degistirilmis dosya metadata'si icin kayit kimligine
-  bagli kalici dosya yolu/manifest tasarimi hazirlansin; mevcut kayitlar icin
-  veri tasima ve geri alma plani gerektirir.
-- [ ] Eski duz-kok aksiyon dosyalari icin kontrollu tasima/uyumluluk karari
-  yazilsin; guvensiz genel `legacy_uploaded_file_path` geri dususu aksiyon
-  indirme rotalarinda acilmasin. 27 Ekim canli salt-okunur envanterinde
-  dort aksiyon dosyasi alaninin hicbirinde dolu kayit yoktu.
+- [x] Yeni aksiyon dosyalari icin sirket, aksiyon ve alt kayit kimlikli
+  kalici klasor duzeni ile guvenli silme karari yazildi ve uygulandi.
+  Kanit: `docs/ACTION_FILE_OWNERSHIP_2026-10-27.md`, aksiyon/ISG testleri.
+  Bu kontrol tek basina yetim dosyanin tarihsel sahibini kanitlamaz.
+- [ ] Yetim/eski dosyalarin ilk sahibini kanitlayacak manifest ve tombstone
+  migration'i, geri donus provasi ile uygulansin. Ayni kaydin artik referans
+  edilmeyen eski dosyasi ve yeniden kullanilan satir ID'si riski aciktir.
+- [x] Eski duz-kok aksiyon dosyalari icin karar kaydedildi: genel
+  `legacy_uploaded_file_path` geri dususu acilmaz. 27 Ekim canli salt-okunur
+  envanterinde dort dosya alaninin tamami `0/0/0/0`; yayindan hemen once
+  yeniden sayilir, dolu kayit varsa tasima plani olmadan release durur.
 - [ ] Rol x firma x islem matrisi: liste, detay, olusturma, degistirme,
   silme, onay, rapor ve dosya indirme icin izinler sinansin.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
@@ -188,3 +192,13 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   testleri 3 gecti. Bu turlar tam regresyon veya manuel siza testi degildir.
 - Onceki `docs/WHOLE_SITE_AUDIT_2026-09-15.md` raporu tarihsel kanittir;
   bugunku surum icin dogrulama sayilmaz.
+- 27 Ekim ucuncu guvenlik dilimi: yeni aksiyon ekleri firma/aksiyon/alt kayit
+  kimlikli klasorlerde; indirme ve silme ayni kanonik yol sahipligini
+  denetler. Dosya degisiminde eski ek ancak DB commit sonrasi temizlenir;
+  rollback ve savepoint testleri eklendi. Aksiyon, ISG, upload, is akisi,
+  tenant ve firsat entegrasyonu paketinde 194; bildirim politikasi,
+  teslimat yarisi ve ISG entegrasyonu paketinde 91 test gecti. Son kapanis
+  rollback ve silme testi guncellemesinden sonra 16 odakli test tekrar gecti.
+  Tam pytest
+  paketi veya bagimsiz siza testi tamamlanmis sayilmaz. Kalici manifest
+  ve tombstone migration'i kalan risk olarak aciktir.
