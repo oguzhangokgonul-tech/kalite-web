@@ -61,3 +61,32 @@ def test_personal_permission_upgrade_downgrade_upgrade(tmp_path):
                     migration.downgrade()
     finally:
         engine.dispose()
+
+
+def test_downgrade_refuses_triggered_sqlite_schema_before_mutation(tmp_path):
+    migration = load_migration()
+    engine = sa.create_engine("sqlite:///" + (tmp_path / "triggered.db").as_posix())
+    try:
+        with engine.begin() as connection:
+            connection.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY)"))
+            connection.execute(sa.text("CREATE TABLE roles (id INTEGER PRIMARY KEY, key VARCHAR(80))"))
+            connection.execute(sa.text("CREATE TABLE role_permissions (role_id INTEGER, permission_key VARCHAR(120))"))
+            connection.execute(sa.text(
+                "CREATE TABLE user_permissions (user_id INTEGER, permission_key VARCHAR(120))"
+            ))
+            connection.execute(sa.text(
+                "CREATE TRIGGER keep_roles AFTER INSERT ON users BEGIN "
+                "SELECT COUNT(*) FROM roles; END"
+            ))
+            with Operations.context(MigrationContext.configure(connection)):
+                migration.upgrade()
+                with pytest.raises(RuntimeError, match="trigger dependencies"):
+                    migration.downgrade()
+            assert "is_allowed" in {
+                column["name"] for column in sa.inspect(connection).get_columns("user_permissions")
+            }
+            assert "permissions_customized" in {
+                column["name"] for column in sa.inspect(connection).get_columns("roles")
+            }
+    finally:
+        engine.dispose()

@@ -61,6 +61,15 @@ def upgrade():
 
 def downgrade():
     connection = op.get_bind()
+    if connection.dialect.name == "sqlite":
+        trigger = connection.execute(sa.text(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' LIMIT 1"
+        )).scalar()
+        if trigger:
+            raise RuntimeError(
+                "SQLite trigger dependencies prevent a safe schema downgrade; "
+                "use a reviewed code-only rollback and preserve the expanded schema."
+            )
     if "roles" in sa.inspect(connection).get_table_names() and "permissions_customized" in {
         column["name"] for column in sa.inspect(connection).get_columns("roles")
     }:

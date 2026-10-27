@@ -47,8 +47,16 @@ surumun migration'i ile onceki rollere bir kez eklenir.
 Alembic `202610270001` ve runtime schema uzlastirmasi ayni kolonu ekler.
 Upgrade mevcut grant'leri korur ve tekrar calistirilabilir. Downgrade, `deny`
 satiri varsa veri kaybini onlemek icin hata verir. Canliya cikmadan once
-DB + upload yedegi, gercekci kopyada upgrade/downgrade/upgrade ve tam rol
-matrisi testi gerekir. Bu belge bir canliya alma onayi degildir.
+DB + upload yedegi, canli kopyasinda upgrade ve butunluk testi, sade semada
+upgrade/downgrade/upgrade ve tam rol matrisi testi gerekir. Bu belge bir
+canliya alma onayi degildir.
+
+Uretim SQLite semasindaki trigger'lar batch tablo yeniden adlandirmasini
+engelleyebilir. Migration bu durumda downgrade'i herhangi bir kolon silmeden
+reddeder. Uretimde geri donus, yeni kolonlari koruyarak incelenmis kod-only
+revert ile yapilir; migration'in ekledigi rol izinleri ayrica kaydedilip
+etkin yetkiler yeniden dogrulanir. Eski veritabani yedegini canli verinin
+ustune yazmak normal rollback degildir.
 
 ## Acik sinirlar
 
