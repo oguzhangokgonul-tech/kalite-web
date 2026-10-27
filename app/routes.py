@@ -3801,13 +3801,27 @@ def can_view_action(action):
     )
 
 
+def can_write_assigned_action():
+    return any(
+        current_user_can(permission)
+        for permission in (
+            "actions.create",
+            "actions.edit",
+            "actions.comment_assigned",
+            "actions.request_close_assigned",
+        )
+    )
+
+
 def can_revise_termin(action):
     if g.current_user is None or action.is_completed:
         return False
     return (
         is_oguzhan_admin()
-        or is_assigned_to_current_user(action)
-        or is_related_to_current_user(action)
+        or (
+            can_write_assigned_action()
+            and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
+        )
     )
 
 
@@ -3817,8 +3831,10 @@ def can_create_sub_action(action):
     return (
         is_oguzhan_admin()
         or current_user_can("actions.edit")
-        or is_assigned_to_current_user(action)
-        or is_related_to_current_user(action)
+        or (
+            can_write_assigned_action()
+            and (is_assigned_to_current_user(action) or is_related_to_current_user(action))
+        )
     )
 
 
@@ -3840,9 +3856,14 @@ def can_full_edit_sub_action(sub_action):
     return (
         is_oguzhan_admin()
         or current_user_can("actions.edit")
-        or sub_action.created_by_user_id == g.current_user.id
-        or is_assigned_to_current_user(action)
-        or is_related_to_current_user(action)
+        or (
+            can_write_assigned_action()
+            and (
+                sub_action.created_by_user_id == g.current_user.id
+                or is_assigned_to_current_user(action)
+                or is_related_to_current_user(action)
+            )
+        )
     )
 
 
@@ -3862,8 +3883,10 @@ def can_revise_sub_action_termin(sub_action):
         return False
     return (
         can_full_edit_sub_action(sub_action)
-        or is_sub_action_responsible(sub_action)
-        or is_sub_action_related(sub_action)
+        or (
+            can_write_assigned_action()
+            and (is_sub_action_responsible(sub_action) or is_sub_action_related(sub_action))
+        )
     )
 
 
@@ -3880,7 +3903,10 @@ def can_delete_sub_action(sub_action):
 def can_complete_sub_action(sub_action):
     if sub_action.status in {"Tamamlandı", "İptal Edildi"}:
         return False
-    return can_full_edit_sub_action(sub_action) or is_sub_action_responsible(sub_action)
+    return can_full_edit_sub_action(sub_action) or (
+        can_write_assigned_action()
+        and is_sub_action_responsible(sub_action)
+    )
 
 
 def visible_actions_query():

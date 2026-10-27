@@ -71,6 +71,11 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   yabanci dosya icin `downloaded` audit kaydi olusmuyor. Yeni dosya yolu
   siniri `app/payment_tracking.py` icinde. Mevcut gecerli indirme testi de
   gecti. Bu, butun dosya modullerinin dogrulandigi anlamina gelmez.
+- [x] Aksiyonlar ilk dilim: atanmis salt goruntuleyici termin, alt aksiyon
+  olusturma/duzenleme/tamamlama/silme isteklerinde 403 alir; kayit degismez.
+  Yabanci firma aksiyon ve alt aksiyon detay, duzenleme, silme ve ek indirme
+  URL'leri 404 alir. Kanit: `tests/test_action_management.py`. Tum rol x firma
+  x islem matrisi ve diger ek turleri henuz tamamlanmadi.
 - [ ] Rol x firma x islem matrisi: liste, detay, olusturma, degistirme,
   silme, onay, rapor ve dosya indirme icin izinler sinansin.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
@@ -129,6 +134,17 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   odeme migration, yedekleme ve dokuman yonetimi icin 31 odakli test gecti.
   Pillow PNG/JPEG onizleme testi eklendi. Tam pytest paketi bu turda
   tamamlanmadi; tam regresyon maddesi acik tutuldu.
+- 27 Ekim ilk release: `354443a` canliya alindi. Canli tam yedek 204 upload
+  ile dogrulandi, geri yukleme dry-run basarili, sunucu disi SHA-256 eslesti;
+  migration head `202610260002`, tenant-health ve iki HTTPS giris smoke testi
+  basarili. Servis ve iki zamanlayici aktif, yeni servis hata logu yok.
+- Sonraki adim: Aksiyonlar rol/firma matrisi ilk dilimi yerelde calisiliyor.
+  Tam matris ve bagimsiz manuel siza testi acik kalir; ilk release'in
+  tamamlanmasi bunlari kapatmaz.
+- Aksiyonlar ilk dilim QA: Aksiyonlar, ISG, is akisi guvenligi ve tenant
+  paketinde 123 test gecti. Eski ISG rol testinde firmaya bagli Super Admin
+  test verisi guncel global Super Admin hiyerarsisine uyarlandi. Tum pytest
+  paketi yine tamamlanmis sayilmaz.
 - 27 Ekim ikinci tur: mevcut Odemeler/Sozlesmeler/Satin Alma modulleri
   paketi 49 testle gecti. Odeme indirmesinde metaveri yabanci firma yoluna
   degistirildiginde yeni test duzeltmeden once 200 ile kirmizi oldu; firma

@@ -486,8 +486,13 @@ def test_role_ui_and_shared_route_permissions(
     client, scenario, role, can_create, can_edit, can_request, can_approve,
 ):
     s = scenario
-    user = create_user(f"ohs-role-{role}", company=s.company, role_key=role)
-    action = make_action(s.company, user, action_category="ohs")
+    user = create_user(
+        f"ohs-role-{role}",
+        company=None if role == "super_admin" else s.company,
+        role_key=role,
+    )
+    responsible = s.owner if role == "super_admin" else user
+    action = make_action(s.company, responsible, action_category="ohs")
     login(client, user, company=s.company if role == "super_admin" else None)
     listing = client.get("/isg-aksiyonlari")
     assert listing.status_code == 200
@@ -506,7 +511,7 @@ def test_role_ui_and_shared_route_permissions(
     edit_link_visible = f'href="{detail_url}/edit"' in body
     assert (f'action="{detail_url}/request-closure"' in body) is can_request
     assert client.get(f"{detail_url}/edit").status_code == (200 if can_edit else 403)
-    assert client.post(f"{detail_url}/edit", data=action_payload(user)).status_code == (302 if can_edit else 403)
+    assert client.post(f"{detail_url}/edit", data=action_payload(responsible)).status_code == (302 if can_edit else 403)
     assert client.post(f"{detail_url}/request-closure", data={
         "closure_evidence_note": "Role verification",
     }).status_code == (302 if can_request else 403)

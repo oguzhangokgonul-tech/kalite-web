@@ -149,6 +149,99 @@ def test_action_detail_is_not_visible_across_companies(client):
     assert client.get(f"/actions/{foreign_action.id}").status_code == 404
 
 
+def test_assigned_viewer_cannot_change_action_or_create_sub_action(client):
+    company = create_company("337")
+    viewer = create_user("action-read-only", company=company, role_key="viewer")
+    action = make_action(company, viewer)
+    old_termin = action.termin_date
+    sub_action = ActionSubTask(
+        company_id=company.id,
+        parent_action_id=action.id,
+        title="Salt okunur alt aksiyon",
+        responsible_id=viewer.id,
+        created_by_user_id=viewer.id,
+        due_date=old_termin,
+    )
+    db.session.add(sub_action)
+    db.session.commit()
+
+    login(client, viewer)
+    assert client.get(f"/actions/{action.id}").status_code == 200
+    assert client.post(
+        f"/actions/{action.id}/revise-termin",
+        data={"termin_date": (old_termin + timedelta(days=1)).isoformat()},
+    ).status_code == 403
+    assert client.post(
+        f"/actions/{action.id}/sub-actions/create",
+        data={
+            "title": "Yetkisiz alt aksiyon",
+            "responsible_id": str(viewer.id),
+            "due_date": old_termin.isoformat(),
+            "priority": "Orta",
+            "status": "Beklemede",
+        },
+    ).status_code == 403
+    assert client.get(f"/sub-actions/{sub_action.id}/edit").status_code == 403
+    assert client.post(
+        f"/sub-actions/{sub_action.id}/edit",
+        data={"title": "Degistirildi"},
+    ).status_code == 403
+    assert client.post(
+        f"/sub-actions/{sub_action.id}/complete",
+        data={"closing_note": "Yetkisiz"},
+    ).status_code == 403
+    assert client.post(f"/sub-actions/{sub_action.id}/delete").status_code == 403
+    db.session.refresh(action)
+    db.session.refresh(sub_action)
+    assert action.termin_date == old_termin
+    assert sub_action.title == "Salt okunur alt aksiyon"
+    assert sub_action.completed_at is None
+    assert ActionSubTask.query.filter_by(parent_action_id=action.id).count() == 1
+
+
+def test_foreign_action_mutations_and_downloads_are_not_found(client):
+    company_a = create_company("338")
+    company_b = create_company("339")
+    manager = create_user(
+        "action-foreign-manager", company=company_a, role_key="management_representative"
+    )
+    owner = create_user("action-foreign-owner", company=company_b)
+    action = make_action(company_b, owner)
+    sub_action = ActionSubTask(
+        company_id=company_b.id,
+        parent_action_id=action.id,
+        title="Yabanci alt aksiyon",
+        responsible_id=owner.id,
+    )
+    db.session.add(sub_action)
+    db.session.commit()
+
+    login(client, manager)
+    for path in (
+        f"/actions/{action.id}",
+        f"/actions/{action.id}/edit",
+        f"/actions/{action.id}/delete",
+        f"/actions/{action.id}/download",
+        f"/actions/{action.id}/closure-evidence/download",
+        f"/sub-actions/{sub_action.id}",
+        f"/sub-actions/{sub_action.id}/evidence/download",
+    ):
+        assert client.get(path).status_code == 404, path
+    for path, data in (
+        (f"/actions/{action.id}/revise-termin", {"termin_date": date.today().isoformat()}),
+        (f"/actions/{action.id}/sub-actions/create", {"title": "Yetkisiz"}),
+        (f"/actions/{action.id}/comments", {"comment": "Yetkisiz"}),
+        (f"/actions/{action.id}/delete", {}),
+        (f"/sub-actions/{sub_action.id}/complete", {}),
+    ):
+        assert client.post(path, data=data).status_code == 404, path
+    db.session.refresh(action)
+    db.session.refresh(sub_action)
+    assert action.is_completed is False
+    assert sub_action.completed_at is None
+    assert ActionComment.query.filter_by(action_id=action.id).count() == 0
+
+
 def test_action_effectiveness_review_becomes_assigned_task(client):
     company = create_company("335")
     responsible = create_user(
