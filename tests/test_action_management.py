@@ -1,9 +1,13 @@
 from datetime import date, timedelta
 
-from app.extensions import db
-from app.models import Action, ActionComment, ActionHistory, ActionSubTask, DEPARTMENTS
+import pytest
+from werkzeug.exceptions import NotFound
 
-from .helpers import create_company, create_user, login, upload_tuple
+from app.extensions import db
+from app.models import Action, ActionClosureFile, ActionComment, ActionHistory, ActionSubTask, AuditLog, DEPARTMENTS
+from app.routes import send_action_upload
+
+from .helpers import create_company, create_user, login, upload_tuple, write_stored_upload
 
 
 def action_payload(responsible, **overrides):
@@ -240,6 +244,179 @@ def test_foreign_action_mutations_and_downloads_are_not_found(client):
     assert action.is_completed is False
     assert sub_action.completed_at is None
     assert ActionComment.query.filter_by(action_id=action.id).count() == 0
+
+
+@pytest.mark.parametrize("kind", ("main", "sub_action", "closure", "legacy_closure"))
+@pytest.mark.parametrize(
+    "path_scope",
+    ("foreign_company", "other_module", "other_action_folder", "legacy_root"),
+)
+def test_action_download_rejects_borrowed_metadata_path(app, client, kind, path_scope):
+    company = create_company("340")
+    foreign_company = create_company("341")
+    owner = create_user("action-file-owner", company=company)
+    action = make_action(company, owner)
+    valid_prefix = f"company-{company.id:03d}/actions"
+    if kind == "main":
+        folder = "files"
+        record = action
+        field = "file_stored_name"
+        action.file_original_name = "evidence.pdf"
+        url = f"/actions/{action.id}/download"
+    elif kind == "sub_action":
+        folder = "sub-actions"
+        record = ActionSubTask(
+            company_id=company.id, parent_action_id=action.id,
+            title="Kanit", responsible_id=owner.id,
+            evidence_original_name="evidence.pdf",
+        )
+        field = "evidence_stored_name"
+        db.session.add(record)
+        db.session.flush()
+        url = f"/sub-actions/{record.id}/evidence/download"
+    elif kind == "closure":
+        folder = "closure"
+        record = ActionClosureFile(
+            company_id=company.id, action_id=action.id,
+            original_name="evidence.pdf",
+            stored_name=f"{valid_prefix}/closure/evidence.pdf",
+        )
+        field = "stored_name"
+        db.session.add(record)
+        db.session.flush()
+        url = f"/actions/{action.id}/closure-evidence/{record.id}/download"
+    else:
+        folder = "closure"
+        record = action
+        field = "closure_file_stored_name"
+        action.closure_file_original_name = "evidence.pdf"
+        url = f"/actions/{action.id}/closure-evidence/download"
+
+    valid_path = f"{valid_prefix}/{folder}/evidence.pdf"
+    setattr(record, field, valid_path)
+    write_stored_upload(app, valid_path, b"own evidence")
+    db.session.commit()
+    login(client, owner)
+    assert client.get(url, follow_redirects=True).data == b"own evidence"
+    download_count = AuditLog.query.filter_by(action="downloaded").count()
+    assert download_count == 1
+
+    if path_scope == "foreign_company":
+        borrowed_path = f"company-{foreign_company.id:03d}/actions/{folder}/private.pdf"
+    elif path_scope == "other_module":
+        borrowed_path = f"company-{company.id:03d}/contracts/private.pdf"
+    elif path_scope == "legacy_root":
+        borrowed_path = "private.pdf"
+    else:
+        wrong_folder = "closure" if folder != "closure" else "files"
+        borrowed_path = f"{valid_prefix}/{wrong_folder}/private.pdf"
+    write_stored_upload(app, borrowed_path, b"other company's private evidence")
+    setattr(record, field, borrowed_path)
+    db.session.commit()
+
+    response = client.get(url, follow_redirects=True)
+    assert response.status_code == 404
+    assert b"private evidence" not in response.data
+    assert AuditLog.query.filter_by(action="downloaded").count() == download_count
+
+
+@pytest.mark.parametrize("kind", ("main", "sub_action", "closure", "legacy_closure"))
+def test_action_download_rejects_another_actions_file(app, client, kind):
+    company = create_company("342")
+    viewer = create_user("action-file-viewer", company=company)
+    other_owner = create_user("action-file-other-owner", company=company)
+    visible = make_action(company, viewer, action_number=1)
+    hidden = make_action(company, other_owner, action_number=2)
+    folder = {
+        "main": "files", "sub_action": "sub-actions",
+        "closure": "closure", "legacy_closure": "closure",
+    }[kind]
+    borrowed_path = f"company-{company.id:03d}/actions/{folder}/other.pdf"
+    write_stored_upload(app, borrowed_path, b"other action evidence")
+
+    if kind == "main":
+        hidden.file_stored_name = visible.file_stored_name = borrowed_path
+        hidden.file_original_name = visible.file_original_name = "other.pdf"
+        visible_record, stored_field = visible, "file_stored_name"
+        url = f"/actions/{visible.id}/download"
+    elif kind == "sub_action":
+        db.session.add(ActionSubTask(
+            company_id=company.id, parent_action_id=hidden.id,
+            title="Diger kanit", responsible_id=other_owner.id,
+            evidence_stored_name=borrowed_path, evidence_original_name="other.pdf",
+        ))
+        sub = ActionSubTask(
+            company_id=company.id, parent_action_id=visible.id,
+            title="Gorunen kanit", responsible_id=viewer.id,
+            evidence_stored_name=borrowed_path, evidence_original_name="other.pdf",
+        )
+        db.session.add(sub)
+        db.session.flush()
+        visible_record, stored_field = sub, "evidence_stored_name"
+        url = f"/sub-actions/{sub.id}/evidence/download"
+    elif kind == "closure":
+        db.session.add(ActionClosureFile(
+            company_id=company.id, action_id=hidden.id,
+            stored_name=borrowed_path, original_name="other.pdf",
+        ))
+        closure = ActionClosureFile(
+            company_id=company.id, action_id=visible.id,
+            stored_name=borrowed_path, original_name="other.pdf",
+        )
+        db.session.add(closure)
+        db.session.flush()
+        visible_record, stored_field = closure, "stored_name"
+        url = f"/actions/{visible.id}/closure-evidence/{closure.id}/download"
+    else:
+        hidden.closure_file_stored_name = visible.closure_file_stored_name = borrowed_path
+        hidden.closure_file_original_name = visible.closure_file_original_name = "other.pdf"
+        visible_record, stored_field = visible, "closure_file_stored_name"
+        url = f"/actions/{visible.id}/closure-evidence/download"
+    db.session.commit()
+
+    login(client, viewer)
+    assert client.get(f"/actions/{hidden.id}").status_code == 403
+    before = AuditLog.query.filter_by(action="downloaded").count()
+    response = client.get(url, follow_redirects=True)
+    assert response.status_code == 404
+    assert b"other action evidence" not in response.data
+    assert AuditLog.query.filter_by(action="downloaded").count() == before
+
+    setattr(
+        visible_record, stored_field,
+        borrowed_path.replace(f"/{folder}/", f"/{folder}/../{folder}/"),
+    )
+    db.session.commit()
+    response = client.get(url, follow_redirects=True)
+    assert response.status_code == 404
+    assert b"other action evidence" not in response.data
+    assert AuditLog.query.filter_by(action="downloaded").count() == before
+
+
+def test_action_download_rejects_record_without_company(app):
+    with app.test_request_context():
+        with pytest.raises(NotFound):
+            send_action_upload(
+                "private.pdf", company_id=None, action_id=1,
+                folder="files", download_name="private.pdf"
+            )
+
+
+def test_action_download_rejects_noncanonical_metadata_path(app, client):
+    company = create_company("343")
+    owner = create_user("action-file-canonical-owner", company=company)
+    action = make_action(company, owner)
+    stored_name = f"company-{company.id:03d}/actions/files/evidence.pdf"
+    write_stored_upload(app, stored_name, b"action evidence")
+    action.file_stored_name = stored_name.replace("/files/", "/closure/../files/")
+    action.file_original_name = "evidence.pdf"
+    db.session.commit()
+
+    login(client, owner)
+    response = client.get(f"/actions/{action.id}/download")
+    assert response.status_code == 404
+    assert b"action evidence" not in response.data
+    assert AuditLog.query.filter_by(action="downloaded").count() == 0
 
 
 def test_action_effectiveness_review_becomes_assigned_task(client):

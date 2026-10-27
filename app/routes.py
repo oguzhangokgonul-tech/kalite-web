@@ -5293,6 +5293,42 @@ def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attach
     )
 
 
+def send_action_upload(stored_name, *, company_id, action_id, folder, download_name):
+    if company_id is None:
+        abort(404)
+    file_path = safe_upload_path(stored_name)
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    expected_dir = upload_root / f"company-{company_id:03d}" / "actions" / folder
+    if file_path is None or not file_path.is_relative_to(expected_dir) or not file_path.is_file():
+        abort(404)
+    if str(stored_name) != file_path.relative_to(upload_root).as_posix():
+        abort(404)
+    if folder == "files":
+        borrowed = Action.query.filter(
+            Action.file_stored_name == stored_name, Action.id != action_id
+        ).first()
+    elif folder == "sub-actions":
+        borrowed = ActionSubTask.query.filter(
+            ActionSubTask.evidence_stored_name == stored_name,
+            ActionSubTask.parent_action_id != action_id,
+        ).first()
+    else:
+        borrowed = ActionClosureFile.query.filter(
+            ActionClosureFile.stored_name == stored_name,
+            ActionClosureFile.action_id != action_id,
+        ).first() or Action.query.filter(
+            Action.closure_file_stored_name == stored_name, Action.id != action_id
+        ).first()
+    if borrowed is not None:
+        abort(404)
+    return send_from_directory(
+        str(file_path.parent),
+        file_path.name,
+        as_attachment=True,
+        download_name=download_name,
+    )
+
+
 def valid_hex_color(value):
     return bool(value and HEX_COLOR_PATTERN.match(str(value).strip()))
 
@@ -28807,9 +28843,11 @@ def download_sub_action_evidence(sub_action_id):
     if not sub_action.evidence_stored_name:
         flash("Bu alt aksiyon için kanıt dosyası bulunmuyor.", "warning")
         return redirect(url_for("main.sub_action_detail", sub_action_id=sub_action.id))
-    response = send_stored_upload(
+    response = send_action_upload(
         sub_action.evidence_stored_name,
-        as_attachment=True,
+        company_id=sub_action.company_id,
+        action_id=sub_action.parent_action_id,
+        folder="sub-actions",
         download_name=sub_action.evidence_original_name,
     )
     record_download_audit(
@@ -29126,9 +29164,11 @@ def download_action_file(action_id):
         flash("Bu kayda ait yüklenmiş dosya bulunamadı.", "warning")
         return redirect(url_for(action_list_endpoint(action)))
 
-    response = send_stored_upload(
+    response = send_action_upload(
         action.file_stored_name,
-        as_attachment=True,
+        company_id=action.company_id,
+        action_id=action.id,
+        folder="files",
         download_name=action.file_original_name,
     )
     record_download_audit(
@@ -29155,9 +29195,11 @@ def download_closure_evidence_file(action_id, file_id):
         action_id=action.id,
     ).first_or_404()
 
-    response = send_stored_upload(
+    response = send_action_upload(
         closure_file.stored_name,
-        as_attachment=True,
+        company_id=action.company_id,
+        action_id=action.id,
+        folder="closure",
         download_name=closure_file.original_name,
     )
     record_download_audit(
@@ -29193,9 +29235,11 @@ def download_latest_closure_evidence_file(action_id):
         flash("Bu aksiyona ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.action_detail", action_id=action.id))
 
-    response = send_stored_upload(
+    response = send_action_upload(
         action.closure_file_stored_name,
-        as_attachment=True,
+        company_id=action.company_id,
+        action_id=action.id,
+        folder="closure",
         download_name=action.closure_file_original_name,
     )
     record_download_audit(

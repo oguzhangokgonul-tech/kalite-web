@@ -76,6 +76,26 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   Yabanci firma aksiyon ve alt aksiyon detay, duzenleme, silme ve ek indirme
   URL'leri 404 alir. Kanit: `tests/test_action_management.py`. Tum rol x firma
   x islem matrisi ve diger ek turleri henuz tamamlanmadi.
+- [x] Aksiyon dosyasi ikinci dilim: ana ek, alt aksiyon kaniti, kayitli ve
+  eski tek-dosya kapanis kaniti yalniz kaydin firmasindaki ilgili `actions`
+  alt klasorunden indirilir. Yabanci firma, baska modul ve yanlis aksiyon
+  klasoru metadata'si 404 verir; reddedilen istek `downloaded` audit kaydi
+  olusturmaz. Kanit: `tests/test_action_management.py` dosya yolu matrisi.
+  Bu butun modullerin dosya guvenligini kanitlamaz.
+- [x] Aksiyon dosya sahipligi: ayni firmanin ayni `actions` alt klasorundeki
+  baska aksiyona ait dosya metadata ile referans edilirse indirme 404 verir.
+  Diger aksiyonun ana eki, alt aksiyon ve iki kapanis kaniti varyanti testle
+  dogrulandi. Esdeger ama kanonik olmayan dosya yollari da reddedilir.
+  Dosya yolunda kayit kimligi bulunmadigindan, artik baska bir
+  kayit tarafindan referans edilmeyen yetim dosyanin sahipligi bu kontrolle
+  kanitlanamaz; bu kalinti risk acik kalir.
+- [ ] Yetim veya elle degistirilmis dosya metadata'si icin kayit kimligine
+  bagli kalici dosya yolu/manifest tasarimi hazirlansin; mevcut kayitlar icin
+  veri tasima ve geri alma plani gerektirir.
+- [ ] Eski duz-kok aksiyon dosyalari icin kontrollu tasima/uyumluluk karari
+  yazilsin; guvensiz genel `legacy_uploaded_file_path` geri dususu aksiyon
+  indirme rotalarinda acilmasin. 27 Ekim canli salt-okunur envanterinde
+  dort aksiyon dosyasi alaninin hicbirinde dolu kayit yoktu.
 - [ ] Rol x firma x islem matrisi: liste, detay, olusturma, degistirme,
   silme, onay, rapor ve dosya indirme icin izinler sinansin.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
@@ -145,6 +165,14 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   paketinde 123 test gecti. Eski ISG rol testinde firmaya bagli Super Admin
   test verisi guncel global Super Admin hiyerarsisine uyarlandi. Tum pytest
   paketi yine tamamlanmis sayilmaz.
+- 27 Ekim ikinci guvenlik dilimi: aksiyon dosya yolunda kayit metadata'si
+  yabanci firma dosyasina cevrilince 200 dondugu testle yeniden uretildi.
+  Indirme yolu firma ve beklenen alt klasore sinirlandi; eski duz-kok yol
+  ve firma kimligi olmayan kayit da 404 olur. Ayni klasordeki baska
+  aksiyonun dosyasi icin red test once 200, duzeltme sonrasi 404 dondu.
+  22 odakli dosya testi ve aksiyon, ISG, yukleme guvenligi, is akisi
+  guvenligi, tenant paketinde 154 regresyon testi gecti. Tum pytest paketi
+  ve canli release kaniti ayrica degerlendirilecek.
 - 27 Ekim ikinci tur: mevcut Odemeler/Sozlesmeler/Satin Alma modulleri
   paketi 49 testle gecti. Odeme indirmesinde metaveri yabanci firma yoluna
   degistirildiginde yeni test duzeltmeden once 200 ile kirmizi oldu; firma
