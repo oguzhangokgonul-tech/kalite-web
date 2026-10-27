@@ -707,7 +707,8 @@ def download_document(direction, record_id, file_id):
     ).first_or_404()
     root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
     path = (root / row.stored_path).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
+    expected = root / f"company-{record.company_id:03d}" / "payments"
+    if not path.is_relative_to(expected) or not path.is_file():
         abort(404)
     record_audit_event("PaymentAttachment", "downloaded", row.original_name,
                        entity_id=row.id, company_id=record.company_id, user_id=g.current_user.id)

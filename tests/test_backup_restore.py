@@ -12,7 +12,7 @@ from app.database_ops import (
 )
 from app.extensions import db
 from app.models import AppSetting, AuditLog, User
-from app.seed import ensure_runtime_schema
+from app.seed import ensure_default_roles, ensure_runtime_schema
 
 
 def make_file_database_app(tmp_path, restore_enabled=False):
@@ -45,12 +45,14 @@ def login(client, user):
 
 
 def create_superadmin():
+    roles = ensure_default_roles()
     user = User(
         username="superadmin",
         full_name="Super Admin",
         password_hash="not-used",
         is_active=True,
     )
+    user.roles.append(roles["super_admin"])
     db.session.add(user)
     db.session.commit()
     return user

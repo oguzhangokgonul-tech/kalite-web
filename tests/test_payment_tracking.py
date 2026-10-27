@@ -3,6 +3,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 
@@ -117,6 +118,72 @@ def test_pdf_upload_download_and_company_isolation(client, app, actors):
     assert client.get(f"{BASE}/payable/{record.id}/belge/{attachment.id}").status_code == 404
     db.session.refresh(attachment)
     assert attachment.is_active is False
+
+
+def test_payment_document_rejects_foreign_company_storage_path(client, app, actors):
+    company, other, manager, _, _, _ = actors
+    record = make(client, company, manager)
+    response = client.post(f"{BASE}/receivable/{record.id}/belge", data={
+        "pdf": (BytesIO(b"%PDF-1.4\nlocal evidence"), "fatura.pdf")},
+        content_type="multipart/form-data")
+    assert response.status_code == 302
+    attachment = PaymentAttachment.query.filter_by(record_id=record.id).one()
+
+    foreign_path = Path(app.config["UPLOAD_FOLDER"]) / (
+        f"company-{other.id:03d}/payments/foreign.pdf"
+    )
+    foreign_path.parent.mkdir(parents=True, exist_ok=True)
+    foreign_path.write_bytes(b"%PDF-1.4\nforeign evidence")
+    attachment.stored_path = foreign_path.relative_to(app.config["UPLOAD_FOLDER"]).as_posix()
+    db.session.commit()
+
+    response = client.get(f"{BASE}/receivable/{record.id}/belge/{attachment.id}")
+    assert response.status_code == 404
+    assert b"foreign evidence" not in response.data
+    assert AuditLog.query.filter_by(
+        entity_type="PaymentAttachment", entity_id=str(attachment.id), action="downloaded"
+    ).count() == 0
+
+    unrelated_path = Path(app.config["UPLOAD_FOLDER"]) / (
+        f"company-{company.id:03d}/contracts/unrelated.pdf"
+    )
+    unrelated_path.parent.mkdir(parents=True, exist_ok=True)
+    unrelated_path.write_bytes(b"%PDF-1.4\nunrelated evidence")
+    attachment.stored_path = unrelated_path.relative_to(app.config["UPLOAD_FOLDER"]).as_posix()
+    db.session.commit()
+    assert client.get(f"{BASE}/receivable/{record.id}/belge/{attachment.id}").status_code == 404
+
+
+@pytest.mark.parametrize("direction", ("receivable", "payable"))
+def test_payment_mutations_require_manager_and_matching_company(client, actors, direction):
+    company, other, manager, viewer, _, foreign = actors
+    record = make(client, company, manager, direction=direction)
+    installment_id = record.installments[0].id
+    urls = (
+        f"{BASE}/{direction}/{record.id}/duzenle",
+        f"{BASE}/{direction}/{record.id}/gerceklesen",
+        f"{BASE}/{direction}/{record.id}/iptal",
+        f"{BASE}/{direction}/{record.id}/arsivle",
+        f"{BASE}/{direction}/{record.id}/belge",
+        f"{BASE}/{direction}/{record.id}/taksit/{installment_id}/islem",
+        f"{BASE}/{direction}/{record.id}/islem/999/geri-al",
+        f"{BASE}/{direction}/{record.id}/belge/999/kaldir",
+    )
+
+    for user, user_company, expected in (
+        (viewer, company, 403),
+        (foreign, other, 404),
+    ):
+        login(client, user, user_company)
+        detail = client.get(f"{BASE}/{direction}/{record.id}")
+        assert detail.status_code == (200 if user is viewer else 404)
+        for url in urls:
+            assert client.post(url, data={"version_id": str(record.version_id)}).status_code == expected, url
+
+    db.session.refresh(record)
+    assert record.status == "open"
+    assert record.settled_amount == Decimal("0")
+    assert PaymentAttachment.query.filter_by(record_id=record.id).count() == 0
 
 
 def test_invalid_pdf_and_missing_tenant_do_not_create_records(client, actors):

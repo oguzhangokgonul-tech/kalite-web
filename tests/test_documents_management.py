@@ -1,5 +1,8 @@
 from datetime import date
 
+import pytest
+from PIL import Image
+
 from app.extensions import db
 from app.models import (
     DOCUMENT_STATUSES,
@@ -12,7 +15,7 @@ from app.models import (
     TrainingParticipant,
     TrainingRecord,
 )
-from app.routes import DOCUMENT_REVISION_APPROVED_STATUS, DOCUMENT_REVISION_PENDING_STATUS
+from app.routes import DOCUMENT_REVISION_APPROVED_STATUS, DOCUMENT_REVISION_PENDING_STATUS, image_to_pdf_preview
 from app.seed import ensure_runtime_schema
 
 from .helpers import (
@@ -39,6 +42,20 @@ def document_payload(category, **overrides):
     }
     data.update(overrides)
     return data
+
+
+@pytest.mark.parametrize("format_name,mode", (("PNG", "RGBA"), ("JPEG", "RGB")))
+def test_image_to_pdf_preview_with_current_pillow(tmp_path, format_name, mode):
+    source = tmp_path / f"source.{format_name.lower()}"
+    preview = tmp_path / "preview.pdf"
+    Image.new(mode, (16, 12), (25, 80, 150, 128) if mode == "RGBA" else (25, 80, 150)).save(
+        source, format_name
+    )
+
+    image_to_pdf_preview(source, preview)
+
+    assert preview.read_bytes().startswith(b"%PDF-")
+    assert preview.stat().st_size > 100
 
 
 def test_document_permissions_and_company_isolation(app, client):
