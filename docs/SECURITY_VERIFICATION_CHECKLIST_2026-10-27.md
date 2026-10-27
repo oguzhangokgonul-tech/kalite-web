@@ -202,3 +202,10 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   Tam pytest
   paketi veya bagimsiz siza testi tamamlanmis sayilmaz. Kalici manifest
   ve tombstone migration'i kalan risk olarak aciktir.
+- 27 Ekim ucuncu release: `c412cfa` canliya alindi. 204 upload iceren
+  `volkaportal-backup-20261027-120345.zip` yedegi dogrulandi, geri yukleme
+  dry-run basarili ve sunucu disi kopyanin SHA-256 degeri eslesti. Sema
+  degisikligi yok; migration head `202610260002`, `pip check` ve
+  `tenant-health` temiz. Uygulama ve iki zamanlayici aktif; ana sayfa ve
+  firma girisi 200, oturumsuz aksiyon indirme istegi 302, yeni servis hata
+  kaydi yok. Tam regresyon ve kalici dosya sahipligi manifesti acik kalir.
