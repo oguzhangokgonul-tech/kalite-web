@@ -5288,6 +5288,54 @@ def send_stored_upload(stored_name, download_name=None, mimetype=None, as_attach
     )
 
 
+def dof_upload_path(dof, stored_name, folder, file_record=None):
+    if not dof.company_id or not stored_name or folder not in {"opening", "evidence"}:
+        return None
+    if file_record is not None and (
+        file_record.company_id != dof.company_id
+        or file_record.dof_id != dof.id
+        or file_record.file_type != folder
+    ):
+        return None
+
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    file_path = safe_upload_path(stored_name)
+    normalized_name = str(stored_name).replace("\\", "/")
+    if file_path is None or normalized_name != file_path.relative_to(upload_root).as_posix():
+        return None
+
+    company_folder = upload_root / f"company-{dof.company_id:03d}" / "dof" / folder
+    legacy_pattern = (
+        r"dof-opening-[0-9a-f]{32}\.(?:jpg|jpeg|png|webp)"
+        if folder == "opening"
+        else r"dof-[0-9a-f]{32}\.(?:pdf|jpg|jpeg|png)"
+    )
+    if file_path.parent != company_folder and not (
+        file_path.parent == upload_root and re.fullmatch(legacy_pattern, file_path.name)
+    ):
+        return None
+    if not file_path.is_file():
+        return None
+
+    if DofFile.query.filter(
+        db.func.replace(DofFile.stored_name, "\\", "/") == normalized_name,
+        DofFile.dof_id != dof.id,
+    ).first():
+        return None
+    if folder == "opening":
+        if Dof.query.filter(db.func.replace(Dof.evidence_stored_name, "\\", "/") == normalized_name).first():
+            return None
+    elif (
+        DofFile.query.filter(db.func.replace(DofFile.stored_name, "\\", "/") == normalized_name).first()
+        or Dof.query.filter(
+            db.func.replace(Dof.evidence_stored_name, "\\", "/") == normalized_name,
+            Dof.id != dof.id,
+        ).first()
+    ):
+        return None
+    return file_path
+
+
 def action_upload_path(stored_name, *, company_id, action_id, folder, record_id=None):
     if company_id is None or action_id is None:
         return None
@@ -5781,12 +5829,27 @@ def save_dof_evidence_file(dof):
 
 
 def delete_dof_evidence_file(dof):
-    for dof_file in list(dof.files):
-        delete_stored_upload(dof_file.stored_name)
-        db.session.delete(dof_file)
+    opening_files = list(dof.files)
+    file_paths = []
+    for dof_file in opening_files:
+        file_path = dof_upload_path(dof, dof_file.stored_name, "opening", dof_file)
+        if file_path is None:
+            abort(409, description="IF dosyasi dogrulanamadi; kayit silinmedi.")
+        file_paths.append(file_path)
 
     if dof.evidence_stored_name:
-        delete_stored_upload(dof.evidence_stored_name)
+        file_path = dof_upload_path(dof, dof.evidence_stored_name, "evidence")
+        if file_path is None:
+            abort(409, description="IF kaniti dogrulanamadi; kayit silinmedi.")
+        file_paths.append(file_path)
+
+    if len(file_paths) != len(set(file_paths)):
+        abort(409, description="IF dosyalari yineleniyor; kayit silinmedi.")
+
+    for file_path in file_paths:
+        file_path.unlink()
+    for dof_file in opening_files:
+        db.session.delete(dof_file)
 
     dof.evidence_original_name = None
     dof.evidence_stored_name = None
@@ -28235,10 +28298,12 @@ def download_dof_evidence_file(dof_id):
         flash("Bu İF kaydına ait kapanış kanıt dosyası bulunamadı.", "warning")
         return redirect(url_for("main.dof_detail", dof_id=dof.id))
 
-    response = send_stored_upload(
-        dof.evidence_stored_name,
-        as_attachment=True,
-        download_name=dof.evidence_original_name,
+    file_path = dof_upload_path(dof, dof.evidence_stored_name, "evidence")
+    if file_path is None:
+        abort(404)
+    response = send_from_directory(
+        str(file_path.parent), file_path.name,
+        as_attachment=True, download_name=dof.evidence_original_name,
     )
     record_download_audit(
         "Dof",
@@ -28260,10 +28325,12 @@ def download_dof_file(dof_id, file_id):
         abort(403)
 
     dof_file = DofFile.query.filter_by(id=file_id, dof_id=dof.id).first_or_404()
-    response = send_stored_upload(
-        dof_file.stored_name,
-        as_attachment=True,
-        download_name=dof_file.original_name,
+    file_path = dof_upload_path(dof, dof_file.stored_name, "opening", dof_file)
+    if file_path is None:
+        abort(404)
+    response = send_from_directory(
+        str(file_path.parent), file_path.name,
+        as_attachment=True, download_name=dof_file.original_name,
     )
     record_download_audit(
         "DofFile",

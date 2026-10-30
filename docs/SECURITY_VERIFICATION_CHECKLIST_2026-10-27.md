@@ -112,6 +112,14 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   detay-degisiklik-onay-indirme URL'leri ve rapor firma kapsami test edildi.
   Kanit: `tests/test_security_role_operation_matrix.py`. Bu, ustteki tam
   matris maddesini kapatmaz.
+- [x] IF/DOF dosya indirme ilk dilimi (yerel): acilis eki firma metaverisi,
+  beklenen firma/klasor yolu ve baska IF kaydinin ayni dosyaya referansi
+  denetleniyor; kapanis kaniti da ayni yol/sahiplik sinirina baglandi.
+  Eski duz-kok `dof-opening-<uuid>` dosyalari sinirli bicimde korunuyor;
+  genel basename fallback'i IF indirmesinde kullanilmiyor. Yanlis veya
+  yinelenmis dosya metaverisi IF silinince 409 verir; kayit ve dosya korunur. Kanit:
+  `tests/test_dof_file_ownership.py`. Kalici manifest ve yetim dosyanin
+  tarihsel sahipligi henuz kanitlanmadi; tam dosya matrisi acik.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
   alt alan adi/oturum degisimi ve superadmin/sirket admini sinirlari denensin.
 - [ ] Giris kilidi, sifre sifirlama/degistirme, oturum sonlandirma,
@@ -248,3 +256,20 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   `purchase_requests`, `payment_tracking`, `contracts`, `ohs_actions`
   eslemeleri eksik oldugu icin basarisiz. Bu guvenlik diliminde rapor
   eslemelerine dokunulmadi; raporlama backlog'unda ele alinmali.
+- 30 Ekim rol/firma ilk dilim release: `330fefe` canliya alindi. Once
+  `volkaportal-backup-20261030-103943.zip` tam yedegi (204 upload)
+  dogrulandi, geri yukleme dry-run temiz ve sunucu disi SHA-256 eslesti.
+  Fast-forward guncelleme, Python 3.12.13, `pip check`, migration head
+  `202610300001` ve `tenant-health` temiz. Uygulama ve iki zamanlayici aktif;
+  ana site ve sirket girisi HTTPS 200, yeni servis warning/error logu yok.
+  Canli kimlik dogrulanmis yazma testi yapilmadi.
+- 30 Ekim sonraki yerel IF/DOF dosya dilimi: yabanci firma dosyasi
+  metaverisinin once 200 indirme verdigi kirmizi testle kanitlandi.
+  Indirme ve silme yolu beklenen firma klasorune sinirlandi; canli salt-okunur
+  envanterinde 46 acilis ekinin 45'i duz-kok legacy oldugundan dar eski
+  dosya kurali korundu; 45'inin adi kurala uyuyor ve dosyasi mevcut.
+  Yerel IF/DOF, yukleme guvenligi, rol/firma ve tenant paketinde 60 test gecti.
+  Kod henuz canliya alinmadi. Yetim dosya sahipligi icin kalici
+  manifest/migration karari sonraki dilimde verilecek. Dosya silme DB
+  commit'inden once yapildigi icin commit hatasinda veri/dosya tutarsizligi
+  riski ayri is olarak acik kalir.
