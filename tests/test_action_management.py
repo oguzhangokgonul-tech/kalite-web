@@ -1,16 +1,18 @@
 from datetime import date, timedelta
+from io import BytesIO
 from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 from unittest.mock import patch
 from werkzeug.exceptions import NotFound
+from werkzeug.datastructures import FileStorage
 
 from app.extensions import db
-from app.models import Action, ActionClosureFile, ActionComment, ActionHistory, ActionSubTask, AuditLog, DEPARTMENTS, UserPermission
+from app.models import Action, ActionClosureFile, ActionComment, ActionEvidenceManifest, ActionHistory, ActionSubTask, AuditLog, DEPARTMENTS, UserPermission
 from app.routes import (
     send_action_upload, save_sub_action_evidence_file, save_closure_evidence_files,
-    commit_action_upload_changes,
+    commit_action_upload_changes, register_action_upload, store_uploaded_file,
 )
 
 from .helpers import create_company, create_user, login, upload_tuple, write_stored_upload
@@ -47,6 +49,15 @@ def make_action(company, responsible, **overrides):
     return action
 
 
+def write_action_evidence(app, stored_name, content, *, company_id, action_id, folder, record_id=None):
+    file_path = write_stored_upload(app, stored_name, content)
+    register_action_upload(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    return file_path
+
+
 def test_action_create_file_comment_subtask_and_closure_flow(client):
     company = create_company("331")
     responsible = create_user(
@@ -78,6 +89,10 @@ def test_action_create_file_comment_subtask_and_closure_flow(client):
     assert action.action_number == 1
     assert action.file_original_name == "aksiyon.pdf"
     assert client.get(f"/actions/{action.id}/download").data == b"action-file"
+    manifest = ActionEvidenceManifest.query.filter_by(stored_name=action.file_stored_name).one()
+    assert (manifest.company_id, manifest.action_id, manifest.kind) == (company.id, action.id, "files")
+    assert manifest.deleted_at is None
+    assert AuditLog.query.filter_by(entity_type="ActionEvidenceManifest", action="created").count() == 1
 
     response = client.post(
         f"/actions/{action.id}/comments",
@@ -342,7 +357,10 @@ def test_action_download_rejects_borrowed_metadata_path(app, client, kind, path_
         valid_path += f"/{record_folder}"
     valid_path += "/evidence.pdf"
     setattr(record, field, valid_path)
-    write_stored_upload(app, valid_path, b"own evidence")
+    write_action_evidence(
+        app, valid_path, b"own evidence", company_id=company.id,
+        action_id=action.id, folder=folder, record_id=record_folder,
+    )
     db.session.commit()
     login(client, owner)
     assert client.get(url, follow_redirects=True).data == b"own evidence"
@@ -474,6 +492,76 @@ def test_action_download_rejects_record_without_company(app):
             )
 
 
+def test_action_download_rejects_changed_file_content(app, client):
+    company = create_company("355")
+    owner = create_user("action-tamper-owner", company=company)
+    action = make_action(company, owner)
+    path = f"company-{company.id:03d}/actions/files/{action.id}/proof.pdf"
+    physical_file = write_action_evidence(
+        app, path, b"trusted", company_id=company.id,
+        action_id=action.id, folder="files",
+    )
+    action.file_stored_name = path
+    action.file_original_name = "proof.pdf"
+    db.session.commit()
+
+    login(client, owner)
+    assert client.get(f"/actions/{action.id}/download").data == b"trusted"
+    physical_file.write_bytes(b"changed")
+    assert client.get(f"/actions/{action.id}/download").status_code == 404
+
+
+def test_action_delete_keeps_tombstone_and_reconciles_failed_cleanup(app, client):
+    company = create_company("356")
+    manager = create_user(
+        "action-tombstone-manager", company=company,
+        permissions=("actions.delete",),
+    )
+    action = make_action(company, manager)
+    action_id = action.id
+    path = f"company-{company.id:03d}/actions/files/{action.id}/proof.pdf"
+    physical_file = write_action_evidence(
+        app, path, b"proof", company_id=company.id,
+        action_id=action.id, folder="files",
+    )
+    action.file_stored_name = path
+    db.session.commit()
+
+    login(client, manager)
+    with patch.object(Path, "unlink", side_effect=OSError("locked")):
+        assert client.post(f"/actions/{action_id}/delete").status_code == 302
+    manifest = ActionEvidenceManifest.query.filter_by(stored_name=path).one()
+    assert db.session.get(Action, action_id) is None
+    assert manifest.deleted_at is not None
+    assert manifest.cleaned_at is None
+    assert physical_file.exists()
+    assert AuditLog.query.filter_by(entity_type="ActionEvidenceManifest", action="updated").count() >= 1
+
+    runner = app.test_cli_runner()
+    assert "Pending: 1" in runner.invoke(args=["reconcile-action-uploads"]).output
+    assert physical_file.exists()
+    physical_file.write_bytes(b"different")
+    refused = runner.invoke(args=["reconcile-action-uploads", "--apply"])
+    assert refused.exit_code == 0
+    assert "mismatched: 1" in refused.output
+    assert physical_file.read_bytes() == b"different"
+    assert manifest.cleaned_at is None
+    physical_file.write_bytes(b"proof")
+    result = runner.invoke(args=["reconcile-action-uploads", "--apply"])
+    assert result.exit_code == 0, result.output
+    assert "cleaned: 1" in result.output
+    assert not physical_file.exists()
+    assert manifest.cleaned_at is not None
+
+    physical_file.write_bytes(b"new content")
+    with app.test_request_context():
+        with pytest.raises(NotFound):
+            send_action_upload(
+                path, company_id=company.id, action_id=action_id,
+                folder="files", download_name="proof.pdf",
+            )
+
+
 def test_action_download_rejects_noncanonical_metadata_path(app, client):
     company = create_company("343")
     owner = create_user("action-file-canonical-owner", company=company)
@@ -518,7 +606,10 @@ def test_action_download_rejects_another_record_on_same_action(app, client, kind
     borrowed_path = (
         f"company-{company.id:03d}/actions/{folder}/{action.id}/{records[0].id}/proof.pdf"
     )
-    write_stored_upload(app, borrowed_path, b"first record only")
+    write_action_evidence(
+        app, borrowed_path, b"first record only", company_id=company.id,
+        action_id=action.id, folder=folder, record_id=records[0].id,
+    )
     for record in records:
         setattr(record, field, borrowed_path)
     db.session.commit()
@@ -588,15 +679,47 @@ def test_action_delete_cannot_remove_another_actions_file(app, client, kind, for
     if record_id is not None:
         borrowed_path += f"/{record_id}"
     borrowed_path += "/proof.pdf"
-    physical_file = write_stored_upload(app, borrowed_path, b"other action proof")
+    physical_file = write_action_evidence(
+        app, borrowed_path, b"other action proof", company_id=source_company.id,
+        action_id=other.id, folder=folder, record_id=record_id,
+    )
     setattr(source_record, field, borrowed_path)
     setattr(target_record, field, borrowed_path)
     db.session.commit()
 
     login(client, manager)
-    assert client.post(f"/actions/{target.id}/delete").status_code == 302
+    assert client.post(f"/actions/{target.id}/delete").status_code == 409
     assert physical_file.read_bytes() == b"other action proof"
     assert getattr(source_record, field) == borrowed_path
+    assert db.session.get(Action, target.id) is not None
+    assert ActionEvidenceManifest.query.filter_by(stored_name=borrowed_path).one().deleted_at is None
+
+
+def test_action_delete_handles_duplicate_legacy_closure_metadata(app, client):
+    company = create_company("357")
+    manager = create_user(
+        "action-legacy-manager", company=company,
+        permissions=("actions.delete",),
+    )
+    action = make_action(company, manager)
+    path = f"company-{company.id:03d}/actions/closure/{action.id}/legacy/proof.pdf"
+    physical_file = write_action_evidence(
+        app, path, b"legacy", company_id=company.id,
+        action_id=action.id, folder="closure", record_id="legacy",
+    )
+    action.closure_file_stored_name = path
+    db.session.add(ActionClosureFile(
+        company_id=company.id, action_id=action.id,
+        stored_name=path, original_name="proof.pdf",
+    ))
+    db.session.commit()
+
+    login(client, manager)
+    assert client.post(f"/actions/{action.id}/delete").status_code == 302
+    assert not physical_file.exists()
+    manifest = ActionEvidenceManifest.query.filter_by(stored_name=path).one()
+    assert manifest.deleted_at is not None
+    assert manifest.cleaned_at is not None
 
 
 def test_invalid_sub_action_replacement_preserves_original_file(app):
@@ -613,7 +736,10 @@ def test_invalid_sub_action_replacement_preserves_original_file(app):
         f"company-{company.id:03d}/actions/sub-actions/"
         f"{action.id}/{sub_action.id}/original.pdf"
     )
-    physical_file = write_stored_upload(app, stored_name, b"original proof")
+    physical_file = write_action_evidence(
+        app, stored_name, b"original proof", company_id=company.id,
+        action_id=action.id, folder="sub-actions", record_id=sub_action.id,
+    )
     sub_action.evidence_stored_name = stored_name
     db.session.commit()
 
@@ -624,6 +750,23 @@ def test_invalid_sub_action_replacement_preserves_original_file(app):
             save_sub_action_evidence_file(sub_action)
     assert physical_file.read_bytes() == b"original proof"
     assert sub_action.evidence_stored_name == stored_name
+
+
+def test_partial_action_upload_failure_removes_file(app):
+    company = create_company("359")
+    uploaded = FileStorage(stream=BytesIO(b"complete"), filename="proof.pdf")
+
+    def partial_save(target):
+        Path(target).write_bytes(b"partial")
+        raise OSError("disk failure")
+
+    with app.test_request_context():
+        with patch.object(uploaded, "save", side_effect=partial_save):
+            with pytest.raises(OSError, match="disk failure"):
+                store_uploaded_file(
+                    uploaded, folder="actions/files/1", company_id=company.id,
+                )
+    assert not list(Path(app.config["UPLOAD_FOLDER"]).rglob("*.pdf"))
 
 
 def test_sub_action_replacement_only_deletes_old_file_after_commit(app):
@@ -640,7 +783,10 @@ def test_sub_action_replacement_only_deletes_old_file_after_commit(app):
         f"company-{company.id:03d}/actions/sub-actions/"
         f"{action.id}/{sub_action.id}/original.pdf"
     )
-    physical_file = write_stored_upload(app, stored_name, b"original proof")
+    physical_file = write_action_evidence(
+        app, stored_name, b"original proof", company_id=company.id,
+        action_id=action.id, folder="sub-actions", record_id=sub_action.id,
+    )
     sub_action.evidence_stored_name = stored_name
     db.session.commit()
 
@@ -669,7 +815,10 @@ def test_nested_rollback_does_not_discard_outer_action_upload(app):
         f"company-{company.id:03d}/actions/sub-actions/"
         f"{action.id}/{sub_action.id}/original.pdf"
     )
-    old_file = write_stored_upload(app, stored_name, b"original proof")
+    old_file = write_action_evidence(
+        app, stored_name, b"original proof", company_id=company.id,
+        action_id=action.id, folder="sub-actions", record_id=sub_action.id,
+    )
     sub_action.evidence_stored_name = stored_name
     db.session.commit()
 
@@ -702,7 +851,10 @@ def test_failed_sub_action_commit_keeps_old_and_cleans_new_file(app, failure):
         f"company-{company.id:03d}/actions/sub-actions/"
         f"{action.id}/{sub_action.id}/original.pdf"
     )
-    physical_file = write_stored_upload(app, stored_name, b"original proof")
+    physical_file = write_action_evidence(
+        app, stored_name, b"original proof", company_id=company.id,
+        action_id=action.id, folder="sub-actions", record_id=sub_action.id,
+    )
     sub_action.evidence_stored_name = stored_name
     db.session.commit()
 
@@ -749,7 +901,10 @@ def test_required_sub_action_note_rejected_before_evidence_replacement(app, clie
         f"company-{company.id:03d}/actions/sub-actions/"
         f"{action.id}/{sub_action.id}/original.pdf"
     )
-    physical_file = write_stored_upload(app, stored_name, b"original proof")
+    physical_file = write_action_evidence(
+        app, stored_name, b"original proof", company_id=company.id,
+        action_id=action.id, folder="sub-actions", record_id=sub_action.id,
+    )
     sub_action.evidence_stored_name = stored_name
     db.session.commit()
 
@@ -779,7 +934,10 @@ def test_failed_closure_replacement_preserves_original_file(app):
         f"company-{company.id:03d}/actions/closure/"
         f"{action.id}/{closure.id}/old.pdf"
     )
-    physical_file = write_stored_upload(app, original_path, b"original evidence")
+    physical_file = write_action_evidence(
+        app, original_path, b"original evidence", company_id=company.id,
+        action_id=action.id, folder="closure", record_id=closure.id,
+    )
     closure.stored_name = original_path
     db.session.commit()
 
@@ -809,6 +967,38 @@ def test_failed_closure_replacement_preserves_original_file(app):
     assert physical_file.read_bytes() == b"original evidence"
     assert db.session.get(ActionClosureFile, closure.id).stored_name == original_path
     assert set(physical_file.parent.parent.rglob("*.pdf")) == {physical_file}
+
+
+def test_note_only_closure_request_keeps_existing_evidence(app, client):
+    company = create_company("358")
+    owner = create_user(
+        "closure-note-only-owner", company=company,
+        permissions=("actions.request_close_assigned",),
+    )
+    action = make_action(company, owner)
+    closure = ActionClosureFile(
+        company_id=company.id, action_id=action.id,
+        original_name="proof.pdf", stored_name="pending",
+    )
+    db.session.add(closure)
+    db.session.flush()
+    path = f"company-{company.id:03d}/actions/closure/{action.id}/{closure.id}/proof.pdf"
+    physical_file = write_action_evidence(
+        app, path, b"evidence", company_id=company.id,
+        action_id=action.id, folder="closure", record_id=closure.id,
+    )
+    closure.stored_name = path
+    db.session.commit()
+
+    login(client, owner)
+    response = client.post(
+        f"/actions/{action.id}/request-closure",
+        data={"closure_evidence_note": "Evidence remains valid"},
+    )
+    assert response.status_code == 302
+    assert db.session.get(ActionClosureFile, closure.id).stored_name == path
+    assert physical_file.read_bytes() == b"evidence"
+    assert ActionEvidenceManifest.query.filter_by(stored_name=path).one().deleted_at is None
 
 
 def test_action_effectiveness_review_becomes_assigned_task(client):

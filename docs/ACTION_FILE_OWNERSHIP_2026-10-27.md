@@ -11,15 +11,17 @@ Yeni aksiyon ekleri kanonik, kayit kimligine bagli klasorlerde saklanir:
   `company-NNN/actions/closure/<action_id>/legacy/<dosya>` bicimindeki
   dogrulanmis referans okunabilir.
 
-Indirme ve silme, sirket, aksiyon, varsa alt kayit kimligi, tam ust klasor
-ve kanonik path eslesmeden dosyaya erismez. Uygunsuz istekte 404 doner ve
+Indirme ve silme, sirket, aksiyon, varsa alt kayit kimligi, tam ust klasor,
+kanonik path ve kalici manifest eslesmeden dosyaya erismez. Indirme ayrica
+dosya boyutunu ve SHA-256 ozetini dogrular. Uygunsuz istekte 404 doner ve
 basarili indirme audit olayi olusmaz. Eski duz klasore veya upload kokune
 geri dusus yoktur. Yeni dosya adi UUID ile uretilir.
 
 Eski dosya temizligi basarili veritabani commit'inden sonra yapilir. Boylece
 reddedilen form veya basarisiz DB islemi mevcut kaniti silmez. Fiziksel
-temizlik basarisizsa kayit guncellemesi geri alinmaz; loglanir ve yetim dosya
-ayrica incelenir. Bu, DB ile dosya sistemi arasinda tam atomiklik saglamaz.
+temizlik basarisizsa kayit guncellemesi geri alinmaz; manifestte silme kaydi
+kalir ve bakim komutu tekrar deneyebilir. Bu, DB ile dosya sistemi arasinda
+tam atomiklik saglamaz.
 Yeni yuklenen dosyalar DB commit'ine kadar izlenir; dis transaction rollback'i
 veya commit hatasinda temizlenir. Bildirim akisi icindeki savepoint rollback'i
 dis islemin yuklemesini silmez.
@@ -29,8 +31,9 @@ dis islemin yuklemesini silmez.
 27 Ekim 2026 salt-okunur canli envanterinde `actions.file_stored_name`,
 `actions.closure_file_stored_name`, `action_sub_tasks.evidence_stored_name` ve
 `action_closure_files.stored_name` dolu kayit sayilari sirasiyla `0/0/0/0`.
-Bu nedenle toplu veri/dosya tasimasi ve Alembic sema degisikligi gerekmiyor.
-Yayin hemen oncesi ayni sorgu tekrarlanir; sayilardan biri sifir degilse
+Bu nedenle toplu veri/dosya tasimasi gerekmiyordu. Manifest icin eklemeli
+`202610300001` Alembic migration'i gerekir. Yayin hemen oncesi ayni sorgu
+ve upload dizini sayimi tekrarlanir; sayilardan biri sifir degilse
 release durur. Eski yol otomatik sahiplenilmez veya fiziksel dosya silinmez.
 
 Ileride eski kayitli bir kurulum icin tasima gerekirse once DB ve upload
@@ -40,18 +43,20 @@ dosya yeni yola kopyalanir; checksum dogrulandiktan sonra DB yolu guncellenir.
 Eski kopya tum referanslar kontrol edilmeden silinmez. Cakisan/yetim dosyalar
 otomatik tasinmaz.
 
-## Kalan Risk ve Sonraki Asama
+## Manifest ve Bakim
 
-Klasor kimligi farkli bir kaydin dosyasina erisimi engeller. Ancak ayni
-kaydin eski dosyasi DB referansi silinip diskte kalirsa, metadata elle o
-dosyaya donduruldugunde ilk yukleme sahibini kanitlamak mumkun degildir.
-Silinip yeniden olusturulan SQLite satir kimlikleri de yeniden kullanilabilir.
-Kalici manifest/tombstone tasarimi bu kalan riski kapatacak ayri migration
-olarak ele alinmali. Manifest `stored_name` icin benzersiz kayit, firma,
-aksiyon, alt kayit turu/ID, checksum ve silinme durumunu saklamali; indirme
-ve temizlik metadata yerine bu kayitla eslesmeli. Mevcut kayitlar yalniz
-dogrulanmis yedek envanterinden manifestlenmeli, supheli yollar reddedilmeli.
+`action_evidence_manifest`, her `stored_name` icin benzersiz kayit ile firma,
+aksiyon, alt kayit turu/ID, SHA-256, boyut ve silinme/temizlik zamanlarini
+saklar. Silinen satirlar tutulur; ayni yol veya yeniden kullanilan aksiyon
+ID'si eski dosyayi yeniden yetkili kilmaz. Sahipligi kanitlanmayan eski
+dosyalar otomatik manifestlenmez ve indirme/silme islemi kapali baslar.
 
-Kod rollback'i eski klasorler arasi erisim acigini yeniden acar. Gercek DB
-ve upload geri yuklemesi yayin sonrasi yazilari silebilir; ayri Lider onayi
-olmadan uygulanmaz.
+`flask --app app:create_app reconcile-action-uploads` bekleyen temizligi
+yalniz raporlar; `--apply` silinen kayitlarin dosyalarini temizler. Bu komut
+root olarak degil, uygulamanin `aksiyon` kullanicisiyla calistirilir. Silme
+niyeti DB'de kalici oldugundan komut yeniden calistirilabilir.
+
+Kod rollback'i manifest, tombstone ve hash korumasini kaldirir. Manifestte
+veri varsa migration downgrade'i bilincli olarak durur. Gercek DB ve upload
+geri yuklemesi yayin sonrasi yazilari silebilir; ayri Lider onayi olmadan
+uygulanmaz.

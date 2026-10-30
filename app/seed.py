@@ -1964,6 +1964,10 @@ def ensure_runtime_schema():
     tables = set(inspector.get_table_names())
     changed = False
 
+    from .models import ActionEvidenceManifest
+
+    ActionEvidenceManifest.__table__.create(bind=db.engine, checkfirst=True)
+
     if "users" in tables:
         columns = {column["name"] for column in inspector.get_columns("users")}
         if "email" not in columns:

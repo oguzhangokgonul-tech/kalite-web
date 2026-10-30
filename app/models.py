@@ -3617,6 +3617,22 @@ class ActionClosureFile(db.Model):
     action = db.relationship("Action", back_populates="closure_files")
 
 
+class ActionEvidenceManifest(db.Model):
+    __tablename__ = "action_evidence_manifest"
+
+    id = db.Column(db.Integer, primary_key=True)
+    stored_name = db.Column(db.String(255), nullable=False, unique=True)
+    company_id = db.Column(db.Integer, nullable=False, index=True)
+    action_id = db.Column(db.Integer, nullable=False, index=True)
+    kind = db.Column(db.String(20), nullable=False)
+    record_id = db.Column(db.String(32), nullable=True)
+    sha256 = db.Column(db.String(64), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    cleaned_at = db.Column(db.DateTime, nullable=True)
+
+
 class ActionSubTask(db.Model):
     __tablename__ = "action_sub_tasks"
 

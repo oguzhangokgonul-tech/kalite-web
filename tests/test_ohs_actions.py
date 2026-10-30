@@ -17,8 +17,8 @@ from app.notification_models import NotificationEmailEvent
 from app.notification_policy import reminder_timezone
 from app.reminders import run_due_reminders_once_for_company
 
-from .helpers import create_company, create_user, login, upload_tuple, write_stored_upload
-from .test_action_management import action_payload, make_action
+from .helpers import create_company, create_user, login, upload_tuple
+from .test_action_management import action_payload, make_action, write_action_evidence
 
 
 PHOTO = b64decode(
@@ -93,8 +93,16 @@ def stored_action(app, scenario):
     sub.evidence_stored_name = f"{prefix}/sub-actions/{action.id}/{sub.id}/evidence.png"
     closure.stored_name = f"{prefix}/closure/{action.id}/{closure.id}/closure.png"
     db.session.commit()
-    for path in (action.file_stored_name, sub.evidence_stored_name, closure.stored_name):
-        write_stored_upload(app, path, PHOTO)
+    for path, folder, record_id in (
+        (action.file_stored_name, "files", None),
+        (sub.evidence_stored_name, "sub-actions", sub.id),
+        (closure.stored_name, "closure", closure.id),
+    ):
+        write_action_evidence(
+            app, path, PHOTO, company_id=s.company.id,
+            action_id=action.id, folder=folder, record_id=record_id,
+        )
+    db.session.commit()
     return SimpleNamespace(action=action, sub=sub, closure=closure)
 
 
@@ -416,7 +424,11 @@ def test_rejected_closure_resubmission_preserves_evidence(app, client, scenario,
     action.closure_file_stored_name = legacy_path
     action.closure_file_mime_type = "image/png"
     db.session.commit()
-    legacy = write_stored_upload(app, legacy_path, PHOTO)
+    legacy = write_action_evidence(
+        app, legacy_path, PHOTO, company_id=s.company.id,
+        action_id=action.id, folder="closure", record_id="legacy",
+    )
+    db.session.commit()
     login(client, s.owner)
     latest_url = f"/actions/{action.id}/closure-evidence/download"
     assert client.get(latest_url).data == PHOTO

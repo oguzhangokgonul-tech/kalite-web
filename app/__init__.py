@@ -201,6 +201,52 @@ def create_app(config_class=Config):
         else:
             click.echo("Varsayılan geliştirme kullanıcıları oluşturuldu/güncellendi.")
 
+    @app.cli.command("reconcile-action-uploads")
+    @click.option("--apply", is_flag=True, help="Remove tombstoned files and mark completed cleanup.")
+    @with_appcontext
+    def reconcile_action_uploads_command(apply):
+        from datetime import datetime, timezone
+        from .models import ActionEvidenceManifest
+        from .routes import action_upload_digest, action_upload_path
+
+        pending = ActionEvidenceManifest.query.filter(
+            ActionEvidenceManifest.deleted_at.isnot(None),
+            ActionEvidenceManifest.cleaned_at.is_(None),
+        ).all()
+        invalid = 0
+        mismatched = 0
+        cleaned = 0
+        for item in pending:
+            path = action_upload_path(
+                item.stored_name, company_id=item.company_id,
+                action_id=item.action_id, folder=item.kind,
+                record_id=item.record_id,
+            )
+            if path is None:
+                invalid += 1
+                continue
+            if path.is_file() and (
+                path.stat().st_size != item.size_bytes
+                or action_upload_digest(path) != item.sha256
+            ):
+                mismatched += 1
+                continue
+            if not apply:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                app.logger.exception("Action evidence cleanup failed")
+                continue
+            item.cleaned_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            cleaned += 1
+        if apply and cleaned:
+            db.session.commit()
+        click.echo(
+            f"Pending: {len(pending)}; invalid: {invalid}; mismatched: {mismatched}; "
+            f"cleaned: {cleaned}; dry-run: {not apply}"
+        )
+
     @app.cli.command("create-superadmin")
     @click.option("--password", prompt=True, hide_input=True, confirmation_prompt=True)
     @with_appcontext

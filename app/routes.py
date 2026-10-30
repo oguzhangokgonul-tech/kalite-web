@@ -68,6 +68,7 @@ from .models import (
     Action,
     ActionComment,
     ActionClosureFile,
+    ActionEvidenceManifest,
     ActionHistory,
     ActionSubTask,
     ACTION_SUB_TASK_PRIORITIES,
@@ -5293,6 +5294,48 @@ def action_upload_path(stored_name, *, company_id, action_id, folder, record_id=
     return file_path
 
 
+def action_upload_digest(file_path):
+    digest = hashlib.sha256()
+    with file_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def action_upload_manifest(stored_name, *, company_id, action_id, folder, record_id=None):
+    file_path = action_upload_path(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    if file_path is None:
+        return None, None
+    manifest = ActionEvidenceManifest.query.filter_by(stored_name=stored_name).first()
+    if manifest is None or manifest.deleted_at is not None or (
+        manifest.company_id != company_id
+        or manifest.action_id != action_id
+        or manifest.kind != folder
+        or manifest.record_id != (str(record_id) if record_id is not None else None)
+    ):
+        return None, None
+    return manifest, file_path
+
+
+def register_action_upload(stored_name, *, company_id, action_id, folder, record_id=None):
+    file_path = action_upload_path(
+        stored_name, company_id=company_id, action_id=action_id,
+        folder=folder, record_id=record_id,
+    )
+    if file_path is None or not file_path.is_file():
+        raise ValueError("invalid_action_upload")
+    if ActionEvidenceManifest.query.filter_by(stored_name=stored_name).first() is not None:
+        raise ValueError("duplicate_action_upload")
+    db.session.add(ActionEvidenceManifest(
+        stored_name=stored_name, company_id=company_id, action_id=action_id,
+        kind=folder, record_id=str(record_id) if record_id is not None else None,
+        sha256=action_upload_digest(file_path), size_bytes=file_path.stat().st_size,
+    ))
+
+
 def delete_action_upload(stored_name, *, company_id, action_id, folder, record_id=None):
     file_path = action_upload_path(
         stored_name, company_id=company_id, action_id=action_id,
@@ -5303,12 +5346,14 @@ def delete_action_upload(stored_name, *, company_id, action_id, folder, record_i
 
 
 def defer_action_upload_deletion(stored_name, *, company_id, action_id, folder, record_id=None):
-    file_path = action_upload_path(
+    manifest, file_path = action_upload_manifest(
         stored_name, company_id=company_id, action_id=action_id,
         folder=folder, record_id=record_id,
     )
-    if file_path is not None:
-        db.session.info.setdefault("action_upload_deletions", set()).add(file_path)
+    if manifest is None:
+        abort(409, description="Aksiyon dosyasinin sahipligi dogrulanamadi.")
+    manifest.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.session.info.setdefault("action_upload_deletions", set()).add(file_path)
 
 
 @event.listens_for(Session, "after_rollback")
@@ -5331,20 +5376,43 @@ def commit_action_upload_changes():
         db.session.rollback()
         raise
     db.session.info.pop("action_upload_new_files", None)
+    cleaned = []
     for file_path in db.session.info.pop("action_upload_deletions", set()):
         try:
+            stored_name = file_path.relative_to(Path(current_app.config["UPLOAD_FOLDER"]).resolve()).as_posix()
+            manifest = ActionEvidenceManifest.query.filter_by(stored_name=stored_name).first()
+            if manifest is None or manifest.deleted_at is None:
+                current_app.logger.error("Action upload cleanup has no tombstone: %s", stored_name)
+                continue
             if file_path.is_file():
+                if file_path.stat().st_size != manifest.size_bytes or action_upload_digest(file_path) != manifest.sha256:
+                    current_app.logger.error("Action upload cleanup content mismatch: %s", stored_name)
+                    continue
                 file_path.unlink()
+            cleaned.append(file_path)
         except OSError:
             current_app.logger.exception("Committed action upload cleanup failed")
+    if cleaned:
+        try:
+            for file_path in cleaned:
+                stored_name = file_path.relative_to(Path(current_app.config["UPLOAD_FOLDER"]).resolve()).as_posix()
+                manifest = ActionEvidenceManifest.query.filter_by(stored_name=stored_name).first()
+                if manifest is not None and manifest.deleted_at is not None:
+                    manifest.cleaned_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Action upload tombstone cleanup state could not be saved")
 
 
 def send_action_upload(stored_name, *, company_id, action_id, folder, download_name, record_id=None):
-    file_path = action_upload_path(
+    manifest, file_path = action_upload_manifest(
         stored_name, company_id=company_id, action_id=action_id,
         folder=folder, record_id=record_id,
     )
-    if file_path is None or not file_path.is_file():
+    if manifest is None or not file_path.is_file():
+        abort(404)
+    if file_path.stat().st_size != manifest.size_bytes or action_upload_digest(file_path) != manifest.sha256:
         abort(404)
     if folder == "files":
         borrowed = Action.query.filter(
@@ -15114,7 +15182,13 @@ def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions"
         effective_company_id,
         uploaded_stream_size(uploaded_file),
     )
-    uploaded_file.save(upload_path)
+    if folder.startswith("actions/"):
+        db.session.info.setdefault("action_upload_new_files", set()).add(upload_path)
+    try:
+        uploaded_file.save(upload_path)
+    except Exception:
+        upload_path.unlink(missing_ok=True)
+        raise
     max_bytes = current_app.config.get("MAX_CONTENT_LENGTH")
     if max_bytes and upload_path.stat().st_size > max_bytes:
         upload_path.unlink(missing_ok=True)
@@ -15124,8 +15198,6 @@ def store_uploaded_file(uploaded_file, allowed_extensions=None, folder="actions"
     except ValueError:
         upload_path.unlink(missing_ok=True)
         raise
-    if folder.startswith("actions/"):
-        db.session.info.setdefault("action_upload_new_files", set()).add(upload_path)
     return original_name, str(relative_path).replace("\\", "/"), uploaded_file.mimetype
 
 
@@ -15139,6 +15211,10 @@ def save_uploaded_file(action):
         folder=f"actions/files/{action.id}",
         company_id=action.company_id,
     )
+    register_action_upload(
+        stored_name, company_id=action.company_id, action_id=action.id,
+        folder="files",
+    )
     delete_uploaded_file(action)
 
     action.file_original_name = safe_name
@@ -15148,10 +15224,11 @@ def save_uploaded_file(action):
 
 def delete_closure_evidence_file(action, closure_files=None):
     for closure_file in closure_files if closure_files is not None else list(action.closure_files):
-        defer_action_upload_deletion(
-            closure_file.stored_name, company_id=action.company_id,
-            action_id=action.id, folder="closure", record_id=closure_file.id,
-        )
+        if closure_file.stored_name != action.closure_file_stored_name:
+            defer_action_upload_deletion(
+                closure_file.stored_name, company_id=action.company_id,
+                action_id=action.id, folder="closure", record_id=closure_file.id,
+            )
         db.session.delete(closure_file)
 
     if action.closure_file_stored_name:
@@ -15180,7 +15257,7 @@ def save_closure_evidence_files(action):
             raise ValueError("invalid_file_type")
 
     from .meeting_actions import link_for_action
-    replace_existing = action.action_category != "ohs" and not link_for_action(action)
+    replace_existing = bool(uploaded_files) and action.action_category != "ohs" and not link_for_action(action)
     previous_files = list(action.closure_files) if replace_existing else []
     saved_files = []
     try:
@@ -15197,6 +15274,10 @@ def save_closure_evidence_files(action):
                 uploaded_file,
                 folder=f"actions/closure/{action.id}/{closure_file.id}",
                 company_id=action.company_id,
+            )
+            register_action_upload(
+                stored_name, company_id=action.company_id, action_id=action.id,
+                folder="closure", record_id=closure_file.id,
             )
             closure_file.original_name = safe_name
             closure_file.stored_name = stored_name
@@ -15246,6 +15327,10 @@ def save_sub_action_evidence_file(sub_action):
         SUB_ACTION_EVIDENCE_EXTENSIONS,
         folder=f"actions/sub-actions/{action_id}/{sub_action.id}",
         company_id=sub_action.company_id,
+    )
+    register_action_upload(
+        stored_name, company_id=sub_action.company_id, action_id=action_id,
+        folder="sub-actions", record_id=sub_action.id,
     )
     delete_sub_action_evidence_file(sub_action)
     sub_action.evidence_original_name = safe_name
@@ -29233,29 +29318,29 @@ def delete_action(action_id):
         )
         paths.update(
             (item.stored_name, "closure", item.id) for item in action.closure_files
+            if item.stored_name != action.closure_file_stored_name
         )
+        for path, folder, record_id in paths:
+            if path:
+                defer_action_upload_deletion(
+                    path, company_id=action.company_id,
+                    action_id=action.id, folder=folder, record_id=record_id,
+                )
         try:
             db.session.delete(action)
-            db.session.commit()
+            commit_action_upload_changes()
         except IntegrityError:
             db.session.rollback()
             abort(409, description="Aksiyonun bağlantıları değişti. Sayfayı yenileyip tekrar deneyin.")
         except Exception:
             db.session.rollback()
             raise
-        cleanup_failed = False
-        for path, folder, record_id in paths:
-            if not path:
-                continue
-            try:
-                delete_action_upload(
-                    path, company_id=action.company_id,
-                    action_id=action.id, folder=folder, record_id=record_id,
-                )
-            except OSError:
-                cleanup_failed = True
-                current_app.logger.exception("Deleted action upload cleanup failed")
-        if cleanup_failed:
+        if ActionEvidenceManifest.query.filter_by(
+            company_id=action.company_id, action_id=action.id,
+        ).filter(
+            ActionEvidenceManifest.deleted_at.isnot(None),
+            ActionEvidenceManifest.cleaned_at.is_(None),
+        ).first():
             flash("Kayıt silindi; bazı dosyaların temizlenmesi için sistem yöneticisine bilgi verin.", "warning")
         flash("Aksiyon kaydı silindi.", "success")
         return redirect(url_for(action_list_endpoint(action)))

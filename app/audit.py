@@ -15,6 +15,7 @@ from .request_security import request_client_ip
 TRACKED_MODEL_NAMES = {
     "Action",
     "ActionClosureFile",
+    "ActionEvidenceManifest",
     "ActionComment",
     "ActionHistory",
     "ActionSubTask",
