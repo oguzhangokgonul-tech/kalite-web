@@ -53,7 +53,7 @@ def make_dof(company, responsible, **overrides):
 
 def test_dof_create_opening_file_download_and_approval_flow(client):
     company = create_company("321")
-    owner = create_user("dof-owner", company=company)
+    owner = create_user("dof-owner", company=company, permissions=("if.create",))
     representative = create_user(
         "dof-representative",
         company=company,

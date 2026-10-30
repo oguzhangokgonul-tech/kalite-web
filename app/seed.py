@@ -169,6 +169,24 @@ PERMISSION_CATALOG = (
         "description": "Atama kısıtı olmadan tüm aksiyonları görebilir.",
     },
     {
+        "key": "if.create",
+        "label": "İF kaydı oluşturma",
+        "group": "İF Yönetimi",
+        "description": "Yeni İF/DÖF kaydı oluşturur.",
+    },
+    {
+        "key": "if.edit_assigned",
+        "label": "Sorumlu olduğu İF kaydını düzenleme",
+        "group": "İF Yönetimi",
+        "description": "Sorumlusu veya açanı olduğu tamamlanmamış İF kaydını düzenler.",
+    },
+    {
+        "key": "if.edit_all",
+        "label": "Tüm İF kayıtlarını düzenleme",
+        "group": "İF Yönetimi",
+        "description": "Firmadaki tamamlanmamış İF kayıtlarını düzenler.",
+    },
+    {
         "key": "if.view_all",
         "label": "Tüm IF kayıtlarını görme",
         "group": "IF Yönetimi",
@@ -1139,6 +1157,9 @@ ROLE_DEFINITIONS = (
             "actions.request_close_assigned",
             "actions.approve_closure",
             "actions.view_all",
+            "if.create",
+            "if.edit_assigned",
+            "if.edit_all",
             "if.view_all",
             "if.delete",
             "if.approve_management",
@@ -1232,6 +1253,9 @@ ROLE_DEFINITIONS = (
         "permissions": [
             "iso_dashboard.view",
             "management_due_dashboard.view",
+            "if.create",
+            "if.edit_assigned",
+            "if.edit_all",
             "if.view_all",
             "if.approve_deputy",
             "if.reject",
@@ -1280,6 +1304,8 @@ ROLE_DEFINITIONS = (
         "description": "Kendi departmanı ve sorumluluğundaki işler için aksiyon ve görev takibi yapar.",
         "permissions": [
             "management_due_dashboard.view",
+            "if.create",
+            "if.edit_assigned",
             "actions.create",
             "actions.comment_assigned",
             "actions.request_close_assigned",
@@ -1329,6 +1355,8 @@ ROLE_DEFINITIONS = (
         "hierarchy_level": 40,
         "description": "Kendisine atanan aksiyon ve görevlerde yorum, kanıt ve kapanış talebi işlemleri yapar.",
         "permissions": [
+            "if.create",
+            "if.edit_assigned",
             "actions.comment_assigned",
             "actions.request_close_assigned",
             "documents.view",

@@ -3611,6 +3611,13 @@ def can_edit_dof_draft(dof):
         and dof is not None
         and (dof.status == "Taslak" or dof.approval_step == "draft")
         and can_view_dof(dof)
+        and (
+            current_user_can("if.edit_all")
+            or (
+                current_user_can("if.edit_assigned")
+                and (dof.responsible_id == g.current_user.id or dof.created_by_user_id == g.current_user.id)
+            )
+        )
     )
 
 
@@ -3623,10 +3630,12 @@ def can_edit_dof(dof):
     ):
         return False
     return (
-        can_edit_dof_draft(dof)
-        or can_view_all_dofs()
-        or dof.responsible_id == g.current_user.id
-        or dof.created_by_user_id == g.current_user.id
+        (current_user_can("if.edit_all") and can_view_dof(dof))
+        or (
+            current_user_can("if.edit_assigned")
+            and can_view_dof(dof)
+            and (dof.responsible_id == g.current_user.id or dof.created_by_user_id == g.current_user.id)
+        )
     )
 
 
@@ -17438,6 +17447,7 @@ def dof_dashboard_context():
         "filters": filters,
         "users": active_users() if can_view_all_dofs() else [g.current_user],
         "can_delete_dof": can_delete_dof,
+        "can_create_dof": current_user_can("if.create"),
         "can_edit_dof_draft": can_edit_dof_draft,
         "can_edit_dof": can_edit_dof,
         "can_revise_rejected_dof": can_revise_rejected_dof,
@@ -27579,6 +27589,7 @@ def complete_internal_audit(audit_id):
 
 @bp.route("/dofs/new", methods=["GET", "POST"])
 @login_required
+@permission_required("if.create")
 def create_dof():
     if request.method == "POST":
         save_mode = request.form.get("save_mode", "open")

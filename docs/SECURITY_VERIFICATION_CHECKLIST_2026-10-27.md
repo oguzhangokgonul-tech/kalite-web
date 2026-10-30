@@ -106,6 +106,12 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   yeniden sayilir, dolu kayit varsa tasima plani olmadan release durur.
 - [ ] Rol x firma x islem matrisi: liste, detay, olusturma, degistirme,
   silme, onay, rapor ve dosya indirme icin izinler sinansin.
+- [x] Rol/firma matrisi ilk genisletme: IF/DOF olusturma ve duzenleme
+  izinleri ayristirildi; goruntuleyici ve kisi bazli izin redleri, atanmis
+  personel/yetkili yonetici akisi, Aksiyon/IF/DOF/Dokuman yabanci firma
+  detay-degisiklik-onay-indirme URL'leri ve rapor firma kapsami test edildi.
+  Kanit: `tests/test_security_role_operation_matrix.py`. Bu, ustteki tam
+  matris maddesini kapatmaz.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
   alt alan adi/oturum degisimi ve superadmin/sirket admini sinirlari denensin.
 - [ ] Giris kilidi, sifre sifirlama/degistirme, oturum sonlandirma,
@@ -228,3 +234,17 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   dry-run temiz. Uygulama ve iki zamanlayici aktif; ana sayfa ve iki sirket
   girisi 200, oturumsuz aksiyon dosyasi 302, yeni servis uyari/hata logu yok.
   Canli veriye yazan kimlik dogrulanmis smoke yapilmadi.
+- 30 Ekim sonraki yerel dilim: IF/DOF `if.create`, `if.edit_assigned` ve
+  `if.edit_all` kisi bazli izinleri; route ve yeni kayit dugmesi buna
+  baglandi. Goruntuleyici kullanicinin kendisine ait IF kaydini yetkisiz
+  degistirebilmesi engellendi. `test_security_role_operation_matrix.py`
+  ile rol/firma/rapor senaryolari eklendi. IF/DOF, Aksiyon, Dokuman,
+  Rol Navigasyonu, Rapor Merkezi ve Tenant paketinde 123 test gecti.
+  Canliya alinmadi; tam rol matrisi,
+  dosya metaverisi sahipligi ve bagimsiz siza testi acik.
+- Ayri regresyon bulgusu:
+  `test_periodic_reporting.py::test_every_company_module_has_an_activity_report_mapping`
+  mevcut
+  `purchase_requests`, `payment_tracking`, `contracts`, `ohs_actions`
+  eslemeleri eksik oldugu icin basarisiz. Bu guvenlik diliminde rapor
+  eslemelerine dokunulmadi; raporlama backlog'unda ele alinmali.

@@ -59,10 +59,12 @@
 
 {% block app_content %}
   {% call ui.page_header("İF Yönetimi", "Düzeltici ve önleyici faaliyet kayıtlarını takip edin", icon="bi-clipboard2-pulse") %}
-    <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_dof') }}">
-      <i class="bi bi-plus-lg"></i>
-      <span>Yeni İF Kaydı</span>
-    </a>
+    {% if can_create_dof %}
+      <a class="btn btn-primary btn-lg" href="{{ url_for('main.create_dof') }}">
+        <i class="bi bi-plus-lg"></i>
+        <span>Yeni İF Kaydı</span>
+      </a>
+    {% endif %}
   {% endcall %}
 
   <div class="dashboard-metrics dof-dashboard-metrics">
