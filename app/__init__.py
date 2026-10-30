@@ -586,6 +586,16 @@ def create_app(config_class=Config):
             },
         )
 
+    @app.cli.command("cleanup-dof-files")
+    @with_appcontext
+    def cleanup_dof_files_command():
+        from .routes import cleanup_dof_files
+
+        cleaned, failed = cleanup_dof_files()
+        click.echo(f"IF dosya temizligi: {cleaned} temizlendi, {failed} bekliyor.")
+        if failed:
+            raise click.ClickException("Bazi IF dosyalari temizlenemedi; dosya ve kayitlari inceleyin.")
+
     @app.cli.command("full-backup")
     @click.option(
         "--output-dir",

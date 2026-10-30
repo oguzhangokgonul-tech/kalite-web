@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from app.extensions import db
-from app.models import AuditLog, Dof, DofFile
+from app.models import AuditLog, Dof, DofFile, DofFileCleanup
+from app.routes import cleanup_dof_files
 
 from .helpers import create_company, create_user, login, write_stored_upload
 from .test_dof_management import make_dof
@@ -211,3 +214,109 @@ def test_dof_duplicate_opening_file_blocks_delete_without_unlink(app, client):
     assert client.post(f"/dofs/{dof.id}/delete").status_code == 409
     assert Dof.query.filter_by(id=dof.id).first() is not None
     assert file_path.read_bytes() == b"duplicate-opening"
+
+
+def test_dof_delete_commit_failure_keeps_record_and_file(app, client, monkeypatch):
+    company = create_company("869")
+    manager = create_user("dof-commit-manager", company=company, role_key="management_representative")
+    dof = make_dof(company, manager)
+    stored_name = f"dof-opening-{'7' * 32}.jpg"
+    file_path = write_stored_upload(app, stored_name, b"commit-failure-evidence")
+    opening_file(dof, stored_name)
+    dof_id = dof.id
+    login(client, manager)
+
+    original_commit = db.session.commit
+
+    def fail_dof_commit():
+        if any(isinstance(row, Dof) for row in db.session.deleted):
+            raise RuntimeError("commit failed")
+        return original_commit()
+
+    with monkeypatch.context() as patch:
+        patch.setattr(db.session, "commit", fail_dof_commit)
+        response = client.post(f"/dofs/{dof_id}/delete", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "dosyalar korundu" in response.get_data(as_text=True)
+    assert Dof.query.filter_by(id=dof_id).first() is not None
+    assert file_path.read_bytes() == b"commit-failure-evidence"
+    assert DofFileCleanup.query.filter_by(dof_id=dof_id).count() == 0
+
+
+def test_dof_delete_cleanup_failure_reports_warning_and_keeps_file(app, client, monkeypatch):
+    company = create_company("870")
+    manager = create_user("dof-cleanup-manager", company=company, role_key="management_representative")
+    dof = make_dof(company, manager)
+    stored_name = f"dof-opening-{'8' * 32}.jpg"
+    file_path = write_stored_upload(app, stored_name, b"cleanup-failure-evidence")
+    opening_file(dof, stored_name)
+    dof_id = dof.id
+    login(client, manager)
+    original_unlink = Path.unlink
+
+    def fail_file_cleanup(path, *args, **kwargs):
+        if path == file_path:
+            raise PermissionError("cleanup failed")
+        return original_unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", fail_file_cleanup)
+        response = client.post(f"/dofs/{dof_id}/delete", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert "bazı ek dosyalar temizlenemedi" in response.get_data(as_text=True)
+    assert Dof.query.filter_by(id=dof_id).first() is None
+    assert file_path.read_bytes() == b"cleanup-failure-evidence"
+    job = DofFileCleanup.query.filter_by(dof_id=dof_id).one()
+    assert job.cleaned_at is None
+    assert job.last_error == "file_cleanup_failed"
+
+    file_path.unlink()
+    retry = app.test_cli_runner().invoke(args=["cleanup-dof-files"])
+    assert retry.exit_code != 0
+    assert "1 bekliyor" in retry.output
+    assert db.session.get(DofFileCleanup, job.id).last_error == "missing_file"
+    file_path.write_bytes(b"replaced-content")
+    assert cleanup_dof_files() == (0, 1)
+    assert file_path.read_bytes() == b"replaced-content"
+    assert db.session.get(DofFileCleanup, job.id).last_error == "content_changed"
+    file_path.write_bytes(b"cleanup-failure-evidence")
+    retry = app.test_cli_runner().invoke(args=["cleanup-dof-files"])
+    assert retry.exit_code == 0
+    assert "1 temizlendi" in retry.output
+    assert not file_path.exists()
+    assert db.session.get(DofFileCleanup, job.id).cleaned_at is not None
+
+
+def test_dof_delete_partial_cleanup_leaves_only_failed_job_pending(app, client, monkeypatch):
+    company = create_company("871")
+    manager = create_user("dof-partial-manager", company=company, role_key="management_representative")
+    dof = make_dof(company, manager)
+    first_name = f"dof-opening-{'9' * 32}.jpg"
+    second_name = f"dof-opening-{'a' * 32}.jpg"
+    first_path = write_stored_upload(app, first_name, b"first-opening")
+    second_path = write_stored_upload(app, second_name, b"second-opening")
+    opening_file(dof, first_name)
+    opening_file(dof, second_name)
+    dof_id = dof.id
+    login(client, manager)
+    original_unlink = Path.unlink
+
+    def fail_second_cleanup(path, *args, **kwargs):
+        if path == second_path:
+            raise PermissionError("cleanup failed")
+        return original_unlink(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", fail_second_cleanup)
+        assert client.post(f"/dofs/{dof_id}/delete").status_code == 302
+
+    assert not first_path.exists()
+    assert second_path.exists()
+    jobs = DofFileCleanup.query.filter_by(dof_id=dof_id).order_by(DofFileCleanup.id).all()
+    assert len(jobs) == 2
+    assert jobs[0].cleaned_at is not None
+    assert jobs[1].cleaned_at is None
+    assert cleanup_dof_files() == (1, 0)
+    assert not second_path.exists()

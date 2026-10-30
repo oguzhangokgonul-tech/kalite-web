@@ -1429,6 +1429,21 @@ class DofFile(db.Model):
     dof = db.relationship("Dof", back_populates="files")
 
 
+class DofFileCleanup(db.Model):
+    __tablename__ = "dof_file_cleanup"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, nullable=False, index=True)
+    dof_id = db.Column(db.Integer, nullable=False, index=True)
+    stored_name = db.Column(db.String(255), nullable=False)
+    file_type = db.Column(db.String(20), nullable=False)
+    sha256 = db.Column(db.String(64), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+    cleaned_at = db.Column(db.DateTime, nullable=True)
+    last_error = db.Column(db.String(120), nullable=True)
+
+
 class DofComment(db.Model):
     __tablename__ = "dof_comments"
 

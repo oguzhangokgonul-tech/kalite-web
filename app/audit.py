@@ -41,6 +41,7 @@ TRACKED_MODEL_NAMES = {
     "Dof",
     "DofComment",
     "DofFile",
+    "DofFileCleanup",
     "Document",
     "DocumentAcknowledgement",
     "DocumentCategory",

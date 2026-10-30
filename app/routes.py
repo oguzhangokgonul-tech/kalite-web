@@ -157,6 +157,7 @@ from .models import (
     Dof,
     DofComment,
     DofFile,
+    DofFileCleanup,
     EFFECTIVENESS_RESULTS,
     InternalAudit,
     InternalAuditAnswer,
@@ -5830,30 +5831,105 @@ def save_dof_evidence_file(dof):
 
 def delete_dof_evidence_file(dof):
     opening_files = list(dof.files)
-    file_paths = []
+    file_entries = []
     for dof_file in opening_files:
         file_path = dof_upload_path(dof, dof_file.stored_name, "opening", dof_file)
         if file_path is None:
             abort(409, description="IF dosyasi dogrulanamadi; kayit silinmedi.")
-        file_paths.append(file_path)
+        file_entries.append((file_path, "opening"))
 
     if dof.evidence_stored_name:
         file_path = dof_upload_path(dof, dof.evidence_stored_name, "evidence")
         if file_path is None:
             abort(409, description="IF kaniti dogrulanamadi; kayit silinmedi.")
-        file_paths.append(file_path)
+        file_entries.append((file_path, "evidence"))
 
-    if len(file_paths) != len(set(file_paths)):
+    if len(file_entries) != len({path for path, _ in file_entries}):
         abort(409, description="IF dosyalari yineleniyor; kayit silinmedi.")
 
-    for file_path in file_paths:
-        file_path.unlink()
-    for dof_file in opening_files:
-        db.session.delete(dof_file)
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    jobs = []
+    for file_path, file_type in file_entries:
+        job = DofFileCleanup(
+            company_id=dof.company_id,
+            dof_id=dof.id,
+            stored_name=file_path.relative_to(upload_root).as_posix(),
+            file_type=file_type,
+            sha256=action_upload_digest(file_path),
+            size_bytes=file_path.stat().st_size,
+        )
+        db.session.add(job)
+        jobs.append(job)
+    return jobs
 
-    dof.evidence_original_name = None
-    dof.evidence_stored_name = None
-    dof.evidence_mime_type = None
+
+def cleanup_dof_files(job_ids=None):
+    if job_ids is None:
+        job_ids = [job.id for job in DofFileCleanup.query.filter_by(cleaned_at=None).order_by(DofFileCleanup.id)]
+    cleaned = failed = 0
+    upload_root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    for job_id in job_ids:
+        job = db.session.get(DofFileCleanup, job_id)
+        if job is None or job.cleaned_at is not None:
+            continue
+        stored_name = job.stored_name.replace("\\", "/")
+        file_path = safe_upload_path(stored_name)
+        legacy_pattern = (
+            r"dof-opening-[0-9a-f]{32}\.(?:jpg|jpeg|png|webp)"
+            if job.file_type == "opening"
+            else r"dof-[0-9a-f]{32}\.(?:pdf|jpg|jpeg|png)"
+        )
+        company_folder = upload_root / f"company-{job.company_id:03d}" / "dof" / job.file_type
+        valid_path = (
+            job.company_id > 0
+            and job.file_type in {"opening", "evidence"}
+            and file_path is not None
+            and stored_name == file_path.relative_to(upload_root).as_posix()
+            and (file_path.parent == company_folder or (
+                file_path.parent == upload_root and re.fullmatch(legacy_pattern, file_path.name)
+            ))
+        )
+        referenced = valid_path and (
+            DofFile.query.filter(db.func.replace(DofFile.stored_name, "\\", "/") == stored_name).first()
+            or Dof.query.filter(db.func.replace(Dof.evidence_stored_name, "\\", "/") == stored_name).first()
+        )
+        error = None
+        if not valid_path:
+            error = "invalid_path"
+        elif referenced:
+            error = "still_referenced"
+        else:
+            try:
+                if not file_path.exists():
+                    error = "missing_file"
+                elif not file_path.is_file():
+                    error = "not_a_file"
+                elif (
+                    file_path.stat().st_size != job.size_bytes
+                    or action_upload_digest(file_path) != job.sha256
+                ):
+                    error = "content_changed"
+                else:
+                    file_path.unlink()
+            except OSError:
+                current_app.logger.exception("Committed IF file cleanup failed: job %s", job.id)
+                error = "file_cleanup_failed"
+        if error:
+            job.last_error = error
+            failed += 1
+        else:
+            job.cleaned_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            job.last_error = None
+            cleaned += 1
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("IF file cleanup state could not be saved: job %s", job_id)
+            if not error:
+                cleaned -= 1
+                failed += 1
+    return cleaned, failed
 
 
 def parse_optional_user(field_name):
@@ -28361,10 +28437,21 @@ def delete_dof(dof_id):
             {"previous_nonconformity_id": None},
             synchronize_session=False,
         )
-        delete_dof_evidence_file(dof)
-        db.session.delete(dof)
-        db.session.commit()
-        flash("İF kaydı silindi.", "success")
+        cleanup_jobs = delete_dof_evidence_file(dof)
+        try:
+            db.session.delete(dof)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("IF record deletion could not be committed: %s", dof_id)
+            flash("İF kaydı silinemedi; dosyalar korundu. Lütfen tekrar deneyin.", "danger")
+            return redirect(url_for("main.dof_detail", dof_id=dof_id))
+
+        _, failed = cleanup_dof_files([job.id for job in cleanup_jobs])
+        if failed:
+            flash("İF kaydı silindi, ancak bazı ek dosyalar temizlenemedi. Yöneticinize bildirin.", "warning")
+        else:
+            flash("İF kaydı silindi.", "success")
         return redirect(url_for("main.dof_management"))
 
     return render_template("dof_confirm_delete.html", dof=dof)

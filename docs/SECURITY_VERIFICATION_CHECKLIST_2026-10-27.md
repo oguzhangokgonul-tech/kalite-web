@@ -112,7 +112,7 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   detay-degisiklik-onay-indirme URL'leri ve rapor firma kapsami test edildi.
   Kanit: `tests/test_security_role_operation_matrix.py`. Bu, ustteki tam
   matris maddesini kapatmaz.
-- [x] IF/DOF dosya indirme ilk dilimi (yerel): acilis eki firma metaverisi,
+- [x] IF/DOF dosya indirme ilk dilimi (canli `6179708`): acilis eki firma metaverisi,
   beklenen firma/klasor yolu ve baska IF kaydinin ayni dosyaya referansi
   denetleniyor; kapanis kaniti da ayni yol/sahiplik sinirina baglandi.
   Eski duz-kok `dof-opening-<uuid>` dosyalari sinirli bicimde korunuyor;
@@ -120,6 +120,14 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   yinelenmis dosya metaverisi IF silinince 409 verir; kayit ve dosya korunur. Kanit:
   `tests/test_dof_file_ownership.py`. Kalici manifest ve yetim dosyanin
   tarihsel sahipligi henuz kanitlanmadi; tam dosya matrisi acik.
+- [x] IF/DOF silme dosya/DB tutarliligi ikinci dilim (yerel): dosya temizligi
+  DB commit'inden sonra yapilir; commit hatasinda kayit ve dosyalar korunur.
+  Bekleyen temizlik isleri firma, IF, yol, boyut ve SHA-256 ile kalici olarak
+  tutulur; `flask cleanup-dof-files` dogrulayarak yeniden dener. Eksik veya
+  degismis dosyada is kapanmaz. Kanit: `tests/test_dof_file_ownership.py`,
+  `tests/test_dof_file_cleanup_migration.py`. Paylasimli dosya sistemi yazma
+  yetkisi olan baska surecle hash/silme yarisi ve tarihsel yetim dosyalar
+  ayri inceleme olarak aciktir.
 - [ ] Yatay/dikey yetki atlama, baska firmaya ait ID ve dosya baglantisi,
   alt alan adi/oturum degisimi ve superadmin/sirket admini sinirlari denensin.
 - [ ] Giris kilidi, sifre sifirlama/degistirme, oturum sonlandirma,
@@ -263,13 +271,17 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   `202610300001` ve `tenant-health` temiz. Uygulama ve iki zamanlayici aktif;
   ana site ve sirket girisi HTTPS 200, yeni servis warning/error logu yok.
   Canli kimlik dogrulanmis yazma testi yapilmadi.
-- 30 Ekim sonraki yerel IF/DOF dosya dilimi: yabanci firma dosyasi
+- 30 Ekim sonraki IF/DOF dosya dilimi: yabanci firma dosyasi
   metaverisinin once 200 indirme verdigi kirmizi testle kanitlandi.
   Indirme ve silme yolu beklenen firma klasorune sinirlandi; canli salt-okunur
   envanterinde 46 acilis ekinin 45'i duz-kok legacy oldugundan dar eski
   dosya kurali korundu; 45'inin adi kurala uyuyor ve dosyasi mevcut.
   Yerel IF/DOF, yukleme guvenligi, rol/firma ve tenant paketinde 60 test gecti.
-  Kod henuz canliya alinmadi. Yetim dosya sahipligi icin kalici
-  manifest/migration karari sonraki dilimde verilecek. Dosya silme DB
-  commit'inden once yapildigi icin commit hatasinda veri/dosya tutarsizligi
-  riski ayri is olarak acik kalir.
+  `6179708` canliya alindi: `volkaportal-backup-20261030-121406.zip`
+  (204 upload) dogrulandi, dry-run temiz, sunucu disi SHA-256 eslesti.
+  Fast-forward, `pip check`, migration head `202610300001`, tenant-health,
+  servis/zamanlayicilar, iki HTTPS 200 ve warning log kontrolu temiz.
+- 30 Ekim ikinci yerel dilim: IF silme commit-sonrasi, kalici temizleme
+  kuyrugu, SHA-256 ile retry ve `202610300002` migration eklendi. 66 ilgili
+  test gecti. Canli yedek kopyasinda upgrade/downgrade/upgrade ve SQLite
+  integrity kontrolu temiz. Kod henuz canliya alinmadi; release kapisi acik.
