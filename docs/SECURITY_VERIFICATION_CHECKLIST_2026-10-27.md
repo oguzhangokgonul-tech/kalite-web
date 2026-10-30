@@ -93,9 +93,13 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   kalici klasor duzeni ile guvenli silme karari yazildi ve uygulandi.
   Kanit: `docs/ACTION_FILE_OWNERSHIP_2026-10-27.md`, aksiyon/ISG testleri.
   Bu kontrol tek basina yetim dosyanin tarihsel sahibini kanitlamaz.
-- [ ] Yetim/eski dosyalarin ilk sahibini kanitlayacak manifest ve tombstone
-  migration'i, geri donus provasi ile uygulansin. Ayni kaydin artik referans
-  edilmeyen eski dosyasi ve yeniden kullanilan satir ID'si riski aciktir.
+- [x] Aksiyon dosyalari icin kalici manifest ve tombstone migration'i ile
+  geri donus provasi uygulandi. Sahipligi kanitlanmayan eski dosyalar otomatik
+  sahiplenilmez; eski referans varsa migration durur. Yeni yuklemelerde firma,
+  aksiyon, alt kayit, boyut ve SHA-256 dogrulanir. Silinen yol yeniden acilmaz.
+  Kanit: `202610300001`, dosya ve migration testleri, 30 Ekim izole canli DB
+  kopyasi upgrade/downgrade/upgrade provasi. Tum modullerin dosya guvenligi
+  veya bagimsiz siza testi tamamlanmis sayilmaz.
 - [x] Eski duz-kok aksiyon dosyalari icin karar kaydedildi: genel
   `legacy_uploaded_file_path` geri dususu acilmaz. 27 Ekim canli salt-okunur
   envanterinde dort dosya alaninin tamami `0/0/0/0`; yayindan hemen once
@@ -209,3 +213,18 @@ icin kullanilir. Durumlar: tamamlandi, acik, engelli, ertelendi.
   `tenant-health` temiz. Uygulama ve iki zamanlayici aktif; ana sayfa ve
   firma girisi 200, oturumsuz aksiyon indirme istegi 302, yeni servis hata
   kaydi yok. Tam regresyon ve kalici dosya sahipligi manifesti acik kalir.
+- 30 Ekim dorduncu guvenlik dilimi: aksiyon dosyalarina kalici sahiplik,
+  checksum ve silme tombstone'u eklendi. Dosya secilmeden yeniden kapanis
+  talebi gonderildiginde mevcut kanit korunur. Aksiyon/ISG/tenant/guvenlik
+  regresyonunda 357 test; ilave manifest, audit, migration ve kismi yukleme
+  odakli testleri gecti. Canli DB'nin salt-okunur envanterinde dort referans
+  alani `0/0/0/0`, aksiyon upload dosyasi 0. Izole canli DB kopyasinda
+  `202610270001 -> 202610300001 -> 202610270001 -> 202610300001`
+  provasi, SQLite butunluk ve yabanci anahtar kontrolleri temiz; aksiyon,
+  kullanici ve audit kayit sayilari korundu. `9dc5c5f` canliya alindi;
+  `volkaportal-backup-20261030-081100.zip` tam yedegi (204 upload) dogrulandi,
+  geri yukleme dry-run ve sunucu disi kopyanin SHA-256 eslesmesi temiz.
+  `pip check`, `tenant-health`, canli SQLite butunlugu ve manifest bakim
+  dry-run temiz. Uygulama ve iki zamanlayici aktif; ana sayfa ve iki sirket
+  girisi 200, oturumsuz aksiyon dosyasi 302, yeni servis uyari/hata logu yok.
+  Canli veriye yazan kimlik dogrulanmis smoke yapilmadi.
