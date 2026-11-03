@@ -748,7 +748,7 @@ def load_logged_in_user():
     if is_tenant_subdomain and tenant_company is None:
         abort(404)
     # Public application assets never need tenant, session or task initialization.
-    if request.endpoint == "static":
+    if request.endpoint == "static" or request.blueprint == "desktop_updates":
         return
     ensure_personnel_identity_columns()
     ensure_company_package_schema()
@@ -28559,7 +28559,11 @@ def create_action():
             notify_action_participants(
                 action,
                 f"{action.number_label} {action.title} aksiyonu size atandı.",
-                exclude_user_id=g.current_user.id,
+                exclude_user_id=(
+                    None if linked_ohs_note is not None and
+                    action.responsible_user_id == g.current_user.id
+                    else g.current_user.id
+                ),
                 email_event="assignment",
             )
             for sub_action in created_sub_actions:

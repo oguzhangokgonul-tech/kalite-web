@@ -9,6 +9,7 @@ from app.extensions import db
 from app.models import Action, ActionSubTask, Dof, DocumentRevisionRequest, Notification
 from app.notification_models import NotificationEmailEvent
 from app.notifications import add_user_notification
+from app.notification_policy import _event_current
 
 from .helpers import create_company, create_user, login, make_document
 from .test_action_management import action_payload, make_action
@@ -79,6 +80,18 @@ def test_related_action_user_stays_site_only(recipients, queue):
     assert {row.user_id for row in Notification.query.all()} == {owner.id, related.id}
     queue.assert_called_once()
     assert queue.call_args.args[0].user_id == owner.id
+
+
+def test_assignment_email_remains_current_without_close_permission(recipients):
+    company, owner, *_ = recipients
+    action = make_action(company, owner)
+    assert not owner.has_permission("actions.request_close_assigned")
+    notification = add_user_notification(owner, "Aksiyon atandı", action=action,
+                                         email_event="assignment")
+    db.session.commit()
+    event = NotificationEmailEvent.query.one()
+    assert notification is not None
+    assert _event_current(event, {"items": {}}, owner)
 
 
 @pytest.mark.parametrize("event", [None, "assignment", "rescheduled"])

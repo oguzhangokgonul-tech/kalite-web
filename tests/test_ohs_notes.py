@@ -1,9 +1,12 @@
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
 
 from app.extensions import db
-from app.models import Action, AuditLog, CompanyModule
+from app.models import Action, AuditLog, CompanyModule, Notification
+from app.notification_models import NotificationEmailEvent
+from app.notification_policy import dispatch_collection, reminder_timezone
 from app.ohs_notes_models import OhsNote
 from .helpers import create_company, create_user, login
 from .test_action_management import action_payload
@@ -104,6 +107,50 @@ def test_action_conversion_duplicate_and_delete_preserves_action(client, setup):
     assert client.post(f"/isg-notlari/{s.note.id}/sil", data={"version_id": s.note.version_id}).status_code == 302
     assert Action.query.count() == 1
     assert client.post(f"/actions/{action.id}/delete").status_code == 409
+
+
+@pytest.mark.parametrize("assign_to_actor", [False, True])
+def test_note_conversion_notifies_assignee(client, setup, assign_to_actor):
+    s = setup
+    assignee = s.manager if assign_to_actor else s.owner
+    login(client, s.manager)
+    response = client.post("/isg-aksiyonlari/yeni", data=action_payload(
+        assignee, ohs_note_id=str(s.note.id), ohs_note_version=str(s.note.version_id)))
+    assert response.status_code == 302
+    action = Action.query.one()
+    notifications = Notification.query.filter_by(action_id=action.id).all()
+    assert len(notifications) == 1
+    assert notifications[0].user_id == assignee.id
+    assert notifications[0].company_id == s.company.id
+    assert notifications[0].target_url == f"/actions/{action.id}"
+    event = NotificationEmailEvent.query.one()
+    assert (event.user_id, event.company_id, event.kind, event.record_id) == (
+        assignee.id, s.company.id, "action", action.id)
+    assert event.phase.startswith("event:assignment:")
+    assert event.status == "pending"
+    login(client, assignee)
+    assert client.get("/notifications/count").get_json()["count"] == 1
+    assert client.get(f"/notifications/{notifications[0].id}/open").status_code == 302
+
+
+def test_note_assignment_digest_is_delivered_without_close_permission(app, client, setup, monkeypatch):
+    s = setup
+    s.owner.email = "note-owner@example.test"
+    db.session.commit()
+    assert not s.owner.has_permission("actions.request_close_assigned")
+    sent = []
+    app.config.update(MAIL_ENABLED=True, MAIL_SERVER="smtp.example.test",
+                      MAIL_DEFAULT_SENDER="notify@example.test", MAIL_SUPPRESS_SEND=False)
+    monkeypatch.setattr("app.mail.send_mail_now", lambda *args: sent.append(args) or True)
+    login(client, s.manager)
+    assert client.post("/isg-aksiyonlari/yeni", data=action_payload(
+        s.owner, ohs_note_id=str(s.note.id), ohs_note_version=str(s.note.version_id))).status_code == 302
+    run_date = date.today()
+    now = datetime.combine(run_date, datetime.min.time()).replace(
+        hour=8, minute=30, tzinfo=reminder_timezone())
+    assert dispatch_collection({"company_id": s.company.id, "run_date": run_date, "items": {}}, now=now) == 1
+    assert len(sent) == 1 and sent[0][1] == [s.owner.email]
+    assert NotificationEmailEvent.query.one().status == "accepted"
 
 
 def test_invalid_action_does_not_claim_note(client, setup):

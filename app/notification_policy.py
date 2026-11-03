@@ -368,6 +368,8 @@ def _event_current(event, collection, user):
             return False
         if record.closure_approval_requested or event.phase.startswith("event:approval:"):
             return False
+        if event.phase.startswith("event:assignment:"):
+            return user.id == record.responsible_user_id
         return user.id == record.responsible_user_id and user.has_permission("actions.request_close_assigned")
     if event.kind == "dof":
         if not any(user.has_permission(key) for key in (

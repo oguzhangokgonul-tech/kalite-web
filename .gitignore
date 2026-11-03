@@ -9,3 +9,6 @@ instance/
 *.log
 backups/
 graphify-out/
+desktop/**/bin/
+desktop/**/obj/
+desktop/dist/

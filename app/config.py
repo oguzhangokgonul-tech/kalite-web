@@ -49,6 +49,9 @@ class Config:
         "on",
     }
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", str(UPLOAD_FOLDER))
+    DESKTOP_UPDATE_DIR = os.environ.get(
+        "DESKTOP_UPDATE_DIR", str(Path(DATA_DIR) / "desktop-updates")
+    )
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
     TENANT_BASE_DOMAIN = os.environ.get("TENANT_BASE_DOMAIN", "volkaportal.com").lower()
