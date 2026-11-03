@@ -19,6 +19,10 @@ ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=..\app\static\brand\favicon\favicon.ico
 UninstallDisplayIcon={app}\VolkaPortal.Desktop.exe
 WizardStyle=modern
+#ifdef SignedRelease
+SignTool=volkaportal
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl"
