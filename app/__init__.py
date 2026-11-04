@@ -505,6 +505,48 @@ def create_app(config_class=Config):
         if tenant_health_has_failures(checks):
             raise click.ClickException("Tenant health kontrolu basarisiz.")
 
+    @app.cli.command("reindex-documents")
+    @click.option("--apply", is_flag=True, help="Indeksi veritabanina kaydet.")
+    @click.option("--force", is_flag=True, help="Degismeyen kayitlari da yeniden isle.")
+    @click.option("--batch-size", type=click.IntRange(1, 200), default=25)
+    @with_appcontext
+    def reindex_documents_command(apply, force, batch_size):
+        from .models import Document
+        from .routes import document_search_fingerprint, index_document_search
+
+        last_id = 0
+        counts = {"indexed": 0, "skipped": 0, "error": 0, "missing": 0, "unsupported": 0}
+        while True:
+            documents = (
+                Document.query.filter(Document.id > last_id)
+                .order_by(Document.id.asc())
+                .limit(batch_size)
+                .all()
+            )
+            if not documents:
+                break
+            for document in documents:
+                last_id = document.id
+                previous = document.search_index
+                fingerprint = document_search_fingerprint(document)
+                if (
+                    not force and fingerprint is not None and previous is not None
+                    and previous.source_file_path == document.file_path
+                    and previous.source_sha256 == fingerprint
+                    and previous.status in {"ready", "empty", "unsupported"}
+                ):
+                    counts["skipped"] += 1
+                    continue
+                if not apply:
+                    counts["indexed"] += 1
+                    continue
+                status = index_document_search(document)
+                counts[status if status in counts else "indexed"] += 1
+            if apply:
+                db.session.commit()
+        prefix = "Applied" if apply else "Dry run"
+        click.echo(f"{prefix}: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
+
     @app.cli.command("db-check")
     @with_appcontext
     def db_check_command():

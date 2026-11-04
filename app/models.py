@@ -2880,6 +2880,29 @@ class Document(db.Model):
         cascade="all, delete-orphan",
         order_by="DocumentAcknowledgement.acknowledged_at.desc()",
     )
+    search_index = db.relationship(
+        "DocumentSearchIndex",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class DocumentSearchIndex(db.Model):
+    __tablename__ = "document_search_indexes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    document_id = db.Column(
+        db.Integer, db.ForeignKey("documents.id"), nullable=False, unique=True, index=True
+    )
+    source_file_path = db.Column(db.String(500), nullable=False)
+    source_sha256 = db.Column(db.String(64), nullable=True)
+    status = db.Column(db.String(20), nullable=False)
+    search_text = db.Column(db.Text, nullable=False, default="")
+    indexed_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+
+    document = db.relationship("Document", back_populates="search_index")
 
 
 class DocumentRevisionRequest(db.Model):

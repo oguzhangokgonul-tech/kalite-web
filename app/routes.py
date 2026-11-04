@@ -40,6 +40,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import HTTPException
 
 from .audit import record_audit_event
+from .document_search import extract_text_bounded, normalize_search_text, source_fingerprint
 from .extensions import db
 from .i18n import (
     DEFAULT_LOCALE,
@@ -150,6 +151,7 @@ from .models import (
     DOF_PRIORITIES,
     DOF_SOURCES,
     Document,
+    DocumentSearchIndex,
     DocumentAcknowledgement,
     DocumentCategory,
     DocumentRevisionRequest,
@@ -6236,6 +6238,37 @@ def document_source_path(document):
     return existing_uploaded_file_path(document.file_path)
 
 
+def document_search_source(document):
+    preview_path = (
+        existing_uploaded_file_path(document.preview_file_path)
+        if document.preview_file_path and document.preview_status == "ready"
+        else None
+    )
+    return document_source_path(document), preview_path
+
+
+def document_search_fingerprint(document):
+    source_path, preview_path = document_search_source(document)
+    return source_fingerprint(source_path, document.file_type, preview_path)
+
+
+def index_document_search(document):
+    source_path, preview_path = document_search_source(document)
+    fingerprint = source_fingerprint(source_path, document.file_type, preview_path)
+    status, search_text = extract_text_bounded(source_path, document.file_type, preview_path)
+    search_index = document.search_index
+    if search_index is None:
+        search_index = DocumentSearchIndex(document=document, company_id=document.company_id)
+        db.session.add(search_index)
+    search_index.company_id = document.company_id
+    search_index.source_file_path = document.file_path
+    search_index.source_sha256 = fingerprint
+    search_index.status = status
+    search_index.search_text = search_text
+    search_index.indexed_at = datetime.utcnow()
+    return status
+
+
 def document_preview_storage(document):
     category_slug = document.category.slug if document.category else "genel"
     source_stem = Path(document.file_name or "document").stem
@@ -6536,6 +6569,17 @@ def archive_current_document_version(document, actor=None):
         archived_at=datetime.utcnow(),
     )
     db.session.add(archive_document_record)
+    if document.search_index is not None:
+        previous = document.search_index
+        db.session.add(DocumentSearchIndex(
+            document=archive_document_record,
+            company_id=document.company_id,
+            source_file_path=previous.source_file_path,
+            source_sha256=previous.source_sha256,
+            status=previous.status,
+            search_text=previous.search_text,
+            indexed_at=previous.indexed_at,
+        ))
     return archive_document_record
 
 
@@ -6564,6 +6608,7 @@ def apply_document_revision(
     document.archived_at = None
     document.uploaded_by = g.current_user.id
     generate_document_preview(document)
+    index_document_search(document)
     return file_values
 
 
@@ -6614,12 +6659,19 @@ def filtered_document_query(category=None, filters=None):
         query = query.filter(Document.department == filters["department"])
     if filters["search"]:
         search_value = f"%{filters['search']}%"
+        normalized_value = normalize_search_text(filters["search"])
+        content_match = db.session.query(DocumentSearchIndex.id).filter(
+            DocumentSearchIndex.document_id == Document.id,
+            DocumentSearchIndex.company_id == Document.company_id,
+            DocumentSearchIndex.search_text.contains(normalized_value, autoescape=True),
+        ).exists()
         query = query.filter(
             or_(
                 Document.document_code.ilike(search_value),
                 Document.title.ilike(search_value),
                 Document.description.ilike(search_value),
                 DocumentCategory.name.ilike(search_value),
+                content_match,
             )
         )
     return query
@@ -25151,6 +25203,7 @@ def upload_document():
             db.session.flush()
             for document in saved_documents:
                 generate_document_preview(document)
+                index_document_search(document)
             db.session.commit()
             flash(
                 f"{len(saved_documents)} doküman başarıyla yüklendi.",
@@ -25204,6 +25257,7 @@ def document_detail(document_id):
     ensure_same_company(document)
     if not document.preview_status:
         generate_document_preview(document)
+        index_document_search(document)
         db.session.commit()
     mark_document_opened_for_acknowledgement(document)
     return render_template(
@@ -25642,6 +25696,7 @@ def generate_document_preview_route(document_id):
         flash("PDF önizleme yeniden oluşturuldu.", "success")
     else:
         flash(document_preview_message(document), "warning")
+    index_document_search(document)
     db.session.commit()
     return redirect(url_for("main.document_detail", document_id=document.id))
 

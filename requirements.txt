@@ -8,3 +8,4 @@ Pillow==13.0.0
 python-dotenv==1.2.2
 qrcode==8.2
 cryptography==50.0.1
+pypdf==6.21.4
