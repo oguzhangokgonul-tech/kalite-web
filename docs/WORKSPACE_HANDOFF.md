@@ -20,6 +20,21 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- Calibration is now available from Mobile Center with a searchable device
+  list. Authorized managers can upload a PDF or capture up to ten image pages
+  and save them as one device-linked PDF; viewers can access PDF history.
+  Web calibration lists show PDF controls beside status. Uploads are checked
+  for format, size, decoded pixels, company quota, role, tenant, and CSRF;
+  certificate files retain uploader, timestamp, and SHA-256. Devices with
+  attached PDFs cannot be hard-deleted. Commit `6594a7d` was deployed on
+  2026-11-04 with migration `202611040004`. A verified DB+205-upload backup
+  (`volkaportal-backup-20261104-193059.zip`) was copied off-host with matching
+  SHA-256. Upgrade/downgrade/upgrade passed on a restored copy; downgrade with
+  certificate data was correctly refused. Focused calibration/PWA tests and
+  company-package/audit/backup regressions passed (45 distinct tests).
+  Production DB integrity, service, login redirects, and static asset smoke
+  passed. A physical phone-camera capture and authenticated production upload
+  remain unverified.
 - The onboarding `custom` versus `iso_core` test failure was caused by an
   outdated fixture: it submitted only part of the current ISO core module
   catalog. The fixture now derives the complete module set from the catalog,
