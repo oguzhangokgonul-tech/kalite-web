@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from app import create_app
+from app.company_packages import ISO_CORE_MODULE_KEYS
 from app.extensions import db
 from app.models import (
     AppSetting,
@@ -77,28 +78,7 @@ def onboarding_payload(**overrides):
         "custom_domain": "",
         "package_key": "iso_core",
         "is_active": "on",
-        "enabled_modules": [
-            "iso_executive_summary",
-            "management_due_dashboard",
-            "organization",
-            "calibration",
-            "human_resources",
-            "suggestions",
-            "if_management",
-            "risk_management",
-            "fmea_management",
-            "process_management",
-            "quality_objectives",
-            "change_management",
-            "deviation_management",
-            "incident_near_miss",
-            "training",
-            "internal_audit",
-            "management_review",
-            "supplier_management",
-            "report_center",
-            "documents",
-        ],
+        "enabled_modules": sorted(ISO_CORE_MODULE_KEYS),
         "departments": ["Kalite", "Uretim"],
         "custom_departments": "Ar-Ge\nSatis",
         "initial_full_name": "Ayse Kalite",
@@ -263,6 +243,26 @@ def test_company_onboarding_wizard_creates_complete_company_workspace(app, clien
         ).count()
         == 1
     )
+
+
+def test_company_onboarding_marks_changed_core_modules_as_custom(app, client):
+    user = create_user("superadmin", "super_admin")
+    login(client, user)
+    selected = sorted(ISO_CORE_MODULE_KEYS - {"meetings"})
+
+    response = client.post(
+        "/kurulum-sihirbazi",
+        data=onboarding_payload(enabled_modules=selected),
+    )
+
+    assert response.status_code == 302
+    company = Company.query.filter_by(code="222").one()
+    assert company.package_key == "custom"
+    assert CompanyModule.query.filter_by(
+        company_id=company.id,
+        module_key="meetings",
+        is_enabled=False,
+    ).count() == 1
 
 
 def test_company_onboarding_repair_is_idempotent(app, client):
