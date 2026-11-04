@@ -20,6 +20,19 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- Document revision publishing now requires a reason in both direct revision
+  and request approval. Each `Document` version stores its own reason, and the
+  archive copy retains the previous version's reason. Commit `9ac40aa` was
+  deployed on 2026-11-04 with Alembic revision `202611040002`. The full backup
+  `volkaportal-backup-20261104-164214.zip` (DB and 205 uploads) passed package
+  verification and was copied off-host with matching SHA-256. Upgrade,
+  downgrade, and upgrade passed on a live DB copy; 78 document rows remained.
+  Focused document, upload, report, and training tests passed (36), followed by
+  14 document tests after the final change. Production tenant-health, SQLite
+  quick check, service status, logs, and unauthenticated HTTPS smoke passed.
+  Authenticated production revision publishing was not exercised. Existing
+  metadata edit can replace a file or revision number without using the
+  archival revision flow; treat that as a separate document-control follow-up.
 - OHS notes now accept multiple JPEG/PNG images on create and edit. Images are
   company-scoped, served only through authenticated note routes, validated and
   re-encoded to remove metadata, and individually removable. Commit `514d59c`
