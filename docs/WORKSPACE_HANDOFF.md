@@ -20,6 +20,16 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- The onboarding `custom` versus `iso_core` test failure was caused by an
+  outdated fixture: it submitted only part of the current ISO core module
+  catalog. The fixture now derives the complete module set from the catalog,
+  and a separate test confirms that removing a module produces `custom`.
+  Commit `ae3522f` reached the production repository on 2026-11-04; runtime
+  code and schema did not change, so no restart or migration was needed.
+  Company/package/tenant regression tests passed (187). The verified full
+  backup `volkaportal-backup-20261104-183932.zip` (DB plus 205 uploads) was
+  copied off-host with a matching SHA-256. Production service, tenant-health,
+  and unauthenticated HTTPS smoke checks passed.
 - Document list search now matches extracted content from text PDFs, DOCX,
   XLSX, and PPTX, plus legacy Office files with a PDF preview. The index is
   tenant-scoped, separate from audited Document rows, refreshed on upload and
@@ -31,10 +41,9 @@ credential store, database backup, or proof that a release is live.
   rehearsed on a restored copy; 78/78 production documents indexed as ready.
   Focused document, tenant, upload, and security tests passed (92); production
   content-only ORM search, tenant-health, DB integrity, service logs, and HTTPS
-  smoke passed. A broader serial run stopped at an unrelated pre-existing
-  onboarding assertion (`custom` vs `iso_core`) after 298 passes; that test
-  remains to be investigated separately. An authenticated browser search was
-  not exercised on production.
+  smoke passed. The broader serial run stopped after 298 passes at an outdated
+  onboarding test fixture, fixed in `ae3522f`; an authenticated browser search
+  was not exercised on production.
 - The document metadata edit route can no longer replace files, alter revision
   number/date or status, or modify an archived version. Those changes require
   the existing revision or archive workflows; the edit form now shows the
