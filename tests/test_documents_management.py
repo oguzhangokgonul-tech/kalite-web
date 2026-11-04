@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 import pytest
@@ -161,6 +162,7 @@ def test_document_upload_download_revision_request_and_approval(app, client):
         data={
             "revision_no": "1",
             "revision_date": date.today().isoformat(),
+            "revision_reason": "Üretim talimatı güncellendi",
             "approval_note": "Uygundur",
             "document_file": upload_tuple(b"%PDF-1.4\nnew\n", "montaj-r1.pdf"),
         },
@@ -171,6 +173,7 @@ def test_document_upload_download_revision_request_and_approval(app, client):
     db.session.refresh(revision_request)
     assert revision_request.status == DOCUMENT_REVISION_APPROVED_STATUS
     assert document.revision_no == "1"
+    assert document.revision_reason == "Üretim talimatı güncellendi"
     assert document.original_file_name == "montaj-r1.pdf"
     assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\nnew\n"
 
@@ -189,6 +192,121 @@ def test_document_upload_download_revision_request_and_approval(app, client):
     ).one()
     assert archive.status == DOCUMENT_STATUSES[3]
     assert archive.original_file_name == "montaj.pdf"
+    assert archive.revision_reason is None
+
+
+def test_direct_document_revision_requires_reason_and_keeps_it_with_each_version(app, client):
+    company = create_company("313C")
+    other_company = create_company("313D")
+    manager = create_user("direct-revision-manager", company=company, role_key="management_representative")
+    viewer = create_user("direct-revision-viewer", company=company, permissions=("documents.view",))
+    foreign_manager = create_user("foreign-revision-manager", company=other_company, role_key="management_representative")
+    document = make_document(app, company, document_code="PR.33", content=b"%PDF-1.4\nold\n")
+
+    login(client, viewer)
+    assert client.get(f"/documents/{document.id}/revise").status_code == 403
+    login(client, foreign_manager)
+    assert client.get(f"/documents/{document.id}/revise").status_code == 404
+    foreign_post = client.post(
+        f"/documents/{document.id}/revise",
+        data={
+            "revision_reason": "Başka şirketin revizyonu",
+            "document_file": upload_tuple(b"%PDF-1.4\nforeign\n", "foreign.pdf"),
+        },
+    )
+    assert foreign_post.status_code == 404
+    assert Document.query.count() == 1
+
+    login(client, manager)
+    form = client.get(f"/documents/{document.id}/revise")
+    assert form.status_code == 200
+    assert 'name="revision_reason"' in form.get_data(as_text=True)
+    for reason in ("   ", "x" * 2001):
+        rejected = client.post(
+            f"/documents/{document.id}/revise",
+            data={
+                "revision_no": "1",
+                "revision_date": date.today().isoformat(),
+                "revision_reason": reason,
+                "document_file": upload_tuple(b"%PDF-1.4\nrejected\n", "rejected.pdf"),
+            },
+        )
+        assert rejected.status_code == 200
+        assert Document.query.count() == 1
+        db.session.refresh(document)
+        assert document.revision_no == "0"
+        assert document.revision_reason is None
+        assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\nold\n"
+
+    first_reason = "  Ölçüm yöntemi değişti.  "
+    saved = client.post(
+        f"/documents/{document.id}/revise",
+        data={
+            "revision_no": "1",
+            "revision_date": date.today().isoformat(),
+            "revision_reason": first_reason,
+            "document_file": upload_tuple(b"%PDF-1.4\nfirst\n", "first.pdf"),
+        },
+    )
+    assert saved.status_code == 302
+    db.session.refresh(document)
+    assert document.revision_reason == "Ölçüm yöntemi değişti."
+    assert "Ölçüm yöntemi değişti." in client.get(f"/documents/{document.id}").get_data(as_text=True)
+    assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\nfirst\n"
+    audit = AuditLog.query.filter_by(entity_type="Document", entity_id=str(document.id), action="updated").order_by(AuditLog.id.desc()).first()
+    assert json.loads(audit.new_values)["revision_reason"] == "Ölçüm yöntemi değişti."
+
+    second = client.post(
+        f"/documents/{document.id}/revise",
+        data={
+            "revision_no": "2",
+            "revision_date": date.today().isoformat(),
+            "revision_reason": "İkinci kontrol eklendi",
+            "document_file": upload_tuple(b"%PDF-1.4\nsecond\n", "second.pdf"),
+        },
+    )
+    assert second.status_code == 302
+    db.session.refresh(document)
+    assert document.revision_reason == "İkinci kontrol eklendi"
+    archived_first = Document.query.filter_by(company_id=company.id, revision_no="1", status="Arşiv").one()
+    assert archived_first.revision_reason == "Ölçüm yöntemi değişti."
+    assert "Ölçüm yöntemi değişti." in client.get(f"/documents/{archived_first.id}").get_data(as_text=True)
+    assert client.get(f"/documents/{archived_first.id}/download").data == b"%PDF-1.4\nfirst\n"
+
+
+def test_document_revision_approval_rejects_missing_reason_without_publishing(app, client):
+    company = create_company("313E")
+    manager = create_user("approval-reason-manager", company=company, role_key="management_representative")
+    requester = create_user("approval-reason-requester", company=company, permissions=("documents.view",))
+    document = make_document(app, company, document_code="PR.34")
+    revision_request = DocumentRevisionRequest(
+        company_id=company.id,
+        document_id=document.id,
+        requested_by_user_id=requester.id,
+        status=DOCUMENT_REVISION_PENDING_STATUS,
+        explanation="Talep gerekçesi",
+    )
+    db.session.add(revision_request)
+    db.session.commit()
+
+    login(client, manager)
+    form = client.get(f"/documents/revision-requests/{revision_request.id}")
+    assert form.status_code == 200
+    assert 'name="revision_reason"' in form.get_data(as_text=True)
+    rejected = client.post(
+        f"/documents/revision-requests/{revision_request.id}/approve",
+        data={
+            "revision_no": "1",
+            "revision_reason": " ",
+            "document_file": upload_tuple(b"%PDF-1.4\nrejected\n", "rejected.pdf"),
+        },
+    )
+    assert rejected.status_code == 302
+    db.session.refresh(document)
+    db.session.refresh(revision_request)
+    assert document.revision_no == "0"
+    assert revision_request.status == DOCUMENT_REVISION_PENDING_STATUS
+    assert Document.query.count() == 1
 
 
 def test_document_revision_approval_creates_revision_scoped_read_training(app, client):
@@ -242,6 +360,7 @@ def test_document_revision_approval_creates_revision_scoped_read_training(app, c
         data={
             "revision_no": "1",
             "revision_date": date.today().isoformat(),
+            "revision_reason": "Yeni kalite şartları",
             "approval_note": "Uygun",
             "document_file": upload_tuple(b"%PDF-1.4\nnew revision\n", "kalite-r1.pdf"),
         },

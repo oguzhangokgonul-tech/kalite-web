@@ -118,6 +118,12 @@
             <span><i class="bi bi-calendar-check"></i> Son Revizyon Tarihi</span>
             <strong>{{ format_date(document.revision_date) }}</strong>
           </div>
+          {% if document.revision_reason %}
+            <div class="documents-revision-reason">
+              <span><i class="bi bi-chat-left-text"></i> Revizyon Nedeni</span>
+              <strong>{{ document.revision_reason }}</strong>
+            </div>
+          {% endif %}
           <div>
             <span><i class="bi bi-building"></i> Departman</span>
             <strong>{{ document.department or "-" }}</strong>

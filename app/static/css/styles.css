@@ -1444,6 +1444,17 @@ body {
     text-align: right;
 }
 
+.documents-info-list > .documents-revision-reason {
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+
+.documents-revision-reason strong {
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .documents-note-card {
     background: #f4f8ff;
     border-color: #bcd6ff;

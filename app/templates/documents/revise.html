@@ -41,6 +41,10 @@
         <label class="form-label" for="revision_date">Revizyon Tarihi</label>
         <input class="form-control" id="revision_date" name="revision_date" type="date" value="{{ today.isoformat() }}">
       </div>
+      <div>
+        <label class="form-label" for="revision_reason">Revizyon Nedeni *</label>
+        <textarea class="form-control" id="revision_reason" name="revision_reason" rows="2" maxlength="2000" required>{{ request.form.get('revision_reason', '') }}</textarea>
+      </div>
     </div>
 
     <div class="documents-upload-box mt-4">

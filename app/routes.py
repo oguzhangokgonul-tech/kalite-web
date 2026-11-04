@@ -6516,6 +6516,7 @@ def archive_current_document_version(document, actor=None):
         document_code=document.document_code,
         title=f"{document.title} - Arşiv",
         revision_no=document.revision_no,
+        revision_reason=document.revision_reason,
         publish_date=document.publish_date,
         revision_date=document.revision_date,
         department=document.department,
@@ -6538,7 +6539,14 @@ def archive_current_document_version(document, actor=None):
     return archive_document_record
 
 
-def apply_document_revision(document, uploaded_file, revision_no=None, revision_date=None):
+def apply_document_revision(
+    document, uploaded_file, revision_no=None, revision_date=None, revision_reason=None
+):
+    revision_reason = (revision_reason or "").strip()
+    if not revision_reason:
+        raise ValueError("revision_reason_required")
+    if len(revision_reason) > 2000:
+        raise ValueError("revision_reason_too_long")
     file_values = save_document_upload(uploaded_file, document.category)
     archive_current_document_version(document, actor=g.current_user)
     for key, value in file_values.items():
@@ -6550,6 +6558,7 @@ def apply_document_revision(document, uploaded_file, revision_no=None, revision_
     document.preview_generated_at = None
     if revision_no is not None:
         document.revision_no = revision_no[:40] or document.revision_no
+    document.revision_reason = revision_reason
     document.revision_date = revision_date or date.today()
     document.status = "Yayında"
     document.archived_at = None
@@ -6563,6 +6572,8 @@ def document_revision_error_message(error_key):
         "invalid_document_file_type": "Sadece PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG veya JPEG yükleyebilirsiniz.",
         "document_file_too_large": "Dosya en fazla 25 MB olabilir.",
         "document_file_required": "Revizyon için yeni doküman dosyası seçin.",
+        "revision_reason_required": "Revizyon nedeni zorunludur.",
+        "revision_reason_too_long": "Revizyon nedeni en fazla 2000 karakter olabilir.",
         "required_fields": "Açıklama alanı zorunludur.",
         "text_too_long": "Açıklama alanı en fazla 2000 karakter olabilir.",
         "invalid_date": "Revizyon tarihini geçerli biçimde girin.",
@@ -25479,12 +25490,14 @@ def approve_document_revision_request(request_id):
         revision_no = request.form.get("revision_no", "").strip()
         revision_date = parse_optional_date("revision_date") or date.today()
         approval_note = request.form.get("approval_note", "").strip()
+        revision_reason = request.form.get("revision_reason", "")
 
         saved_file_values = apply_document_revision(
             document,
             uploaded_files[0],
             revision_no=revision_no,
             revision_date=revision_date,
+            revision_reason=revision_reason,
         )
         training, assigned_users = ensure_document_revision_read_training(
             document,
@@ -25538,11 +25551,13 @@ def revise_document(document_id):
                 raise ValueError("document_file_required")
             revision_no = request.form.get("revision_no", "").strip()
             revision_date = parse_optional_date("revision_date") or date.today()
+            revision_reason = request.form.get("revision_reason", "")
             saved_file_values = apply_document_revision(
                 document,
                 uploaded_files[0],
                 revision_no=revision_no,
                 revision_date=revision_date,
+                revision_reason=revision_reason,
             )
             training, assigned_users = ensure_document_revision_read_training(
                 document,

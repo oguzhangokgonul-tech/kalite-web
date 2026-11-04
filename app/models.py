@@ -2840,6 +2840,7 @@ class Document(db.Model):
     document_code = db.Column(db.String(80), nullable=False)
     title = db.Column(db.String(200), nullable=False)
     revision_no = db.Column(db.String(40), nullable=True)
+    revision_reason = db.Column(db.Text, nullable=True)
     publish_date = db.Column(db.Date, nullable=True)
     revision_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(80), nullable=True)
