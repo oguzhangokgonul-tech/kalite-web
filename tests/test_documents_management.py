@@ -274,6 +274,88 @@ def test_direct_document_revision_requires_reason_and_keeps_it_with_each_version
     assert client.get(f"/documents/{archived_first.id}/download").data == b"%PDF-1.4\nfirst\n"
 
 
+def test_document_edit_cannot_bypass_revision_archive(app, client):
+    company = create_company("313F")
+    other_company = create_company("313G")
+    manager = create_user("metadata-manager", company=company, role_key="management_representative")
+    viewer = create_user("metadata-viewer", company=company, permissions=("documents.view",))
+    foreign_manager = create_user("metadata-foreign", company=other_company, role_key="management_representative")
+    category = first_document_category(company)
+    document = make_document(
+        app, company, category=category, revision_no="1", revision_reason="Önceki değişiklik",
+        content=b"%PDF-1.4\noriginal\n",
+    )
+    url = f"/documents/{document.id}/edit"
+    metadata = {
+        "category_id": str(category.id),
+        "document_code": document.document_code,
+        "title": "Güncel başlık",
+        "publish_date": "",
+        "department": "",
+        "description": "Yalnız metadata değişti",
+    }
+
+    login(client, viewer)
+    assert client.get(url).status_code == 403
+    assert client.post(url, data=metadata).status_code == 403
+    login(client, foreign_manager)
+    assert client.get(url).status_code == 404
+    assert client.post(url, data=metadata).status_code == 404
+
+    login(client, manager)
+    form = client.get(url)
+    assert form.status_code == 200
+    body = form.get_data(as_text=True)
+    assert 'name="document_files"' not in body
+    assert 'name="revision_no"' not in body
+    assert 'name="revision_date"' not in body
+    assert 'name="status"' not in body
+    assert "Dokümana Revizyon Yap" in body
+
+    response = client.post(url, data=metadata)
+    assert response.status_code == 302
+    db.session.refresh(document)
+    assert document.title == "Güncel başlık"
+    assert document.revision_no == "1"
+    assert document.revision_reason == "Önceki değişiklik"
+    assert Document.query.count() == 1
+    assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\noriginal\n"
+    assert AuditLog.query.filter_by(
+        entity_type="Document", entity_id=str(document.id), action="updated"
+    ).count() >= 1
+    original_file_path = document.file_path
+    audit_count = AuditLog.query.filter_by(
+        entity_type="Document", entity_id=str(document.id), action="updated"
+    ).count()
+
+    for attempted_change in (
+        {"revision_no": "2"},
+        {"revision_date": date.today().isoformat()},
+        {"status": "Arşiv"},
+        {"document_file": upload_tuple(b"%PDF-1.4\nreplacement\n", "replacement.pdf")},
+        {"document_files": upload_tuple(b"%PDF-1.4\nreplacement\n", "replacement.pdf")},
+        {"category_id": str(first_document_category(other_company).id)},
+    ):
+        rejected = client.post(url, data={**metadata, **attempted_change})
+        assert rejected.status_code == 200
+        db.session.refresh(document)
+        assert document.revision_no == "1"
+        assert document.revision_date is None
+        assert document.revision_reason == "Önceki değişiklik"
+        assert document.status == "Yayında"
+        assert document.file_path == original_file_path
+        assert Document.query.count() == 1
+        assert AuditLog.query.filter_by(
+            entity_type="Document", entity_id=str(document.id), action="updated"
+        ).count() == audit_count
+        assert client.get(f"/documents/{document.id}/download").data == b"%PDF-1.4\noriginal\n"
+
+    document.status = "Arşiv"
+    db.session.commit()
+    assert client.get(url).status_code == 409
+    assert client.post(url, data=metadata).status_code == 409
+
+
 def test_document_revision_approval_rejects_missing_reason_without_publishing(app, client):
     company = create_company("313E")
     manager = create_user("approval-reason-manager", company=company, role_key="management_representative")

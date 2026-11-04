@@ -25278,51 +25278,45 @@ def edit_document(document_id):
     ensure_same_company(document)
     if not can_manage_documents():
         abort(403)
+    if document.status == "Arşiv":
+        abort(409)
 
     if request.method == "POST":
-        saved_file_values = None
         try:
             form_values = parse_document_form()
-            uploaded_files = document_uploads()
-            if uploaded_files:
-                saved_file_values = save_document_upload(
-                    uploaded_files[0],
-                    form_values["category"],
+            if (
+                document_uploads()
+                or (
+                    "revision_no" in request.form
+                    and form_values["revision_no"] != document.revision_no
                 )
+                or (
+                    "revision_date" in request.form
+                    and form_values["revision_date"] != document.revision_date
+                )
+                or (
+                    "status" in request.form
+                    and form_values["status"] != document.status
+                )
+            ):
+                raise ValueError("revision_required")
 
-            old_file_path = document.file_path
             document.category_id = form_values["category"].id
             document.category = form_values["category"]
             document.document_code = form_values["document_code"]
             document.title = form_values["title"]
-            document.revision_no = form_values["revision_no"]
             document.publish_date = form_values["publish_date"]
-            document.revision_date = form_values["revision_date"]
             document.department = form_values["department"]
             document.description = form_values["description"]
-            document.status = form_values["status"]
-            document.archived_at = datetime.utcnow() if document.status == "Arşiv" else None
-            if saved_file_values is not None:
-                if old_file_path:
-                    delete_stored_upload(old_file_path)
-                delete_document_preview(document)
-                for key, value in saved_file_values.items():
-                    setattr(document, key, value)
-                generate_document_preview(document)
 
             db.session.commit()
             flash("Doküman bilgileri güncellendi.", "success")
             return redirect(url_for("main.document_detail", document_id=document.id))
         except ValueError as error:
             db.session.rollback()
-            if saved_file_values is not None:
-                temp_document = Document(file_path=saved_file_values["file_path"])
-                delete_document_files(temp_document)
             error_key = str(error)
-            if error_key == "invalid_document_file_type":
-                flash("Sadece PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, PNG, JPG veya JPEG yükleyebilirsiniz.", "danger")
-            elif error_key == "document_file_too_large":
-                flash("Doküman dosyası en fazla 25 MB olabilir.", "danger")
+            if error_key == "revision_required":
+                flash("Dosya, revizyon veya durum değişikliği için ilgili doküman işlemini kullanın.", "danger")
             elif error_key == "required_fields":
                 flash("Doküman adı ve doküman kodu zorunludur.", "danger")
             elif error_key == "invalid_category":
