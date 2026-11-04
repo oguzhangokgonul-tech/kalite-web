@@ -58,6 +58,62 @@ def write_action_evidence(app, stored_name, content, *, company_id, action_id, f
     return file_path
 
 
+def test_action_forms_hide_capa_type_and_edit_preserves_existing_value(client):
+    company = create_company("340")
+    manager = create_user(
+        "action-capa-manager", company=company, role_key="management_representative"
+    )
+    action = make_action(company, manager, capa_type="Düzeltme")
+    login(client, manager)
+
+    for path in ("/actions/new", "/isg-aksiyonlari/yeni", f"/actions/{action.id}/edit"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert 'name="capa_type"' not in response.get_data(as_text=True)
+
+    response = client.post(
+        f"/actions/{action.id}/edit",
+        data=action_payload(manager, title="Guncellenen aksiyon"),
+    )
+    assert response.status_code == 302
+    db.session.refresh(action)
+    assert action.capa_type == "Düzeltme"
+    assert action.title == "Guncellenen aksiyon"
+    assert not any(
+        "CAPA" in history.message
+        for history in ActionHistory.query.filter_by(action_id=action.id).all()
+    )
+
+
+@pytest.mark.parametrize(
+    ("path", "capa_type", "expected_type"),
+    (
+        ("/actions/new", "Düzeltme", "Düzeltme"),
+        ("/actions/new", "", None),
+        ("/isg-aksiyonlari/yeni", None, None),
+    ),
+)
+def test_action_creation_keeps_legacy_capa_posts_and_ohs_default(
+    client, path, capa_type, expected_type
+):
+    company = create_company("341")
+    manager = create_user(
+        "action-capa-legacy-manager", company=company,
+        role_key="management_representative",
+    )
+    login(client, manager)
+    payload = action_payload(manager)
+    if capa_type is not None:
+        payload["capa_type"] = capa_type
+
+    response = client.post(path, data=payload)
+
+    assert response.status_code == 302
+    action = Action.query.one()
+    assert action.capa_type == expected_type
+    assert action.action_category == ("ohs" if path.startswith("/isg-") else "general")
+
+
 def test_action_create_file_comment_subtask_and_closure_flow(client):
     company = create_company("331")
     responsible = create_user(

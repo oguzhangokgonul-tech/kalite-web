@@ -5148,7 +5148,8 @@ def apply_dof_effectiveness_fields(dof, is_draft=False):
 def apply_action_capa_fields(action):
     source_dof = parse_optional_dof()
     source_risk = parse_optional_risk()
-    capa_type = request.form.get("capa_type", "").strip()
+    submitted_capa_type = request.form.get("capa_type")
+    capa_type = submitted_capa_type.strip() if submitted_capa_type is not None else None
     effectiveness_required = checkbox_enabled("effectiveness_required")
     effectiveness_owner = parse_optional_active_user("effectiveness_owner_user_id")
     effectiveness_due_date = parse_optional_date("effectiveness_due_date")
@@ -5170,7 +5171,13 @@ def apply_action_capa_fields(action):
     action.dof_id = source_dof.id if source_dof else None
     action._parsed_source_dof = source_dof
     action._parsed_source_risk = source_risk
-    action.capa_type = capa_type or ("Düzeltici Faaliyet" if source_dof else None)
+    if capa_type is not None:
+        action.capa_type = capa_type or ("Düzeltici Faaliyet" if source_dof else None)
+    elif action.id is None:
+        action.capa_type = (
+            "Önleyici Faaliyet" if source_risk else
+            "Düzeltici Faaliyet" if source_dof else None
+        )
     action.effectiveness_required = effectiveness_required
     if effectiveness_required:
         action.effectiveness_owner_user_id = effectiveness_owner.id
@@ -28683,7 +28690,6 @@ def create_action():
         ),
         today=date.today().isoformat(),
         title="Yeni İSG Aksiyonu" if request.endpoint == "main.create_ohs_action" else "Yeni Aksiyon",
-        capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )
@@ -28953,7 +28959,6 @@ def edit_action(action_id):
         departments=company_department_choices(include_names=[action.department]),
         today=date.today().isoformat(),
         title="İSG Aksiyonu Düzenle" if action.action_category == "ohs" else "Aksiyon Düzenle",
-        capa_types=CAPA_TYPES,
         sub_action_statuses=ACTION_SUB_TASK_STATUSES,
         sub_action_priorities=ACTION_SUB_TASK_PRIORITIES,
     )

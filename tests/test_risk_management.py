@@ -191,6 +191,7 @@ def test_risk_can_create_linked_action(app, client):
     assert "Bağlı Risk" in form_body
     assert "RSK-2026-0001" in form_body
     assert "Tedarik gecikmesi" in form_body
+    assert 'name="capa_type"' not in form_body
 
     response = client.post(
         "/actions/new",
@@ -203,7 +204,6 @@ def test_risk_can_create_linked_action(app, client):
             "description": "Alternatif tedarikçi değerlendirilecek.",
             "termin_date": (date.today() + timedelta(days=5)).isoformat(),
             "risk_id": str(risk.id),
-            "capa_type": "Önleyici Faaliyet",
             "sub_action_indexes": "",
         },
     )
@@ -213,6 +213,7 @@ def test_risk_can_create_linked_action(app, client):
     db.session.refresh(risk)
     assert risk.action_id == action.id
     assert risk.status == "Aksiyon Açıldı"
+    assert action.capa_type == "Önleyici Faaliyet"
     assert ActionHistory.query.filter_by(
         action_id=action.id,
         event_type="risk_linked",

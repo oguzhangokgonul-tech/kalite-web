@@ -9,7 +9,6 @@
 {% set selected_related_1 = form_values.get('related_user_1_id') or (action.related_user_1_id|string if action else '') %}
 {% set selected_related_2 = form_values.get('related_user_2_id') or (action.related_user_2_id|string if action else '') %}
 {% set selected_department = form_values.get('department') or (action.department if action else '') %}
-{% set selected_capa_type = form_values.get('capa_type') or (action.capa_type if action else '') %}
 {% set selected_effectiveness_owner = form_values.get('effectiveness_owner_user_id') or (action.effectiveness_owner_user_id|string if action else '') %}
 {% set linked_record = linked_dof if linked_dof is defined and linked_dof else (action.source_dof if action and action.source_dof else none) %}
 {% set linked_dof_id = form_values.get('dof_id') or (linked_record.id if linked_record else '') %}
@@ -118,15 +117,6 @@
       <div>
         <label class="form-label" for="termin_date">Termin</label>
         <input class="form-control" id="termin_date" name="termin_date" type="date" value="{{ form_values.get('termin_date') or (action.termin_date.isoformat() if action else today) }}" required>
-      </div>
-      <div>
-        <label class="form-label" for="capa_type">CAPA Tipi</label>
-        <select class="form-select" id="capa_type" name="capa_type">
-          <option value="">Seçiniz</option>
-          {% for capa_type in capa_types %}
-            <option value="{{ capa_type }}" {% if selected_capa_type == capa_type %}selected{% endif %}>{{ capa_type }}</option>
-          {% endfor %}
-        </select>
       </div>
       <div>
         <label class="form-label d-block" for="effectiveness_required">Etkinlik kontrolü gerekli mi?</label>

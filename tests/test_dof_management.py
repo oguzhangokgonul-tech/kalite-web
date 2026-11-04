@@ -234,6 +234,7 @@ def test_dof_linked_action_can_be_created_from_detail(client):
     form_response = client.get(f"/actions/new?dof_id={dof.id}")
     assert form_response.status_code == 200
     assert "Bagli aksiyon IF" in form_response.get_data(as_text=True)
+    assert 'name="capa_type"' not in form_response.get_data(as_text=True)
 
     response = client.post(
         "/actions/new",
@@ -246,7 +247,6 @@ def test_dof_linked_action_can_be_created_from_detail(client):
             "description": "Aksiyon aciklamasi",
             "termin_date": (date.today() + timedelta(days=5)).isoformat(),
             "dof_id": str(dof.id),
-            "capa_type": "Düzeltici Faaliyet",
             "sub_action_indexes": "",
         },
     )
@@ -255,6 +255,7 @@ def test_dof_linked_action_can_be_created_from_detail(client):
     action = Action.query.one()
     assert action.dof_id == dof.id
     assert action.company_id == company.id
+    assert action.capa_type == "Düzeltici Faaliyet"
 
 
 def test_dof_reject_and_revision_returns_to_management_approval(client):
