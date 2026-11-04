@@ -20,6 +20,21 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- Document list search now matches extracted content from text PDFs, DOCX,
+  XLSX, and PPTX, plus legacy Office files with a PDF preview. The index is
+  tenant-scoped, separate from audited Document rows, refreshed on upload and
+  revision, and fingerprinted to detect file replacement during reindex.
+  Scanned PDFs and images still need OCR. Commit `1879280` was deployed on
+  2026-11-04 with Alembic revision `202611040003`. A verified full backup
+  (`volkaportal-backup-20261104-175648.zip`, DB and 205 uploads) was copied
+  off-host with a matching SHA-256. Upgrade/downgrade/upgrade and reindex were
+  rehearsed on a restored copy; 78/78 production documents indexed as ready.
+  Focused document, tenant, upload, and security tests passed (92); production
+  content-only ORM search, tenant-health, DB integrity, service logs, and HTTPS
+  smoke passed. A broader serial run stopped at an unrelated pre-existing
+  onboarding assertion (`custom` vs `iso_core`) after 298 passes; that test
+  remains to be investigated separately. An authenticated browser search was
+  not exercised on production.
 - The document metadata edit route can no longer replace files, alter revision
   number/date or status, or modify an archived version. Those changes require
   the existing revision or archive workflows; the edit form now shows the
