@@ -159,6 +159,9 @@ def test_calibration_pdf_upload_download_history_and_scan(client, app):
     mobile = client.get("/mobil/kalibrasyon")
     assert mobile.status_code == 200
     assert "PDF Tara" in mobile.get_data(as_text=True)
+    assert 'data-scan-open' in mobile.get_data(as_text=True)
+    assert 'capture="environment"' in mobile.get_data(as_text=True)
+    assert 'data-scan-ready hidden' in mobile.get_data(as_text=True)
     assert "PDF Ekle" in client.get("/kalibrasyon").get_data(as_text=True)
 
     response = client.post(
@@ -189,6 +192,13 @@ def test_calibration_pdf_upload_download_history_and_scan(client, app):
     scanned = CalibrationCertificate.query.filter(CalibrationCertificate.id != certificate.id).one()
     scanned_file = client.get(f"/kalibrasyon/{record.id}/pdf/{scanned.id}/indir")
     assert len(PdfReader(BytesIO(scanned_file.data)).pages) == 2
+    extensionless = client.post(
+        f"/kalibrasyon/{record.id}/pdf",
+        data={"mode": "scan", "pages": (image_file("green"), "camera-capture")},
+        content_type="multipart/form-data",
+    )
+    assert extensionless.status_code == 302
+    assert CalibrationCertificate.query.count() == 3
     db.session.refresh(record)
     assert record.status == "UYGUN"
     assert record.next_calibration_date is None

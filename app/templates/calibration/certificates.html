@@ -12,23 +12,7 @@
     <h1 class="h4 mt-2 mb-1">{{ record.device_code }} · {{ record.device_name }}</h1>
     <p class="text-muted mb-3">PDF ekleri</p>
     {% if can_manage %}
-    <div class="btn-group mb-3" role="group" aria-label="PDF ekleme yöntemi">
-      <a class="btn btn-{{ 'primary' if mode != 'scan' else 'outline-primary' }}" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='upload') }}"><i class="bi bi-upload"></i> PDF Yükle</a>
-      <a class="btn btn-{{ 'primary' if mode == 'scan' else 'outline-primary' }}" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='scan') }}"><i class="bi bi-camera"></i> PDF Tara</a>
-    </div>
-    {% if mode == 'scan' %}
-      <form method="post" enctype="multipart/form-data" data-calibration-scan>
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="mode" value="scan">
-        <label class="form-label" for="scanCapture">Belge sayfaları</label>
-        <input id="scanCapture" class="form-control" type="file" accept="image/jpeg,image/png" capture="environment" data-scan-capture>
-        <input type="file" name="pages" accept="image/jpeg,image/png" multiple data-scan-pages class="visually-hidden" tabindex="-1" aria-hidden="true">
-        <div class="form-text">Fotoğraf çekin; birden fazla sayfa için tekrar çekin. En fazla 10 sayfa.</div>
-        <div class="calibration-scan-preview" data-scan-preview aria-live="polite"></div>
-        <button class="btn btn-primary mt-3" type="submit" data-scan-submit disabled><i class="bi bi-file-earmark-pdf"></i> PDF Olarak Kaydet</button>
-      </form>
-    {% else %}
-      <form method="post" enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data" class="mb-3">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="mode" value="upload">
         <label class="form-label" for="calibrationPdf">PDF dosyası</label>
@@ -36,7 +20,21 @@
         <div class="form-text">En fazla 20 MB.</div>
         <button class="btn btn-primary mt-3" type="submit"><i class="bi bi-upload"></i> PDF Ekle</button>
       </form>
-    {% endif %}
+      <form method="post" enctype="multipart/form-data" class="calibration-inline-scan" data-calibration-scan>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="scan">
+        <label class="btn btn-outline-primary" for="calibrationScanCertificate-{{ record.id }}" data-scan-open role="button" tabindex="0"><i class="bi bi-camera"></i> PDF Tara</label>
+        <input id="calibrationScanCertificate-{{ record.id }}" class="visually-hidden" type="file" name="pages" accept="image/jpeg,image/png" capture="environment" data-scan-capture tabindex="-1" aria-label="Kamera ile belge fotoğrafı çek">
+        <div class="calibration-scan-ready" data-scan-ready hidden>
+          <div class="calibration-scan-preview" data-scan-preview></div>
+          <div class="calibration-scan-ready-actions">
+            <span data-scan-name></span>
+            <button class="btn btn-primary" type="submit" data-scan-submit><i class="bi bi-upload"></i> Yükle</button>
+            <button class="btn btn-outline-secondary" type="button" data-scan-cancel>Vazgeç</button>
+          </div>
+        </div>
+        <noscript><input class="form-control mt-2" type="file" name="pages" accept="image/jpeg,image/png" capture="environment"><button class="btn btn-primary mt-2" type="submit">Fotoğrafı yükle</button></noscript>
+      </form>
     {% endif %}
     {% if record.certificates %}
       <h2 class="h6 mt-4">Ekli PDF'ler</h2>
@@ -53,5 +51,5 @@
 {% endblock %}
 
 {% block scripts %}
-  {% if mode == 'scan' %}<script defer src="{{ url_for('static', filename='js/calibration-scan.js', v=config.ASSET_VERSION) }}"></script>{% endif %}
+  {% if can_manage %}<script defer src="{{ url_for('static', filename='js/calibration-scan.js', v=config.ASSET_VERSION ~ '-20261104-direct') }}"></script>{% endif %}
 {% endblock %}

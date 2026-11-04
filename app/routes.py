@@ -26791,8 +26791,6 @@ def calibration_pdf_bytes():
     total_pixels = 0
     try:
         for page in pages:
-            if Path(page.filename).suffix.lower() not in {".jpg", ".jpeg", ".png"}:
-                raise ValueError("Yalnızca JPEG veya PNG fotoğraf seçin.")
             size = uploaded_stream_size(page)
             if size is None or not 0 < size <= 8 * 1024 * 1024:
                 raise ValueError("Her fotoğraf 8 MB veya daha küçük olmalıdır.")

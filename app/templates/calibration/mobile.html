@@ -25,19 +25,37 @@
             <span class="calibration-due-pill calibration-due-{{ due.tone }}">{{ due.label }}</span>
           </div>
           {% if record.serial_no %}<small class="text-muted">Seri no: {{ record.serial_no }}</small>{% endif %}
-          <div class="calibration-mobile-actions">
-            {% if record.certificates %}
-              <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}"><i class="bi bi-file-earmark-pdf"></i> PDF ({{ record.certificates|length }})</a>
-            {% endif %}
-            {% if can_manage_calibration %}
-              <a class="btn btn-outline-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='upload') }}"><i class="bi bi-upload"></i> PDF Yükle</a>
-              <a class="btn btn-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='scan') }}"><i class="bi bi-camera"></i> PDF Tara</a>
-            {% endif %}
-          </div>
+          {% if can_manage_calibration %}
+            <form class="calibration-inline-scan" method="post" action="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}" enctype="multipart/form-data" data-calibration-scan>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="mode" value="scan">
+              <div class="calibration-mobile-actions">
+                {% if record.certificates %}<a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}"><i class="bi bi-file-earmark-pdf"></i> PDF ({{ record.certificates|length }})</a>{% endif %}
+                <a class="btn btn-outline-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}"><i class="bi bi-upload"></i> PDF Yükle</a>
+                <label class="btn btn-primary" for="calibrationScan-{{ record.id }}" data-scan-open role="button" tabindex="0"><i class="bi bi-camera"></i> PDF Tara</label>
+              </div>
+              <input id="calibrationScan-{{ record.id }}" class="visually-hidden" type="file" name="pages" accept="image/jpeg,image/png" capture="environment" data-scan-capture tabindex="-1" aria-label="Kamera ile belge fotoğrafı çek">
+              <div class="calibration-scan-ready" data-scan-ready hidden>
+                <div class="calibration-scan-preview" data-scan-preview></div>
+                <div class="calibration-scan-ready-actions">
+                  <span data-scan-name></span>
+                  <button class="btn btn-primary" type="submit" data-scan-submit><i class="bi bi-upload"></i> Yükle</button>
+                  <button class="btn btn-outline-secondary" type="button" data-scan-cancel>Vazgeç</button>
+                </div>
+              </div>
+              <noscript><button class="btn btn-outline-primary mt-2" type="submit">Fotoğrafı yükle</button></noscript>
+            </form>
+          {% elif record.certificates %}
+            <div class="calibration-mobile-actions"><a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}"><i class="bi bi-file-earmark-pdf"></i> PDF ({{ record.certificates|length }})</a></div>
+          {% endif %}
         </article>
       {% else %}
         <div class="alert alert-light border">Cihaz bulunamadı.</div>
       {% endfor %}
     </div>
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {% if can_manage_calibration %}<script defer src="{{ url_for('static', filename='js/calibration-scan.js', v=config.ASSET_VERSION ~ '-20261104-direct') }}"></script>{% endif %}
 {% endblock %}

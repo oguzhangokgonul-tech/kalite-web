@@ -7159,11 +7159,19 @@ body {
 .calibration-mobile-item .calibration-due-pill { flex: none; }
 .calibration-mobile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .calibration-mobile-actions .btn { min-height: 44px; }
+.calibration-inline-scan { min-width: 0; }
+.calibration-scan-ready { margin-top: 12px; }
+.calibration-scan-ready[hidden] { display: none; }
+.calibration-scan-ready-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.calibration-scan-ready-actions span { flex: 1 1 100%; color: #52627c; font-size: 0.88rem; }
+.calibration-scan-ready-actions .btn { min-height: 44px; }
+.calibration-inline-scan [data-scan-open][aria-disabled="true"] { opacity: 0.6; }
 .calibration-certificate-page { padding: 20px; border: 1px solid #dce6f4; border-radius: 8px; background: #fff; }
 .calibration-certificate-page .btn-group { max-width: 100%; }
 .calibration-scan-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 14px; }
-.calibration-scan-page { display: grid; gap: 6px; }
+.calibration-scan-page { position: relative; }
 .calibration-scan-page img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; border: 1px solid #dce6f4; background: #f8fafc; }
+.calibration-scan-remove { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; padding: 0; border: 1px solid #dce6f4; box-shadow: 0 1px 5px rgba(15, 23, 42, 0.14); }
 @media (max-width: 575.98px) {
     .calibration-certificate-page { padding: 14px; }
     .calibration-mobile-actions .btn { flex: 1 1 auto; }
