@@ -1,6 +1,6 @@
 # VolkaPortal cross-device handoff
 
-Updated: 2026-11-03. This is a sanitized working summary, not a chat transcript,
+Updated: 2026-11-04. This is a sanitized working summary, not a chat transcript,
 credential store, database backup, or proof that a release is live.
 
 ## Project and decision record
@@ -20,6 +20,14 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- Action creation/edit forms no longer show the CAPA type selector. Existing
+  action classifications are preserved on edit; new risk and IF/DOF actions
+  receive their existing automatic classification. The application change was
+  deployed as commit `896c59f` on 2026-11-04. Action/IF/DOF/risk regression
+  tests passed (73), plus four focused tests and QA's OHS/tenant selection
+  (44). The production full backup was verified and copied off-host before
+  deployment; tenant-health, service status, and unauthenticated HTTP smoke
+  checks passed. Authenticated production form use was not exercised.
 - Desktop installer 0.1.6 is currently unsigned. Signing preparation is in
   commit `3a2e501`; it was not deployed as a signed release. See
   `desktop/README.md` for the build and verification sequence.
