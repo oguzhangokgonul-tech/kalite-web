@@ -1,0 +1,43 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Kalibrasyon{% endblock %}
+{% block topbar_title %}Kalibrasyon{% endblock %}
+
+{% block app_content %}
+  <div class="calibration-mobile-page">
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+      <div>
+        <a class="small text-decoration-none" href="{{ url_for('pwa.mobile_hub') }}"><i class="bi bi-arrow-left"></i> Mobil Merkez</a>
+        <h1 class="h4 mt-2 mb-0">Kalibrasyon</h1>
+      </div>
+      <a class="btn btn-outline-primary" href="{{ url_for('main.calibration_dashboard') }}" title="Kalibrasyon planı"><i class="bi bi-list"></i></a>
+    </div>
+    <form method="get" class="input-group mb-3" role="search">
+      <input class="form-control" name="search" value="{{ search }}" placeholder="Cihaz kodu, adı veya seri no" aria-label="Cihaz ara">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> Ara</button>
+    </form>
+    <div class="calibration-mobile-list">
+      {% for record in records %}
+        {% set due = calibration_day_status(record.next_calibration_date) %}
+        <article class="calibration-mobile-item">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="min-w-0"><strong>{{ record.device_code }}</strong><div>{{ record.device_name }}</div></div>
+            <span class="calibration-due-pill calibration-due-{{ due.tone }}">{{ due.label }}</span>
+          </div>
+          {% if record.serial_no %}<small class="text-muted">Seri no: {{ record.serial_no }}</small>{% endif %}
+          <div class="calibration-mobile-actions">
+            {% if record.certificates %}
+              <a class="btn btn-outline-secondary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}"><i class="bi bi-file-earmark-pdf"></i> PDF ({{ record.certificates|length }})</a>
+            {% endif %}
+            {% if can_manage_calibration %}
+              <a class="btn btn-outline-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='upload') }}"><i class="bi bi-upload"></i> PDF Yükle</a>
+              <a class="btn btn-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='scan') }}"><i class="bi bi-camera"></i> PDF Tara</a>
+            {% endif %}
+          </div>
+        </article>
+      {% else %}
+        <div class="alert alert-light border">Cihaz bulunamadı.</div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Kalibrasyon PDF - {{ record.device_code }}{% endblock %}
+{% block topbar_title %}Kalibrasyon PDF{% endblock %}
+
+{% block app_content %}
+  <div class="calibration-certificate-page">
+    <div class="d-flex gap-3 flex-wrap">
+      <a class="small text-decoration-none" href="{{ url_for('main.mobile_calibration_records') }}"><i class="bi bi-arrow-left"></i> Mobil cihazlar</a>
+      <a class="small text-decoration-none" href="{{ url_for('main.calibration_dashboard') }}">Kalibrasyon Planı</a>
+    </div>
+    <h1 class="h4 mt-2 mb-1">{{ record.device_code }} · {{ record.device_name }}</h1>
+    <p class="text-muted mb-3">PDF ekleri</p>
+    {% if can_manage %}
+    <div class="btn-group mb-3" role="group" aria-label="PDF ekleme yöntemi">
+      <a class="btn btn-{{ 'primary' if mode != 'scan' else 'outline-primary' }}" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='upload') }}"><i class="bi bi-upload"></i> PDF Yükle</a>
+      <a class="btn btn-{{ 'primary' if mode == 'scan' else 'outline-primary' }}" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id, mode='scan') }}"><i class="bi bi-camera"></i> PDF Tara</a>
+    </div>
+    {% if mode == 'scan' %}
+      <form method="post" enctype="multipart/form-data" data-calibration-scan>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="scan">
+        <label class="form-label" for="scanCapture">Belge sayfaları</label>
+        <input id="scanCapture" class="form-control" type="file" accept="image/jpeg,image/png" capture="environment" data-scan-capture>
+        <input type="file" name="pages" accept="image/jpeg,image/png" multiple data-scan-pages class="visually-hidden" tabindex="-1" aria-hidden="true">
+        <div class="form-text">Fotoğraf çekin; birden fazla sayfa için tekrar çekin. En fazla 10 sayfa.</div>
+        <div class="calibration-scan-preview" data-scan-preview aria-live="polite"></div>
+        <button class="btn btn-primary mt-3" type="submit" data-scan-submit disabled><i class="bi bi-file-earmark-pdf"></i> PDF Olarak Kaydet</button>
+      </form>
+    {% else %}
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="mode" value="upload">
+        <label class="form-label" for="calibrationPdf">PDF dosyası</label>
+        <input id="calibrationPdf" class="form-control" type="file" name="pdf" accept="application/pdf,.pdf" required>
+        <div class="form-text">En fazla 20 MB.</div>
+        <button class="btn btn-primary mt-3" type="submit"><i class="bi bi-upload"></i> PDF Ekle</button>
+      </form>
+    {% endif %}
+    {% endif %}
+    {% if record.certificates %}
+      <h2 class="h6 mt-4">Ekli PDF'ler</h2>
+      <ul class="list-group">
+        {% for certificate in record.certificates %}
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span class="text-truncate"><i class="bi bi-file-earmark-pdf text-primary"></i> {{ certificate.original_name }}</span>
+            <a class="btn btn-outline-primary btn-sm" href="{{ url_for('main.download_calibration_certificate', record_id=record.id, certificate_id=certificate.id) }}" aria-label="{{ certificate.original_name }} indir"><i class="bi bi-download"></i></a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+{% endblock %}
+
+{% block scripts %}
+  {% if mode == 'scan' %}<script defer src="{{ url_for('static', filename='js/calibration-scan.js', v=config.ASSET_VERSION) }}"></script>{% endif %}
+{% endblock %}

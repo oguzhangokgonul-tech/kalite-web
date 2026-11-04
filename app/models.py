@@ -3118,6 +3118,35 @@ class CalibrationRecord(db.Model):
     )
 
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    certificates = db.relationship(
+        "CalibrationCertificate", back_populates="record", cascade="all, delete-orphan",
+        order_by="CalibrationCertificate.created_at.desc()",
+        primaryjoin="and_(CalibrationRecord.id == CalibrationCertificate.calibration_record_id, CalibrationRecord.company_id == CalibrationCertificate.company_id)",
+        foreign_keys="CalibrationCertificate.calibration_record_id",
+    )
+
+
+class CalibrationCertificate(db.Model):
+    __tablename__ = "calibration_certificates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    calibration_record_id = db.Column(
+        db.Integer, db.ForeignKey("calibration_records.id"), nullable=False, index=True
+    )
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_path = db.Column(db.String(500), nullable=False)
+    size_bytes = db.Column(db.Integer, nullable=False)
+    sha256 = db.Column(db.String(64), nullable=False)
+    uploaded_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+    record = db.relationship(
+        "CalibrationRecord", back_populates="certificates",
+        primaryjoin="and_(CalibrationCertificate.calibration_record_id == CalibrationRecord.id, CalibrationCertificate.company_id == CalibrationRecord.company_id)",
+        foreign_keys=[calibration_record_id],
+    )
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
 
 
 class PersonnelContact(db.Model):

@@ -7140,6 +7140,35 @@ body {
     padding: 22px 20px 28px;
 }
 
+.calibration-mobile-page,
+.calibration-certificate-page {
+    width: min(100%, 780px);
+    margin: 0 auto;
+}
+
+.calibration-mobile-list { display: grid; gap: 10px; }
+.calibration-mobile-item {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid #dce6f4;
+    border-radius: 8px;
+    background: #fff;
+}
+.calibration-mobile-item > div:first-child > div { min-width: 0; overflow-wrap: anywhere; }
+.calibration-mobile-item .calibration-due-pill { flex: none; }
+.calibration-mobile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.calibration-mobile-actions .btn { min-height: 44px; }
+.calibration-certificate-page { padding: 20px; border: 1px solid #dce6f4; border-radius: 8px; background: #fff; }
+.calibration-certificate-page .btn-group { max-width: 100%; }
+.calibration-scan-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 14px; }
+.calibration-scan-page { display: grid; gap: 6px; }
+.calibration-scan-page img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; border: 1px solid #dce6f4; background: #f8fafc; }
+@media (max-width: 575.98px) {
+    .calibration-certificate-page { padding: 14px; }
+    .calibration-mobile-actions .btn { flex: 1 1 auto; }
+}
+
 .calibration-page-card {
     width: 100%;
     max-width: none;
@@ -7244,7 +7273,7 @@ body {
 }
 
 .calibration-table {
-    min-width: 1320px;
+    min-width: 1480px;
     table-layout: fixed;
 }
 
@@ -7307,7 +7336,12 @@ body {
 
 .calibration-table th:nth-child(11),
 .calibration-table td:nth-child(11) {
-    width: 150px;
+    width: 140px;
+}
+
+.calibration-table th:nth-child(12),
+.calibration-table td:nth-child(12) {
+    width: 130px;
 }
 
 .calibration-device-name,

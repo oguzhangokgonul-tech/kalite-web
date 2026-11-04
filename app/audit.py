@@ -21,6 +21,7 @@ TRACKED_MODEL_NAMES = {
     "ActionSubTask",
     "AppSetting",
     "CalibrationRecord",
+    "CalibrationCertificate",
     "ChangeRequest",
     "ChangeRequestFile",
     "ComplaintRecord",

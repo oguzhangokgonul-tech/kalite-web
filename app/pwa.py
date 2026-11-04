@@ -136,6 +136,13 @@ def _quick_actions():
                 "url": url_for("help_desk.create"),
             }
         )
+    if _company() and _module_enabled("calibration"):
+        actions.append({
+            "label": _("Kalibrasyon"),
+            "description": _("Cihazları ve kalibrasyon PDF'lerini görüntüleyin"),
+            "icon": "bi-rulers",
+            "url": url_for("main.mobile_calibration_records"),
+        })
     return actions
 
 

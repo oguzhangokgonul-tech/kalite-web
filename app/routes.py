@@ -35,7 +35,7 @@ from flask_babel import gettext as _, refresh as refresh_locale
 from flask_wtf.csrf import generate_csrf
 from sqlalchemy import and_, event, inspect, or_, text
 from sqlalchemy.exc import IntegrityError, OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import HTTPException
 
@@ -77,6 +77,7 @@ from .models import (
     AppSetting,
     AuditLog,
     CalibrationRecord,
+    CalibrationCertificate,
     CAPA_TYPES,
     ChangeRequest,
     ChangeRequestFile,
@@ -1944,6 +1945,28 @@ def ensure_calibration_schema():
                     "ON calibration_records (next_calibration_date)"
                 )
             )
+            if "calibration_certificates" not in tables:
+                connection.execute(text("""
+                    CREATE TABLE calibration_certificates (
+                        id INTEGER NOT NULL PRIMARY KEY,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        calibration_record_id INTEGER NOT NULL REFERENCES calibration_records(id),
+                        original_name VARCHAR(255) NOT NULL,
+                        stored_path VARCHAR(500) NOT NULL,
+                        size_bytes INTEGER NOT NULL,
+                        sha256 VARCHAR(64) NOT NULL,
+                        uploaded_by_user_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                """))
+            connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_calibration_certificates_company_id "
+                "ON calibration_certificates (company_id)"
+            ))
+            connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_calibration_certificates_calibration_record_id "
+                "ON calibration_certificates (calibration_record_id)"
+            ))
         current_app.extensions["calibration_schema_checked"] = True
     except OperationalError:
         db.session.rollback()
@@ -3075,6 +3098,9 @@ MODULE_ENDPOINTS = {
     "main.delete_vehicle_operation": "vehicles",
     "main.save_vehicle_fuel": "vehicles",
     "main.calibration_dashboard": "calibration",
+    "main.mobile_calibration_records": "calibration",
+    "main.calibration_certificate_upload": "calibration",
+    "main.download_calibration_certificate": "calibration",
     "main.create_calibration_record": "calibration",
     "main.edit_calibration_record": "calibration",
     "main.delete_calibration_record": "calibration",
@@ -6879,7 +6905,7 @@ def calibration_query():
 
 
 def filtered_calibration_records(filters):
-    query = calibration_query()
+    query = calibration_query().options(selectinload(CalibrationRecord.certificates))
     if filters["search"]:
         search_value = f"%{filters['search']}%"
         query = query.filter(
@@ -26704,6 +26730,182 @@ def calibration_dashboard():
     )
 
 
+@bp.get("/mobil/kalibrasyon")
+@login_required
+def mobile_calibration_records():
+    if not can_view_calibration():
+        abort(403)
+    search = request.args.get("search", "").strip()[:120]
+    records = calibration_query().options(selectinload(CalibrationRecord.certificates))
+    if search:
+        term = f"%{search}%"
+        records = records.filter(or_(
+            CalibrationRecord.device_code.ilike(term),
+            CalibrationRecord.device_name.ilike(term),
+            CalibrationRecord.serial_no.ilike(term),
+        ))
+    return render_template(
+        "calibration/mobile.html", records=records.all(), search=search,
+        can_manage_calibration=can_manage_calibration(),
+        calibration_day_status=calibration_day_status,
+    )
+
+
+def calibration_record_or_404(record_id):
+    record = scoped_query(CalibrationRecord.query, CalibrationRecord).filter_by(id=record_id).first_or_404()
+    ensure_same_company(record)
+    return record
+
+
+def calibration_pdf_bytes():
+    mode = request.form.get("mode", "upload")
+    if mode == "upload":
+        upload = request.files.get("pdf")
+        if not upload or not upload.filename or Path(upload.filename).suffix.lower() != ".pdf":
+            raise ValueError("Yalnızca PDF dosyası seçin.")
+        size = uploaded_stream_size(upload)
+        if size is None or not 0 < size <= 20 * 1024 * 1024:
+            raise ValueError("PDF dosyası 20 MB veya daha küçük olmalıdır.")
+        data = upload.stream.read(20 * 1024 * 1024 + 1)
+        if len(data) != size or not data.startswith(b"%PDF-"):
+            raise ValueError("PDF içeriği geçersiz.")
+        try:
+            from pypdf import PdfReader
+            if not PdfReader(BytesIO(data), strict=False).pages:
+                raise ValueError("PDF boş olamaz.")
+        except ValueError:
+            raise
+        except Exception as error:
+            raise ValueError("PDF dosyası açılamıyor.") from error
+        return data, safe_original_filename(upload.filename, "kalibrasyon.pdf")
+
+    if mode != "scan":
+        raise ValueError("Geçersiz yükleme türü.")
+    pages = [page for page in request.files.getlist("pages") if page and page.filename]
+    if not 1 <= len(pages) <= 10:
+        raise ValueError("Tarama için 1-10 sayfa seçin.")
+    from PIL import Image, ImageOps, UnidentifiedImageError
+    import warnings
+
+    images = []
+    total_pixels = 0
+    try:
+        for page in pages:
+            if Path(page.filename).suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+                raise ValueError("Yalnızca JPEG veya PNG fotoğraf seçin.")
+            size = uploaded_stream_size(page)
+            if size is None or not 0 < size <= 8 * 1024 * 1024:
+                raise ValueError("Her fotoğraf 8 MB veya daha küçük olmalıdır.")
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                with Image.open(page.stream) as source:
+                    if source.format not in {"JPEG", "PNG"} or source.width * source.height > 20_000_000:
+                        raise ValueError("Fotoğraf biçimi veya boyutu geçersiz.")
+                    source.load()
+                    upright = ImageOps.exif_transpose(source)
+                    upright.thumbnail((2200, 3000))
+                    total_pixels += upright.width * upright.height
+                    if total_pixels > 25_000_000:
+                        raise ValueError("Taranan sayfaların toplam çözünürlüğü çok yüksek.")
+                    if upright.mode in {"RGBA", "LA"}:
+                        image = Image.new("RGB", upright.size, "white")
+                        image.paste(upright, mask=upright.getchannel("A"))
+                    else:
+                        image = upright.convert("RGB")
+                    images.append(image)
+        output = BytesIO()
+        images[0].save(output, "PDF", save_all=True, append_images=images[1:], resolution=150.0)
+        data = output.getvalue()
+        if len(data) > 20 * 1024 * 1024:
+            raise ValueError("Oluşturulan PDF 20 MB sınırını aşıyor.")
+        return data, f"kalibrasyon-tarama-{date.today().isoformat()}.pdf"
+    except (OSError, UnidentifiedImageError, Image.DecompressionBombWarning, Image.DecompressionBombError) as error:
+        raise ValueError("Fotoğraflar okunamadı.") from error
+    finally:
+        for image in images:
+            image.close()
+
+
+@bp.route("/kalibrasyon/<int:record_id>/pdf", methods=["GET", "POST"])
+@login_required
+def calibration_certificate_upload(record_id):
+    if not can_view_calibration():
+        abort(403)
+    if request.method == "POST" and not can_manage_calibration():
+        abort(403)
+    record = calibration_record_or_404(record_id)
+    if not record.company_id:
+        abort(409)
+    mode = request.form.get("mode", request.args.get("mode", "upload"))
+    if request.method == "POST":
+        saved_path = None
+        try:
+            data, original_name = calibration_pdf_bytes()
+            assert_company_storage_quota(record.company_id, len(data))
+            relative, saved_path = upload_storage_path(
+                f"{uuid4().hex}.pdf", f"calibration/{record.id}", record.company_id,
+            )
+            saved_path.write_bytes(data)
+            assert_company_storage_quota(record.company_id)
+            certificate = CalibrationCertificate(
+                company_id=record.company_id,
+                calibration_record_id=record.id,
+                original_name=original_name,
+                stored_path=relative.as_posix(),
+                size_bytes=len(data),
+                sha256=hashlib.sha256(data).hexdigest(),
+                uploaded_by_user_id=g.current_user.id,
+            )
+            db.session.add(certificate)
+            db.session.flush()
+            record_audit_event(
+                "CalibrationCertificate", "uploaded", original_name,
+                entity_id=certificate.id, company_id=record.company_id,
+                details={"calibration_record_id": record.id, "sha256": certificate.sha256},
+                commit=False,
+            )
+            db.session.commit()
+            flash("Kalibrasyon PDF'i cihaza eklendi.", "success")
+            return redirect(url_for("main.calibration_certificate_upload", record_id=record.id))
+        except ValueError as error:
+            db.session.rollback()
+            if saved_path is not None:
+                saved_path.unlink(missing_ok=True)
+            flash(str(error), "danger")
+            return render_template("calibration/certificates.html", record=record, mode=mode, can_manage=can_manage_calibration()), 400
+        except Exception:
+            db.session.rollback()
+            if saved_path is not None:
+                saved_path.unlink(missing_ok=True)
+            raise
+    return render_template("calibration/certificates.html", record=record, mode=mode, can_manage=can_manage_calibration())
+
+
+@bp.get("/kalibrasyon/<int:record_id>/pdf/<int:certificate_id>/indir")
+@login_required
+def download_calibration_certificate(record_id, certificate_id):
+    if not can_view_calibration():
+        abort(403)
+    record = calibration_record_or_404(record_id)
+    certificate = scoped_query(CalibrationCertificate.query, CalibrationCertificate).filter_by(
+        id=certificate_id, calibration_record_id=record.id, company_id=record.company_id,
+    ).first_or_404()
+    root = Path(current_app.config["UPLOAD_FOLDER"]).resolve()
+    path = (root / certificate.stored_path).resolve()
+    expected = root / f"company-{record.company_id:03d}" / "calibration" / str(record.id)
+    if not path.is_relative_to(expected) or not path.is_file():
+        abort(404)
+    record_audit_event(
+        "CalibrationCertificate", "downloaded", certificate.original_name,
+        entity_id=certificate.id, company_id=record.company_id,
+        details={"calibration_record_id": record.id},
+    )
+    response = send_file(path, mimetype="application/pdf", as_attachment=True, download_name=certificate.original_name)
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @bp.route("/kalibrasyon/yeni", methods=["GET", "POST"])
 @login_required
 def create_calibration_record():
@@ -26813,6 +27015,9 @@ def delete_calibration_record(record_id):
 
     record = CalibrationRecord.query.get_or_404(record_id)
     ensure_same_company(record)
+    if record.certificates:
+        flash("PDF belgesi olan cihaz silinemez. Gerekiyorsa düzenleyerek pasife alın.", "warning")
+        return redirect(url_for("main.calibration_dashboard"))
     db.session.delete(record)
     db.session.commit()
     flash("Kalibrasyon kaydı silindi.", "success")

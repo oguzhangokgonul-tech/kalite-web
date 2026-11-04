@@ -88,6 +88,7 @@
             <th>Gelecek Kalibrasyon</th>
             <th>Kalan Süre</th>
             <th>Durum</th>
+            <th>PDF</th>
             {% if can_manage_calibration %}
               <th class="text-end">İşlemler</th>
             {% endif %}
@@ -114,6 +115,18 @@
                 <span class="calibration-due-pill calibration-due-{{ due.tone }}">{{ due.label }}</span>
               </td>
               <td data-label="Durum">{{ ui.status_badge(calibration_status_label(record), tone=calibration_status_tone(record)) }}</td>
+              <td data-label="PDF">
+                {% if record.certificates %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}" title="PDF geçmişi">
+                    <i class="bi bi-file-earmark-pdf"></i> {{ record.certificates|length }} PDF
+                  </a>
+                {% endif %}
+                {% if can_manage_calibration %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.calibration_certificate_upload', record_id=record.id) }}">
+                    <i class="bi bi-file-earmark-plus"></i> PDF Ekle
+                  </a>
+                {% elif not record.certificates %}-{% endif %}
+              </td>
               {% if can_manage_calibration %}
                 <td data-label="İşlemler">
                   <div class="vp-table-actions dashboard-row-actions justify-content-end">
@@ -132,7 +145,7 @@
             </tr>
           {% else %}
             <tr>
-              <td class="dashboard-empty-row" colspan="{{ 11 if can_manage_calibration else 10 }}">
+              <td class="dashboard-empty-row" colspan="{{ 12 if can_manage_calibration else 11 }}">
                 {{ ui.empty_state("Henüz kalibrasyon kaydı yok.", "Yeni kayıt eklendiğinde burada listelenecek.", "bi-rulers") }}
               </td>
             </tr>

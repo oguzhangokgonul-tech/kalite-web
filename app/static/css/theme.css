@@ -573,3 +573,10 @@ html .vp-theme-toggle:focus-visible { outline: 3px solid var(--vp-focus, #1e5bff
   html[data-bs-theme="dark"] :is(.dashboard-app, .dashboard-main, .dashboard-content, .login-page, .login-page .login-card) { background: #fff !important; color: #172033 !important; box-shadow: none; }
   html[data-bs-theme="dark"] .login-page .login-card :is(.form-label, .form-control, .login-remember-option, .login-footer-note, a) { color: #172033 !important; background-color: #fff; }
 }
+
+html[data-bs-theme="dark"] .calibration-mobile-item,
+html[data-bs-theme="dark"] .calibration-certificate-page {
+  color: var(--vp-text-primary);
+  background: var(--vp-surface);
+  border-color: var(--vp-border);
+}
