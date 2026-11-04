@@ -2787,6 +2787,7 @@ MODULE_ENDPOINTS = {
     "ohs_notes.detail": "ohs_actions",
     "ohs_notes.edit": "ohs_actions",
     "ohs_notes.delete": "ohs_actions",
+    "ohs_notes.image": "ohs_actions",
     "main.ohs_actions_dashboard": "ohs_actions",
     "main.create_ohs_action": "ohs_actions",
     "shift_handover.dashboard": "shift_handover",

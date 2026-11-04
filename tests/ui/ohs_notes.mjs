@@ -15,6 +15,17 @@ async function login(page, name) {
   await page.locator('button[type=submit]').click();
   await page.waitForURL(url => url.pathname !== '/login');
 }
+async function pngBuffer(page, color) {
+  const data = await page.evaluate(color => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 24;
+    canvas.height = 24;
+    canvas.getContext('2d').fillStyle = color;
+    canvas.getContext('2d').fillRect(0, 0, 24, 24);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }, color);
+  return Buffer.from(data, 'base64');
+}
 try {
   for (const width of [390, 768, 1440]) {
     const context = await browser.newContext({ viewport: { width, height: 900 } });
@@ -29,15 +40,27 @@ try {
     await page.locator('#title').fill(`Zemin gözlemi ${width}`);
     await page.locator('#location').fill('Üretim sahası');
     await page.locator('#description').fill('Geçiş alanında su birikmesi gözlendi.');
+    await page.locator('#images').setInputFiles([
+      { name: 'ilk.png', mimeType: 'image/png', buffer: await pngBuffer(page, 'red') },
+      { name: 'ikinci.png', mimeType: 'image/png', buffer: await pngBuffer(page, 'blue') },
+    ]);
     await page.screenshot({ path: `${output}/${width}-form.png`, animations: 'disabled' });
     await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
     await page.waitForURL(/\/isg-notlari\/\d+$/);
     const noteUrl = page.url();
+    assert.equal(await page.locator('#ohs-note-images-title + div img').count(), 2);
     assert.equal(await page.getByRole('link', { name: 'Aksiyon Oluştur', exact: true }).count(), 0);
     await page.getByRole('link', { name: 'Düzenle', exact: true }).click();
     await page.locator('#description').fill('Geçiş alanı kontrol edilmeli.');
+    await page.locator('input[name="remove_image_ids"]').first().check();
+    await page.locator('#images').setInputFiles({
+      name: 'ucuncu.png', mimeType: 'image/png', buffer: await pngBuffer(page, 'green'),
+    });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `${output}/${width}-images-edit.png`, animations: 'disabled' });
     await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
     await page.waitForURL(noteUrl);
+    assert.equal(await page.locator('#ohs-note-images-title + div img').count(), 2);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: `${output}/${width}-detail.png`, animations: 'disabled' });
 

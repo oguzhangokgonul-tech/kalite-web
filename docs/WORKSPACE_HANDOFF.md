@@ -20,6 +20,15 @@ credential store, database backup, or proof that a release is live.
 
 ## Current work
 
+- OHS notes now accept multiple JPEG/PNG images on create and edit. Images are
+  company-scoped, served only through authenticated note routes, validated and
+  re-encoded to remove metadata, and individually removable. Alembic revision
+  `202611040001` adds image metadata. Focused OHS and migration tests passed;
+  390/768/1440 browser flows passed. This work is local/Git only and has not
+  been deployed to production. Before deployment, verify the production DB
+  revision, back up both DB and upload files, rehearse the migration, and run
+  production smoke checks. Soft-deleted notes retain image files for now;
+  agree a retention policy before automated cleanup.
 - Action creation/edit forms no longer show the CAPA type selector. Existing
   action classifications are preserved on edit; new risk and IF/DOF actions
   receive their existing automatic classification. The application change was

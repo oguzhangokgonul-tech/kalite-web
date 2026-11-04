@@ -12,6 +12,20 @@
   {% if note.location %} · {{ note.location }}{% endif %}
 </div>
 <p class="text-break" style="white-space: pre-wrap">{{ note.description }}</p>
+{% if images %}
+<section class="my-4" aria-labelledby="ohs-note-images-title">
+  <h3 id="ohs-note-images-title" class="h6">Görseller</h3>
+  <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-2">
+    {% for image in images %}
+      <div class="col">
+        <a class="d-block" href="{{ url_for('ohs_notes.image', note_id=note.id, image_id=image.id) }}" target="_blank" rel="noopener" aria-label="{{ image.original_name }} görselini aç">
+          <img class="w-100 rounded border" style="aspect-ratio: 4 / 3; object-fit: contain" loading="lazy" src="{{ url_for('ohs_notes.image', note_id=note.id, image_id=image.id) }}" alt="{{ image.original_name }}">
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 <div class="d-flex flex-wrap gap-2 my-4">
   {% if visible_action %}
     <a class="btn btn-outline-success" href="{{ url_for('main.action_detail', action_id=visible_action.id) }}"><i class="bi bi-link-45deg" aria-hidden="true"></i> {{ visible_action.number_label }}</a>

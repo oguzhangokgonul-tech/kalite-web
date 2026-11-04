@@ -6,7 +6,7 @@
   <h1 class="h4 mb-0">{{ 'İSG Notunu Düzenle' if note else 'İSG Notu Oluştur' }}</h1>
   <a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.detail', note_id=note.id) if note else url_for('ohs_notes.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Geri</a>
 </div>
-<form method="post" class="app-form-card">
+<form method="post" enctype="multipart/form-data" class="app-form-card">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   {% if note %}<input type="hidden" name="version_id" value="{{ note.version_id }}">{% endif %}
   <div class="mb-3">
@@ -21,6 +21,31 @@
     <label class="form-label" for="description">İSG Notu</label>
     <textarea class="form-control" id="description" name="description" required maxlength="5000" rows="6">{{ request.form.get('description', note.description if note else '') }}</textarea>
   </div>
+  <div class="mb-3">
+    <label class="form-label" for="images">Görseller</label>
+    <input class="form-control" id="images" name="images" type="file" accept="image/jpeg,image/png" multiple>
+    <div class="form-text">JPEG veya PNG, tek seferde en fazla 6 görsel, görsel başına en fazla 8 MB. Bir notta en fazla 12 görsel saklanır.</div>
+  </div>
+  {% if note and images %}
+    <fieldset class="mb-3">
+      <legend class="form-label">Kayıtlı Görseller</legend>
+      <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-2">
+        {% for image in images %}
+          <div class="col">
+            <div class="border rounded p-2 h-100">
+              <a class="d-block mb-2" href="{{ url_for('ohs_notes.image', note_id=note.id, image_id=image.id) }}" target="_blank" rel="noopener" aria-label="{{ image.original_name }} görselini aç">
+                <img class="w-100 rounded" style="aspect-ratio: 4 / 3; object-fit: contain" loading="lazy" src="{{ url_for('ohs_notes.image', note_id=note.id, image_id=image.id) }}" alt="{{ image.original_name }}">
+              </a>
+              <label class="d-flex align-items-start gap-2 small text-break" for="remove-image-{{ image.id }}">
+                <input class="form-check-input mt-0 flex-shrink-0" id="remove-image-{{ image.id }}" type="checkbox" name="remove_image_ids" value="{{ image.id }}" {% if image.id|string in request.form.getlist('remove_image_ids') %}checked{% endif %}>
+                <span>Kaldır: {{ image.original_name }}</span>
+              </label>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </fieldset>
+  {% endif %}
   <div class="d-flex flex-wrap justify-content-end gap-2">
     <a class="btn btn-outline-secondary" href="{{ url_for('ohs_notes.detail', note_id=note.id) if note else url_for('ohs_notes.dashboard') }}">Vazgeç</a>
     <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> Kaydet</button>

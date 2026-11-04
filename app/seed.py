@@ -4286,8 +4286,9 @@ def ensure_runtime_schema():
     ensure_contract_schema()
     from .ohs_actions_schema import ensure_ohs_actions_schema
     ensure_ohs_actions_schema()
-    from .ohs_notes_models import OhsNote
+    from .ohs_notes_models import OhsNote, OhsNoteImage
     OhsNote.__table__.create(db.engine, checkfirst=True)
+    OhsNoteImage.__table__.create(db.engine, checkfirst=True)
     from .custody_schema import ensure_custody_guards
     CustodyRecord.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as custody_connection:
