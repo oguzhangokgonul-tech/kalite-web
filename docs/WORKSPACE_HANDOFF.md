@@ -27,8 +27,13 @@ credential store, database backup, or proof that a release is live.
   backup `volkaportal-backup-20261104-141427.zip` passed verification and was
   copied off-host with matching SHA-256. Migration rehearsal on a copy of the
   live DB, production tenant-health, service status, and unauthenticated HTTP
-  smoke checks passed. Authenticated production upload was not exercised;
-  local 390/768/1440 browser flows and 125 targeted/regression tests passed.
+  smoke checks passed. On 2026-11-04 an actual HTTPS login on the `000` demo
+  tenant uploaded two synthetic PNGs, read them in-session, denied anonymous
+  image access, replaced one image, then removed all images and soft-deleted
+  test note 5. The temporary least-privilege user 36 was deactivated. DB
+  confirmed zero active images and no image files remained; service/log checks
+  passed. Audit and soft-deleted metadata remain by design. Local 390/768/1440
+  browser flows and 125 targeted/regression tests passed.
   Soft-deleted notes retain image files for now; agree a retention policy
   before automated cleanup.
 - Action creation/edit forms no longer show the CAPA type selector. Existing
