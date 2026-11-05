@@ -683,6 +683,18 @@ PERMISSION_CATALOG = (
         "description": "Doküman yükler, düzenler, arşivler ve önizleme üretir.",
     },
     {
+        "key": "standard_documentation.view",
+        "label": "Standart dokümantasyon görüntüleme",
+        "group": "Doküman",
+        "description": "Standart ana başlıklarını ve bağlı güncel dokümanları görüntüler.",
+    },
+    {
+        "key": "standard_documentation.manage",
+        "label": "Standart dokümantasyon yönetimi",
+        "group": "Doküman",
+        "description": "Standart ana başlıklarını ve doküman bağlantılarını düzenler.",
+    },
+    {
         "key": "documents.delete",
         "label": "Doküman silme",
         "group": "Doküman",
@@ -1870,6 +1882,15 @@ ROLE_DEFINITIONS += ({
         if permission != "roles.manage"
     } | {"users.delete", "users.assign_roles"}),
 },)
+
+
+for role in ROLE_DEFINITIONS:
+    permissions = set(role["permissions"])
+    if "documents.view" in permissions or "documents.manage" in permissions:
+        permissions.add("standard_documentation.view")
+    if "documents.manage" in permissions:
+        permissions.add("standard_documentation.manage")
+    role["permissions"] = sorted(permissions)
 
 
 REMOVED_ROLE_MAPPINGS = {
@@ -4289,6 +4310,9 @@ def ensure_runtime_schema():
     from .ohs_notes_models import OhsNote, OhsNoteImage
     OhsNote.__table__.create(db.engine, checkfirst=True)
     OhsNoteImage.__table__.create(db.engine, checkfirst=True)
+    from .standard_documentation_models import StandardDocumentationHeading, StandardDocumentationLink
+    StandardDocumentationHeading.__table__.create(db.engine, checkfirst=True)
+    StandardDocumentationLink.__table__.create(db.engine, checkfirst=True)
     from .custody_schema import ensure_custody_guards
     CustodyRecord.__table__.create(bind=db.engine, checkfirst=True)
     with db.engine.begin() as custody_connection:

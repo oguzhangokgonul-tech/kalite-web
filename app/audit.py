@@ -48,6 +48,8 @@ TRACKED_MODEL_NAMES = {
     "DocumentCategory",
     "DocumentRevisionRequest",
     "DocumentRevisionRequestFile",
+    "StandardDocumentationHeading",
+    "StandardDocumentationLink",
     "DynamicFormAssignment",
     "DynamicFormAssignmentRecipient",
     "DynamicFormField",

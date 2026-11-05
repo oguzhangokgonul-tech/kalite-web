@@ -16,6 +16,7 @@ from app.models import (CalibrationRecord, CompanyDepartment, InternalAudit,
                         RiskRecord, SupplierRecord, TrainingRecord, DynamicFormAssignment,
                         DynamicFormAssignmentRecipient, InspectionRecord)
 from app.seed import ensure_default_roles
+from app.standard_documentation_models import StandardDocumentationHeading, StandardDocumentationLink
 from tests.helpers import create_company, create_user, make_document
 from tests.test_action_management import make_action
 from tests.test_dof_management import make_dof
@@ -71,6 +72,17 @@ def main():
             dof = make_dof(company, owner, title="FRM.13 Alt Yapı Teslim Alma Formu")
             document = make_document(app, company, uploader=owner, title="Kalite İç Tetkik Prosedürü",
                                      description="Üretim süreçleri için güncel kontrol dokümanı")
+            standard_heading = StandardDocumentationHeading(
+                company_id=company.id, title="Dokümante Edilmiş Bilginin Kontrolü",
+                related_standard="ISO 9001", technical_heading_no="7.5",
+                created_by_user_id=owner.id,
+            )
+            db.session.add(standard_heading)
+            db.session.flush()
+            db.session.add(StandardDocumentationLink(
+                company_id=company.id, heading_id=standard_heading.id, document_id=document.id,
+            ))
+            db.session.commit()
             for i in range(1, 4):
                 db.session.add(PersonnelContact(company_id=company.id,
                     full_name=f"Şule Öztürk Gökgönül {i}", phone=f"0532 000 00 0{i}",

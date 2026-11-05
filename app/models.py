@@ -349,6 +349,14 @@ COMPANY_MODULE_CATALOG = (
         "parent_key": None,
     },
     {
+        "key": "standard_documentation",
+        "name": "Standart Dokümantasyon",
+        "description": "Standart başlıkları altında güncel doküman bağlantıları.",
+        "icon": "bi-journal-bookmark",
+        "sort_order": 70,
+        "parent_key": "documents",
+    },
+    {
         "key": "ebys",
         "name": "Resmî Yazışma ve Arşiv",
         "description": "Gelen ve giden resmî yazıları, eklerini, dağıtımlarını ve arşiv durumlarını izler.",

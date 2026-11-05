@@ -468,6 +468,11 @@
           <span>{{ _("Doküman Yönetimi") }}</span>
         </a>
         {% endif %}
+        {% if g.company_module_enabled('standard_documentation') and g.company_module_enabled('documents') and (g.current_user.has_permission('standard_documentation.view') or g.current_user.has_permission('standard_documentation.manage')) and (g.current_user.has_permission('documents.view') or g.current_user.has_permission('documents.manage')) %}
+        <a class="dashboard-nav-item {% if request.blueprint == 'standard_documentation' %}active{% endif %}" href="{{ url_for('standard_documentation.dashboard') }}">
+          <i class="bi bi-journal-bookmark" aria-hidden="true"></i><span>Standart Dokümantasyon</span>
+        </a>
+        {% endif %}
         {% if g.company_module_enabled('ebys') and (g.current_user.has_permission('ebys.view') or g.current_user.has_permission('ebys.view_all') or g.current_user.has_permission('ebys.manage')) %}
         <a class="dashboard-nav-item {% if ebys_active %}active{% endif %}" href="{{ url_for('ebys.dashboard') }}">
           <i class="bi bi-envelope-paper"></i>

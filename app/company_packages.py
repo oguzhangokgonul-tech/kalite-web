@@ -47,6 +47,7 @@ ISO_CORE_MODULE_KEYS = {
     "report_center",
     "integration_management",
     "documents",
+    "standard_documentation",
 }
 PRODUCTION_MODULE_KEYS = {
     "maintenance",

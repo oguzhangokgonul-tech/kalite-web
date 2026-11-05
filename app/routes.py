@@ -2799,6 +2799,9 @@ QUALITY_TEST_ENDPOINTS = {
     "main.edit_quality_test_measurements",
 }
 MODULE_ENDPOINTS = {
+    "standard_documentation.dashboard": "standard_documentation",
+    "standard_documentation.create": "standard_documentation",
+    "standard_documentation.edit": "standard_documentation",
     "purchase_requests.dashboard": "purchase_requests",
     "purchase_requests.create": "purchase_requests",
     "purchase_requests.detail": "purchase_requests",
@@ -25748,6 +25751,10 @@ def delete_document(document_id):
     ensure_same_company(document)
     if not can_delete_document(document):
         abort(403)
+    from .standard_documentation_models import StandardDocumentationLink
+    if StandardDocumentationLink.query.filter_by(document_id=document.id).first():
+        flash("Bu doküman standart dokümantasyona bağlı. Önce ilgili bağlantıları kaldırın.", "warning")
+        return redirect(url_for("main.document_detail", document_id=document.id))
     category_slug = document.category.slug if document.category else None
     delete_document_files(document)
     db.session.delete(document)

@@ -1,0 +1,51 @@
+{% extends "app_shell.html" %}
+{% block title %}Standart Dokümantasyon{% endblock %}
+{% block topbar_title %}Standart Dokümantasyon{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/standard_documentation.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block app_content %}
+<main class="standard-page">
+  <header class="standard-header">
+    <div><h1>Standart Dokümantasyon</h1><p>Standart başlıkları ve bağlı dokümanlar</p></div>
+    {% if can_manage %}<a class="btn btn-primary" href="{{ url_for('standard_documentation.create') }}"><i class="bi bi-plus-lg" aria-hidden="true"></i> Standart Ana Başlık Oluştur</a>{% endif %}
+  </header>
+  {% if headings %}
+    <div class="standard-list">
+      {% for heading in headings %}
+      <details class="standard-heading" id="heading-{{ heading.id }}">
+        <summary>
+          <span class="standard-title">{{ heading.title }}</span>
+          <span class="standard-summary-meta">{{ heading.technical_heading_no or 'No belirtilmedi' }} <span aria-hidden="true">·</span> {{ heading.links|length }} doküman</span>
+          <i class="bi bi-chevron-down standard-chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="standard-heading-body">
+          <div class="standard-heading-meta">
+            <div><span>İlgili Standart</span><strong>{{ heading.related_standard or 'Belirtilmedi' }}</strong></div>
+            <div><span>Teknik Başlık No</span><strong>{{ heading.technical_heading_no or 'Belirtilmedi' }}</strong></div>
+            {% if can_manage %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('standard_documentation.edit', heading_id=heading.id) }}"><i class="bi bi-pencil" aria-hidden="true"></i> Düzenle</a>{% endif %}
+          </div>
+          <h2>Bağlı Dokümanlar</h2>
+          {% if heading.links %}
+          <ul class="standard-documents">
+            {% for link in heading.links %}
+              {% if link.company_id == heading.company_id and link.document and link.document.company_id == heading.company_id %}
+              <li>
+                <a href="{{ url_for('main.document_detail', document_id=link.document.id) }}">
+                  <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                  <span><strong>{{ link.document.document_code }} · {{ link.document.title }}</strong><small>Revizyon {{ link.document.revision_no or '—' }}{% if link.document.archived_at and link.document.status != 'Arşiv' %} · Arşiv{% elif link.document.status != 'Yayında' %} · {{ link.document.status }}{% endif %}</small></span>
+                  <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                </a>
+              </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+          {% else %}<p class="standard-empty">Henüz doküman bağlanmadı.</p>{% endif %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+  {% else %}<div class="standard-empty">Henüz standart ana başlığı bulunmuyor.</div>{% endif %}
+</main>
+{% endblock %}

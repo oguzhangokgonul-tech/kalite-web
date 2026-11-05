@@ -1,0 +1,47 @@
+{% extends "app_shell.html" %}
+{% block title %}{{ 'Standart Ana Başlığı Düzenle' if heading else 'Standart Ana Başlık Oluştur' }}{% endblock %}
+{% block topbar_title %}Standart Dokümantasyon{% endblock %}
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/standard_documentation.css', v=config.ASSET_VERSION) }}">
+{% endblock %}
+{% block app_content %}
+<main class="standard-page">
+  <header class="standard-header"><div><a class="standard-back" href="{{ url_for('standard_documentation.dashboard') }}"><i class="bi bi-arrow-left" aria-hidden="true"></i> Standart Dokümantasyon</a><h1>{{ 'Standart Ana Başlığı Düzenle' if heading else 'Standart Ana Başlık Oluştur' }}</h1></div></header>
+  {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+  <form class="standard-form" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="standard-fields">
+      <label>Ana Başlık *<input class="form-control" name="title" required maxlength="200" value="{{ values.get('title', '') if values else (heading.title if heading else '') }}"></label>
+      <label>İlgili Standart<input class="form-control" name="related_standard" maxlength="200" value="{{ values.get('related_standard', '') if values else (heading.related_standard or '' if heading else '') }}"></label>
+      <label>Teknik Başlık No<input class="form-control" name="technical_heading_no" maxlength="80" value="{{ values.get('technical_heading_no', '') if values else (heading.technical_heading_no or '' if heading else '') }}"></label>
+    </div>
+    <section class="standard-picker" aria-labelledby="standard-picker-title">
+      <div class="standard-picker-head"><h2 id="standard-picker-title">Bağlı Dokümanlar</h2><span>Birden fazla seçilebilir</span></div>
+      <label class="visually-hidden" for="standard-document-search">Doküman ara</label>
+      <input class="form-control" id="standard-document-search" type="search" placeholder="Doküman kodu veya adı ara..." autocomplete="off">
+      <div class="standard-options" id="standard-document-options">
+        {% for document in documents %}
+        <label class="standard-option" data-search="{{ document.document_code }} {{ document.title }}">
+          <input type="checkbox" name="document_ids" value="{{ document.id }}" {% if document.id in selected %}checked{% endif %}>
+          <span><strong>{{ document.document_code }} · {{ document.title }}</strong><small>Revizyon {{ document.revision_no or '—' }}{% if document.archived_at and document.status != 'Arşiv' %} · Arşiv{% elif document.status != 'Yayında' %} · {{ document.status }}{% endif %}</small></span>
+        </label>
+        {% else %}<p class="standard-empty">Bağlanabilecek güncel doküman bulunmuyor.</p>{% endfor %}
+      </div>
+    </section>
+    <div class="standard-actions"><a class="btn btn-outline-secondary" href="{{ url_for('standard_documentation.dashboard') }}">Vazgeç</a><button class="btn btn-primary" type="submit"><i class="bi bi-check-lg" aria-hidden="true"></i> Kaydet</button></div>
+  </form>
+</main>
+{% endblock %}
+{% block scripts %}
+  {{ super() }}
+  <script>
+    const search = document.getElementById('standard-document-search');
+    if (search) search.addEventListener('input', () => {
+      const query = search.value.toLocaleLowerCase('tr-TR').trim();
+      document.querySelectorAll('.standard-option').forEach(row => {
+        row.hidden = !row.dataset.search.toLocaleLowerCase('tr-TR').includes(query);
+      });
+    });
+  </script>
+{% endblock %}

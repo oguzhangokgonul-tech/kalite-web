@@ -64,6 +64,7 @@ from .contracts import bp as contracts_bp
 from .objective_plans import bp as objective_plans_bp
 from .notification_settings import bp as notification_settings_bp
 from .desktop_updates import bp as desktop_updates_bp
+from .standard_documentation import bp as standard_documentation_bp
 from .seed import ensure_default_maintenance_machines, ensure_default_users
 
 
@@ -142,6 +143,7 @@ def create_app(config_class=Config):
     app.register_blueprint(objective_plans_bp)
     app.register_blueprint(notification_settings_bp)
     app.register_blueprint(desktop_updates_bp)
+    app.register_blueprint(standard_documentation_bp)
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(error):
