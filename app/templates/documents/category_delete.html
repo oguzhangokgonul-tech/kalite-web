@@ -1,0 +1,48 @@
+{% extends "app_shell.html" %}
+
+{% block title %}Kategoriyi Sil{% endblock %}
+
+{% block app_content %}
+  <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+    <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>Kategoriyi Sil</span>
+  </nav>
+  <div class="documents-category-editor">
+    <div class="documents-category-editor-heading">
+      <h1>Kategoriyi Sil</h1>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_dashboard') }}"><i class="bi bi-arrow-left"></i> Geri Dön</a>
+    </div>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <p><strong>{{ category.display_name }}</strong> kategorisi listeden kaldırılacak.</p>
+    {% if document_count %}
+      <p>Bu kategoride {{ document_count }} doküman var. Dokümanlar, dosyaları ve revizyon geçmişleri korunarak seçtiğiniz kategoriye taşınacak.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('main.delete_document_category', category_id=category.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if document_count %}
+        <div class="mb-3">
+          <label class="form-label" for="destination_id">Dokümanların taşınacağı kategori</label>
+          <select class="form-select" id="destination_id" name="destination_id" required>
+            <option value="">Kategori seçin</option>
+            {% for destination in destinations %}<option value="{{ destination.id }}" {% if request.form.get('destination_id') == destination.id|string %}selected{% endif %}>{{ destination.display_name }}</option>{% endfor %}
+          </select>
+          {% if not destinations %}<div class="form-text text-danger">Önce yeni bir kategori oluşturun; dokümanları taşıyacak başka kategori yok.</div>{% endif %}
+        </div>
+      {% endif %}
+      {% if document_count > 1 %}
+        <div class="mb-3">
+          <label class="form-label" for="confirmation">Onaylamak için evet yazın</label>
+          <input class="form-control" id="confirmation" name="confirmation" required autocomplete="off" value="{{ request.form.get('confirmation', '') }}">
+          <div class="form-text">Büyük/küçük harf fark etmez.</div>
+        </div>
+      {% endif %}
+      <div class="documents-category-editor-actions">
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_dashboard') }}">Vazgeç</a>
+        <button class="btn btn-danger" type="submit" {% if document_count and not destinations %}disabled{% endif %}><i class="bi bi-trash"></i> Kategoriyi Sil</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -219,11 +219,6 @@ def initialize_company_document_categories(company):
             category = DocumentCategory(company_id=company.id, **category_data)
             db.session.add(category)
             created_slugs.append(category_data["slug"])
-            continue
-
-        for key, value in category_data.items():
-            setattr(category, key, value)
-        category.is_active = True
     return created_slugs
 
 
@@ -263,6 +258,12 @@ def company_workspace_status(company, year=None):
         company_id=company.id,
         is_active=True,
     ).count()
+    seeded_category_slugs = {
+        slug for (slug,) in db.session.query(DocumentCategory.slug).filter(
+            DocumentCategory.company_id == company.id,
+            DocumentCategory.slug.in_([item["slug"] for item in DOCUMENT_CATEGORY_DEFAULTS]),
+        ).all()
+    }
     try:
         ensure_company_department_schema()
         department_count = CompanyDepartment.query.filter_by(
@@ -280,5 +281,5 @@ def company_workspace_status(company, year=None):
         "department_count": department_count,
         "departments_ready": department_count > 0,
         "document_category_count": category_count,
-        "document_categories_ready": category_count >= len(DOCUMENT_CATEGORY_DEFAULTS),
+        "document_categories_ready": category_count > 0 and len(seeded_category_slugs) == len(DOCUMENT_CATEGORY_DEFAULTS),
     }

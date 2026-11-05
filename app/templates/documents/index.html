@@ -66,21 +66,36 @@
   </div>
 
   <section class="documents-section">
-    <h3>Doküman Kategorileri</h3>
+    <div class="documents-category-heading-row">
+      <h3>Doküman Kategorileri</h3>
+      {% if can_manage_documents %}
+        <a class="btn btn-outline-primary" href="{{ url_for('main.create_document_category') }}">
+          <i class="bi bi-folder-plus"></i> Yeni Kategori
+        </a>
+      {% endif %}
+    </div>
     <div class="documents-category-grid">
       {% for card in category_cards %}
-        <a class="documents-category-card documents-category-{{ card.category.color or 'blue' }}" href="{{ url_for('main.documents_category', slug=card.category.slug) }}">
-          <span class="documents-category-icon">
-            <i class="bi bi-{{ card.category.icon or 'folder' }}"></i>
-          </span>
-          <span class="documents-category-title">{{ card.category.display_name }}</span>
-          <span class="documents-category-count">
-            <strong>{{ card.count }}</strong>
-            <span>doküman</span>
-          </span>
-          <span class="documents-category-date">Son güncelleme: {{ format_date(card.last_update) }}</span>
-          <span class="documents-category-arrow"><i class="bi bi-chevron-right"></i></span>
-        </a>
+        <div class="documents-category-item">
+          <a class="documents-category-card documents-category-{{ card.category.color or 'blue' }}" href="{{ url_for('main.documents_category', slug=card.category.slug) }}">
+            <span class="documents-category-icon">
+              <i class="bi bi-{{ card.category.icon or 'folder' }}"></i>
+            </span>
+            <span class="documents-category-title">{{ card.category.display_name }}</span>
+            <span class="documents-category-count">
+              <strong>{{ card.count }}</strong>
+              <span>doküman</span>
+            </span>
+            <span class="documents-category-date">Son güncelleme: {{ format_date(card.last_update) }}</span>
+            <span class="documents-category-arrow"><i class="bi bi-chevron-right"></i></span>
+          </a>
+          {% if can_manage_documents %}
+            <div class="documents-category-actions">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini düzenle" title="Kategoriyi düzenle"><i class="bi bi-pencil"></i> Düzenle</a>
+              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini sil" title="Kategoriyi sil"><i class="bi bi-trash"></i> Sil</a>
+            </div>
+          {% endif %}
+        </div>
       {% endfor %}
     </div>
   </section>

@@ -1,0 +1,58 @@
+{% extends "app_shell.html" %}
+
+{% set editing = category is not none %}
+{% set page_title = "Kategoriyi Düzenle" if editing else "Yeni Doküman Kategorisi" %}
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block app_content %}
+  <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
+    <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
+    <i class="bi bi-chevron-right"></i>
+    <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
+    <i class="bi bi-chevron-right"></i>
+    <span>{{ page_title }}</span>
+  </nav>
+  <div class="documents-category-editor">
+    <div class="documents-category-editor-heading">
+      <h1>{{ page_title }}</h1>
+      <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_dashboard') }}"><i class="bi bi-arrow-left"></i> Geri Dön</a>
+    </div>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="{{ url_for('main.edit_document_category', category_id=category.id) if editing else url_for('main.create_document_category') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3">
+        <div class="col-sm-4">
+          <label class="form-label" for="code">Kategori Kodu</label>
+          <input class="form-control" id="code" name="code" maxlength="10" required value="{{ form_data.get('code', category.code if editing else '') if form_data else (category.code if editing else '') }}" placeholder="Örn. 09" autocomplete="off">
+        </div>
+        <div class="col-sm-8">
+          <label class="form-label" for="name">Kategori Adı</label>
+          <input class="form-control" id="name" name="name" maxlength="120" required value="{{ form_data.get('name', category.name if editing else '') if form_data else (category.name if editing else '') }}" placeholder="Örn. Teknik Şartnameler">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="sort_order">Sıralama</label>
+          <input class="form-control" id="sort_order" name="sort_order" type="number" min="1" max="9999" required value="{{ form_data.get('sort_order', category.sort_order if editing else next_order) if form_data else (category.sort_order if editing else next_order) }}">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="color">Renk</label>
+          {% set selected_color = form_data.get('color', category.color if editing else 'blue') if form_data else (category.color if editing else 'blue') %}
+          <select class="form-select" id="color" name="color">
+            {% for color in category_colors %}<option value="{{ color }}" {% if color == selected_color %}selected{% endif %}>{{ {'blue': 'Mavi', 'green': 'Yeşil', 'orange': 'Turuncu', 'red': 'Kırmızı', 'purple': 'Mor', 'cyan': 'Turkuaz', 'lime': 'Açık Yeşil', 'amber': 'Kehribar'}[color] }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="icon">Simge</label>
+          {% set selected_icon = form_data.get('icon', category.icon if editing else 'folder') if form_data else (category.icon if editing else 'folder') %}
+          <select class="form-select" id="icon" name="icon">
+            {% set icon_labels = {'folder': 'Klasör', 'folder2-open': 'Açık Klasör', 'book': 'Kitap', 'diagram-3': 'Süreç', 'file-earmark-text': 'Metin Dosyası', 'file-earmark-spreadsheet': 'Çalışma Sayfası', 'clipboard-check': 'Kontrol Listesi', 'list-check': 'Liste', 'calendar-check': 'Takvim', 'people': 'Kişiler'} %}
+            {% for icon in category_icons %}<option value="{{ icon }}" {% if icon == selected_icon %}selected{% endif %}>{{ icon_labels[icon] }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="documents-category-editor-actions">
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.documents_dashboard') }}">Vazgeç</a>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> {{ 'Değişiklikleri Kaydet' if editing else 'Kategoriyi Oluştur' }}</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

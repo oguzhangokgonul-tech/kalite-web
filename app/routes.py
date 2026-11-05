@@ -1715,15 +1715,6 @@ def ensure_document_categories():
             category = DocumentCategory(**category_values)
             db.session.add(category)
             changed = True
-            continue
-
-        for key, value in category_data.items():
-            if getattr(category, key) != value:
-                setattr(category, key, value)
-                changed = True
-        if category.is_active is False:
-            category.is_active = True
-            changed = True
 
     if changed:
         db.session.commit()
@@ -3275,6 +3266,9 @@ MODULE_ENDPOINTS = {
     "main.documents_dashboard": "documents",
     "main.documents_list": "documents",
     "main.documents_category": "documents",
+    "main.create_document_category": "documents",
+    "main.edit_document_category": "documents",
+    "main.delete_document_category": "documents",
     "main.upload_document": "documents",
     "main.document_detail": "documents",
     "main.edit_document": "documents",
@@ -25195,6 +25189,170 @@ def documents_category(slug):
     )
 
 
+DOCUMENT_CATEGORY_COLORS = (
+    "blue", "green", "orange", "red", "purple", "cyan", "lime", "amber",
+)
+DOCUMENT_CATEGORY_ICONS = (
+    "folder", "folder2-open", "book", "diagram-3", "file-earmark-text",
+    "file-earmark-spreadsheet", "clipboard-check", "list-check", "calendar-check", "people",
+)
+
+
+def document_category_query():
+    return scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+        company_id=current_company_id()
+    )
+
+
+def document_category_or_404(category_id):
+    return document_category_query().filter_by(id=category_id, is_active=True).first_or_404()
+
+
+def document_category_values(category=None):
+    code = request.form.get("code", "").strip().upper()
+    name = request.form.get("name", "").strip()
+    color = request.form.get("color", "blue").strip()
+    icon = request.form.get("icon", "folder").strip()
+    try:
+        sort_order = int(request.form.get("sort_order", ""))
+    except ValueError:
+        raise ValueError("Sıralama için 1 ile 9999 arasında bir sayı girin.") from None
+    if not re.fullmatch(r"[A-Z0-9._-]{1,10}", code):
+        raise ValueError("Kategori kodu 1-10 harf/rakam içermelidir.")
+    if not name or len(name) > 120 or any(ord(char) < 32 for char in name):
+        raise ValueError("Kategori adını kontrol edin (en fazla 120 karakter).")
+    if not 1 <= sort_order <= 9999:
+        raise ValueError("Sıralama için 1 ile 9999 arasında bir sayı girin.")
+    if color not in DOCUMENT_CATEGORY_COLORS or icon not in DOCUMENT_CATEGORY_ICONS:
+        raise ValueError("Geçerli bir renk ve simge seçin.")
+    same_code = document_category_query().filter_by(code=code, is_active=True)
+    if category is not None:
+        same_code = same_code.filter(DocumentCategory.id != category.id)
+    if same_code.first():
+        raise ValueError("Bu kategori kodu zaten kullanılıyor.")
+    return {
+        "code": code, "name": name, "sort_order": sort_order,
+        "color": color, "icon": icon,
+    }
+
+
+def new_document_category_slug(name):
+    transliterated = name.translate(str.maketrans({"ı": "i", "İ": "I"}))
+    ascii_name = unicodedata.normalize("NFKD", transliterated).encode("ascii", "ignore").decode("ascii")
+    base = re.sub(r"[^a-z0-9]+", "-", ascii_name.lower()).strip("-")[:140].rstrip("-") or "kategori"
+    slug = base
+    suffix = 2
+    while document_category_query().filter_by(slug=slug).first():
+        slug = f"{base}-{suffix}"
+        suffix += 1
+    return slug
+
+
+def document_category_form_context(category=None, error=None):
+    categories = document_category_query().filter_by(is_active=True).all()
+    next_order = max((item.sort_order for item in categories), default=0) + 1
+    return {
+        "category": category,
+        "error": error,
+        "form_data": request.form if request.method == "POST" else None,
+        "next_order": next_order,
+        "category_colors": DOCUMENT_CATEGORY_COLORS,
+        "category_icons": DOCUMENT_CATEGORY_ICONS,
+    }
+
+
+@bp.route("/documents/categories/new", methods=["GET", "POST"])
+@login_required
+def create_document_category():
+    if not can_manage_documents() or not current_company_id():
+        abort(403)
+    if request.method == "POST":
+        try:
+            values = document_category_values()
+            category = DocumentCategory(
+                company_id=current_company_id(), slug=new_document_category_slug(values["name"]),
+                **values,
+            )
+            db.session.add(category)
+            db.session.commit()
+            flash("Doküman kategorisi oluşturuldu.", "success")
+            return redirect(url_for("main.documents_dashboard"))
+        except ValueError as error:
+            return render_template("documents/category_form.html", **document_category_form_context(error=str(error))), 400
+        except IntegrityError:
+            db.session.rollback()
+            return render_template("documents/category_form.html", **document_category_form_context(error="Kategori kodu veya adı çakışıyor. Lütfen tekrar deneyin.")), 409
+    return render_template("documents/category_form.html", **document_category_form_context())
+
+
+@bp.route("/documents/categories/<int:category_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_document_category(category_id):
+    if not can_manage_documents() or not current_company_id():
+        abort(403)
+    category = document_category_or_404(category_id)
+    if request.method == "POST":
+        try:
+            values = document_category_values(category)
+            for key, value in values.items():
+                setattr(category, key, value)
+            db.session.commit()
+            flash("Doküman kategorisi güncellendi.", "success")
+            return redirect(url_for("main.documents_dashboard"))
+        except ValueError as error:
+            return render_template("documents/category_form.html", **document_category_form_context(category, str(error))), 400
+        except IntegrityError:
+            db.session.rollback()
+            return render_template("documents/category_form.html", **document_category_form_context(category, "Kategori kodu çakışıyor. Lütfen tekrar deneyin.")), 409
+    return render_template("documents/category_form.html", **document_category_form_context(category))
+
+
+@bp.route("/documents/categories/<int:category_id>/delete", methods=["GET", "POST"])
+@login_required
+def delete_document_category(category_id):
+    if not can_manage_documents() or not current_company_id():
+        abort(403)
+    category = document_category_query().filter_by(
+        id=category_id, is_active=True,
+    ).with_for_update().first_or_404()
+    documents = scoped_query(Document.query, Document).filter_by(
+        company_id=current_company_id(), category_id=category.id,
+    ).all()
+    destinations = document_category_query().filter(
+        DocumentCategory.is_active.is_(True), DocumentCategory.id != category.id,
+    ).order_by(DocumentCategory.sort_order, DocumentCategory.id).all()
+    error = None
+    if request.method == "POST":
+        if len(documents) > 1 and request.form.get("confirmation", "").strip().casefold() != "evet":
+            error = "Devam etmek için evet yazın."
+        destination = None
+        if documents:
+            try:
+                destination_id = int(request.form.get("destination_id", ""))
+            except ValueError:
+                destination_id = None
+            destination = next((item for item in destinations if item.id == destination_id), None)
+            if destination is None:
+                error = "Dokümanları taşıyacağınız aktif bir kategori seçin."
+        if error is None:
+            for document in documents:
+                document.category_id = destination.id
+            category.is_active = False
+            record_audit_event(
+                "DocumentCategory", "archived", category.display_name,
+                entity_id=category.id, company_id=category.company_id,
+                new_values={"moved_document_count": len(documents), "destination_id": destination.id if destination else None},
+                commit=False,
+            )
+            db.session.commit()
+            flash("Kategori kaldırıldı; dokümanlar korundu.", "success")
+            return redirect(url_for("main.documents_dashboard"))
+    return render_template(
+        "documents/category_delete.html", category=category, document_count=len(documents),
+        destinations=destinations, error=error,
+    ), (400 if error else 200)
+
+
 @bp.route("/documents/upload", methods=["GET", "POST"])
 @login_required
 def upload_document():
@@ -25230,6 +25388,9 @@ def upload_document():
                 saved_documents.append(document)
 
             db.session.flush()
+            db.session.refresh(form_values["category"], with_for_update=True)
+            if not form_values["category"].is_active:
+                raise ValueError("invalid_category")
             for document in saved_documents:
                 generate_document_preview(document)
                 index_document_search(document)
