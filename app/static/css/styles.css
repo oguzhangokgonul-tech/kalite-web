@@ -321,11 +321,35 @@ body {
     min-width: 0;
 }
 
+.documents-summary-link { text-decoration: none; }
+.documents-summary-link:hover { color: inherit; border-color: currentColor; }
+
+.documents-category-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+}
+
+.documents-category-archive-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    color: #405273;
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.documents-category-archive-link:hover { color: #0d6efd; }
+.documents-category-archive-link span { font-weight: 700; }
+
 .documents-category-actions {
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    padding-top: 8px;
 }
 
 .documents-category-editor {

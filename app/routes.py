@@ -40,6 +40,13 @@ from sqlalchemy.orm.exc import StaleDataError
 from werkzeug.exceptions import HTTPException
 
 from .audit import record_audit_event
+from .document_archive import (
+    ArchiveStage,
+    archive_source_for_document,
+    discard_archive_stage,
+    finalize_archive_stage,
+    stage_document_archive,
+)
 from .document_search import extract_text_bounded, normalize_search_text, source_fingerprint
 from .extensions import db
 from .i18n import (
@@ -3266,6 +3273,8 @@ MODULE_ENDPOINTS = {
     "main.documents_dashboard": "documents",
     "main.documents_list": "documents",
     "main.documents_category": "documents",
+    "main.documents_archive": "documents",
+    "main.documents_category_archive": "documents",
     "main.create_document_category": "documents",
     "main.edit_document_category": "documents",
     "main.delete_document_category": "documents",
@@ -5302,6 +5311,16 @@ def existing_uploaded_file_path(stored_name):
     return file_path
 
 
+def archive_source_path(stored_name):
+    file_path = uploaded_file_path(stored_name)
+    if file_path and file_path.is_file():
+        return file_path
+    normalized = str(stored_name or "").replace("\\", "/")
+    if "/" in normalized:
+        return file_path
+    return existing_uploaded_file_path(stored_name)
+
+
 def delete_stored_upload(stored_name):
     file_path = existing_uploaded_file_path(stored_name)
     if file_path and file_path.exists():
@@ -6603,7 +6622,9 @@ def archive_current_document_version(document, actor=None):
             search_text=previous.search_text,
             indexed_at=previous.indexed_at,
         ))
-    return archive_document_record
+    db.session.flush()
+    archive_stage = stage_document_archive(archive_document_record, archive_source_path)
+    return archive_document_record, archive_stage
 
 
 def apply_document_revision(
@@ -6615,24 +6636,47 @@ def apply_document_revision(
     if len(revision_reason) > 2000:
         raise ValueError("revision_reason_too_long")
     file_values = save_document_upload(uploaded_file, document.category)
-    archive_current_document_version(document, actor=g.current_user)
-    for key, value in file_values.items():
-        setattr(document, key, value)
-    document.preview_file_name = None
-    document.preview_file_path = None
-    document.preview_status = None
-    document.preview_error = None
-    document.preview_generated_at = None
-    if revision_no is not None:
-        document.revision_no = revision_no[:40] or document.revision_no
-    document.revision_reason = revision_reason
-    document.revision_date = revision_date or date.today()
-    document.status = "Yayında"
-    document.archived_at = None
-    document.uploaded_by = g.current_user.id
-    generate_document_preview(document)
-    index_document_search(document)
-    return file_values
+    archive_stage = None
+    new_preview_path = None
+    try:
+        _, archive_stage = archive_current_document_version(document, actor=g.current_user)
+        for key, value in file_values.items():
+            setattr(document, key, value)
+        document.preview_file_name = None
+        document.preview_file_path = None
+        document.preview_status = None
+        document.preview_error = None
+        document.preview_generated_at = None
+        if revision_no is not None:
+            document.revision_no = revision_no[:40] or document.revision_no
+        document.revision_reason = revision_reason
+        document.revision_date = revision_date or date.today()
+        document.status = "Yayında"
+        document.archived_at = None
+        document.uploaded_by = g.current_user.id
+        generate_document_preview(document)
+        new_preview_path = document.preview_file_path
+        index_document_search(document)
+        return {
+            **file_values,
+            "_archive_stage": archive_stage,
+            "_new_preview_path": document.preview_file_path,
+        }
+    except Exception:
+        discard_archive_stage(archive_stage)
+        delete_stored_upload(file_values["file_path"])
+        if new_preview_path:
+            delete_stored_upload(new_preview_path)
+        raise
+
+
+def cleanup_failed_document_revision(saved_file_values):
+    if not saved_file_values:
+        return
+    discard_archive_stage(saved_file_values["_archive_stage"])
+    delete_stored_upload(saved_file_values["file_path"])
+    if saved_file_values["_new_preview_path"]:
+        delete_stored_upload(saved_file_values["_new_preview_path"])
 
 
 def document_revision_error_message(error_key):
@@ -6671,9 +6715,13 @@ def document_filters():
     }
 
 
-def filtered_document_query(category=None, filters=None):
+def filtered_document_query(category=None, filters=None, archive_only=False):
     filters = filters or document_filters()
     query = document_query()
+    if archive_only:
+        query = query.filter(or_(Document.status == "Arşiv", Document.archived_at.isnot(None)))
+    else:
+        query = query.filter(Document.status != "Arşiv", Document.archived_at.is_(None))
     if category is not None:
         query = query.filter(Document.category_id == category.id)
     if filters["status"]:
@@ -6748,20 +6796,31 @@ def document_category_cards(categories, documents):
 
 def documents_dashboard_context():
     categories = ordered_document_categories()
-    documents = sort_documents_by_code(document_query().all())
+    all_documents = document_query().all()
+    documents = sort_documents_by_code([
+        document for document in all_documents if not document_is_archived(document)
+    ])
     status_counts = {
-        status: sum(1 for document in documents if document.status == status)
+        status: sum(1 for document in all_documents if document.status == status)
         for status in DOCUMENT_STATUSES
+    }
+    archive_counts = {
+        category.id: sum(
+            1 for document in all_documents
+            if document.category_id == category.id and document_is_archived(document)
+        )
+        for category in categories
     }
     return {
         "categories": categories,
         "category_cards": document_category_cards(categories, documents),
+        "archive_counts": archive_counts,
         "recent_documents": documents[:5],
         "total_count": len(documents),
         "published_count": status_counts.get("Yayında", 0),
         "revision_count": status_counts.get("Revizyon Bekleyen", 0),
         "approval_count": status_counts.get("Onay Bekleyen", 0),
-        "archive_count": status_counts.get("Arşiv", 0),
+        "archive_count": sum(1 for document in all_documents if document_is_archived(document)),
         "document_file_meta": document_file_meta,
         "document_can_preview": document_can_preview,
         "document_status_tone": document_status_tone,
@@ -6772,20 +6831,26 @@ def documents_dashboard_context():
     }
 
 
-def documents_category_context(category):
+def documents_category_context(category, archive_only=False):
     filters = document_filters()
-    documents = sort_documents_by_code(filtered_document_query(category, filters).all())
+    documents = sort_documents_by_code(filtered_document_query(category, filters, archive_only).all())
+    archive_count = filtered_document_query(
+        category, {"search": "", "status": "", "department": ""}, True,
+    ).count()
     return {
         "category": category,
-        "page_title": category.display_name if category else "Tüm Dokümanlar",
+        "page_title": (f"{category.display_name} Arşivi" if category else "Doküman Arşivi")
+        if archive_only else (category.display_name if category else "Tüm Dokümanlar"),
         "page_description": (
             "Bu kategoriye ait kalite dokümanlarını görüntüleyin."
             if category
             else "Sistemde kayıtlı tüm kalite dokümanlarını görüntüleyin."
         ),
         "documents": documents,
+        "is_archive": archive_only,
+        "archive_count": archive_count,
         "filters": filters,
-        "statuses": DOCUMENT_STATUSES,
+        "statuses": [status for status in DOCUMENT_STATUSES if status != "Arşiv"],
         "departments": document_department_choices(),
         "document_file_meta": document_file_meta,
         "document_can_preview": document_can_preview,
@@ -25189,6 +25254,27 @@ def documents_category(slug):
     )
 
 
+@bp.route("/documents/archive")
+@login_required
+def documents_archive():
+    if not can_view_documents():
+        abort(403)
+    return render_template("documents/category.html", **documents_category_context(None, archive_only=True))
+
+
+@bp.route("/documents/category/<slug>/archive")
+@login_required
+def documents_category_archive(slug):
+    if not can_view_documents():
+        abort(403)
+    category = scoped_query(DocumentCategory.query, DocumentCategory).filter_by(
+        slug=slug, is_active=True,
+    ).first_or_404()
+    return render_template(
+        "documents/category.html", **documents_category_context(category, archive_only=True),
+    )
+
+
 DOCUMENT_CATEGORY_COLORS = (
     "blue", "green", "orange", "red", "purple", "cyan", "lime", "amber",
 )
@@ -25335,18 +25421,36 @@ def delete_document_category(category_id):
             if destination is None:
                 error = "Dokümanları taşıyacağınız aktif bir kategori seçin."
         if error is None:
-            for document in documents:
-                document.category_id = destination.id
-            category.is_active = False
-            record_audit_event(
-                "DocumentCategory", "archived", category.display_name,
-                entity_id=category.id, company_id=category.company_id,
-                new_values={"moved_document_count": len(documents), "destination_id": destination.id if destination else None},
-                commit=False,
-            )
-            db.session.commit()
-            flash("Kategori kaldırıldı; dokümanlar korundu.", "success")
-            return redirect(url_for("main.documents_dashboard"))
+            archive_stages = []
+            try:
+                for document in documents:
+                    document.category_id = destination.id
+                    document.category = destination
+                    if document_is_archived(document):
+                        archive_stages.append(stage_document_archive(document, archive_source_path))
+                category.is_active = False
+                record_audit_event(
+                    "DocumentCategory", "archived", category.display_name,
+                    entity_id=category.id, company_id=category.company_id,
+                    new_values={"moved_document_count": len(documents), "destination_id": destination.id if destination else None},
+                    commit=False,
+                )
+                db.session.commit()
+            except (OSError, ValueError):
+                db.session.rollback()
+                for stage in archive_stages:
+                    discard_archive_stage(stage)
+                error = "Arşiv dosyaları taşınamadı. Kategori değişmedi; dosyaları kontrol edin."
+            except Exception:
+                db.session.rollback()
+                for stage in archive_stages:
+                    discard_archive_stage(stage)
+                raise
+            else:
+                for stage in archive_stages:
+                    finalize_archive_stage(stage, archive_source_path)
+                flash("Kategori kaldırıldı; dokümanlar korundu.", "success")
+                return redirect(url_for("main.documents_dashboard"))
     return render_template(
         "documents/category_delete.html", category=category, document_count=len(documents),
         destinations=destinations, error=error,
@@ -25665,6 +25769,11 @@ def document_revision_request_detail(request_id):
         format_file_size=format_file_size,
         today=date.today,
         can_manage_documents=can_manage_documents(),
+        can_approve_revision=(
+            can_manage_documents()
+            and revision_request.status == DOCUMENT_REVISION_PENDING_STATUS
+            and not document_is_archived(revision_request.document)
+        ),
     )
 
 
@@ -25706,6 +25815,8 @@ def approve_document_revision_request(request_id):
     ).filter_by(id=request_id).first_or_404()
     ensure_same_company(revision_request)
     if revision_request.status != DOCUMENT_REVISION_PENDING_STATUS:
+        abort(409)
+    if document_is_archived(revision_request.document):
         abort(409)
     try:
         # Claim the pending row before any file/archive work, without changing audit state.
@@ -25757,6 +25868,7 @@ def approve_document_revision_request(request_id):
             email_event="result",
         )
         db.session.commit()
+        finalize_archive_stage(saved_file_values["_archive_stage"], archive_source_path)
         success_message = "Revizyon onaylandı, eski dosya arşive alındı ve yeni doküman yayınlandı."
         if training is not None:
             success_message += f" Okuma onayı {len(assigned_users)} kullanıcıya atandı."
@@ -25764,9 +25876,12 @@ def approve_document_revision_request(request_id):
         return redirect(url_for("main.document_detail", document_id=document.id))
     except ValueError as error:
         db.session.rollback()
-        if saved_file_values:
-            delete_stored_upload(saved_file_values["file_path"])
+        cleanup_failed_document_revision(saved_file_values)
         flash(document_revision_error_message(str(error)), "danger")
+    except Exception:
+        db.session.rollback()
+        cleanup_failed_document_revision(saved_file_values)
+        raise
     return redirect(url_for("main.document_revision_request_detail", request_id=request_id))
 
 
@@ -25802,6 +25917,7 @@ def revise_document(document_id):
                 actor=g.current_user,
             )
             db.session.commit()
+            finalize_archive_stage(saved_file_values["_archive_stage"], archive_source_path)
             success_message = "Dokümana revizyon yapıldı. Eski dosya arşive alındı."
             if training is not None:
                 success_message += f" Okuma onayı {len(assigned_users)} kullanıcıya atandı."
@@ -25809,9 +25925,12 @@ def revise_document(document_id):
             return redirect(url_for("main.document_detail", document_id=document.id))
         except ValueError as error:
             db.session.rollback()
-            if saved_file_values:
-                delete_stored_upload(saved_file_values["file_path"])
+            cleanup_failed_document_revision(saved_file_values)
             flash(document_revision_error_message(str(error)), "danger")
+        except Exception:
+            db.session.rollback()
+            cleanup_failed_document_revision(saved_file_values)
+            raise
 
     return render_template(
         "documents/revise.html",
@@ -25898,11 +26017,39 @@ def archive_document(document_id):
     ensure_same_company(document)
     if not can_delete_document(document):
         abort(403)
-    document.status = "Arşiv"
-    document.archived_at = datetime.utcnow()
-    db.session.commit()
+    if document_is_archived(document):
+        return redirect(url_for("main.documents_category_archive", slug=document.category.slug))
+    archive_stage = None
+    try:
+        archive_stage = stage_document_archive(document, archive_source_path)
+        pending_requests = scoped_query(DocumentRevisionRequest.query, DocumentRevisionRequest).filter_by(
+            document_id=document.id, status=DOCUMENT_REVISION_PENDING_STATUS,
+        ).all()
+        for revision_request in pending_requests:
+            revision_request.status = DOCUMENT_REVISION_REJECTED_STATUS
+            revision_request.approved_by_user_id = g.current_user.id
+            revision_request.approved_at = datetime.utcnow()
+            revision_request.approval_note = "Doküman arşive taşındığı için talep kapatıldı."
+            notify_document_revision_request(
+                [revision_request.requested_by], revision_request,
+                f"{document.document_code} revizyon talebi doküman arşive taşındığı için kapatıldı.",
+                exclude_user_id=g.current_user.id, email_event="result",
+            )
+        document.status = "Arşiv"
+        document.archived_at = datetime.utcnow()
+        db.session.commit()
+    except (OSError, ValueError):
+        db.session.rollback()
+        discard_archive_stage(archive_stage)
+        flash("Doküman arşive taşınamadı. Orijinal dosyayı kontrol edin.", "danger")
+        return redirect(url_for("main.document_detail", document_id=document_id))
+    except Exception:
+        db.session.rollback()
+        discard_archive_stage(archive_stage)
+        raise
+    finalize_archive_stage(archive_stage, archive_source_path)
     flash("Doküman arşive alındı.", "success")
-    return redirect(url_for("main.document_detail", document_id=document.id))
+    return redirect(url_for("main.documents_category_archive", slug=document.category.slug))
 
 
 @bp.post("/documents/<int:document_id>/delete")
@@ -25917,12 +26064,26 @@ def delete_document(document_id):
         flash("Bu doküman standart dokümantasyona bağlı. Önce ilgili bağlantıları kaldırın.", "warning")
         return redirect(url_for("main.document_detail", document_id=document.id))
     category_slug = document.category.slug if document.category else None
-    delete_document_files(document)
+    was_archived = document_is_archived(document)
+    try:
+        for stored_name in (document.file_path, document.preview_file_path):
+            if stored_name:
+                archive_source_for_document(document, stored_name, archive_source_path)
+    except ValueError:
+        abort(409, description="Doküman dosyası başka bir firmaya bağlı görünüyor.")
+    files_to_remove = ArchiveStage(old_paths=[
+        path for path in (document.file_path, document.preview_file_path) if path
+    ])
     db.session.delete(document)
     db.session.commit()
-    flash("Doküman silindi.", "success")
+    cleanup_failures = finalize_archive_stage(files_to_remove, archive_source_path)
+    if cleanup_failures:
+        flash("Kayıt silindi ancak dosya temizliği tamamlanamadı. Sistem yöneticisine bildirin.", "warning")
+    else:
+        flash("Doküman kalıcı olarak silindi.", "success")
     if category_slug:
-        return redirect(url_for("main.documents_category", slug=category_slug))
+        endpoint = "main.documents_category_archive" if was_archived else "main.documents_category"
+        return redirect(url_for(endpoint, slug=category_slug))
     return redirect(url_for("main.documents_dashboard"))
 
 

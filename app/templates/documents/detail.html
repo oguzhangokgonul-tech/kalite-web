@@ -11,14 +11,18 @@
       <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
       <i class="bi bi-chevron-right"></i>
       <a href="{{ url_for('main.documents_category', slug=document.category.slug) }}">{{ document.category.display_name }}</a>
+      {% if document.status == 'Arşiv' %}
+        <i class="bi bi-chevron-right"></i>
+        <a href="{{ url_for('main.documents_category_archive', slug=document.category.slug) }}">Arşiv</a>
+      {% endif %}
       <i class="bi bi-chevron-right"></i>
       <span>{{ document.document_code }}</span>
     </nav>
   {% endset %}
   {% call ui.page_header(document.document_code ~ " " ~ document.title, breadcrumb, class_name="documents-page-heading documents-detail-heading", icon="bi-file-earmark-text", subtitle_is_html=True) %}
-    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category', slug=document.category.slug) }}">
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category_archive', slug=document.category.slug) if document.status == 'Arşiv' else url_for('main.documents_category', slug=document.category.slug) }}">
       <i class="bi bi-arrow-left"></i>
-      <span>Kategoriye Dön</span>
+      <span>{{ 'Arşive Dön' if document.status == 'Arşiv' else 'Kategoriye Dön' }}</span>
     </a>
     <a class="btn btn-primary btn-lg" href="{{ url_for('main.download_document', document_id=document.id) }}">
       <i class="bi bi-download"></i>
@@ -194,19 +198,21 @@
               <span>Revizyon Talep Et</span>
             </a>
           {% endif %}
-          {% if can_delete_document %}
+          {% if can_delete_document and document.status != 'Arşiv' %}
             <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-outline-secondary" type="submit">
                 <i class="bi bi-archive"></i>
-                <span>Arşivle</span>
+                <span>Arşive Taşı</span>
               </button>
             </form>
+          {% endif %}
+          {% if can_delete_document %}
             <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn btn-outline-danger" type="submit">
                 <i class="bi bi-trash"></i>
-                <span>Sil</span>
+                <span>Kalıcı Sil</span>
               </button>
             </form>
           {% endif %}

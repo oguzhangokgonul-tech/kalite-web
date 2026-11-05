@@ -57,12 +57,12 @@
       <strong>{{ approval_count }}</strong>
       <small>Yayın onayı bekleyen</small>
     </div>
-    <div class="documents-summary-card document-summary-slate">
+    <a class="documents-summary-card document-summary-slate documents-summary-link" href="{{ url_for('main.documents_archive') }}">
       <span class="documents-summary-icon"><i class="bi bi-archive"></i></span>
       <span class="documents-summary-label">Arşiv</span>
       <strong>{{ archive_count }}</strong>
-      <small>Arşivlenmiş dokümanlar</small>
-    </div>
+      <small>Arşivlenmiş dokümanları aç</small>
+    </a>
   </div>
 
   <section class="documents-section">
@@ -89,12 +89,17 @@
             <span class="documents-category-date">Son güncelleme: {{ format_date(card.last_update) }}</span>
             <span class="documents-category-arrow"><i class="bi bi-chevron-right"></i></span>
           </a>
-          {% if can_manage_documents %}
-            <div class="documents-category-actions">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini düzenle" title="Kategoriyi düzenle"><i class="bi bi-pencil"></i> Düzenle</a>
-              <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini sil" title="Kategoriyi sil"><i class="bi bi-trash"></i> Sil</a>
-            </div>
-          {% endif %}
+          <div class="documents-category-footer">
+            <a class="documents-category-archive-link" href="{{ url_for('main.documents_category_archive', slug=card.category.slug) }}">
+              <i class="bi bi-archive"></i> Arşiv <span>{{ archive_counts.get(card.category.id, 0) }}</span>
+            </a>
+            {% if can_manage_documents %}
+              <div class="documents-category-actions">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.edit_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini düzenle" title="Kategoriyi düzenle"><i class="bi bi-pencil"></i> Düzenle</a>
+                <a class="btn btn-sm btn-outline-danger" href="{{ url_for('main.delete_document_category', category_id=card.category.id) }}" aria-label="{{ card.category.display_name }} kategorisini sil" title="Kategoriyi sil"><i class="bi bi-trash"></i> Sil</a>
+              </div>
+            {% endif %}
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -173,13 +178,13 @@
                   {% if can_delete_document(document) %}
                     <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-archive" type="submit" aria-label="Arşivle" title="Arşivle">
+                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-archive" type="submit" aria-label="Arşive Taşı" title="Arşive Taşı">
                         <i class="bi bi-archive"></i>
                       </button>
                     </form>
-                    <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
+                    <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-delete" type="submit" aria-label="Sil" title="Sil">
+                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-delete" type="submit" aria-label="Kalıcı Sil" title="Kalıcı Sil">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>

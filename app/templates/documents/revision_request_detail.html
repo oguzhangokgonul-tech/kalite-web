@@ -57,7 +57,7 @@
     </section>
 
     <aside class="documents-side-panel">
-      {% if can_manage_documents and revision_request.status != "Onaylandı" %}
+      {% if can_approve_revision %}
         <form class="documents-side-card documents-revision-approval" method="post" action="{{ url_for('main.approve_document_revision_request', request_id=revision_request.id) }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <h3>Yeni Dokümanı Yayınla</h3>

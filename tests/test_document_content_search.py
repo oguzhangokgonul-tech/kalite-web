@@ -114,10 +114,10 @@ def test_document_content_search_tenant_revision_and_backfill(app, client):
     assert "benzersizkalite" in archive.search_index.search_text
 
     login(client, viewer)
-    response = client.get("/documents/list?search=benzersizkalite&status=Arşiv")
+    response = client.get("/documents/archive?search=benzersizkalite")
     assert response.status_code == 200
     assert "Genel Prosedur" in response.get_data(as_text=True)
-    response = client.get("/documents/list?search=yenicerik&status=Arşiv")
+    response = client.get("/documents/archive?search=yenicerik")
     assert "Genel Prosedur" not in response.get_data(as_text=True)
 
 

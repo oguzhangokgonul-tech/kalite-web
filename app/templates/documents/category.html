@@ -16,6 +16,7 @@
 {% endmacro %}
 
 {% block app_content %}
+  {% set clear_url = url_for('main.documents_category_archive', slug=category.slug) if category and is_archive else url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_archive') if is_archive else url_for('main.documents_list') %}
   {% set breadcrumb %}
     <nav class="documents-breadcrumb" aria-label="Doküman kırılımı">
       <a href="{{ url_for('main.dashboard') }}">Ana Sayfa</a>
@@ -23,16 +24,26 @@
       <a href="{{ url_for('main.documents_dashboard') }}">Doküman Yönetimi</a>
       {% if category %}
         <i class="bi bi-chevron-right"></i>
-        <span>{{ category.display_name }}</span>
+        {% if is_archive %}
+          <a href="{{ url_for('main.documents_category', slug=category.slug) }}">{{ category.display_name }}</a>
+        {% else %}
+          <span>{{ category.display_name }}</span>
+        {% endif %}
       {% endif %}
+      {% if is_archive %}<i class="bi bi-chevron-right"></i><span>Arşiv</span>{% endif %}
     </nav>
   {% endset %}
-  {% call ui.page_header(page_title if category else "Doküman Listesi", breadcrumb, class_name="documents-page-heading documents-category-heading", icon="bi-folder2-open", subtitle_is_html=True) %}
-    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_dashboard') }}">
+  {% call ui.page_header(page_title, breadcrumb, class_name="documents-page-heading documents-category-heading", icon="bi-folder2-open", subtitle_is_html=True) %}
+    <a class="btn btn-outline-secondary btn-lg" href="{{ url_for('main.documents_category', slug=category.slug) if is_archive and category else url_for('main.documents_dashboard') }}">
       <i class="bi bi-arrow-left"></i>
-      <span>Geri Dön</span>
+      <span>{{ 'Aktif Dokümanlar' if is_archive and category else 'Geri Dön' }}</span>
     </a>
-    {% if can_manage_documents %}
+    {% if not is_archive %}
+      <a class="btn btn-outline-primary" href="{{ url_for('main.documents_category_archive', slug=category.slug) if category else url_for('main.documents_archive') }}">
+        <i class="bi bi-archive"></i> Arşiv <span class="badge text-bg-secondary">{{ archive_count }}</span>
+      </a>
+    {% endif %}
+    {% if can_manage_documents and not is_archive %}
       {% if category %}
         <a class="btn btn-outline-primary" href="{{ url_for('main.edit_document_category', category_id=category.id) }}"><i class="bi bi-pencil"></i> Kategoriyi Düzenle</a>
       {% endif %}
@@ -52,12 +63,14 @@
           <i class="bi bi-search"></i>
           <input class="form-control" id="search" name="search" value="{{ filters.search }}" aria-label="Doküman ara" placeholder="Başlık, kod veya içerikte ara...">
         </div>
-        <select class="form-select documents-list-select" id="status" name="status" aria-label="Durum filtresi">
-          <option value="">Tüm durumlar</option>
-          {% for status in statuses %}
-            <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
-          {% endfor %}
-        </select>
+        {% if not is_archive %}
+          <select class="form-select documents-list-select" id="status" name="status" aria-label="Durum filtresi">
+            <option value="">Tüm durumlar</option>
+            {% for status in statuses %}
+              <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
         <select class="form-select documents-list-select" id="department" name="department" aria-label="Departman filtresi">
           <option value="">Tüm departmanlar</option>
           {% for department in departments %}
@@ -68,7 +81,7 @@
           <i class="bi bi-funnel"></i>
           <span>Filtrele</span>
         </button>
-        <a class="btn btn-outline-secondary documents-clear-button" href="{{ url_for('main.documents_category', slug=category.slug) if category else url_for('main.documents_list') }}" aria-label="Temizle">
+        <a class="btn btn-outline-secondary documents-clear-button" href="{{ clear_url }}" aria-label="Temizle">
           <i class="bi bi-arrow-clockwise"></i>
         </a>
       </form>
@@ -148,15 +161,17 @@
                     </a>
                   {% endif %}
                   {% if can_delete_document(document) %}
-                    <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                    {% if not is_archive %}
+                      <form action="{{ url_for('main.archive_document', document_id=document.id) }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-archive" type="submit" aria-label="Arşive Taşı" title="Arşive Taşı">
+                          <i class="bi bi-archive"></i>
+                        </button>
+                      </form>
+                    {% endif %}
+                    <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı kalıcı olarak silmek istediğinize emin misiniz?');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-archive" type="submit" aria-label="Arşivle" title="Arşivle">
-                        <i class="bi bi-archive"></i>
-                      </button>
-                    </form>
-                    <form action="{{ url_for('main.delete_document', document_id=document.id) }}" method="post" onsubmit="return confirm('Dokümanı silmek istediğinize emin misiniz?');">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-delete" type="submit" aria-label="Sil" title="Sil">
+                      <button class="btn btn-sm vp-action-btn documents-action-btn documents-action-delete" type="submit" aria-label="Kalıcı Sil" title="Kalıcı Sil">
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
@@ -167,7 +182,7 @@
           {% else %}
             <tr>
               <td class="documents-empty-row" colspan="10">
-                {{ ui.empty_state("Bu filtrelerle eşleşen doküman bulunamadı.", "Doküman yüklendiğinde bu listede görünecek.", "bi-search") }}
+                {{ ui.empty_state("Bu filtrelerle eşleşen doküman bulunamadı.", "Bu klasöre doküman geldiğinde burada görünecek.", "bi-search") }}
               </td>
             </tr>
           {% endfor %}
