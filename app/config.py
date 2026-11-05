@@ -28,6 +28,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{DATABASE_PATH}"
     )
+    SQLITE_BUSY_TIMEOUT_SECONDS = max(1, min(20, int(os.environ.get("SQLITE_BUSY_TIMEOUT_SECONDS", "15"))))
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     DATABASE_BACKUP_DIR = os.environ.get(
         "DATABASE_BACKUP_DIR",

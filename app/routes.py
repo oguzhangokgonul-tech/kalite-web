@@ -25488,28 +25488,17 @@ def upload_document():
                     **file_values,
                 )
                 assign_current_company(document)
-                db.session.add(document)
                 saved_documents.append(document)
 
-            db.session.flush()
-            db.session.refresh(form_values["category"], with_for_update=True)
-            if not form_values["category"].is_active:
-                raise ValueError("invalid_category")
             for document in saved_documents:
                 generate_document_preview(document)
                 index_document_search(document)
+            with db.session.no_autoflush:
+                db.session.refresh(form_values["category"], with_for_update=True)
+            if not form_values["category"].is_active:
+                raise ValueError("invalid_category")
+            db.session.add_all(saved_documents)
             db.session.commit()
-            flash(
-                f"{len(saved_documents)} doküman başarıyla yüklendi.",
-                "success",
-            )
-            if len(saved_documents) == 1:
-                return redirect(
-                    url_for("main.document_detail", document_id=saved_documents[0].id)
-                )
-            return redirect(
-                url_for("main.documents_category", slug=form_values["category"].slug)
-            )
         except ValueError as error:
             db.session.rollback()
             for document in saved_documents:
@@ -25535,6 +25524,28 @@ def upload_document():
                 flash("Açıklama alanı en fazla 2000 karakter olabilir.", "danger")
             else:
                 flash("Doküman formunu kontrol edin.", "danger")
+        except OperationalError as error:
+            db.session.rollback()
+            for document in saved_documents:
+                delete_document_files(document)
+            if "database is locked" not in str(error.orig).lower():
+                raise
+            current_app.logger.warning("Document upload deferred because SQLite was locked")
+            flash("Veritabanı şu anda meşgul. Doküman kaydedilmedi; lütfen tekrar deneyin.", "warning")
+            return render_template(
+                "documents/upload.html",
+                **document_form_context(category_slug=request.args.get("category")),
+            ), 503
+        except Exception:
+            db.session.rollback()
+            for document in saved_documents:
+                delete_document_files(document)
+            raise
+        else:
+            flash(f"{len(saved_documents)} doküman başarıyla yüklendi.", "success")
+            if len(saved_documents) == 1:
+                return redirect(url_for("main.document_detail", document_id=saved_documents[0].id))
+            return redirect(url_for("main.documents_category", slug=form_values["category"].slug))
 
     return render_template(
         "documents/upload.html",

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import click
 import mimetypes
 from urllib.parse import urlsplit
+from sqlalchemy.engine import make_url
 
 load_dotenv()
 
@@ -73,6 +74,12 @@ def create_app(config_class=Config):
     mimetypes.add_type("text/javascript", ".js")
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if make_url(app.config["SQLALCHEMY_DATABASE_URI"]).get_backend_name() == "sqlite":
+        engine_options = dict(app.config.get("SQLALCHEMY_ENGINE_OPTIONS") or {})
+        connect_args = dict(engine_options.get("connect_args") or {})
+        connect_args.setdefault("timeout", app.config.get("SQLITE_BUSY_TIMEOUT_SECONDS", 15))
+        engine_options["connect_args"] = connect_args
+        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = engine_options
     if app.config.get("APP_ENV") == "production":
         integration_key = str(app.config.get("INTEGRATION_ENCRYPTION_KEY") or "").strip()
         if not integration_key:
