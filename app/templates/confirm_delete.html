@@ -11,6 +11,9 @@
         Bu kayda bağlı <strong>{{ action.file_original_name }}</strong> dosyası da silinecek.
       {% endif %}
     </p>
+    {% if linked_ohs_note %}
+      <p class="text-secondary">Kaynak İSG notu ve denetim kayıtları korunacak. Aksiyonun işlem geçmişi, yorumları, alt aksiyonları ve ekleri silinecek.</p>
+    {% endif %}
     <form class="d-flex flex-column flex-sm-row gap-2" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn btn-danger" type="submit">Sil</button>

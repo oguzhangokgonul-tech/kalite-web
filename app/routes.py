@@ -29739,8 +29739,11 @@ def delete_action(action_id):
     from .meeting_actions import require_unlinked_for_delete
     require_unlinked_for_delete(action)
     from .ohs_notes_models import OhsNote
-    if OhsNote.query.filter_by(action_id=action.id).first() is not None:
-        abort(409, description="İSG notundan oluşturulan aksiyon silinemez; işlem geçmişi korunur.")
+    linked_ohs_note = OhsNote.query.filter_by(action_id=action.id).first()
+    if linked_ohs_note and (
+        action.action_category != "ohs" or linked_ohs_note.company_id != action.company_id
+    ):
+        abort(409, description="İSG notu bağlantısı tutarsız; sistem yöneticisine bildirin.")
     from .objective_plan_models import ObjectivePlanLink
     if ObjectivePlanLink.query.filter_by(action_id=action.id).first() is not None:
         abort(409, description="Kalite hedefine bağlı aksiyon silinemez; işlem geçmişi korunur.")
@@ -29769,9 +29772,14 @@ def delete_action(action_id):
                     action_id=action.id, folder=folder, record_id=record_id,
                 )
         try:
+            if linked_ohs_note:
+                from .ohs_notes import audit as audit_ohs_note, snapshot as snapshot_ohs_note
+                previous_note = snapshot_ohs_note(linked_ohs_note)
+                linked_ohs_note.action_id = None
+                audit_ohs_note(linked_ohs_note, "action_deleted", previous_note)
             db.session.delete(action)
             commit_action_upload_changes()
-        except IntegrityError:
+        except (IntegrityError, StaleDataError):
             db.session.rollback()
             abort(409, description="Aksiyonun bağlantıları değişti. Sayfayı yenileyip tekrar deneyin.")
         except Exception:
@@ -29787,7 +29795,11 @@ def delete_action(action_id):
         flash("Aksiyon kaydı silindi.", "success")
         return redirect(url_for(action_list_endpoint(action)))
 
-    return render_template("confirm_delete.html", action=action)
+    return render_template(
+        "confirm_delete.html", action=action,
+        linked_ohs_note=linked_ohs_note,
+        action_back_endpoint=action_list_endpoint(action),
+    )
 
 
 @bp.get("/actions/<int:action_id>/download")

@@ -29,6 +29,8 @@
 <div class="d-flex flex-wrap gap-2 my-4">
   {% if visible_action %}
     <a class="btn btn-outline-success" href="{{ url_for('main.action_detail', action_id=visible_action.id) }}"><i class="bi bi-link-45deg" aria-hidden="true"></i> {{ visible_action.number_label }}</a>
+  {% elif note.converted_at and not note.action_id %}
+    <span class="text-secondary align-self-center">Bağlı aksiyon silindi; not geçmişi korundu.</span>
   {% elif note.converted_at %}
     <span class="text-success align-self-center">Aksiyon oluşturuldu</span>
   {% elif g.current_user.has_permission('actions.create') %}

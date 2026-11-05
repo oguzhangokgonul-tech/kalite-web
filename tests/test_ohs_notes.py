@@ -7,12 +7,12 @@ import pytest
 from PIL import Image
 
 from app.extensions import db
-from app.models import Action, AuditLog, CompanyModule, Notification
+from app.models import Action, ActionEvidenceManifest, AuditLog, CompanyModule, Notification
 from app.notification_models import NotificationEmailEvent
 from app.notification_policy import dispatch_collection, reminder_timezone
 from app.ohs_notes_models import OhsNote, OhsNoteImage
 from .helpers import create_company, create_user, login
-from .test_action_management import action_payload
+from .test_action_management import action_payload, write_action_evidence
 
 
 @pytest.fixture()
@@ -254,7 +254,7 @@ def test_tenant_and_disabled_module(client, setup):
     assert client.post("/isg-notlari/yeni", data={"title": "X", "description": "Y"}).status_code == 403
 
 
-def test_action_conversion_duplicate_and_delete_preserves_action(client, setup):
+def test_action_conversion_duplicate_and_note_delete_preserves_action(client, setup):
     s = setup
     login(client, s.manager)
     assert "Aksiyon Oluştur" in client.get(f"/isg-notlari/{s.note.id}").get_data(as_text=True)
@@ -273,10 +273,66 @@ def test_action_conversion_duplicate_and_delete_preserves_action(client, setup):
     assert event.company_id == s.company.id and event.user_id == s.manager.id
     assert client.post("/isg-aksiyonlari/yeni", data=data).status_code == 409
     assert Action.query.count() == 1
-    assert client.post(f"/actions/{action.id}/delete").status_code == 409
     assert client.post(f"/isg-notlari/{s.note.id}/sil", data={"version_id": s.note.version_id}).status_code == 302
     assert Action.query.count() == 1
-    assert client.post(f"/actions/{action.id}/delete").status_code == 409
+    assert client.post(f"/actions/{action.id}/delete").status_code == 302
+    db.session.refresh(s.note)
+    assert s.note.action_id is None
+    assert s.note.converted_at is not None
+    assert s.note.deleted_at is not None
+    assert AuditLog.query.filter_by(entity_type="OhsNote", action="action_deleted").count() == 1
+
+
+def test_linked_ohs_action_delete_preserves_note_and_audits_unlink(app, client, setup):
+    s = setup
+    login(client, s.manager)
+    response = client.post("/isg-aksiyonlari/yeni", data=action_payload(
+        s.owner, ohs_note_id=str(s.note.id), ohs_note_version=str(s.note.version_id)))
+    assert response.status_code == 302
+    action = Action.query.one()
+    action_id = action.id
+    stored_name = f"company-{s.company.id:03d}/actions/files/{action_id}/proof.png"
+    physical_file = write_action_evidence(
+        app, stored_name, b"proof", company_id=s.company.id,
+        action_id=action_id, folder="files",
+    )
+    action.file_stored_name = stored_name
+    action.file_original_name = "proof.png"
+    db.session.commit()
+
+    login(client, s.owner)
+    assert client.get(f"/actions/{action_id}/delete").status_code == 403
+    assert client.post(f"/actions/{action_id}/delete").status_code == 403
+
+    foreign_company = create_company("875")
+    foreign = create_user("note-delete-foreign", company=foreign_company,
+                          role_key="management_representative")
+    login(client, foreign)
+    assert client.get(f"/actions/{action_id}/delete").status_code == 404
+    assert client.post(f"/actions/{action_id}/delete").status_code == 404
+
+    login(client, s.manager)
+    confirmation = client.get(f"/actions/{action_id}/delete")
+    assert confirmation.status_code == 200
+    assert "Kaynak İSG notu ve denetim kayıtları korunacak" in confirmation.get_data(as_text=True)
+    assert 'href="/isg-aksiyonlari"' in confirmation.get_data(as_text=True)
+    db.session.refresh(s.note)
+    assert s.note.action_id == action_id
+    assert client.post(f"/actions/{action_id}/delete").status_code == 302
+    assert db.session.get(Action, action_id) is None
+    manifest = ActionEvidenceManifest.query.filter_by(stored_name=stored_name).one()
+    assert manifest.deleted_at is not None and manifest.cleaned_at is not None
+    assert not physical_file.exists()
+    db.session.refresh(s.note)
+    assert s.note.action_id is None
+    assert s.note.converted_at is not None
+    note_page = client.get(f"/isg-notlari/{s.note.id}")
+    assert note_page.status_code == 200
+    assert "Bağlı aksiyon silindi" in note_page.get_data(as_text=True)
+    assert client.get(f"/isg-aksiyonlari/yeni?ohs_note_id={s.note.id}").status_code == 409
+    note_event = AuditLog.query.filter_by(entity_type="OhsNote", action="action_deleted").one()
+    assert note_event.company_id == s.company.id and note_event.user_id == s.manager.id
+    assert AuditLog.query.filter_by(entity_type="Action", entity_id=action_id, action="deleted").count() == 1
 
 
 @pytest.mark.parametrize("assign_to_actor", [False, True])
